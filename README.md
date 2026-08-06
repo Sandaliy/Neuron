@@ -39,7 +39,7 @@ docs/             architecture, algorithm, design principles
 
 ## Getting started
 
-Requires Node 20.19 or newer and pnpm 10 or newer.
+Requires Node 22.13 or newer and pnpm 11 or newer.
 
 ```
 pnpm install
