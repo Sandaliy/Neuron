@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Dependencies that ship a native binary and need their install script to run.
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true

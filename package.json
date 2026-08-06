@@ -1,0 +1,31 @@
+{
+  "name": "neuron",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Spaced repetition that schedules your time, not your card count",
+  "license": "MIT",
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "node scripts/check-core-isolation.mjs && eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:core": "vitest --project core"
+  },
+  "devDependencies": {
+    "@neuron/config": "workspace:*",
+    "eslint": "^10.8.0",
+    "prettier": "^3.9.6",
+    "turbo": "^2.10.8",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

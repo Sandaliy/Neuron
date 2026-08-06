@@ -1,0 +1,5 @@
+# Keep line endings the same everywhere. Prettier is configured for lf, so a
+# checkout on Windows has to produce lf as well.
+* text=auto eol=lf
+
+pnpm-lock.yaml -diff linguist-generated=true

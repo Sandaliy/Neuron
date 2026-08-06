@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Task runner and test caches
+.turbo/
+coverage/
+.vitest/
+.eslintcache
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Assistant configuration and local project rules
+.claude/
+CLAUDE.md
+
+# Deployment platforms
+.wrangler/
+.vercel/
+.netlify/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local planning documents, not part of the public repository
+neuron-plan.md
+phase-0.md
+card-generation-prompt.md
+
+# OS and local files
+.DS_Store
+Thumbs.db
+*.local
+*.log

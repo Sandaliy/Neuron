@@ -1,0 +1,73 @@
+/*
+ * Design tokens.
+ *
+ * Every colour, spacing step, radius and duration used by the interface is
+ * defined here. Components read these variables and never write a raw value.
+ *
+ * Dark is the default theme. The light theme is applied by setting
+ * data-theme="light" on the html element.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces and text */
+  --bg: #0b0b0c;
+  --surface: #131316;
+  --surface-2: #1a1a1e;
+  --border: #26262b;
+  --text: #ececee;
+  --text-dim: #8b8b93;
+
+  /* The single accent. Primary action and focus rings only. */
+  --accent: #4d7fe8;
+
+  /* Status colours. Shared by both themes. */
+  --success: #3f9e6b;
+  --warn: #c08a2e;
+  --danger: #c25450;
+
+  /* Spacing scale. No other values. */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+
+  /* Radius scale. No other values. */
+  --radius-6: 6px;
+  --radius-10: 10px;
+  --radius-14: 14px;
+
+  /* Motion. Two durations, one curve. */
+  --duration-fast: 120ms;
+  --duration-slow: 180ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #fbfbfc;
+  --surface: #ffffff;
+  --surface-2: #f4f4f6;
+  --border: #e4e4e8;
+  --text: #17171a;
+  --text-dim: #6e6e76;
+
+  --accent: #3565ce;
+}
+
+/*
+ * Reduced motion is a system level request, not a preference to negotiate.
+ * Transitions still run so that state changes stay traceable, but they finish
+ * immediately.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 1ms;
+    --duration-slow: 1ms;
+  }
+}
