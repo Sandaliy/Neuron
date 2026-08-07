@@ -6,3 +6,6 @@ packages:
 allowBuilds:
   esbuild: true
   unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - tsx@4.23.9

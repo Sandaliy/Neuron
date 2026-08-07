@@ -4,3 +4,9 @@ build
 coverage
 .turbo
 pnpm-lock.yaml
+
+# Local planning documents. Not ours to format.
+neuron-plan.md
+phase-0.md
+phase-0.5.md
+card-generation-prompt.md

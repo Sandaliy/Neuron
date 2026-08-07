@@ -19,7 +19,10 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:core": "vitest --project core"
+    "test:core": "vitest --project core",
+    "db:generate": "pnpm --filter @neuron/api db:generate",
+    "db:migrate": "pnpm --filter @neuron/api db:migrate",
+    "db:studio": "pnpm --filter @neuron/api db:studio"
   },
   "devDependencies": {
     "@neuron/config": "workspace:*",

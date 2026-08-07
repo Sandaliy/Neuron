@@ -1,0 +1,32 @@
+{
+  "name": "@neuron/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hono api on the Vercel Node runtime",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/dev.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "@node-rs/argon2": "^2.0.2",
+    "better-auth": "^1.6.26",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^2.1.0",
+    "@types/node": "^26.1.2",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.9",
+    "typescript": "^5.9.3"
+  }
+}
