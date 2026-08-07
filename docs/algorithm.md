@@ -403,8 +403,33 @@ minutes cannot beat arithmetic. Neuron does not teach faster. Nothing below says
 it does.
 
 What a throttle can change is the shape of the load, and that is what the tables
-measure: the worst day, the worst week, how often an evening costs several times
-what was promised, and how long a return from three weeks away takes.
+measure.
+
+Two results carry the argument, and they are the two to read first.
+
+**The same amount is learned either way.** Across all five scenarios the two
+policies end the year within 1.9% of each other on cards known, and in S1 the
+adaptive arm is the one ahead. Whatever the throttle costs, it is not knowledge:
+it holds new cards back exactly while the collection cannot afford them, and the
+year comes out level.
+
+**Coming back from a fortnight away takes six days instead of fifty.** In S3 the
+adaptive arm is inside its budget again six days after the absence at day 60
+ends. The fixed limit takes fifty. That is the difference between a return with
+an end in sight and one without, and coming back is the moment collections get
+abandoned in real life.
+
+The second absence in that scenario, three weeks from day 150, goes the other
+way: seven days for the fixed limit against nine for the throttle. Worth
+understanding rather than skipping past. By day 171 the fixed arm has been out of
+new cards for two months and its load is falling on its own, so it has less to
+recover from. Six against fifty is the honest version of this claim, and it comes
+from one absence rather than from both.
+
+The load shape numbers, the worst day and the worst week, come after those two.
+They are real, they are between 1.3 and 2.7 times apart, and they are the weaker
+argument: the size of the gap depends heavily on how fast the person answers,
+and this learner is fast.
 
 ### The conditions
 
@@ -423,18 +448,33 @@ room.
 
 Minutes a day, and what the year cost.
 
-| scenario                   | policy   | mean | median | p95 | worst day | worst week | over budget | past 2x | over by |
-| -------------------------- | -------- | ---- | ------ | --- | --------- | ---------- | ----------- | ------- | ------- |
-| S1 burst import, 500 cards | fixed    | 2.3  | 1.0    | 16  | 20        | 127        | 8           | 0       | 0.1     |
-| S1                         | adaptive | 2.3  | 1.3    | 9   | 10        | 68         | 0           | 0       | 0.0     |
-| S2 Oxford 5000             | fixed    | 13.9 | 8.9    | 34  | 49        | 254        | 100         | 36      | 3.1     |
-| S2                         | adaptive | 12.2 | 13.6   | 18  | 27        | 127        | 92          | 0       | 0.5     |
-| S3 two absences            | fixed    | 13.7 | 8.1    | 33  | 162       | 337        | 96          | 34      | 3.6     |
-| S3                         | adaptive | 11.9 | 13.3   | 20  | 60        | 183        | 90          | 3       | 0.8     |
-| S4 production heavy        | fixed    | 18.2 | 11.4   | 47  | 82        | 370        | 124         | 59      | 5.8     |
-| S4                         | adaptive | 14.9 | 16.0   | 22  | 32        | 155        | 153         | 0       | 1.5     |
-| S5 three decks             | fixed    | 11.5 | 8.6    | 22  | 35        | 172        | 99          | 3       | 1.2     |
-| S5                         | adaptive | 10.7 | 10.3   | 17  | 27        | 127        | 60          | 0       | 0.3     |
+| scenario                   | policy   | mean | median | p95 | worst day | worst week | past 2x | over by |
+| -------------------------- | -------- | ---- | ------ | --- | --------- | ---------- | ------- | ------- |
+| S1 burst import, 500 cards | fixed    | 2.3  | 1.0    | 16  | 20        | 127        | 0       | 0.1     |
+| S1                         | adaptive | 2.3  | 1.3    | 9   | 10        | 68         | 0       | 0.0     |
+| S2 Oxford 5000             | fixed    | 13.9 | 8.9    | 34  | 49        | 254        | 36      | 3.1     |
+| S2                         | adaptive | 12.2 | 13.6   | 18  | 27        | 127        | 0       | 0.5     |
+| S3 two absences            | fixed    | 13.7 | 8.1    | 33  | 162       | 337        | 34      | 3.6     |
+| S3                         | adaptive | 11.9 | 13.3   | 20  | 60        | 183        | 3       | 0.8     |
+| S4 production heavy        | fixed    | 18.2 | 11.4   | 47  | 82        | 370        | 59      | 5.8     |
+| S4                         | adaptive | 14.9 | 16.0   | 22  | 32        | 155        | 0       | 1.5     |
+| S5 three decks             | fixed    | 11.5 | 8.6    | 22  | 35        | 172        | 3       | 1.2     |
+| S5                         | adaptive | 10.7 | 10.3   | 17  | 27        | 127        | 0       | 0.3     |
+
+`past 2x` counts days that went past twice the budget. `over by` is how far past
+the budget the average day went, counting days under it as zero.
+
+**A count of days over budget is deliberately not in that table**, although the
+simulator still prints one. It counts a session of 15 minutes and 4 seconds
+against a budget of 15 minutes as a day over budget, which is true and useless.
+Under it the adaptive arm looks worse in S4, 153 days against 124, while being
+better on every measure of how far over: 1.5 minutes on the average day against
+5.8, and never past double against 59 days past double. The reason is the whole
+card rule. A session fills the budget and then finishes the card it is on, so it
+crosses the line by seconds nearly every day, while the fixed arm spends the
+first two months well under the line and the rest of the year far over it. A
+threshold that a design deliberately sits on is not a threshold worth counting
+crossings of, so what is reported is magnitude.
 
 And what came out of the same runs.
 
@@ -479,14 +519,7 @@ what every application does. The summation shows up but it is the mildest of the
 five: a worst day of 35 against 27. At these limits three reasonable decks add up
 to something still close to reasonable.
 
-Two results in those tables cut against the design, and they stay in.
-
-**The adaptive arm is over budget on more days than the fixed one in S4**, 153
-against 124. That is the whole card rule: a session fills the budget and then
-finishes the card it is on, so it crosses the line by seconds almost every day,
-while the fixed arm spends the first two months well under it and the rest wildly
-over. The column to read next to it is how far over: 1.5 minutes a day against
-5.8, and never past double against 59 days past double.
+One result in those tables cuts against the design, and it stays in.
 
 **The adaptive arm gets slightly more out of an hour**, 65 cards known per hour
 against 57 in S2. It reviews cards a little later than the fixed arm does, and
@@ -532,8 +565,9 @@ seven runs with seven seeds, reported as a mean and a count of how many were
 abandoned.
 
 The adaptive arm is run once across those seven seeds and reused for every `k`.
-That is not a shortcut. Under a session capped at the budget the overload term is
-zero by construction, so `k` multiplies zero and the runs come out identical.
+Under a session capped at the budget the overload term is zero by construction,
+so `k` multiplies zero and the runs come out identical. That is worth holding on
+to while reading the table, and it is taken up again underneath it.
 
 | k   | fixed, known | gave up | adaptive, known | gave up | fixed, days studied | adaptive |
 | --- | ------------ | ------- | --------------- | ------- | ------------------- | -------- |
@@ -556,10 +590,37 @@ Read it as the simulator prints it:
 > real learners sit above or below 0.3 is an empirical question this simulation
 > cannot answer.
 
-For a sense of scale, k = 0.3 means a day carrying twice its budget is skipped
-35% of the time instead of 5%. That does not sound outlandish, which is exactly
-why it must not be presented as a finding. It is an assumption with a number
-attached, and the honest version of this claim ends at the sentence above.
+**That result is partly structural, and it has to be said before anybody works it
+out for themselves.** The dropout model is driven by overload and by nothing
+else. The adaptive policy is defined by not overloading. So the only mechanism
+that does any damage in this model is the one mechanism the adaptive policy
+removes by construction, and no value of `k` can touch it. That is also why its
+column is flat across the whole sweep: the overload term is zero, so `k`
+multiplies zero.
+
+What that makes the sweep is a consistency check, not evidence. It confirms that
+the pieces behave the way the design says they do: overload is what the model
+punishes, and the throttle removes overload, so the throttle is not punished.
+That is internal consistency. It is not external validity, and it does not show
+the policy helps for any reason other than avoiding overload.
+
+A different assumption would produce a different answer, and some of them would
+go the other way. If people abandon collections out of boredom rather than
+overload, a throttle that holds new cards back is the thing doing the harm. If
+what drives them off is the size of a backlog rather than the length of a
+session, the ranking depends on numbers neither model has. Nothing here rules
+those out.
+
+What is left standing when the behavioural model is thrown away entirely are the
+scenario tables above, where the learner never quits and the two policies still
+differ by a factor on every measure of magnitude. Those numbers do not depend on
+any of this.
+
+For a sense of scale on the number itself, k = 0.3 means a day carrying twice its
+budget is skipped 35% of the time instead of 5%. That does not sound outlandish,
+which is exactly why it must not be presented as a finding. It is an assumption
+with a number attached, and the honest version of this claim ends at the quoted
+sentence above.
 
 ### The three backlog orderings
 
@@ -597,20 +658,29 @@ first place.
 
 Written out, so that it can be checked against the tables above.
 
-- **The same learning per minute as an unconstrained scheduler.** Within half a
-  percent on cards known in S2, and never more than 2% apart in any scenario.
+Written out in the order they deserve, so that they can be checked against the
+tables above.
+
+- **The same amount learned, either way.** Within 1.9% on cards known in every
+  scenario, 0.5% in S2, and ahead in S1. Nothing is given up for the rest of this
+  list.
+- **Recovery from an absence as a plan with an end.** Six days against fifty
+  after the fortnight away in S3. After the three weeks away later in the same
+  run it is nine days against seven, for the reason given above.
 - **A daily cost the person chooses and the system holds to.** Never past twice
   the budget in four of the five scenarios and three days in the fifth, against
-  36 days in S2, 34 in S3 and 59 in S4 under a fixed limit.
-- **A worst day 1.3 to 2.7 times smaller**, and a worst week 1.4 to 2.4 times
-  smaller, depending on the scenario. The small end of both is S5, where three
-  modest deck limits add up to something a budget barely improves on.
+  36 days in S2, 34 in S3 and 59 in S4 under a fixed limit. The average day ends
+  at most 1.5 minutes past the budget, against up to 5.8.
 - **A forecast of what the next sixty days cost**, before committing to anything.
-- **Recovery from an absence as a plan with an end**, six days against fifty in
-  S3.
+- **A worst day 1.3 to 2.7 times smaller**, and a worst week 1.4 to 2.4 times
+  smaller, depending on the scenario. Last on the list on purpose: the size of
+  the gap depends on how fast the person answers, and the small end of both is
+  S5, where three modest deck limits add up to something a budget barely improves
+  on.
 
 And what is not claimed: that it teaches faster, that it beats FSRS at anything,
-or that the behavioural model above is a finding.
+or that the behavioural model above is a finding rather than an assumption whose
+result follows from its own shape.
 
 ## How this was checked
 
