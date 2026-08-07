@@ -17,12 +17,14 @@ try {
   // not, the check below says exactly which one is missing.
 }
 
+const { Hono } = await import('hono');
 const { loadEnv } = await import('./env.js');
-const { createApp } = await import('./create-app.js');
+const { registerRoutes } = await import('./create-app.js');
 
 const env = loadEnv();
+const app = registerRoutes(new Hono());
 
-serve({ fetch: createApp().fetch, port: env.PORT }, (info) => {
+serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`api listening on http://localhost:${info.port}`);
   console.log(`stack check page: http://localhost:${info.port}/spike`);
 });

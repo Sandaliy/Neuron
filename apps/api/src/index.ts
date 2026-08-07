@@ -1,10 +1,12 @@
-import { createApp } from './create-app.js';
+import { Hono } from 'hono';
+
+import { registerRoutes } from './create-app.js';
 
 /**
- * The entry point Vercel looks for. It builds the app once per instance and
- * exports it, and every route in it becomes a Vercel Function.
+ * The entry point Vercel deploys. It has to create the Hono app here, because
+ * the builder looks for an entry file that imports hono directly.
  *
- * The file is deliberately this small. Local development starts from dev.ts
- * instead, because there the environment has to be read from .env first.
+ * Local development starts from dev.ts instead, since there the environment
+ * has to be read out of .env before anything else runs.
  */
-export default createApp();
+export default registerRoutes(new Hono());

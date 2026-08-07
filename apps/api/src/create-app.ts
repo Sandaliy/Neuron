@@ -1,4 +1,3 @@
-import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
 import { createAuth } from './auth.js';
@@ -8,10 +7,19 @@ import { loadEnv } from './env.js';
 import { createInMemoryRateLimiter } from './rate-limit.js';
 import { spikePage } from './spike-page.js';
 
+import type { Hono } from 'hono';
+
 const AUTH_ATTEMPTS_PER_WINDOW = 20;
 const AUTH_WINDOW_MS = 60_000;
 
-export function createApp(): Hono {
+/**
+ * Mounts every route onto an app the caller owns.
+ *
+ * The Hono instance is created by the caller rather than here, because the
+ * Vercel builder looks for an entry file that imports hono itself and refuses
+ * to deploy when it only finds an import of a neighbouring module.
+ */
+export function registerRoutes(app: Hono): Hono {
   const env = loadEnv();
   const db = createDb(env.DATABASE_URL);
   const auth = createAuth({ env, db });
@@ -19,8 +27,6 @@ export function createApp(): Hono {
     limit: AUTH_ATTEMPTS_PER_WINDOW,
     windowMs: AUTH_WINDOW_MS,
   });
-
-  const app = new Hono();
 
   // One origin, no wildcard. Credentials are on because the session lives in a
   // cookie the browser has to send back.
