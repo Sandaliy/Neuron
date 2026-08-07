@@ -13,8 +13,13 @@ import { createSeededRandom } from '../fsrs/random.js';
 import { createBudget } from '../workload/budget.js';
 import { createWorkloadConfig } from '../workload/config.js';
 
-import { AVERAGE_LEARNER } from './learner.js';
-import { KNOWN_STABILITY_DAYS, simulate, type SimulationOptions } from './simulate.js';
+import { AVERAGE_LEARNER, DEFAULT_DROPOUT, skipChance } from './learner.js';
+import {
+  KNOWN_STABILITY_DAYS,
+  simulate,
+  type DeckSpec,
+  type SimulationOptions,
+} from './simulate.js';
 
 const START = new Date('2026-01-05T12:00:00Z');
 
@@ -24,17 +29,27 @@ const config = createWorkloadConfig({
 
 const budget = createBudget({ minutesByWeekday: [30, 15, 15, 15, 15, 15, 30] });
 
+/** A deck of a given number of cards, two directions to each note. */
+function deck(cards: number, newPerDay = 20): DeckSpec {
+  return {
+    id: 'test',
+    notes: Math.ceil(cards / 2),
+    directions: ['recognition', 'recall'],
+    newPerDay,
+  };
+}
+
 /** A short run, enough to have a shape without taking a minute. */
 function options(overrides: Partial<SimulationOptions> = {}): SimulationOptions {
   return {
     label: 'test',
-    deckSize: 300,
+    decks: [deck(300)],
     days: 60,
     start: START,
     config,
     budget,
     learner: AVERAGE_LEARNER,
-    policy: { kind: 'fixed', perDay: 20 },
+    policy: { kind: 'fixed' },
     ...overrides,
   };
 }
@@ -72,6 +87,9 @@ describe('a run', () => {
     expect(result.summary.newCardsIntroduced).toBe(
       result.days.reduce((sum, day) => sum + day.newCards, 0),
     );
+    expect(result.summary.peakDailyMinutes).toBe(
+      Math.max(...result.days.map((day) => day.minutes)),
+    );
   });
 
   it('learns cards, and only counts one as known once it is worth three weeks', () => {
@@ -95,12 +113,49 @@ describe('a run', () => {
   });
 });
 
+describe('the numbers that describe the experience', () => {
+  it('orders the peak, the ninety fifth day and the median', () => {
+    const result = simulate(options({ days: 120 }), createSeededRandom(13));
+    const summary = result.summary;
+
+    expect(summary.peakDailyMinutes).toBeGreaterThanOrEqual(summary.p95DailyMinutes);
+    expect(summary.p95DailyMinutes).toBeGreaterThanOrEqual(summary.medianMinutes);
+    expect(summary.dailyMinutesStdDev).toBeGreaterThan(0);
+  });
+
+  it('counts a day over double the budget as also over the budget', () => {
+    const result = simulate(options({ days: 120 }), createSeededRandom(14));
+
+    expect(result.summary.daysOverDoubleBudget).toBeLessThanOrEqual(result.summary.daysOverBudget);
+  });
+
+  it('finds the worst week somewhere inside the total', () => {
+    const result = simulate(options({ days: 120 }), createSeededRandom(15));
+
+    expect(result.summary.worstWeekMinutes).toBeGreaterThan(0);
+    expect(result.summary.worstWeekMinutes).toBeLessThanOrEqual(result.summary.totalMinutes);
+  });
+
+  it('reports one recovery time per absence', () => {
+    const result = simulate(
+      options({
+        days: 200,
+        decks: [deck(1000)],
+        absences: [
+          { startDay: 40, days: 14 },
+          { startDay: 120, days: 21 },
+        ],
+      }),
+      createSeededRandom(16),
+    );
+
+    expect(result.summary.daysToRecover).toHaveLength(2);
+  });
+});
+
 describe('the two policies', () => {
   it('lets the fixed limit hand out exactly its number a day', () => {
-    const result = simulate(
-      options({ days: 20, policy: { kind: 'fixed', perDay: 10 } }),
-      createSeededRandom(7),
-    );
+    const result = simulate(options({ days: 20, decks: [deck(300, 10)] }), createSeededRandom(7));
 
     for (const day of result.days) {
       expect(day.newCards).toBeLessThanOrEqual(10);
@@ -109,27 +164,48 @@ describe('the two policies', () => {
 
   it('keeps the adaptive arm nearer the budget than the fixed one', { timeout: 120_000 }, () => {
     const fixed = simulate(
-      options({ days: 120, deckSize: 2000, policy: { kind: 'fixed', perDay: 20 } }),
+      options({ days: 120, decks: [deck(2000, 20)], policy: { kind: 'fixed' } }),
       createSeededRandom(8),
     );
     const adaptive = simulate(
-      options({ days: 120, deckSize: 2000, policy: { kind: 'adaptive' } }),
+      options({ days: 120, decks: [deck(2000, 20)], policy: { kind: 'adaptive' } }),
       createSeededRandom(8),
     );
 
     expect(adaptive.summary.meanOvershootMinutes).toBeLessThan(fixed.summary.meanOvershootMinutes);
-    expect(adaptive.summary.newCardsIntroduced).toBeLessThan(fixed.summary.newCardsIntroduced);
+    expect(adaptive.summary.peakDailyMinutes).toBeLessThan(fixed.summary.peakDailyMinutes);
   });
 
   it('holds the adaptive arm under the budget on average', { timeout: 120_000 }, () => {
     const result = simulate(
-      options({ days: 120, deckSize: 2000, policy: { kind: 'adaptive' } }),
+      options({ days: 120, decks: [deck(2000, 20)], policy: { kind: 'adaptive' } }),
       createSeededRandom(9),
     );
     const meanBudget =
       result.days.reduce((sum, day) => sum + day.budgetMinutes, 0) / result.days.length;
 
     expect(result.summary.meanMinutes).toBeLessThan(meanBudget);
+  });
+
+  it('gives every deck its own allowance in the fixed arm', () => {
+    const result = simulate(
+      options({
+        days: 10,
+        decks: [
+          { id: 'english', notes: 200, directions: ['recognition', 'recall'], newPerDay: 10 },
+          { id: 'german', notes: 200, directions: ['recognition', 'recall'], newPerDay: 10 },
+        ],
+      }),
+      createSeededRandom(17),
+    );
+
+    // Two decks of ten a day is twenty a day, which is the point of the
+    // scenario: neither deck looks unreasonable on its own.
+    for (const day of result.days) {
+      expect(day.newCards).toBeLessThanOrEqual(20);
+    }
+
+    expect(result.summary.newCardsIntroduced).toBeGreaterThan(100);
   });
 });
 
@@ -138,9 +214,9 @@ describe('a month away', () => {
     const result = simulate(
       options({
         days: 150,
-        deckSize: 2000,
+        decks: [deck(2000)],
         policy: { kind: 'adaptive' },
-        absence: { startDay: 60, days: 30 },
+        absences: [{ startDay: 60, days: 30 }],
       }),
       createSeededRandom(11),
     );
@@ -158,9 +234,9 @@ describe('a month away', () => {
     const result = simulate(
       options({
         days: 160,
-        deckSize: 3000,
+        decks: [deck(3000)],
         policy: { kind: 'adaptive' },
-        absence: { startDay: 90, days: 45 },
+        absences: [{ startDay: 90, days: 45 }],
       }),
       createSeededRandom(12),
     );
@@ -172,5 +248,43 @@ describe('a month away', () => {
     for (const day of fortnightBack) {
       expect(day.minutes).toBeLessThan(day.budgetMinutes * 2.5);
     }
+  });
+});
+
+describe('the attendance assumption', () => {
+  it('says overload changes nothing when the sensitivity is zero', () => {
+    expect(skipChance(DEFAULT_DROPOUT, 200, 15)).toBe(DEFAULT_DROPOUT.baseSkip);
+  });
+
+  it('raises the chance of skipping with the overload, once it is not zero', () => {
+    const sensitive = { ...DEFAULT_DROPOUT, overloadSensitivity: 0.5 };
+
+    expect(skipChance(sensitive, 15, 15)).toBeCloseTo(0.05, 10);
+    expect(skipChance(sensitive, 30, 15)).toBeCloseTo(0.55, 10);
+    expect(skipChance(sensitive, 300, 15)).toBe(sensitive.maxSkip);
+  });
+
+  it('abandons the collection after enough silence', () => {
+    // A learner who skips almost every day gives up inside three weeks.
+    const result = simulate(
+      options({
+        days: 120,
+        dropout: { ...DEFAULT_DROPOUT, baseSkip: 1, maxSkip: 1, abandonAfterSkippedDays: 21 },
+      }),
+      createSeededRandom(18),
+    );
+
+    expect(result.summary.abandonedOnDay).toBe(20);
+    expect(result.summary.daysStudied).toBe(0);
+  });
+
+  it('never abandons a learner who keeps turning up', () => {
+    const result = simulate(
+      options({ days: 120, dropout: { ...DEFAULT_DROPOUT, baseSkip: 0 } }),
+      createSeededRandom(19),
+    );
+
+    expect(result.summary.abandonedOnDay).toBeNull();
+    expect(result.summary.daysStudied).toBe(120);
   });
 });

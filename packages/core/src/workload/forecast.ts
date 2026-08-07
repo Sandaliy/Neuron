@@ -92,6 +92,23 @@ export const RATING_PRIOR_STRENGTH = 20;
  */
 export const FORECAST_PRUNE_WEIGHT = 0.0001;
 
+/**
+ * The threshold the throttle runs at, over its fourteen day window.
+ *
+ * The error from a coarse threshold compounds with the length of the horizon,
+ * so a fortnight tolerates one that two months does not. Measured against
+ * Monte Carlo on the same collection:
+ *
+ *   over 14 days   0.001 is 1.4% low and takes 16 ms, 0.0001 is 0.3% low and
+ *                  takes 53 ms
+ *   over 60 days   0.001 is 4% low, which is why it is not the default
+ *
+ * The throttle is deciding how many whole cards fit in the room that is left.
+ * A percent and a half of a minute does not change that answer, and this runs
+ * on a phone every time the application is opened.
+ */
+export const THROTTLE_PRUNE_WEIGHT = 0.001;
+
 /** How many times one card may come back inside a single day. */
 const MAX_SAME_DAY_REVIEWS = 64;
 

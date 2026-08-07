@@ -30,6 +30,12 @@ export interface ChartOptions {
   readonly yMax?: number;
   /** What the first point is called on the axis, when it is not day zero. */
   readonly xStart?: number;
+  /**
+   * A label for every point, when the axis is not a run of days. Used by the
+   * sensitivity chart, whose points are values of a parameter rather than
+   * dates, and where an axis reading 0 to 7 would be a lie.
+   */
+  readonly xLabels?: readonly string[];
 }
 
 const WIDTH = 760;
@@ -177,16 +183,18 @@ export function lineChart(options: ChartOptions): string {
   }
 
   // Vertical ticks every thirty days, or every tenth of the run if it is short.
-  const xStep = length > 120 ? 60 : Math.max(1, Math.round(length / 6));
+  const xStep =
+    options.xLabels === undefined ? (length > 120 ? 60 : Math.max(1, Math.round(length / 6))) : 1;
 
   for (let index = 0; index < length; index += xStep) {
     const x = xFor(index);
+    const label = options.xLabels?.[index] ?? String(index + (options.xStart ?? 0));
 
     parts.push(
       `<line x1="${x.toFixed(1)}" y1="${PAD_TOP + plotHeight}" x2="${x.toFixed(1)}" y2="${PAD_TOP + plotHeight + 5}" stroke="${BORDER}" stroke-width="1"/>`,
     );
     parts.push(
-      `<text x="${x.toFixed(1)}" y="${PAD_TOP + plotHeight + 19}" font-size="11" fill="${TEXT_DIM}" text-anchor="middle">${index + (options.xStart ?? 0)}</text>`,
+      `<text x="${x.toFixed(1)}" y="${PAD_TOP + plotHeight + 19}" font-size="11" fill="${TEXT_DIM}" text-anchor="middle">${escape(label)}</text>`,
     );
   }
 

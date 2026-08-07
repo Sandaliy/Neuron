@@ -12,15 +12,29 @@ Every review app asks how many cards you want per day. That number is a guess, a
 creates arrives weeks later. Neuron asks how many minutes you have instead, measures how fast you
 actually answer, and shapes the schedule around that.
 
-Here is the difference, simulated over a year with the same virtual learner in both arms and only
-the policy changed. The red line is a fixed limit of 20 new cards a day. The blue line is the same
-learner under a 15 minute budget.
+Here is what that changes, simulated over a year with the same virtual learner in both arms and
+only the policy swapped. The red line is a fixed limit of 50 new cards a day on a 5000 word list,
+which is what people do after importing one. The blue line is the same learner under a budget of
+15 minutes on weekdays and 30 at the weekend.
 
-![Minutes a day under a fixed limit and under a time budget](docs/assets/workload-large-collection.svg)
+![Minutes a day under a fixed limit and under a time budget](docs/assets/workload-daily-load.svg)
 
-The fixed limit never settles: 18.9 minutes a day at day 90, 28.7 at day 365 and still climbing.
-The budget holds at around 15 and learns 70% as many words for 67% of the minutes. That trade, and
-how it was measured, is in [docs/algorithm.md](docs/algorithm.md).
+Both arms finish the year knowing the same amount: 4834 cards against 4809. **Neuron does not
+teach you faster, and nothing here claims it does.** What it changes is the shape of the demand.
+
+| over one simulated year         | fixed 50 a day | 15 minute budget |
+| ------------------------------- | -------------- | ---------------- |
+| worst single day                | 49 min         | 27 min           |
+| worst week                      | 254 min        | 127 min          |
+| days past twice what you agreed | 36             | 0                |
+| cards known at day 365          | 4834           | 4809             |
+
+Add two absences to the same year, a fortnight at day 60 and three weeks at day 150, and the day
+you come back costs 162 minutes under the fixed limit against 60 under the budget, and it takes 50
+days to get straight against 6.
+
+The scenarios behind those numbers, including the one where the difference is small, are in
+[docs/algorithm.md](docs/algorithm.md).
 
 ## Features
 
