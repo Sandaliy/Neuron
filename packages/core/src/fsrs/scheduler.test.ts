@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { MS_PER_DAY, MS_PER_MINUTE } from './math.js';
+import { MS_PER_DAY, MS_PER_MINUTE } from '../time/day.js';
+
 import { createSchedulerConfig } from './parameters.js';
 import { createSeededRandom, type RandomSource } from './random.js';
 import { preview, replay, retrievability, review } from './scheduler.js';

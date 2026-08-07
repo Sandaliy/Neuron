@@ -19,7 +19,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "demo": "tsx demo/main.ts",
-    "typecheck": "tsc -p tsconfig.json && tsc -p demo/tsconfig.json"
+    "simulate": "tsx sim/main.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p demo/tsconfig.json && tsc -p sim/tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",

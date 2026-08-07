@@ -86,6 +86,15 @@ export interface ReviewLog {
   readonly elapsedDays: number;
   /** Whole days the card had been waiting for. Zero for a card in learning. */
   readonly scheduledDays: number;
+  /**
+   * Where this answer placed the card, after fuzz or load balancing moved it.
+   *
+   * The memory model is a function of the log and can be recomputed anywhere,
+   * but the day a card landed on cannot: it was drawn from a generator on one
+   * device. Recording it is what lets a second device rebuild the same card
+   * instead of quietly disagreeing about when it is due.
+   */
+  readonly placedDue: Date;
   /** The state the card was in when the question was asked. */
   readonly stateBefore: CardState;
   /** Stability before this answer, absent on the first review of a card. */

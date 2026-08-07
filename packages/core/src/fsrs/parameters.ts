@@ -8,6 +8,13 @@
  * into range instead of being trusted.
  */
 
+import {
+  DEFAULT_DAY_CUTOFF_HOUR,
+  DEFAULT_TIME_ZONE,
+  isSupportedTimeZone,
+  type DayBoundary,
+} from '../time/day.js';
+
 import { clamp, round8 } from './math.js';
 
 /** How many weights FSRS-6 takes. FSRS-4 took 17 and FSRS-5 took 19. */
@@ -191,7 +198,7 @@ export function clampParameters(
 }
 
 /** Everything the scheduler needs besides the card itself. */
-export interface SchedulerConfig {
+export interface SchedulerConfig extends DayBoundary {
   /** The 21 FSRS-6 weights. */
   readonly parameters: FsrsParameters;
   /** Chance of recall to aim for at the moment a card comes up, 0.8 to 0.97. */
@@ -204,6 +211,10 @@ export interface SchedulerConfig {
   readonly maximumInterval: number;
   /** Whether to scatter intervals a little so cards do not pile onto one day. */
   readonly enableFuzz: boolean;
+  /** The user's IANA timezone, which decides which day an answer counts for. */
+  readonly timezone: string;
+  /** The local hour a day rolls over at, 0 to 23. */
+  readonly dayCutoffHour: number;
 }
 
 /**
@@ -222,6 +233,8 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = Object.freeze({
   relearningSteps: DEFAULT_RELEARNING_STEPS,
   maximumInterval: DEFAULT_MAXIMUM_INTERVAL,
   enableFuzz: true,
+  timezone: DEFAULT_TIME_ZONE,
+  dayCutoffHour: DEFAULT_DAY_CUTOFF_HOUR,
 });
 
 /**
@@ -284,6 +297,18 @@ export function createSchedulerConfig(overrides: SchedulerConfigInput = {}): Sch
     'relearningSteps',
   );
 
+  const timezone = overrides.timezone ?? DEFAULT_TIME_ZONE;
+
+  if (!isSupportedTimeZone(timezone)) {
+    throw new RangeError(`"${timezone}" is not a timezone this platform knows.`);
+  }
+
+  const dayCutoffHour = overrides.dayCutoffHour ?? DEFAULT_DAY_CUTOFF_HOUR;
+
+  if (!Number.isInteger(dayCutoffHour) || dayCutoffHour < 0 || dayCutoffHour > 23) {
+    throw new RangeError(`The day cutoff must be a whole hour from 0 to 23, got ${dayCutoffHour}.`);
+  }
+
   return Object.freeze({
     parameters: clampParameters(
       overrides.parameters ?? DEFAULT_FSRS_PARAMETERS,
@@ -294,5 +319,7 @@ export function createSchedulerConfig(overrides: SchedulerConfigInput = {}): Sch
     relearningSteps: Object.freeze(relearningSteps),
     maximumInterval,
     enableFuzz: overrides.enableFuzz ?? DEFAULT_SCHEDULER_CONFIG.enableFuzz,
+    timezone,
+    dayCutoffHour,
   });
 }

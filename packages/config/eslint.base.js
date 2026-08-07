@@ -127,6 +127,32 @@ export function createNeuronEslintConfig({ rootDir }) {
       },
     },
 
+    // The simulator is a development tool. It sits outside src, never ships,
+    // and has to write a CSV and four charts, so it is the one place in the
+    // package allowed to reach for Node. It still may not touch another
+    // workspace package, and the isolation check in scripts/ still covers
+    // everything under src.
+    {
+      files: ['packages/core/sim/**/*.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: ['@neuron/*', '@neuron/*/**'],
+                message: 'packages/core must not depend on another workspace package.',
+              },
+              {
+                group: ['**/apps/**', '**/packages/!(core)/**'],
+                message: 'packages/core must not reach into apps or into another package.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+
     // Prettier owns formatting. This turns off every rule that would argue.
     prettierCompat,
   );

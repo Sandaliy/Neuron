@@ -10,7 +10,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { MS_PER_DAY } from './math.js';
+import { MS_PER_DAY } from '../time/day.js';
+
 import { createSchedulerConfig } from './parameters.js';
 import { createSeededRandom } from './random.js';
 import { review } from './scheduler.js';

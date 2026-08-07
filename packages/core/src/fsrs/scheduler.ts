@@ -11,7 +11,9 @@
  * and the randomness arrives as a generator.
  */
 
-import { MINUTES_PER_DAY, MS_PER_DAY, MS_PER_MINUTE, calendarDaysBetween, clamp } from './math.js';
+import { MINUTES_PER_DAY, MS_PER_DAY, MS_PER_MINUTE, dayDifference } from '../time/day.js';
+
+import { clamp } from './math.js';
 import {
   forgetStability,
   forgettingCurve,
@@ -94,12 +96,12 @@ const FUZZ_RANGES: readonly { start: number; end: number; share: number }[] = [
  * from a phone with a skewed clock. Rather than refusing to schedule, that is
  * read as another answer on the same day, which is what it almost always is.
  */
-function elapsedDaysFor(state: SchedulingState, now: Date): number {
+function elapsedDaysFor(state: SchedulingState, now: Date, config: SchedulerConfig): number {
   if (state.state === 'new') {
     return 0;
   }
 
-  return Math.max(calendarDaysBetween(state.lastReview, now), 0);
+  return Math.max(dayDifference(state.lastReview, now, config), 0);
 }
 
 /** Whole days the card had been waiting when it was answered. */
@@ -449,7 +451,7 @@ function scheduleAll(
     throw new RangeError('The review time is not a valid date.');
   }
 
-  const elapsedDays = elapsedDaysFor(state, now);
+  const elapsedDays = elapsedDaysFor(state, now, config);
 
   return state.state === 'review'
     ? scheduleFromReview(state, now, elapsedDays, config, fuzzFactor)
@@ -473,7 +475,7 @@ export function retrievability(state: SchedulingState, now: Date, config: Schedu
     return 0;
   }
 
-  const elapsedDays = Math.max(calendarDaysBetween(state.lastReview, now), 0);
+  const elapsedDays = Math.max(dayDifference(state.lastReview, now, config), 0);
 
   return forgettingCurve(config.parameters, elapsedDays, state.stability);
 }
@@ -495,7 +497,10 @@ export function preview(
   now: Date,
   config: SchedulerConfig,
 ): PreviewByRating {
-  return scheduleAll(state, now, { ...config, enableFuzz: false }, 0);
+  // Settings with fuzz already off are used as they are. The forecast calls
+  // this once per card per day of its horizon, and a copy of the settings on
+  // every one of those adds up.
+  return scheduleAll(state, now, config.enableFuzz ? { ...config, enableFuzz: false } : config, 0);
 }
 
 /**
@@ -528,8 +533,9 @@ export function review(
     log: {
       rating,
       reviewedAt: now,
-      elapsedDays: elapsedDaysFor(state, now),
+      elapsedDays: elapsedDaysFor(state, now, config),
       scheduledDays: scheduledDaysFor(state),
+      placedDue: outcome.next.due,
       stateBefore: state.state,
       stabilityBefore: state.stability,
       difficultyBefore: state.difficulty,
@@ -546,9 +552,13 @@ export function review(
  * card while offline, the logs are merged by timestamp and replayed, and both
  * devices end up with the same card without either having to win.
  *
- * Fuzz is left off here. It only scatters the due date, never stability or
- * difficulty, and a rebuild has to be the same on every device, so the card
- * comes back on the day the model actually asked for.
+ * Stability and difficulty are recomputed, because they are a function of the
+ * log and every device computes them identically. The due date is not: fuzz
+ * and load balancing both draw from a generator, so the day a card actually
+ * landed on exists nowhere except in the row that recorded it. It is read back
+ * rather than recomputed. Without that, a phone and a laptop rebuilding the
+ * same card would disagree about when it is due, and nobody would find out for
+ * months.
  *
  * @param logs the review rows in the order they happened
  * @param config the settings
@@ -566,7 +576,15 @@ export function replay(logs: readonly ReviewLog[], config: SchedulerConfig): Sch
   let state: SchedulingState = newCard(first.reviewedAt);
 
   for (const log of logs) {
-    state = review(state, log.rating, log.reviewedAt, withoutFuzz, unused, log.durationMs).next;
+    const recomputed: SchedulingState = review(
+      state,
+      log.rating,
+      log.reviewedAt,
+      withoutFuzz,
+      unused,
+    ).next;
+
+    state = { ...recomputed, due: log.placedDue };
   }
 
   return state;

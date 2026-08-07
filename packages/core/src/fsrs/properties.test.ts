@@ -7,7 +7,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { MS_PER_DAY, MS_PER_MINUTE } from './math.js';
+import { MS_PER_DAY, MS_PER_MINUTE } from '../time/day.js';
+
 import {
   MAX_DIFFICULTY,
   MIN_DIFFICULTY,
@@ -344,6 +345,122 @@ describe('what always holds', () => {
 
       expect(retrievability(last.after, at, config)).toBeCloseTo(0.9, 1);
     }
+  });
+});
+
+/**
+ * Answers a card at random and keeps both the log and the card it produced.
+ *
+ * The moments are drawn the way real use looks: usually on the day the card is
+ * due, sometimes twice in one day, sometimes after weeks of silence.
+ */
+function runHistory(
+  seed: number,
+  config: SchedulerConfig,
+): { logs: ReviewLog[]; state: SchedulingState } {
+  const random = createSeededRandom(seed + 4000);
+  const fuzz = createSeededRandom(seed + 90_000);
+  const logs: ReviewLog[] = [];
+  let state: SchedulingState = newCard(START);
+  let at = START;
+
+  for (let index = 0; index < 12; index += 1) {
+    const rating = RATINGS[Math.floor(random() * RATINGS.length)] ?? RATING.good;
+    const result = review(state, rating, at, config, fuzz, Math.floor(random() * 20_000));
+
+    logs.push(result.log);
+    state = result.next;
+
+    const roll = random();
+
+    if (roll < 0.2) {
+      at = new Date(at.getTime() + Math.floor(random() * 300) * MS_PER_MINUTE);
+    } else if (roll < 0.9) {
+      at = new Date(state.due.getTime());
+    } else {
+      at = new Date(state.due.getTime() + Math.floor(random() * 40) * MS_PER_DAY);
+    }
+  }
+
+  return { logs, state };
+}
+
+/** The first field on which a rebuilt card differs from the real one. */
+function firstDifference(rebuilt: SchedulingState, actual: SchedulingState): string | null {
+  if (rebuilt.state !== actual.state) {
+    return `state ${rebuilt.state} against ${actual.state}`;
+  }
+
+  if (rebuilt.stability !== actual.stability) {
+    return `stability ${String(rebuilt.stability)} against ${String(actual.stability)}`;
+  }
+
+  if (rebuilt.difficulty !== actual.difficulty) {
+    return `difficulty ${String(rebuilt.difficulty)} against ${String(actual.difficulty)}`;
+  }
+
+  if (rebuilt.due.getTime() !== actual.due.getTime()) {
+    return `due ${rebuilt.due.toISOString()} against ${actual.due.toISOString()}`;
+  }
+
+  if (rebuilt.lastReview?.getTime() !== actual.lastReview?.getTime()) {
+    return `last review ${String(rebuilt.lastReview)} against ${String(actual.lastReview)}`;
+  }
+
+  if (rebuilt.reps !== actual.reps || rebuilt.lapses !== actual.lapses) {
+    return `reps and lapses ${rebuilt.reps}/${rebuilt.lapses} against ${actual.reps}/${actual.lapses}`;
+  }
+
+  return rebuilt.learningStep === actual.learningStep
+    ? null
+    : `learning step ${rebuilt.learningStep} against ${actual.learningStep}`;
+}
+
+describe('rebuilding a card from its log when fuzz moved it', () => {
+  it('reproduces state, stability, difficulty and the due date over 5000 histories', async ({
+    annotate,
+  }) => {
+    const fuzzy = createSchedulerConfig({ enableFuzz: true });
+    const plain = createSchedulerConfig({ enableFuzz: false });
+    const failures: string[] = [];
+    let historiesFuzzMoved = 0;
+
+    for (let seed = 0; seed < 5000; seed += 1) {
+      const scattered = runHistory(seed, fuzzy);
+      const difference = firstDifference(replay(scattered.logs, fuzzy), scattered.state);
+
+      if (difference !== null) {
+        failures.push(`seed ${seed}: ${difference}`);
+        break;
+      }
+
+      // Without fuzz the same answers would have landed on other days. If they
+      // never did, this test would be proving nothing.
+      if (runHistory(seed, plain).state.due.getTime() !== scattered.state.due.getTime()) {
+        historiesFuzzMoved += 1;
+      }
+    }
+
+    await annotate(
+      `5000 histories rebuilt from their logs, fuzz had moved the card in ${historiesFuzzMoved} of them`,
+    );
+
+    expect(failures).toEqual([]);
+    expect(historiesFuzzMoved).toBeGreaterThan(1000);
+  });
+
+  it('agrees with the other device about the day, not only about the memory', () => {
+    // The bug this guards against: a phone applies fuzz and files the card on
+    // Tuesday, a laptop rebuilds the same card from the same log and files it
+    // on Monday. Both are self consistent, and they stay a day apart forever.
+    const config = createSchedulerConfig({ enableFuzz: true });
+    const phone = runHistory(17, config);
+    const laptop = replay(phone.logs, config);
+
+    expect(laptop.due.getTime()).toBe(phone.state.due.getTime());
+    expect(laptop.state).toBe(phone.state.state);
+    expect(laptop.stability).toBe(phone.state.stability);
+    expect(laptop.difficulty).toBe(phone.state.difficulty);
   });
 });
 

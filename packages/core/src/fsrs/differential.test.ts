@@ -42,6 +42,9 @@ const TOLERANCE = 1e-9;
 
 const REFERENCE_STATES: readonly CardState[] = ['new', 'learning', 'review', 'relearning'];
 
+/** ts-fsrs files every answer under its UTC date, with no cutoff hour. */
+const REFERENCE_DAY_BOUNDARY = { timezone: 'UTC', dayCutoffHour: 0 } as const;
+
 /** One generated answer. */
 interface GeneratedReview {
   readonly rating: Rating;
@@ -108,6 +111,11 @@ function generateHistory(random: RandomSource): GeneratedHistory {
     relearningSteps,
     maximumInterval: [36_500, 3650, 365][pick(random, 0, 2)] ?? 36_500,
     enableFuzz: false,
+    // The reference counts a day as a UTC calendar day and has no cutoff hour,
+    // so the comparison is run under its convention. Our own default, 04:00 in
+    // the user's timezone, changes which day an answer is filed under and
+    // nothing else: the same two answers still come out one day apart.
+    ...REFERENCE_DAY_BOUNDARY,
   });
 
   const reviewCount = pick(random, 1, MAX_REVIEWS);
@@ -237,7 +245,7 @@ describe('the scheduler against ts-fsrs', () => {
   );
 
   it('agrees on the four button preview of a card in the review state', () => {
-    const config = createSchedulerConfig({ enableFuzz: false });
+    const config = createSchedulerConfig({ enableFuzz: false, ...REFERENCE_DAY_BOUNDARY });
     const scheduler = fsrs({
       w: [...config.parameters],
       request_retention: config.desiredRetention,
