@@ -18,9 +18,13 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json"
+    "demo": "tsx demo/main.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p demo/tsconfig.json"
   },
   "devDependencies": {
+    "@types/node": "^26.1.2",
+    "ts-fsrs": "^5.4.1",
+    "tsx": "^4.23.9",
     "typescript": "^5.9.3"
   }
 }

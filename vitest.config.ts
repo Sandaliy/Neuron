@@ -5,6 +5,11 @@ import { defineConfig } from 'vitest/config';
 // narrows it down to one package.
 export default defineConfig({
   test: {
+    // Every test name is printed, not just the failures. A run is the only
+    // report on the scheduler that someone who does not read code can use, so
+    // the names have to say what was checked, and the notes a test attaches to
+    // itself (the size of the differential run, for one) have to be visible.
+    reporters: ['verbose'],
     projects: [
       {
         test: {

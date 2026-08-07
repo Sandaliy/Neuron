@@ -17,9 +17,13 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const coreDir = path.join(rootDir, 'packages', 'core');
 const sourceDir = path.join(coreDir, 'src');
 
-// The test runner is the only package a file in core may name, and only a test
-// file may name it.
-const allowedPackages = new Map([['vitest', /\.test\.ts$/]]);
+// The test runner and the reference implementation the scheduler is checked
+// against are the only packages a file in core may name, and only a test file
+// may name them. Both are devDependencies and neither reaches the bundle.
+const allowedPackages = new Map([
+  ['vitest', /\.test\.ts$/],
+  ['ts-fsrs', /\.test\.ts$/],
+]);
 
 // A statement has to start the line for these to match, so the word "from"
 // inside a string or a comment is not mistaken for an import.
