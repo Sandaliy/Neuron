@@ -2,7 +2,7 @@ import { hash, verify } from '@node-rs/argon2';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 
-import { schema } from './db/schema.js';
+import { schema } from './db/schema/index.js';
 
 import type { Database } from './db/client.js';
 import type { Env } from './env.js';

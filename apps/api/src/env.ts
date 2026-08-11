@@ -21,14 +21,24 @@ const httpUrl = (example: string) =>
       `must start with http:// or https://, for example ${example}`,
     );
 
+const postgresUrl = z
+  .string()
+  .min(1)
+  .refine(
+    (value) => value.startsWith('postgres://') || value.startsWith('postgresql://'),
+    'must be the connection string from Neon, starting with postgresql://',
+  );
+
 const environmentSchema = z.object({
-  DATABASE_URL: z
-    .string()
-    .min(1)
-    .refine(
-      (value) => value.startsWith('postgres://') || value.startsWith('postgresql://'),
-      'must be the connection string from Neon, starting with postgresql://',
-    ),
+  /**
+   * The application connection, using the restricted role.
+   *
+   * Not the connection string Neon shows first: that one is the database owner,
+   * which can drop tables and, because Neon grants it BYPASSRLS, is not subject
+   * to the isolation policies at all. The owner url lives in DATABASE_URL_OWNER
+   * and is used by the migration tool only.
+   */
+  DATABASE_URL: postgresUrl,
   BETTER_AUTH_SECRET: z.string().min(32, 'must be at least 32 characters'),
   BETTER_AUTH_URL: httpUrl('http://localhost:8787'),
   APP_ORIGIN: httpUrl('http://localhost:5173'),

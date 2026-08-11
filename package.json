@@ -22,6 +22,10 @@
     "test:core": "vitest --project core",
     "db:generate": "pnpm --filter @neuron/api db:generate",
     "db:migrate": "pnpm --filter @neuron/api db:migrate",
+    "db:seed": "pnpm --filter @neuron/api db:seed",
+    "db:role": "pnpm --filter @neuron/api db:role",
+    "db:test-db": "pnpm --filter @neuron/api db:test-db",
+    "db:bench": "pnpm --filter @neuron/api db:bench",
     "db:studio": "pnpm --filter @neuron/api db:studio"
   },
   "devDependencies": {

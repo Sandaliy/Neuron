@@ -32,6 +32,12 @@ importers:
       '@neondatabase/serverless':
         specifier: ^1.1.0
         version: 1.1.0
+      '@neuron/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@neuron/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@node-rs/argon2':
         specifier: ^2.0.2
         version: 2.0.2
@@ -99,6 +105,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@neuron/core':
+        specifier: workspace:*
+        version: link:../core
       zod:
         specifier: ^4.4.3
         version: 4.4.3

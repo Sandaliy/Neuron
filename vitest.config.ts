@@ -33,6 +33,14 @@ export default defineConfig({
           root: 'apps/api',
           environment: 'node',
           include: ['src/**/*.test.ts'],
+          // Some of these talk to a real Postgres in another country, so a
+          // round trip is tens of milliseconds and a test that makes a few
+          // hundred of them needs more than the default five seconds.
+          testTimeout: 120_000,
+          hookTimeout: 120_000,
+          // Brings the test database up to the schema and empties it once,
+          // before any file runs.
+          globalSetup: ['src/db/testing/global-setup.ts'],
         },
       },
     ],

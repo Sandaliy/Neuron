@@ -11,11 +11,17 @@
     "dev": "tsx watch src/dev.ts",
     "typecheck": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:migrate": "tsx src/db/migrate/main.ts",
+    "db:studio": "drizzle-kit studio",
+    "db:role": "tsx src/db/role/main.ts",
+    "db:test-db": "tsx src/db/test-db/main.ts",
+    "db:seed": "tsx src/db/seed/main.ts",
+    "db:bench": "tsx src/db/bench/main.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@neuron/core": "workspace:*",
+    "@neuron/shared": "workspace:*",
     "@node-rs/argon2": "^2.0.2",
     "better-auth": "^1.6.26",
     "drizzle-orm": "^0.45.2",

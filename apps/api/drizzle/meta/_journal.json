@@ -8,6 +8,27 @@
       "when": 1786064231617,
       "tag": "0000_equal_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786402681637,
+      "tag": "0001_numerous_mercury",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786402728974,
+      "tag": "0002_isolation",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786403890874,
+      "tag": "0003_damp_nico_minoru",
+      "breakpoints": true
     }
   ]
 }

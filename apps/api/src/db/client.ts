@@ -1,7 +1,7 @@
 import { Pool } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 
-import { schema } from './schema.js';
+import { schema } from './schema/index.js';
 
 /**
  * Neon over WebSockets, not over HTTP.
