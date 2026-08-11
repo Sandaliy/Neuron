@@ -2,7 +2,6 @@ import process from 'node:process';
 
 import { Pool } from '@neondatabase/serverless';
 
-
 import { createDb } from '../client.js';
 import { applyMigrations } from '../migrate/main.js';
 import { createRepositories } from '../repositories/index.js';
@@ -23,10 +22,19 @@ import type { PoolClient } from '@neondatabase/serverless';
  * where it actually lives.
  */
 
-/** Two ways in: the owner, who set the tables up, and the role the api uses. */
+/**
+ * Three ways in, which is the point.
+ *
+ * The owner set the tables up. `neuron_app` is what the api uses for the
+ * collection. `neuron_auth` is what Better Auth uses for the four tables it
+ * owns. The isolation tests need all three, because most of what they prove is
+ * about what one role cannot do that another can.
+ */
 export interface TestDatabase {
   readonly ownerUrl: string;
   readonly appUrl: string;
+  /** Undefined until `pnpm db:role` has written DATABASE_URL_AUTH. */
+  readonly authUrl: string | undefined;
 }
 
 let resolved: TestDatabase | undefined | null = null;
@@ -79,9 +87,43 @@ export function testDatabase(): TestDatabase | undefined {
   app.username = live.username;
   app.password = live.password;
 
-  resolved = { ownerUrl, appUrl: app.toString() };
+  resolved = { ownerUrl, appUrl: app.toString(), authUrl: authConnection(ownerUrl) };
 
   return resolved;
+}
+
+/**
+ * The authentication role's connection to the test database.
+ *
+ * Built the same way as the application one: the throwaway database's host,
+ * with the credentials taken from the live connection string. Neon copies roles
+ * to a branch, so the same password works on both.
+ *
+ * @param ownerUrl the test database, as its owner
+ * @returns the connection string, or undefined when db:role has not been run
+ */
+function authConnection(ownerUrl: string): string | undefined {
+  const configured = process.env['DATABASE_URL_AUTH'];
+
+  if (!configured) {
+    return undefined;
+  }
+
+  const auth = new URL(ownerUrl);
+  const live = new URL(configured);
+
+  auth.username = live.username;
+  auth.password = live.password;
+
+  return auth.toString();
+}
+
+/** Says why the tests that need the authentication role are not running. */
+export function describeAuthSkipReason(): string {
+  return [
+    'DATABASE_URL_AUTH is not set, so the tests covering the authentication role did not run.',
+    'Run: pnpm db:role',
+  ].join(' ');
 }
 
 /** Says once, loudly, why the database tests are not running. */
@@ -192,6 +234,17 @@ export function rawAppPool(database: TestDatabase): Pool {
 /** A raw connection as the owner, for setup and for teardown. */
 export function rawOwnerPool(database: TestDatabase): Pool {
   return new Pool({ connectionString: database.ownerUrl });
+}
+
+/** A raw connection as the authentication role, for the tests about it. */
+export function rawAuthPool(database: TestDatabase): Pool {
+  if (!database.authUrl) {
+    throw new Error(
+      'DATABASE_URL_AUTH is not set, so there is no authentication role to connect as',
+    );
+  }
+
+  return new Pool({ connectionString: database.authUrl });
 }
 
 /**

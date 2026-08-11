@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { EnvironmentError, parseEnv } from './env.js';
 
 const valid = {
-  DATABASE_URL: 'postgresql://user:secret@host.neon.tech/neondb?sslmode=require',
+  DATABASE_URL: 'postgresql://neuron_app:secret@host.neon.tech/neondb?sslmode=require',
+  DATABASE_URL_AUTH: 'postgresql://neuron_auth:secret@host.neon.tech/neondb?sslmode=require',
   BETTER_AUTH_SECRET: 'a'.repeat(32),
   BETTER_AUTH_URL: 'http://localhost:8787',
   APP_ORIGIN: 'http://localhost:5173',
@@ -64,5 +65,31 @@ describe('parseEnv', () => {
 
   it('rejects an origin that is not a url', () => {
     expect(() => parseEnv({ ...valid, APP_ORIGIN: 'localhost:5173' })).toThrow(EnvironmentError);
+  });
+
+  it('says where the authentication connection comes from when it is missing', () => {
+    const { DATABASE_URL_AUTH: _removed, ...withoutAuth } = valid;
+
+    expect(() => parseEnv(withoutAuth)).toThrow(/DATABASE_URL_AUTH is missing. Run pnpm db:role/);
+  });
+
+  it('runs without Google, because the credentials arrive later', () => {
+    expect(parseEnv(valid).GOOGLE_CLIENT_ID).toBeUndefined();
+  });
+
+  it('accepts both halves of the Google credentials', () => {
+    const env = parseEnv({ ...valid, GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'secret' });
+
+    expect(env.GOOGLE_CLIENT_ID).toBe('id');
+    expect(env.GOOGLE_CLIENT_SECRET).toBe('secret');
+  });
+
+  it('refuses one half of the Google credentials without the other', () => {
+    // A half finished setup would show a sign in button that cannot work, and
+    // the failure would surface on Google's own domain rather than here.
+    expect(() => parseEnv({ ...valid, GOOGLE_CLIENT_ID: 'id' })).toThrow(/GOOGLE_CLIENT_SECRET/);
+    expect(() => parseEnv({ ...valid, GOOGLE_CLIENT_SECRET: 'secret' })).toThrow(
+      /GOOGLE_CLIENT_ID/,
+    );
   });
 });

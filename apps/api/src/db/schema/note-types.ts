@@ -6,7 +6,6 @@ import type { CardTemplate, NoteFieldDefinition } from '@neuron/shared';
 import { user } from './auth.js';
 import { id, instant, withoutNulls } from './columns.js';
 
-
 /**
  * What fields a note has, and which cards it produces.
  *

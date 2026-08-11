@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { check, doublePrecision, index, integer, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  check,
+  doublePrecision,
+  index,
+  integer,
+  pgTable,
+  text,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 import { CARD_STATES } from '@neuron/core';
 import { RATINGS } from '@neuron/shared';
@@ -71,12 +80,23 @@ export const reviews = pgTable(
     /** Absent on the first review of a card, which had no memory state yet. */
     stabilityBefore: doublePrecision('stability_before'),
     difficultyBefore: doublePrecision('difficulty_before'),
+    /**
+     * The user's version counter at the moment the row was written.
+     *
+     * The same column every other table carries, and it is here for the same
+     * reason: a client asking for everything after the number it last saw has
+     * to get its answers back in that one stream, rather than paging the log
+     * separately by timestamp and hoping the two orders agree.
+     */
+    rev: bigint('rev', { mode: 'number' }).notNull().default(0),
   },
   (table) => [
     /** Replay: every answer for one card, oldest first. */
     index('reviews_card_idx').on(table.userId, table.cardId, table.reviewedAt),
     /** Statistics: everything this person did, by date. */
     index('reviews_user_reviewed_idx').on(table.userId, table.reviewedAt),
+    index('reviews_user_rev_idx').on(table.userId, table.rev),
+    check('reviews_rev_not_negative', sql`${table.rev} >= 0`),
     check('reviews_rating_known', sql`${table.rating} in (${literalList(RATINGS)})`),
     check('reviews_state_before_known', sql`${table.stateBefore} in (${literalList(CARD_STATES)})`),
     check('reviews_duration_not_negative', sql`${table.durationMs} >= 0`),

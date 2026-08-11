@@ -40,8 +40,25 @@ export interface DeckRepository {
   rename: (id: string, name: string) => Promise<DeckRow | undefined>;
   updateSettings: (id: string, settings: DeckSettings | null) => Promise<DeckRow | undefined>;
   move: (id: string, parentId: string | null) => Promise<DeckRow | undefined>;
+  /**
+   * Rewrites the order of one level.
+   *
+   * The whole level at once rather than one deck's new index, because a client
+   * that says "put this third" and a server that has gained a deck since do not
+   * mean the same thing by third.
+   */
+  reorder: (parentId: string | null, order: readonly string[]) => Promise<DeckRow[]>;
   /** Marks the deck and everything under it. Nothing is removed. */
   softDelete: (id: string) => Promise<number>;
+  /**
+   * Takes back one delete.
+   *
+   * Only the rows that went at the same moment come back. A child deleted last
+   * week and then swept up again by deleting its parent today should stay
+   * deleted when the parent is restored, because the person deleted it on
+   * purpose and separately.
+   */
+  restore: (id: string) => Promise<number>;
 }
 
 /** A deck that has to exist for the operation to make sense. */
@@ -285,13 +302,59 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
       });
     },
 
+    async reorder(parentId, order) {
+      return run(async (tx) => {
+        const siblings = await tx
+          .select({ id: decks.id })
+          .from(decks)
+          .where(
+            and(
+              eq(decks.userId, userId),
+              parentId === null ? isNull(decks.parentId) : eq(decks.parentId, parentId),
+              isNull(decks.deletedAt),
+            ),
+          );
+
+        const present = new Set(siblings.map((row) => row.id));
+
+        // Every deck named has to be a child of this parent. A list holding an
+        // id from somewhere else is a client that has lost track of the tree,
+        // and quietly ignoring it would leave the two disagreeing about the
+        // order from then on.
+        for (const deckId of order) {
+          if (!present.has(deckId)) {
+            throw new DeckNotFound(deckId);
+          }
+        }
+
+        const rev = await nextRev(tx, userId);
+        const now = new Date();
+        const written: DeckRow[] = [];
+
+        for (const [position, deckId] of order.entries()) {
+          const [row] = await tx
+            .update(decks)
+            .set({ position, updatedAt: now, rev })
+            .where(and(eq(decks.userId, userId), eq(decks.id, deckId)))
+            .returning();
+
+          if (row) {
+            written.push(row);
+          }
+        }
+
+        return written;
+      });
+    },
+
     async softDelete(id) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
+        const now = new Date();
 
         const marked = await tx
           .update(decks)
-          .set({ deletedAt: new Date(), updatedAt: new Date(), rev })
+          .set({ deletedAt: now, updatedAt: now, rev })
           .where(
             and(
               eq(decks.userId, userId),
@@ -302,6 +365,40 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
           .returning({ id: decks.id });
 
         return marked.length;
+      });
+    },
+
+    async restore(id) {
+      return run(async (tx) => {
+        const [deck] = await tx
+          .select({ deletedAt: decks.deletedAt })
+          .from(decks)
+          .where(and(eq(decks.userId, userId), eq(decks.id, id)))
+          .limit(1);
+
+        if (!deck) {
+          throw new DeckNotFound(id);
+        }
+
+        if (deck.deletedAt === null) {
+          return 0;
+        }
+
+        const rev = await nextRev(tx, userId);
+
+        const restored = await tx
+          .update(decks)
+          .set({ deletedAt: null, updatedAt: new Date(), rev })
+          .where(
+            and(
+              eq(decks.userId, userId),
+              eq(decks.deletedAt, deck.deletedAt),
+              sql`(${decks.id} = ${id} or ${decks.path} @> array[${id}]::uuid[])`,
+            ),
+          )
+          .returning({ id: decks.id });
+
+        return restored.length;
       });
     },
   };

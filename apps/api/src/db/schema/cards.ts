@@ -80,6 +80,25 @@ export const cards = pgTable(
     learningStep: integer('learning_step').notNull().default(0),
     /** When this direction became available under the ladder. */
     unlockedAt: instant('unlocked_at'),
+    /**
+     * Set while the card is put aside. Null while it is being studied.
+     *
+     * Separate from the note's status, which suspends every direction at once.
+     * This is for the single direction someone has decided they do not want
+     * right now, and it keeps the card out of the due query without deleting
+     * it or touching its schedule.
+     */
+    suspendedAt: instant('suspended_at'),
+    /**
+     * When the card was put back to new, if it ever was.
+     *
+     * Resetting cannot remove anything from the review log, so the log alone
+     * would rebuild the card as it was before the reset. This is the line the
+     * replay starts from: only answers given after it count towards the card's
+     * state. Without it, "card state is a projection of the log" would stop
+     * being true the first time anyone pressed reset.
+     */
+    resetAt: instant('reset_at'),
   },
   (table) => [
     uniqueIndex('cards_note_direction_key')
@@ -88,16 +107,17 @@ export const cards = pgTable(
     /**
      * The query the application runs on every open: what is due now.
      *
-     * Partial, because a soft deleted card is never due for anything, and
-     * carrying those rows in the index makes it larger for no gain.
+     * Partial, because a soft deleted card and a suspended one are never due
+     * for anything, and carrying those rows in the index makes it larger for
+     * no gain.
      */
     index('cards_user_due_idx')
       .on(table.userId, table.due)
-      .where(sql`${table.deletedAt} is null`),
+      .where(sql`${table.deletedAt} is null and ${table.suspendedAt} is null`),
     /** The same question, narrowed to one deck. */
     index('cards_user_deck_due_idx')
       .on(table.userId, table.deckId, table.due)
-      .where(sql`${table.deletedAt} is null`),
+      .where(sql`${table.deletedAt} is null and ${table.suspendedAt} is null`),
     /** Counting cards per deck for the library tree. */
     index('cards_user_deck_idx')
       .on(table.userId, table.deckId)

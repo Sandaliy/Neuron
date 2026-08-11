@@ -120,46 +120,83 @@ fails the comparison. A connection that never identified a user reads an empty d
 default is the behaviour we want, because that is the shape a bug takes: some path that skipped the
 repository layer.
 
-### The restricted role
+### The restricted roles
 
 Neon hands out `neondb_owner`. That role can drop tables and carries `BYPASSRLS`, which means the
 policies above would not apply to it at all. Enabling row level security while connecting as the owner
 looks like protection and is none.
 
-So there are two connection strings:
+So there are three connection strings:
 
 | Variable | Role | Used by |
 | --- | --- | --- |
 | `DATABASE_URL` | `neuron_app` | the api, the seed, anything at run time |
-| `DATABASE_URL_OWNER` | `neondb_owner` | migrations, the seed's own setup, the benchmark |
+| `DATABASE_URL_AUTH` | `neuron_auth` | Better Auth, and nothing else |
+| `DATABASE_URL_OWNER` | `neondb_owner` | migrations, the seed's own setup, the benchmark, erasing accounts |
 
 `neuron_app` can read and write rows and can do nothing else: no create, no drop, no ownership, no
 `BYPASSRLS`, and on `reviews` no update or delete. The owner credential never goes near the deployed
 server.
 
-The role is created without a password by migration `0002_isolation.sql`, so nothing secret is committed.
-`pnpm --filter @neuron/api db:role` generates one, sets it, checks that the role really did come out
-without `BYPASSRLS`, and writes the connection string into `.env`. Running it again rotates the password.
+The roles are created without a password by migrations `0002_isolation.sql` and `0005_auth_isolation.sql`,
+so nothing secret is committed. `pnpm --filter @neuron/api db:role` generates one for each, sets it,
+checks that neither came out with `BYPASSRLS`, and writes both connection strings into `.env`. Running it
+again rotates both passwords, which means the server needs the new values too.
 
 Roles created through SQL do not appear in the Neon console and their password cannot be reset there. If
 it is ever lost, drop and recreate the role in a new migration.
 
-### What the auth tables do not have
+### Why authentication gets a role of its own
 
-`user`, `session`, `account` and `verification` carry no policies, deliberately.
+Phase 3 left the four Better Auth tables with no policy at all. The reason was real: signing in has to
+find a user by email before there is a user to be, so a policy keyed on the current user locks everyone
+out at the first step. The consequence was also real: the application role could rewrite any row in
+`user`, including another person's email address, and read any row in `account`, where the argon2id
+hashes are.
 
-Signing in has to find a user by email before there is a user to be. A policy keyed on the current user
-would lock everyone out at the first step. Those tables are reached only through Better Auth, which looks
-rows up by session token and by email and never by a client supplied id.
+One role cannot tell the two paths apart. Any flag the application could set to announce "this statement
+is part of signing in" is a flag the application could set at any other time, so it is not a barrier, it
+is a comment. What does separate them is a credential the application does not hold.
 
-The gap this leaves is worth stating plainly: the application role can update any row in `user`, not only
-the current user's. Nothing in the repository layer does, and the only write it makes there is bumping
-the version counter for the user it was built with. Closing it properly means giving Better Auth its own
-role, which belongs with the work on authentication in phase 4 rather than here.
+Hence `neuron_auth`: the four auth tables in full, none of the collection, handed to Better Auth and to
+nothing else. And `neuron_app`, narrowed on the same tables:
+
+| Table | What `neuron_app` may do |
+| --- | --- |
+| `user` | read ten columns, write seven, on the row matching `app.user_id` |
+| `session` | nothing |
+| `account` | nothing |
+| `verification` | nothing |
+
+The ten readable columns are the preferences and the version counter. `email`, `name` and `image` are not
+among them, so `select *` from that role now fails outright rather than returning something it should not
+have. The seven writable ones are the preferences plus `current_rev` and `updated_at`. There is no policy
+for `INSERT` and none for `DELETE`, so the application role cannot create an account or remove one
+whatever a route handler tries.
+
+The auth tables use `ENABLE ROW LEVEL SECURITY` without `FORCE`, unlike the collection. `FORCE` also binds
+the table owner, and the owner is what applies migrations and runs the account erasure task. On Neon the
+owner carries `BYPASSRLS` and steps over both settings anyway, so `FORCE` would buy nothing there and
+would break the same work on a plain Postgres.
 
 `note_types` is the other exception, and a smaller one. The three built in types belong to nobody, so
 anyone may read a row with no owner and only the owner of a row may write one. The built in types are
 therefore visible and untouchable.
+
+### Leaving, and the only place a row is removed
+
+Deleting an account does not delete anything. It replaces the name and the email with placeholders, drops
+every credential and every session, marks the row with `deletion_requested_at`, and soft deletes the
+collection. The person is signed out everywhere and cannot sign in again.
+
+The rows go thirty days later, in `pnpm db:erase`, which holds the owner credential and runs from a
+terminal rather than from a request. That is the only code in the project that removes a review.
+
+The trigger that keeps the log append only used to let a delete through whenever `app.erasing_account` was
+set to `on`, and any connection can set that string. The missing `DELETE` grant was the only thing
+standing between application code and the review log, which is one barrier where the rest of the schema
+has two. Now the flag is necessary and not sufficient: the deleting role also has to own the table.
+`neuron_app` fails that test whatever it sets and whatever grant it somehow acquires, and a test says so.
 
 ## The version counter
 
@@ -175,9 +212,12 @@ the same number. A test runs eight concurrent writes and asserts the numbers are
 because a client asking for "everything after the number I last saw" depends on nothing slipping between
 two of them.
 
-Every table that takes part in sync has an index on `(user_id, rev)`. The pull and push endpoints
-themselves are phase 4. The columns could not wait: adding `rev` to six tables later means six migrations
-over live data.
+Every table that takes part in sync has an index on `(user_id, rev)`, `reviews` included since phase 4.
+
+`GET /sync?since=` is one ordered read across all of them, merged by revision. A page always ends on a
+revision boundary and never inside one, because a single transaction takes one number and can write
+several rows under it: cutting between two of those would leave a client holding half a transaction and
+believing it had all of it. A transaction larger than the page is therefore sent whole rather than split.
 
 ## The index decision, measured
 
@@ -255,9 +295,10 @@ pnpm db:seed         fill the demo collection
 and, in `apps/api`:
 
 ```
-pnpm db:role         give the restricted role a password, write DATABASE_URL
+pnpm db:role         give both restricted roles a password, write their connection strings
 pnpm db:test-db      create the throwaway database the tests empty
 pnpm db:bench        rebuild the 50000 card fixture and print query plans
+pnpm db:erase        remove accounts whose thirty days are up, and sweep the rate limiter
 ```
 
 The migration runner is ours rather than `drizzle-kit migrate`, which reports a failure as an exit code
@@ -275,13 +316,79 @@ repositories. That is the point: the repositories are the first barrier, row lev
 hold when the first barrier has a bug in it, and testing it through the code it is meant to be
 independent of would prove nothing.
 
-## DELETE-IN-PHASE-5
+## The api
 
-Temporary scaffolding that exists only to prove the stack works. All of it goes when the real web
-app lands.
+### One error shape
 
-- `apps/api/src/spike-page.ts` and the `/spike` route in `apps/api/src/create-app.ts`. A page with
-  sign up, sign in and session buttons, used to check the stack from a browser. It has no design and
-  no translations on purpose.
-- The in memory rate limiter in `apps/api/src/rate-limit.ts` stays, but its storage has to move to a
-  shared store before real traffic. Every serverless instance currently counts on its own.
+Every failure leaves the api as
+
+```json
+{ "error": { "code": "name_taken", "status": 409, "correlationId": "0199..." } }
+```
+
+The code is a translation key, not a sentence. An English string baked into a route handler is a string
+that can only ever be shown to half the people using this, and nobody notices until the interface is
+already built around it.
+
+Nothing else crosses. Not a stack trace, not a driver message, not a column name: a database error naming
+the constraint that failed is useful to us and is a map of the schema to anybody else. The detail goes to
+the server log against `correlationId`, and the id goes to the client, so "it said something went wrong"
+can be traced back to one request.
+
+`42501`, a missing privilege, is answered as `not_found`. From the outside those are the same thing, and
+they should be, because "you may not read that" confirms that it exists.
+
+### The review endpoint does not believe the client
+
+The client computes the new card state on the device. It has to: that is what makes the app work offline
+and what makes the buttons feel instant. It also means a modified client could send any state it liked.
+
+So the server loads the card, runs the same scheduler from `packages/core`, and stores its own answer.
+What the client computed is compared and thrown away. When the two disagree past rounding, the response
+carries `resync: true` and the client fetches that card again.
+
+The review id comes from the client, which is what makes a retry harmless: inserting the same id twice
+succeeds and changes nothing. This is not hypothetical. A phone on the underground sends an answer, loses
+the connection before the reply, and sends again. Without the id one tap becomes two reviews and the
+card's schedule moves somewhere neither the person nor the algorithm chose.
+
+The fuzz generator is seeded from that id rather than from the clock, so a retry recomputes exactly what
+the first attempt did and a client that seeds the same way lands its cards on the same days.
+
+### Rate limiting counts in Postgres
+
+The in memory limiter from phase 0.5 is gone. Every serverless invocation may be a fresh instance, so an
+attacker spread across instances got as many attempts as there happened to be instances.
+
+The counters live in `rate_limits` and are spent through `rate_limit_take`, one function, one round trip,
+atomic. The function runs as its owner and `neuron_app` has no privilege on the table, so application
+code can spend from a bucket and can neither read the counters nor clear them. Keys are hashed, so a copy
+of the table says how often something was tried and nothing about who.
+
+Signing in is limited twice, once per address and once per account, because a script spread over a botnet
+only tries a few times from each address. The wait doubles with every window that goes over: a typo costs
+seconds and a list costs the afternoon.
+
+## Known limitations
+
+Things that do not work yet, on purpose, with the reason and the phase that closes them.
+
+**No email verification.** Anyone can sign up with an address they do not own. Sending mail to arbitrary
+addresses needs a verified domain, and the domain is deferred. With three people who know each other the
+practical risk is nil. Closed in phase 11, with the domain.
+
+**No self service password reset.** Same cause. If someone forgets their password it is reset by hand,
+through the database. Closed in phase 11.
+
+**Sign in with Google needs twenty minutes in the Google Cloud console first.** The api runs without the
+credentials and simply does not offer the provider; it gains the button the moment `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` are set. Both or neither: one without the other is refused at startup, because a
+half configured provider fails on Google's domain rather than on ours.
+
+**The conflict log is written and never read.** `sync_conflicts` records the version that lost a merge,
+whole. The screen that offers "this is what your other device had" belongs with the interface. The rows
+have to start being written now, because a conflict that was not recorded at the time cannot be recovered
+afterwards.
+
+**No browser page.** The `/spike` page from phase 0.5 is deleted, and `apps/web` is still empty. Between
+now and phase 5 the api is reachable only by a tool that can send requests.

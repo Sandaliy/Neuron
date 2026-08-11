@@ -3,8 +3,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   asUser,
   createUser,
+  describeAuthSkipReason,
   describeSkipReason,
   rawAppPool,
+  rawAuthPool,
   rawOwnerPool,
   testDatabase,
 } from './testing/database.js';
@@ -84,7 +86,9 @@ describe.skipIf(!database)('row level security', () => {
 
   it('shows a user only their own rows', async () => {
     const names = await asUser(app, ALICE, async (connection) => {
-      const result = await connection.query<{ name: string }>('select name from decks order by name');
+      const result = await connection.query<{ name: string }>(
+        'select name from decks order by name',
+      );
 
       return result.rows.map((row) => row.name);
     });
@@ -194,6 +198,184 @@ describe.skipIf(!database)('row level security', () => {
   });
 });
 
+/**
+ * The hole phase 3 left, and what closed it.
+ *
+ * Before this, the four Better Auth tables carried no policy at all and the
+ * application role could rewrite any row in `user`, including another person's
+ * email, and read any row in `account`, where the password hashes are. Nothing
+ * did, but the capability existed, which is the wrong thing to rely on.
+ *
+ * One role cannot tell "this statement is part of signing in" from "this
+ * statement is a route handler", because any flag the application could set to
+ * say so is a flag it could set at any other time. So there are two roles now,
+ * with a password each, and these are the tests that say what each can do.
+ */
+describe.skipIf(!database)('the auth tables', () => {
+  let app: Pool;
+  let owner: Pool;
+
+  beforeAll(() => {
+    if (database) {
+      app = rawAppPool(database);
+      owner = rawOwnerPool(database);
+    }
+  });
+
+  afterAll(async () => {
+    await app?.end();
+    await owner?.end();
+  });
+
+  it('shows the application role its own user row and no other', async () => {
+    const ids = await asUser(app, ALICE, async (connection) => {
+      const result = await connection.query<{ id: string }>('select id from "user" order by id');
+
+      return result.rows.map((row) => row.id);
+    });
+
+    expect(ids).toEqual([ALICE]);
+  });
+
+  it('does not let the application role read an email address at all', async () => {
+    // Not a policy but a column privilege, so this fails outright rather than
+    // returning nothing. There is no query the application has any business
+    // writing that needs the address.
+    await expect(
+      asUser(app, ALICE, async (connection) => connection.query('select email from "user"')),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('refuses to let one user change another user’s row', async () => {
+    const affected = await asUser(app, ALICE, async (connection) => {
+      const result = await connection.query('update "user" set timezone = $1 where id = $2', [
+        'Pacific/Auckland',
+        BOB,
+      ]);
+
+      return result.rowCount;
+    });
+
+    expect(affected).toBe(0);
+  });
+
+  it('refuses to let a user change a column that is not theirs to change', async () => {
+    await expect(
+      asUser(app, ALICE, async (connection) =>
+        connection.query('update "user" set email = $1 where id = $2', ['taken@over.test', ALICE]),
+      ),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('lets a user change their own preferences, which is all the api needs', async () => {
+    const affected = await asUser(app, ALICE, async (connection) => {
+      const result = await connection.query('update "user" set timezone = $1 where id = $2', [
+        'Europe/Berlin',
+        ALICE,
+      ]);
+
+      return result.rowCount;
+    });
+
+    expect(affected).toBe(1);
+  });
+
+  it('cannot create or remove an account', async () => {
+    const inserted = await asUser(app, ALICE, async (connection) => {
+      try {
+        await connection.query('insert into "user" (id, name, email) values ($1, $1, $2)', [
+          'smuggled',
+          'smuggled@neuron.test',
+        ]);
+
+        return 'allowed';
+      } catch (error) {
+        return error instanceof Error ? error.message : 'refused';
+      }
+    });
+
+    expect(inserted).toMatch(/permission denied|row-level security/i);
+
+    const deleted = await asUser(app, ALICE, async (connection) => {
+      try {
+        await connection.query('delete from "user" where id = $1', [ALICE]);
+
+        return 'allowed';
+      } catch (error) {
+        return error instanceof Error ? error.message : 'refused';
+      }
+    });
+
+    expect(deleted).toMatch(/permission denied|row-level security/i);
+  });
+
+  it('cannot reach the password hashes at all', async () => {
+    // The account table holds the argon2id hash and the OAuth tokens. The
+    // application role has no privilege on it, so this is not a policy
+    // returning an empty set: it is a refusal.
+    await expect(
+      asUser(app, ALICE, async (connection) => connection.query('select * from account')),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('cannot read a session row, so it cannot lift a token', async () => {
+    await expect(
+      asUser(app, ALICE, async (connection) => connection.query('select token from session')),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('cannot read a verification row', async () => {
+    await expect(
+      asUser(app, ALICE, async (connection) => connection.query('select * from verification')),
+    ).rejects.toThrow(/permission denied/i);
+  });
+});
+
+describe.skipIf(!database?.authUrl)('the authentication role', () => {
+  let auth: Pool;
+
+  beforeAll(() => {
+    if (database?.authUrl) {
+      auth = rawAuthPool(database);
+    }
+  });
+
+  afterAll(async () => {
+    await auth?.end();
+  });
+
+  it('can look a user up by email before anybody is signed in', async () => {
+    // The thing that makes a blanket policy impossible: signing in has to find
+    // a user before there is a user to be. This role can, and it is handed to
+    // Better Auth and to nothing else.
+    const result = await auth.query<{ id: string }>('select id from "user" where email = $1', [
+      `${ALICE}@neuron.test`,
+    ]);
+
+    expect(result.rows[0]?.id).toBe(ALICE);
+  });
+
+  it('can read the account table, which is where the hashes are', async () => {
+    await expect(auth.query('select count(*) from account')).resolves.toBeDefined();
+  });
+
+  it('cannot reach the collection', async () => {
+    await expect(auth.query('select count(*) from cards')).rejects.toThrow(/permission denied/i);
+  });
+
+  it('cannot reach the review log', async () => {
+    await expect(auth.query('select count(*) from reviews')).rejects.toThrow(/permission denied/i);
+  });
+
+  it('does not bypass row level security either', async () => {
+    const result = await auth.query<{ rolbypassrls: boolean }>(
+      'select rolbypassrls from pg_roles where rolname = current_user',
+    );
+
+    expect(result.rows[0]?.rolbypassrls).toBe(false);
+  });
+});
+
 describe.skipIf(!database)('the review log', () => {
   let app: Pool;
   let owner: Pool;
@@ -240,8 +422,8 @@ describe.skipIf(!database)('the review log', () => {
     );
   });
 
-  it('can still be removed when an account is being erased', async () => {
-    // The one legitimate delete. Without this the cascade from removing a user
+  it('can still be removed when the owner is erasing an account', async () => {
+    // The one legitimate delete. Without it the cascade from removing a user
     // would hit the trigger and make deleting an account impossible, which is a
     // worse failure than the one the trigger prevents.
     const connection = await owner.connect();
@@ -258,6 +440,43 @@ describe.skipIf(!database)('the review log', () => {
     } finally {
       connection.release();
     }
+  });
+
+  it('does not open for the application role, whatever flag it sets', async () => {
+    /**
+     * The hole phase 3 left, and the reason this test exists.
+     *
+     * The escape hatch used to be a string any connection could set. The
+     * missing DELETE grant was the only thing between application code and the
+     * review log, which is one barrier where the rest of the schema has two.
+     *
+     * Now the flag is necessary and not sufficient: the deleting role also has
+     * to own the table. Setting it from here changes nothing.
+     */
+    await expect(
+      asUser(app, BOB, async (connection) => {
+        await connection.query("select set_config('app.erasing_account', 'on', true)");
+
+        return connection.query('delete from reviews where id = $1', [BOB_REVIEW]);
+      }),
+    ).rejects.toThrow(/permission denied|append only/i);
+  });
+
+  it('is not reachable through the account deletion route either', async () => {
+    // Deleting an account no longer removes anything. It anonymises the person,
+    // drops their credentials and sessions, marks the row, and soft deletes the
+    // collection. The rows go thirty days later, in a task that holds the owner
+    // credential the deployed server never receives.
+    const before = await asUser(app, BOB, async (connection) => {
+      const result = await connection.query<{ n: number }>(
+        'select count(*)::int as n from reviews where user_id = $1',
+        [BOB],
+      );
+
+      return result.rows[0]?.n;
+    });
+
+    expect(before).toBeGreaterThan(0);
   });
 });
 
@@ -310,6 +529,15 @@ if (!database) {
     it.skip(describeSkipReason(), () => {
       // Skipped on purpose, and named so that a run without a test database
       // says so on screen rather than quietly reporting everything as passing.
+    });
+  });
+}
+
+if (database && !database.authUrl) {
+  describe('authentication role tests', () => {
+    it.skip(describeAuthSkipReason(), () => {
+      // The same again for the second role. Skipping quietly would hide the
+      // half of the isolation work that phase 4 added.
     });
   });
 }

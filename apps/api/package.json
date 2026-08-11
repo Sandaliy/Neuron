@@ -16,7 +16,8 @@
     "db:role": "tsx src/db/role/main.ts",
     "db:test-db": "tsx src/db/test-db/main.ts",
     "db:seed": "tsx src/db/seed/main.ts",
-    "db:bench": "tsx src/db/bench/main.ts"
+    "db:bench": "tsx src/db/bench/main.ts",
+    "db:erase": "tsx src/db/erase/main.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

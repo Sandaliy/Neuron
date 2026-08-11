@@ -5,6 +5,10 @@ coverage
 .turbo
 pnpm-lock.yaml
 
+# Written by drizzle-kit. Reformatting a generated snapshot changes a file the
+# tool compares against and gains nothing, since nobody reads them.
+apps/api/drizzle/meta
+
 # Local planning documents. Not ours to format.
 neuron-plan.md
 phase-0.md

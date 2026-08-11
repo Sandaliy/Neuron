@@ -26,5 +26,6 @@ const app = registerRoutes(new Hono());
 
 serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`api listening on http://localhost:${info.port}`);
-  console.log(`stack check page: http://localhost:${info.port}/spike`);
+  console.log(`health: http://localhost:${info.port}/health`);
+  console.log(`api description, once signed in: http://localhost:${info.port}/docs`);
 });

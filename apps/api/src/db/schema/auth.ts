@@ -76,9 +76,21 @@ export const user = pgTable(
      * remembers the last number it saw can ask for exactly what it missed.
      */
     currentRev: bigint('current_rev', { mode: 'number' }).notNull().default(0),
+    /**
+     * When the person asked for their account to be erased.
+     *
+     * Deleting an account does not remove the row. It anonymises the personal
+     * data, drops the credentials and the sessions, and sets this. The row goes
+     * away thirty days later, in a cleanup run as the database owner, which is
+     * the only connection allowed to remove a review. The delay is what makes
+     * the action recoverable by hand for someone who regrets it.
+     */
+    deletionRequestedAt: timestamp('deletion_requested_at', { withTimezone: true }),
   },
   (table) => [
     uniqueIndex('user_email_key').on(table.email),
+    /** The cleanup task's query: who has been waiting out their thirty days. */
+    index('user_deletion_requested_idx').on(table.deletionRequestedAt),
     check('user_day_cutoff_hour_range', sql`${table.dayCutoffHour} between 0 and 23`),
     check('user_locale_known', sql`${table.locale} in (${literalList(LOCALES)})`),
     check('user_theme_known', sql`${table.theme} in (${literalList(THEMES)})`),

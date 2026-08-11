@@ -1,16 +1,30 @@
 import { cors } from 'hono/cors';
 
-import { createAuth } from './auth.js';
-import { createDb } from './db/client.js';
+import { createAuth, googleIsConfigured } from './auth.js';
+import { clientAddress, requireSession, signedIn } from './context.js';
+import { createAuthDb, createDb } from './db/client.js';
 import { readDatabaseTime } from './db/health.js';
 import { loadEnv } from './env.js';
-import { createInMemoryRateLimiter } from './rate-limit.js';
-import { spikePage } from './spike-page.js';
+import { ApiError, respondWithError } from './errors.js';
+import { openApiDocument } from './openapi.js';
+import {
+  AUTH_ACCOUNT_LIMIT,
+  AUTH_LIMIT,
+  SYNC_LIMIT,
+  WRITE_LIMIT,
+  createRateLimiter,
+} from './rate-limit.js';
+import { accountRoutes } from './routes/account.js';
+import { cardRoutes, unlockRoute } from './routes/cards.js';
+import { deckRoutes } from './routes/decks.js';
+import { noteRoutes } from './routes/notes.js';
+import { reviewRoutes } from './routes/reviews.js';
+import { importRoutes, presetRoutes } from './routes/study.js';
+import { syncRoutes } from './routes/sync.js';
 
-import type { Hono } from 'hono';
-
-const AUTH_ATTEMPTS_PER_WINDOW = 20;
-const AUTH_WINDOW_MS = 60_000;
+import type { RequestBindings, ServerParts } from './context.js';
+import type { RateLimitRule } from './rate-limit.js';
+import type { Hono, MiddlewareHandler } from 'hono';
 
 /**
  * Mounts every route onto an app the caller owns.
@@ -22,11 +36,9 @@ const AUTH_WINDOW_MS = 60_000;
 export function registerRoutes(app: Hono): Hono {
   const env = loadEnv();
   const db = createDb(env.DATABASE_URL);
-  const auth = createAuth({ env, db });
-  const authLimiter = createInMemoryRateLimiter({
-    limit: AUTH_ATTEMPTS_PER_WINDOW,
-    windowMs: AUTH_WINDOW_MS,
-  });
+  const authDb = createAuthDb(env.DATABASE_URL_AUTH);
+  const auth = createAuth({ env, db: authDb });
+  const limiter = createRateLimiter(db);
 
   // One origin, no wildcard. Credentials are on because the session lives in a
   // cookie the browser has to send back.
@@ -35,66 +47,207 @@ export function registerRoutes(app: Hono): Hono {
     cors({
       origin: env.APP_ORIGIN,
       credentials: true,
-      allowMethods: ['GET', 'POST', 'OPTIONS'],
+      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       allowHeaders: ['content-type'],
     }),
   );
 
-  app.get('/health', (c) => c.json({ status: 'ok', time: new Date().toISOString() }));
+  app.get('/health', (context) =>
+    context.json({
+      status: 'ok',
+      time: new Date().toISOString(),
+      // Useful enough on a fresh deploy to be worth saying, and it gives away
+      // nothing: whether a sign in button exists is visible from the sign in
+      // page anyway.
+      google: googleIsConfigured(env),
+    }),
+  );
 
-  app.get('/db-check', async (c) => {
+  app.get('/db-check', async (context) => {
     try {
-      return c.json({ status: 'ok', databaseTime: await readDatabaseTime(db) });
-    } catch {
-      // The reason stays in the server logs. The caller gets a sentence it can
-      // act on, never a driver error or a connection string.
-      return c.json(
-        { status: 'error', message: 'The database did not answer. Check DATABASE_URL and retry.' },
-        503,
-      );
+      return context.json({ status: 'ok', databaseTime: await readDatabaseTime(db) });
+    } catch (error) {
+      throw new ApiError('service_unavailable', { cause: error });
     }
   });
 
-  app.get('/me', async (c) => {
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-    if (!session) {
-      return c.json({ message: 'You are not signed in. Sign in and try again.' }, 401);
-    }
-
-    return c.json({ user: session.user });
-  });
-
-  // Rate limiting sits in front of the auth routes only, keyed by client
-  // address. No email, no password, nothing identifying goes into the key.
-  app.use('/api/auth/*', async (c, next) => {
-    if (c.req.method !== 'POST') {
+  /**
+   * Rate limiting in front of the auth routes, twice over.
+   *
+   * Once per address, which catches a script working through a list of
+   * passwords, and once per account, which catches the same script spread over
+   * a botnet where each address only tries a few times. Neither key is stored
+   * in the clear: both are hashed before they reach the table.
+   */
+  app.use('/api/auth/*', async (context, next) => {
+    if (context.req.method !== 'POST') {
       return next();
     }
 
-    const address = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-    const decision = authLimiter.take(address, Date.now());
+    await spend(AUTH_LIMIT, clientAddress(context));
 
-    if (!decision.allowed) {
-      c.header('retry-after', String(decision.retryAfterSeconds));
+    const account = await accountFromBody(context.req.raw.clone());
 
-      return c.json(
-        {
-          message: `Too many attempts. Wait ${decision.retryAfterSeconds} seconds and try again.`,
-        },
-        429,
-      );
+    if (account) {
+      await spend(AUTH_ACCOUNT_LIMIT, account);
     }
 
     return next();
   });
 
-  app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
+  app.on(['GET', 'POST'], '/api/auth/*', (context) => auth.handler(context.req.raw));
 
-  // TEMPORARY. DELETE IN PHASE 5.
-  app.get('/spike', (c) => c.html(spikePage));
-
-  app.notFound((c) => c.json({ message: 'No such address.' }, 404));
+  mountCollection(app, { db, authDb, auth, limiter }, env.BETTER_AUTH_URL);
 
   return app;
+
+  /**
+   * Spends one attempt, and refuses with a wait when there are none left.
+   *
+   * @param rule which limit
+   * @param identifier what is being limited
+   */
+  async function spend(rule: RateLimitRule, identifier: string): Promise<void> {
+    const decision = await limiter.take(rule, identifier, new Date());
+
+    if (!decision.allowed) {
+      throw new ApiError('rate_limited', {
+        details: { retryAfterSeconds: decision.retryAfterSeconds },
+      });
+    }
+  }
+}
+
+/**
+ * Everything behind a session, mounted on an app the caller owns.
+ *
+ * Separate from the function above so that a test can supply its own parts: a
+ * real database and a stubbed session, which is what makes the routes testable
+ * without standing up Better Auth and signing somebody in.
+ *
+ * @param app the app to mount onto
+ * @param parts the database connections, the auth instance and the limiter
+ * @param baseUrl where the api answers, for the generated description
+ * @returns the same app
+ */
+export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string): Hono {
+  const limiter = parts.limiter;
+
+  // Everything answers in one shape, including the failures nobody wrote a
+  // handler for. A route can throw and be sure the caller gets a code and a
+  // correlation id rather than a stack trace.
+  app.onError(respondWithError);
+
+  /**
+   * Everything from here needs a session.
+   *
+   * The middleware builds the repositories for whoever signed in and puts them
+   * on the request. There is no other way to reach the database from a handler,
+   * and no way to build them without a user, so a handler cannot read somebody
+   * else's rows by forgetting a clause.
+   */
+  const api = app as unknown as Hono<RequestBindings>;
+
+  /**
+   * Each resource twice: the collection and everything under it.
+   *
+   * Hono treats `/decks` and `/decks/*` as different patterns, so a middleware
+   * registered only on the second would leave `POST /decks` open. Listing both
+   * is duplication; a route that answered without a session would be a hole.
+   */
+  const collections = [
+    '/decks',
+    '/notes',
+    '/cards',
+    '/presets',
+    '/imports',
+    '/reviews',
+    '/account',
+  ];
+
+  for (const path of [...collections, '/sync']) {
+    api.use(path, requireSession(parts));
+    api.use(`${path}/*`, requireSession(parts));
+  }
+
+  api.use('/docs', requireSession(parts));
+
+  // The generous limits, per account rather than per address, because these are
+  // requests from somebody already signed in and the address they arrive from
+  // changes every time a phone moves between wifi and a mobile network.
+  for (const path of collections) {
+    api.use(path, perAccount(WRITE_LIMIT));
+    api.use(`${path}/*`, perAccount(WRITE_LIMIT));
+  }
+
+  // Sync gets its own, higher, because a phone coming back from a week offline
+  // pushes a burst and that burst is the system working.
+  api.use('/sync', perAccount(SYNC_LIMIT));
+  api.use('/sync/*', perAccount(SYNC_LIMIT));
+
+  api.route('/decks', deckRoutes());
+  api.route('/notes', noteRoutes());
+  api.route('/notes', unlockRoute());
+  api.route('/cards', cardRoutes());
+  api.route('/presets', presetRoutes());
+  api.route('/imports', importRoutes());
+  api.route('/reviews', reviewRoutes());
+  api.route('/sync', syncRoutes());
+  api.route('/account', accountRoutes(parts));
+
+  /**
+   * The api described, behind a session.
+   *
+   * Generated from the same schemas the routes validate with, so it cannot
+   * drift. Behind a session because a public description of every endpoint is a
+   * head start nobody needs, and the only people who want it are already
+   * signed in.
+   */
+  api.get('/docs', (context) => context.json(openApiDocument(baseUrl)));
+
+  app.notFound((context) => respondWithError(new ApiError('not_found'), context));
+
+  return app;
+
+  /** The generous limits, keyed on the person signed in. */
+  function perAccount(rule: RateLimitRule): MiddlewareHandler<RequestBindings> {
+    return async (context, next) => {
+      const decision = await limiter.take(rule, signedIn(context).id, new Date());
+
+      if (!decision.allowed) {
+        throw new ApiError('rate_limited', {
+          details: { retryAfterSeconds: decision.retryAfterSeconds },
+        });
+      }
+
+      return next();
+    };
+  }
+}
+
+/**
+ * The account an auth request is about, for the second limit.
+ *
+ * Read out of the body and hashed before it goes anywhere, so no address is
+ * stored. A body that is not JSON, or one with no email in it, simply gives
+ * nothing: the per address limit still applies, and a request with no account
+ * to attack cannot be attacking one.
+ *
+ * @param request a clone of the request, since reading the body consumes it
+ * @returns the address, lowercased, or undefined
+ */
+async function accountFromBody(request: Request): Promise<string | undefined> {
+  try {
+    const body: unknown = await request.json();
+
+    if (typeof body !== 'object' || body === null || !('email' in body)) {
+      return undefined;
+    }
+
+    const email = (body as { email: unknown }).email;
+
+    return typeof email === 'string' && email.length > 0 ? email.toLowerCase() : undefined;
+  } catch {
+    return undefined;
+  }
 }

@@ -26,6 +26,7 @@
     "db:role": "pnpm --filter @neuron/api db:role",
     "db:test-db": "pnpm --filter @neuron/api db:test-db",
     "db:bench": "pnpm --filter @neuron/api db:bench",
+    "db:erase": "pnpm --filter @neuron/api db:erase",
     "db:studio": "pnpm --filter @neuron/api db:studio"
   },
   "devDependencies": {

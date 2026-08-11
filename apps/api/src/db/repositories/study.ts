@@ -23,9 +23,17 @@ export interface CreatePreset {
   readonly isDefault?: boolean;
 }
 
+export interface UpdatePreset {
+  readonly name?: string | undefined;
+  readonly config?: unknown;
+  readonly isDefault?: boolean | undefined;
+}
+
 export interface PresetRepository {
   create: (input: CreatePreset) => Promise<StudyPresetRow>;
+  byId: (id: string) => Promise<StudyPresetRow | undefined>;
   list: () => Promise<StudyPresetRow[]>;
+  update: (id: string, input: UpdatePreset) => Promise<StudyPresetRow | undefined>;
   softDelete: (id: string) => Promise<boolean>;
 }
 
@@ -39,6 +47,7 @@ export interface CreateImportBatch {
 
 export interface ImportBatchRepository {
   create: (input: CreateImportBatch) => Promise<ImportBatchRow>;
+  byId: (id: string) => Promise<ImportBatchRow | undefined>;
   list: () => Promise<ImportBatchRow[]>;
   /**
    * Takes an import back: every note that arrived in it is marked deleted, and
@@ -76,6 +85,24 @@ export function presetRepository(userId: string, run: Runner): PresetRepository 
       });
     },
 
+    async byId(id) {
+      return run(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(studyPresets)
+          .where(
+            and(
+              eq(studyPresets.userId, userId),
+              eq(studyPresets.id, id),
+              isNull(studyPresets.deletedAt),
+            ),
+          )
+          .limit(1);
+
+        return row;
+      });
+    },
+
     async list() {
       return run(async (tx) =>
         tx
@@ -84,6 +111,32 @@ export function presetRepository(userId: string, run: Runner): PresetRepository 
           .where(and(eq(studyPresets.userId, userId), isNull(studyPresets.deletedAt)))
           .orderBy(asc(studyPresets.name)),
       );
+    },
+
+    async update(id, input) {
+      return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
+
+        const [row] = await tx
+          .update(studyPresets)
+          .set({
+            ...(input.name === undefined ? {} : { name: input.name.trim() }),
+            ...(input.config === undefined ? {} : { config: input.config }),
+            ...(input.isDefault === undefined ? {} : { isDefault: input.isDefault }),
+            updatedAt: new Date(),
+            rev,
+          })
+          .where(
+            and(
+              eq(studyPresets.userId, userId),
+              eq(studyPresets.id, id),
+              isNull(studyPresets.deletedAt),
+            ),
+          )
+          .returning();
+
+        return row;
+      });
     },
 
     async softDelete(id) {
@@ -131,6 +184,24 @@ export function importBatchRepository(userId: string, run: Runner): ImportBatchR
         if (!row) {
           throw new Error('the import batch was not written');
         }
+
+        return row;
+      });
+    },
+
+    async byId(id) {
+      return run(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(importBatches)
+          .where(
+            and(
+              eq(importBatches.userId, userId),
+              eq(importBatches.id, id),
+              isNull(importBatches.deletedAt),
+            ),
+          )
+          .limit(1);
 
         return row;
       });

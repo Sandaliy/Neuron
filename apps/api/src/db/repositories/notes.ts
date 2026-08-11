@@ -32,14 +32,50 @@ export interface CreateNote {
   readonly importBatchId?: string | null;
 }
 
+/** What the browse screen is asking for. */
+export interface ListNotes {
+  readonly deckId?: string | undefined;
+  readonly includeSubtree?: boolean | undefined;
+  readonly status?: NoteStatus | undefined;
+  readonly tag?: string | undefined;
+  readonly search?: string | undefined;
+  readonly limit?: number | undefined;
+  /** The id of the last note on the previous page. */
+  readonly cursor?: string | undefined;
+}
+
+/** One page of notes, and where the next one starts. */
+export interface NotePage {
+  readonly items: NoteRow[];
+  readonly nextCursor: string | undefined;
+}
+
 export interface NoteRepository {
   create: (input: CreateNote) => Promise<NoteRow>;
   createMany: (inputs: readonly CreateNote[]) => Promise<NoteRow[]>;
   byId: (id: string) => Promise<NoteRow | undefined>;
+  /**
+   * The browse screen: filtered, and one page at a time.
+   *
+   * Paged by a cursor rather than an offset. An offset skips a row whenever
+   * something ahead of it is deleted between two pages, and a deck being edited
+   * while it is being read is the normal case here rather than the odd one.
+   * Ids are UUID version 7, so ordering by id is ordering by creation time and
+   * the cursor is just the last id seen.
+   */
+  list: (query: ListNotes) => Promise<NotePage>;
   /** Every note in a deck and, when asked, in the decks under it. */
   inDeck: (deckId: string, options?: { readonly includeSubtree?: boolean }) => Promise<NoteRow[]>;
   updateFields: (id: string, fields: NoteFields) => Promise<NoteRow | undefined>;
   setStatus: (id: string, status: NoteStatus) => Promise<NoteRow | undefined>;
+  /**
+   * The same change across many notes, in one statement and one version.
+   *
+   * Marking two hundred words as known after a placement test is one action to
+   * the person doing it. Two hundred requests, each taking its own version
+   * number, is how that action becomes a spinner and a torn sync.
+   */
+  setStatusMany: (ids: readonly string[], status: NoteStatus) => Promise<number>;
   /**
    * Moves a note to another deck, taking its cards with it.
    *
@@ -49,6 +85,8 @@ export interface NoteRepository {
    */
   moveToDeck: (id: string, deckId: string) => Promise<NoteRow | undefined>;
   softDelete: (id: string) => Promise<boolean>;
+  /** Takes back one delete, bringing the note's cards with it. */
+  restore: (id: string) => Promise<boolean>;
 }
 
 /** The note type named on a write does not exist, or is not readable. */
@@ -158,6 +196,69 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       });
     },
 
+    async list(query) {
+      return run(async (tx) => {
+        const limit = Math.min(query.limit ?? 50, 200);
+        const conditions = [eq(notes.userId, userId), isNull(notes.deletedAt)];
+
+        if (query.deckId !== undefined) {
+          if (query.includeSubtree === false) {
+            conditions.push(eq(notes.deckId, query.deckId));
+          } else {
+            const under = tx
+              .select({ id: decks.id })
+              .from(decks)
+              .where(
+                and(
+                  eq(decks.userId, userId),
+                  isNull(decks.deletedAt),
+                  sql`(${decks.id} = ${query.deckId} or ${decks.path} @> array[${query.deckId}]::uuid[])`,
+                ),
+              );
+
+            conditions.push(inArray(notes.deckId, under));
+          }
+        }
+
+        if (query.status !== undefined) {
+          conditions.push(eq(notes.status, query.status));
+        }
+
+        if (query.tag !== undefined) {
+          conditions.push(sql`${notes.tags} @> array[${query.tag}]::text[]`);
+        }
+
+        if (query.search !== undefined) {
+          // Across the whole of `fields` rather than one named column, because
+          // the columns differ by note type and a person searching for a word
+          // does not care whether it was the term or the example it appeared
+          // in. It is a scan, and at the size a person's own collection reaches
+          // that is cheaper than the index it would take to avoid one.
+          conditions.push(sql`${notes.fields}::text ilike ${`%${query.search}%`}`);
+        }
+
+        if (query.cursor !== undefined) {
+          conditions.push(sql`${notes.id} > ${query.cursor}::uuid`);
+        }
+
+        // One more than asked for, so that "is there another page" is answered
+        // by looking rather than by counting the whole table.
+        const rows = await tx
+          .select()
+          .from(notes)
+          .where(and(...conditions))
+          .orderBy(asc(notes.id))
+          .limit(limit + 1);
+
+        const items = rows.slice(0, limit);
+
+        return {
+          items,
+          nextCursor: rows.length > limit ? items.at(-1)?.id : undefined,
+        };
+      });
+    },
+
     async inDeck(deckId, options) {
       return run(async (tx) => {
         if (!options?.includeSubtree) {
@@ -182,7 +283,9 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
         return tx
           .select()
           .from(notes)
-          .where(and(eq(notes.userId, userId), isNull(notes.deletedAt), inArray(notes.deckId, under)))
+          .where(
+            and(eq(notes.userId, userId), isNull(notes.deletedAt), inArray(notes.deckId, under)),
+          )
           .orderBy(asc(notes.rank), asc(notes.createdAt));
       });
     },
@@ -227,6 +330,30 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
           .returning();
 
         return row;
+      });
+    },
+
+    async setStatusMany(ids, status) {
+      if (ids.length === 0) {
+        return 0;
+      }
+
+      return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
+
+        const changed = await tx
+          .update(notes)
+          .set({ status, updatedAt: new Date(), rev })
+          .where(
+            and(
+              eq(notes.userId, userId),
+              inArray(notes.id, [...new Set(ids)]),
+              isNull(notes.deletedAt),
+            ),
+          )
+          .returning({ id: notes.id });
+
+        return changed.length;
       });
     },
 
@@ -275,6 +402,43 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
         }
 
         return marked.length > 0;
+      });
+    },
+
+    async restore(id) {
+      return run(async (tx) => {
+        const [note] = await tx
+          .select({ deletedAt: notes.deletedAt })
+          .from(notes)
+          .where(and(eq(notes.userId, userId), eq(notes.id, id)))
+          .limit(1);
+
+        if (!note?.deletedAt) {
+          return false;
+        }
+
+        const rev = await nextRev(tx, userId);
+        const now = new Date();
+
+        await tx
+          .update(notes)
+          .set({ deletedAt: null, updatedAt: now, rev })
+          .where(and(eq(notes.userId, userId), eq(notes.id, id)));
+
+        // Only the cards that went with the note. One deleted on its own
+        // beforehand was deleted on purpose and stays that way.
+        await tx
+          .update(cards)
+          .set({ deletedAt: null, updatedAt: now, rev })
+          .where(
+            and(
+              eq(cards.userId, userId),
+              eq(cards.noteId, id),
+              eq(cards.deletedAt, note.deletedAt),
+            ),
+          );
+
+        return true;
       });
     },
   };

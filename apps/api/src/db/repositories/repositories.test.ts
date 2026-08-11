@@ -62,7 +62,10 @@ describe.skipIf(!database)('the repositories', () => {
       const newHome = await repositories.decks.create({ name: 'New home' });
       const moving = await repositories.decks.create({ name: 'Moving', parentId: oldHome.id });
       const child = await repositories.decks.create({ name: 'Child', parentId: moving.id });
-      const grandchild = await repositories.decks.create({ name: 'Grandchild', parentId: child.id });
+      const grandchild = await repositories.decks.create({
+        name: 'Grandchild',
+        parentId: child.id,
+      });
 
       await repositories.decks.move(moving.id, newHome.id);
 
@@ -224,7 +227,11 @@ describe.skipIf(!database)('the repositories', () => {
 
       const yesterday = new Date(Date.now() - 86_400_000);
 
-      await repositories.cards.create({ noteId: note.id, direction: 'recognition', due: yesterday });
+      await repositories.cards.create({
+        noteId: note.id,
+        direction: 'recognition',
+        due: yesterday,
+      });
 
       const due = await repositories.cards.due({ now: new Date(), deckId: folder.id });
 
@@ -249,9 +256,9 @@ describe.skipIf(!database)('the repositories', () => {
 
       expect(await repositories.notes.byId(note.id)).toBeUndefined();
       expect(await repositories.cards.forNote(note.id)).toEqual([]);
-      expect((await repositories.cards.due({ now: new Date() })).map((card) => card.noteId)).not.toContain(
-        note.id,
-      );
+      expect(
+        (await repositories.cards.due({ now: new Date() })).map((card) => card.noteId),
+      ).not.toContain(note.id);
     });
   });
 

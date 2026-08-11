@@ -10,7 +10,6 @@ import { nextRev } from './session.js';
 
 import type { Runner, Tx } from './session.js';
 
-
 /**
  * Cards: one direction of asking about a note, each on its own schedule.
  */
@@ -36,6 +35,15 @@ export interface DueQuery {
   readonly deckId?: string;
 }
 
+/** How much work one deck is holding, before the tree is rolled up. */
+export interface DeckCount {
+  readonly deckId: string;
+  /** Answered at least once and waiting now. */
+  readonly due: number;
+  /** Never answered. */
+  readonly fresh: number;
+}
+
 export interface CardRepository {
   create: (input: CreateCard) => Promise<CardRow>;
   createMany: (inputs: readonly CreateCard[]) => Promise<CardRow[]>;
@@ -43,9 +51,32 @@ export interface CardRepository {
   forNote: (noteId: string) => Promise<CardRow[]>;
   /** The query the application runs on every open. */
   due: (query: DueQuery) => Promise<CardRow[]>;
+  /**
+   * What each deck is holding, in one statement for the whole collection.
+   *
+   * One query rather than one per deck, and the rolling up of a subtree happens
+   * in the caller from the `path` arrays it already has. The measurement in
+   * phase 3 made this the slowest query in the schema at fifty thousand cards,
+   * so a version that ran once per deck would be felt on the first screen of
+   * the app.
+   */
+  countsByDeck: (now: Date) => Promise<DeckCount[]>;
   /** Writes a scheduling state straight onto a card. */
   putState: (id: string, state: SchedulingState) => Promise<CardRow | undefined>;
+  /** Puts a card aside without deleting it or disturbing its schedule. */
+  suspend: (id: string) => Promise<CardRow | undefined>;
+  unsuspend: (id: string) => Promise<CardRow | undefined>;
+  /**
+   * Starts a card over.
+   *
+   * The review log cannot lose a row, so the reset is recorded on the card
+   * instead: `resetAt` is the line the replay starts from, and answers given
+   * before it stop counting towards the card's state. Without that, rebuilding
+   * from the log would undo the reset the first time anyone did it.
+   */
+  reset: (id: string, now: Date) => Promise<CardRow | undefined>;
   softDelete: (id: string) => Promise<boolean>;
+  restore: (id: string) => Promise<boolean>;
 }
 
 const DEFAULT_DUE_LIMIT = 200;
@@ -113,7 +144,10 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
         }
 
         const rev = await nextRev(tx, userId);
-        const [row] = await tx.insert(cards).values(toValues(input, deckId, rev)).returning();
+        const [row] = await tx
+          .insert(cards)
+          .values(toValues(input, deckId, rev))
+          .returning();
 
         if (!row) {
           throw new Error('the card was not written');
@@ -182,6 +216,7 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
         const ready = and(
           eq(cards.userId, userId),
           isNull(cards.deletedAt),
+          isNull(cards.suspendedAt),
           lte(cards.due, query.now),
         );
 
@@ -213,6 +248,22 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
       });
     },
 
+    async countsByDeck(now) {
+      return run(async (tx) => {
+        const rows = await tx
+          .select({
+            deckId: cards.deckId,
+            due: sql<number>`count(*) filter (where ${cards.state} <> 'new' and ${cards.due} <= ${now})::int`,
+            fresh: sql<number>`count(*) filter (where ${cards.state} = 'new')::int`,
+          })
+          .from(cards)
+          .where(and(eq(cards.userId, userId), isNull(cards.deletedAt), isNull(cards.suspendedAt)))
+          .groupBy(cards.deckId);
+
+        return rows;
+      });
+    },
+
     async putState(id, state) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
@@ -221,6 +272,69 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
         const [row] = await tx
           .update(cards)
           .set({ ...columns, placedDue: columns.due, updatedAt: new Date(), rev })
+          .where(and(eq(cards.userId, userId), eq(cards.id, id), isNull(cards.deletedAt)))
+          .returning();
+
+        return row;
+      });
+    },
+
+    async suspend(id) {
+      return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
+        const now = new Date();
+
+        const [row] = await tx
+          .update(cards)
+          .set({ suspendedAt: now, updatedAt: now, rev })
+          .where(
+            and(
+              eq(cards.userId, userId),
+              eq(cards.id, id),
+              isNull(cards.deletedAt),
+              isNull(cards.suspendedAt),
+            ),
+          )
+          .returning();
+
+        return row;
+      });
+    },
+
+    async unsuspend(id) {
+      return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
+
+        const [row] = await tx
+          .update(cards)
+          .set({ suspendedAt: null, updatedAt: new Date(), rev })
+          .where(and(eq(cards.userId, userId), eq(cards.id, id), isNull(cards.deletedAt)))
+          .returning();
+
+        return row;
+      });
+    },
+
+    async reset(id, now) {
+      return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
+
+        const [row] = await tx
+          .update(cards)
+          .set({
+            state: 'new',
+            stability: null,
+            difficulty: null,
+            lastReview: null,
+            due: now,
+            placedDue: null,
+            reps: 0,
+            lapses: 0,
+            learningStep: 0,
+            resetAt: now,
+            updatedAt: now,
+            rev,
+          })
           .where(and(eq(cards.userId, userId), eq(cards.id, id), isNull(cards.deletedAt)))
           .returning();
 
@@ -240,6 +354,21 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
           .returning({ id: cards.id });
 
         return marked.length > 0;
+      });
+    },
+
+    async restore(id) {
+      return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
+        const now = new Date();
+
+        const restored = await tx
+          .update(cards)
+          .set({ deletedAt: null, updatedAt: now, rev })
+          .where(and(eq(cards.userId, userId), eq(cards.id, id)))
+          .returning({ id: cards.id });
+
+        return restored.length > 0;
       });
     },
   };

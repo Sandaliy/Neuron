@@ -10,7 +10,6 @@ import { noteTypes } from './note-types.js';
 import { owned } from './owned.js';
 import { importBatches } from './study.js';
 
-
 /**
  * A note is the fact. A word with everything known about it.
  *

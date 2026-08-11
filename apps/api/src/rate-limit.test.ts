@@ -1,68 +1,182 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { createInMemoryRateLimiter } from './rate-limit.js';
+import { appClient, testDatabase } from './db/testing/database.js';
+import { createRateLimiter, rateLimitKey } from './rate-limit.js';
 
-const options = { limit: 3, windowMs: 60_000 };
+import type { RateLimiter, RateLimitRule } from './rate-limit.js';
 
-describe('createInMemoryRateLimiter', () => {
-  it('allows attempts up to the limit', () => {
-    const limiter = createInMemoryRateLimiter(options);
+/**
+ * The limiter, against the database it actually counts in.
+ *
+ * Testing this against a fake would prove that the fake counts, which is not a
+ * fact about anything. The whole reason the counters moved out of memory is
+ * that memory is per instance on a serverless platform, and the property worth
+ * checking is that two callers sharing a database share a count.
+ */
 
-    expect(limiter.take('a', 0).allowed).toBe(true);
-    expect(limiter.take('a', 0).allowed).toBe(true);
-    expect(limiter.take('a', 0).allowed).toBe(true);
+const database = testDatabase();
+
+/** Small numbers, so a test does not have to make twenty requests to see one refusal. */
+const rule: RateLimitRule = {
+  bucket: 'test',
+  limit: 3,
+  windowSeconds: 60,
+  penaltySeconds: 10,
+  maxPenaltySeconds: 120,
+};
+
+describe.skipIf(!database)('the rate limiter', () => {
+  let limiter: RateLimiter;
+
+  beforeAll(() => {
+    if (database) {
+      limiter = createRateLimiter(appClient(database));
+    }
   });
 
-  it('blocks the attempt after the limit', () => {
-    const limiter = createInMemoryRateLimiter(options);
+  /** A fresh identifier per test, so one test cannot spend another's attempts. */
+  function subject(name: string): string {
+    return `${name}-${Date.now()}-${Math.random()}`;
+  }
 
-    for (let attempt = 0; attempt < options.limit; attempt += 1) {
-      limiter.take('a', 0);
+  it('allows attempts up to the limit and counts them down', async () => {
+    const who = subject('under');
+    const now = new Date();
+
+    expect(await limiter.take(rule, who, now)).toMatchObject({ allowed: true, remaining: 2 });
+    expect(await limiter.take(rule, who, now)).toMatchObject({ allowed: true, remaining: 1 });
+    expect(await limiter.take(rule, who, now)).toMatchObject({ allowed: true, remaining: 0 });
+  });
+
+  it('refuses the attempt after the limit, with a wait rather than a wall', async () => {
+    const who = subject('over');
+    const now = new Date();
+
+    for (let attempt = 0; attempt < rule.limit; attempt += 1) {
+      await limiter.take(rule, who, now);
     }
 
-    const decision = limiter.take('a', 0);
+    const decision = await limiter.take(rule, who, now);
 
     expect(decision.allowed).toBe(false);
-    expect(decision.remaining).toBe(0);
-    expect(decision.retryAfterSeconds).toBe(60);
+    expect(decision.retryAfterSeconds).toBe(rule.penaltySeconds);
   });
 
-  it('counts down the attempts left', () => {
-    const limiter = createInMemoryRateLimiter(options);
+  it('makes the wait longer every window that goes over', async () => {
+    /**
+     * A typo costs seconds and a script costs the afternoon.
+     *
+     * The wait doubles with each window that went over the limit, so somebody
+     * who mistyped their password twice is barely inconvenienced and somebody
+     * working through a list is stopped.
+     */
+    const who = subject('escalating');
+    const start = new Date();
 
-    expect(limiter.take('a', 0).remaining).toBe(2);
-    expect(limiter.take('a', 0).remaining).toBe(1);
-    expect(limiter.take('a', 0).remaining).toBe(0);
-  });
-
-  it('keeps keys apart', () => {
-    const limiter = createInMemoryRateLimiter(options);
-
-    for (let attempt = 0; attempt <= options.limit; attempt += 1) {
-      limiter.take('a', 0);
+    for (let attempt = 0; attempt <= rule.limit; attempt += 1) {
+      await limiter.take(rule, who, start);
     }
 
-    expect(limiter.take('b', 0).allowed).toBe(true);
-  });
+    const secondWindow = new Date(start.getTime() + rule.windowSeconds * 1000 + 1000);
 
-  it('opens up again once the window has passed', () => {
-    const limiter = createInMemoryRateLimiter(options);
-
-    for (let attempt = 0; attempt <= options.limit; attempt += 1) {
-      limiter.take('a', 0);
+    for (let attempt = 0; attempt <= rule.limit; attempt += 1) {
+      await limiter.take(rule, who, secondWindow);
     }
 
-    expect(limiter.take('a', 0).allowed).toBe(false);
-    expect(limiter.take('a', options.windowMs).allowed).toBe(true);
+    const decision = await limiter.take(rule, who, secondWindow);
+
+    expect(decision.allowed).toBe(false);
+    expect(decision.retryAfterSeconds).toBeGreaterThan(rule.penaltySeconds);
   });
 
-  it('shortens the wait as the window runs out', () => {
-    const limiter = createInMemoryRateLimiter(options);
+  it('never lets the wait grow past the cap', async () => {
+    const who = subject('capped');
+    let at = new Date();
 
-    for (let attempt = 0; attempt <= options.limit; attempt += 1) {
-      limiter.take('a', 0);
+    for (let window = 0; window < 12; window += 1) {
+      for (let attempt = 0; attempt <= rule.limit; attempt += 1) {
+        await limiter.take(rule, who, at);
+      }
+
+      at = new Date(at.getTime() + rule.windowSeconds * 1000 + 1000);
     }
 
-    expect(limiter.take('a', 30_000).retryAfterSeconds).toBe(30);
+    const decision = await limiter.take(rule, who, at);
+
+    expect(decision.retryAfterSeconds).toBeLessThanOrEqual(rule.maxPenaltySeconds);
+  });
+
+  it('opens up again once the window has passed without going over', async () => {
+    const who = subject('recovering');
+    const start = new Date();
+
+    for (let attempt = 0; attempt < rule.limit; attempt += 1) {
+      await limiter.take(rule, who, start);
+    }
+
+    const later = new Date(start.getTime() + rule.windowSeconds * 1000 + 1000);
+
+    expect(await limiter.take(rule, who, later)).toMatchObject({ allowed: true, remaining: 2 });
+  });
+
+  it('keeps two identifiers apart', async () => {
+    const one = subject('first');
+    const two = subject('second');
+    const now = new Date();
+
+    for (let attempt = 0; attempt <= rule.limit; attempt += 1) {
+      await limiter.take(rule, one, now);
+    }
+
+    expect((await limiter.take(rule, two, now)).allowed).toBe(true);
+  });
+
+  it('keeps two rules over the same identifier apart', async () => {
+    const who = subject('shared');
+    const other: RateLimitRule = { ...rule, bucket: 'test-other' };
+    const now = new Date();
+
+    for (let attempt = 0; attempt <= rule.limit; attempt += 1) {
+      await limiter.take(rule, who, now);
+    }
+
+    expect((await limiter.take(other, who, now)).allowed).toBe(true);
+  });
+
+  it('counts the same across two callers, which is the whole reason it moved', async () => {
+    // Two limiters, two connections, one count. In memory this was two counts,
+    // and an attacker spread across serverless instances got as many attempts
+    // as there happened to be instances.
+    if (!database) {
+      return;
+    }
+
+    const other = createRateLimiter(appClient(database));
+    const who = subject('shared-store');
+    const now = new Date();
+
+    await limiter.take(rule, who, now);
+    await other.take(rule, who, now);
+    await limiter.take(rule, who, now);
+
+    expect((await other.take(rule, who, now)).allowed).toBe(false);
+  });
+});
+
+describe('the stored key', () => {
+  it('never contains the address it is about', () => {
+    // A copy of the table says how often something was tried and nothing about
+    // who tried it.
+    const key = rateLimitKey(rule, 'someone@example.test');
+
+    expect(key).not.toContain('someone');
+    expect(key).not.toContain('example.test');
+    expect(key.startsWith('test:')).toBe(true);
+  });
+
+  it('does not care about the case of an address', () => {
+    expect(rateLimitKey(rule, 'Someone@Example.test')).toBe(
+      rateLimitKey(rule, 'someone@example.test'),
+    );
   });
 });

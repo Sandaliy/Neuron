@@ -29,6 +29,20 @@
       "when": 1786403890874,
       "tag": "0003_damp_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786409109512,
+      "tag": "0004_shallow_the_spike",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786409109513,
+      "tag": "0005_auth_isolation",
+      "breakpoints": true
     }
   ]
 }
