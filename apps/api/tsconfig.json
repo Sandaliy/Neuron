@@ -1,7 +1,21 @@
 {
   "extends": "../../packages/config/tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023"],
+    // DOM is here for the web platform types, not for the browser.
+    //
+    // Hono is built on the web standards: a handler is handed a `Request` and
+    // answers with a `Response`, and `Headers` is how both carry their headers.
+    // Those three come from this lib. Node declares them too, and locally that
+    // was enough, but the builder that deploys this compiles against its own
+    // minimal versions where `Request` has no `headers` and `Headers` has no
+    // `get`. Taking the definitions from TypeScript's own lib means the code
+    // compiles the same way here and on the way to production.
+    //
+    // The cost is that `document` and `window` also become nameable. Neither
+    // exists at run time in a serverless function, so reaching for one is a
+    // mistake this setting no longer catches. It was not catching it before
+    // either: the api simply has no reason to mention them.
+    "lib": ["ES2023", "DOM"],
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "api/**/*.ts", "drizzle.config.ts"]
