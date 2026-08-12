@@ -49,21 +49,18 @@ end to end by tests that run with it on, reading the token out of the log mailer
 
 ## Next
 
-1. **Set the Vercel Root Directory to `apps/api`.** It is `.`, which is why the deploy fails. Nothing
-   else about the project needs changing. See the open thread below for why.
-2. **Deploy and walk through the checks** in `phase-4.5.md`, which cover registering, spending a code,
-   the switch, and the second factor. Checks 5, 7 and 8 are already done and do not need a deploy.
-3. **Phase 5**, the first screens. Sign in, the ten codes with their warning, sign in by code, the QR
+1. **Walk through the checks** in `phase-4.5.md`, which cover registering, spending a code, the switch,
+   and the second factor. Checks 5, 7 and 8 are already done. Phase 4 is deployed and answering, so the
+   rest can be done against the live api now.
+2. **Phase 5**, the first screens. Sign in, the ten codes with their warning, sign in by code, the QR
    enrollment, the library tree, two languages, two themes.
 
 ## Open threads
 
-- **The deploy is broken, and has been since phase 3.** Vercel's Root Directory is `.`, so it uploads
-  only `apps/api`, finds no `pnpm-lock.yaml`, installs with npm, and npm cannot read `workspace:*`. It
-  worked on 7 August because `apps/api` had no workspace dependencies then. Nobody noticed because
-  phase 4 was never deployed: the live site still answers with phase 0.5 code. Setting Root Directory to
-  `apps/api` makes Vercel upload the whole repo and install with pnpm. The CLI cannot change that
-  setting, only the dashboard or the REST API.
+- **The deploy works, as of 12 August.** Root Directory is `apps/api`, `apps/api/vercel.json` pins the
+  `@vercel/hono` builder, and `https://neuron-api-parkour-clan.vercel.app/health` answers with the
+  phase 4 shape. GitHub is connected, so every push to `main` deploys to production and every failure
+  sends an email. Run `vercel build` before pushing. The deployment section of `CLAUDE.md` has the rest.
 - **The two registration guards are temporary.** Both exist only because there is no email verification.
   Remove them in phase 11 rather than leaving them to rot.
 - **The password policy is a length floor and about forty entries.** `packages/shared/src/password.ts`.
@@ -106,6 +103,8 @@ Why things are the way they are. Do not relitigate these without a reason.
 | 2026-08-12 | The message catalogue lives in `packages/shared/src/i18n/`                             | The api sends codes and never sentences, so the sentence for a code has to exist somewhere both ends agree on. `ru` is typed against `en`, so a missing key does not compile                |
 | 2026-08-12 | Test files share one database and never truncate it                                    | Emptying between tests pulls rows out from under the file running beside it. Every person and caller address is minted unique instead, and every query is scoped                            |
 | 2026-08-12 | Database pools hold at most two sockets                                                | The driver defaults to ten. A serverless invocation handles one request, and the test run opens enough pools that ten each exhausts the Neon endpoint                                       |
+| 2026-08-12 | `vercel build` runs before every push to `main`                                        | The builder type checks with compiler options of its own, so four commits whose deploys failed had passed `pnpm typecheck` locally. Only the builder catches those                            |
+| 2026-08-12 | Vercel Authentication is off for the api                                               | Phase 5 calls this api from users' browsers, and an SSO page in front of it would block every one of them. Every route except `/health` still refuses a request with no session               |
 
 ## Verification commands
 
@@ -113,6 +112,8 @@ Why things are the way they are. Do not relitigate these without a reason.
 pnpm typecheck
 pnpm lint
 pnpm test
+cd apps/api && vercel build --prod
 ```
 
-All three must pass before any unit of work counts as done. The full list is in `CLAUDE.md`.
+All four must pass before any unit of work counts as done, and all four before a push to `main`. The
+full list is in `CLAUDE.md`.
