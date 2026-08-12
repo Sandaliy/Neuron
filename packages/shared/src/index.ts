@@ -171,3 +171,72 @@ export {
   updatePreferencesSchema,
 } from './api/account.js';
 export type { DeleteAccountBody, Me, UpdatePreferencesBody } from './api/account.js';
+
+export {
+  MAXIMUM_PASSWORD_LENGTH,
+  MINIMUM_PASSWORD_LENGTH,
+  PASSWORD_PROBLEMS,
+  isAcceptablePassword,
+  newPasswordSchema,
+  passwordProblem,
+  passwordSchema,
+} from './password.js';
+export type { PasswordProblem } from './password.js';
+
+export {
+  RECOVERY_CODE_ALPHABET,
+  RECOVERY_CODE_COUNT,
+  RECOVERY_CODE_GROUP,
+  RECOVERY_CODE_GROUPS,
+  RECOVERY_CODE_LENGTH,
+  RECOVERY_CODE_LOW_WATERMARK,
+  formatRecoveryCode,
+  looksLikeRecoveryCode,
+  normaliseRecoveryCode,
+} from './recovery-code.js';
+
+export {
+  acknowledgedSchema,
+  completeRecoverySchema,
+  confirmTotpSchema,
+  disableTotpSchema,
+  emailSchema,
+  recoveryCodeSchema,
+  recoveryCodesStatusSchema,
+  recoverySignInResultSchema,
+  recoverySignInSchema,
+  regenerateRecoveryCodesSchema,
+  registerResultSchema,
+  registerSchema,
+  requestPasswordResetSchema,
+  resendVerificationSchema,
+  resetPasswordSchema,
+  signInSchema,
+  startTotpResultSchema,
+  startTotpSchema,
+  totpCodeSchema,
+  twoFactorStatusSchema,
+  verifyTotpSchema,
+} from './api/auth.js';
+export type {
+  CompleteRecoveryBody,
+  ConfirmTotpBody,
+  DisableTotpBody,
+  RecoveryCodesStatus,
+  RecoverySignInBody,
+  RecoverySignInResult,
+  RegenerateRecoveryCodesBody,
+  RegisterBody,
+  RegisterResult,
+  RequestPasswordResetBody,
+  ResendVerificationBody,
+  ResetPasswordBody,
+  SignInBody,
+  StartTotpBody,
+  StartTotpResult,
+  TwoFactorStatus,
+  VerifyTotpBody,
+} from './api/auth.js';
+
+export { CATALOGUES, en, ru, translate } from './i18n/index.js';
+export type { MessageKey, MessageValues, Messages } from './i18n/index.js';

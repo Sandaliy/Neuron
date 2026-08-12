@@ -77,6 +77,14 @@ export const user = pgTable(
      */
     currentRev: bigint('current_rev', { mode: 'number' }).notNull().default(0),
     /**
+     * Whether this account has a second factor turned on.
+     *
+     * Better Auth's two factor plugin owns this column and will not create a
+     * user without it. False for everybody until they choose otherwise: the
+     * second factor is optional and nothing in the app may require it.
+     */
+    twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
+    /**
      * When the person asked for their account to be erased.
      *
      * Deleting an account does not remove the row. It anonymises the personal
@@ -112,6 +120,18 @@ export const session = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+
+    /**
+     * True for a session opened with a recovery code, until it sets a password.
+     *
+     * A recovery code is the whole credential, so the session it opens is not a
+     * normal one. It may do exactly one thing, and every other route refuses
+     * it. The flag lives on the session row rather than in a second table
+     * because Better Auth already reads this row on every request, so checking
+     * it costs nothing; a separate table would add a query to the hot path in
+     * order to answer a question about a state almost nobody is ever in.
+     */
+    passwordChangeRequired: boolean('password_change_required').notNull().default(false),
   },
   (table) => [
     uniqueIndex('session_token_key').on(table.token),
@@ -153,4 +173,111 @@ export const verification = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)],
+);
+
+/**
+ * The account recovery codes.
+ *
+ * Ten of them, issued when somebody registers, each good once. Until there is a
+ * mail sender there is no other way back into an account, so these are not a
+ * step towards recovery: they are the credential. That is why they live here,
+ * next to the password hashes, reachable only by the authentication role.
+ *
+ * One row per code rather than an array on the user, because spending a code
+ * then has to touch exactly one row and can be made conditional on that row
+ * still being unspent. An array would mean read, modify, write, which two
+ * requests arriving together can both do.
+ */
+export const recoveryCodes = pgTable(
+  'recovery_codes',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /**
+     * The argon2id hash of the code, with the same parameters as a password.
+     *
+     * Hashed rather than encrypted, because nothing ever needs to read a code
+     * back. A code is only ever compared against one somebody typed, and a
+     * scheme that can produce the original is a scheme where a copy of this
+     * table plus the key is a set of working credentials.
+     */
+    codeHash: text('code_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** When it was spent. A code is used once and is then only a record. */
+    usedAt: timestamp('used_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('recovery_codes_user_id_idx').on(table.userId),
+    /** The query that counts what is left, and the one that spends a code. */
+    index('recovery_codes_unused_idx').on(table.userId, table.usedAt),
+  ],
+);
+
+/**
+ * The second factor, when somebody has chosen to have one.
+ *
+ * Better Auth's two factor plugin owns the first five columns and looks the
+ * table up by the property name `twoFactor`, so that name is fixed. The secret
+ * and the backup codes arrive already encrypted with the server secret; this
+ * table never sees either in the clear.
+ */
+export const twoFactor = pgTable(
+  'two_factor',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** The TOTP shared secret, encrypted with BETTER_AUTH_SECRET. */
+    secret: text('secret').notNull(),
+    /** The codes for a lost phone, encrypted the same way. */
+    backupCodes: text('backup_codes').notNull(),
+    /**
+     * False between scanning the QR code and typing the first code it shows.
+     *
+     * Enrollment is not active until that happens, so a QR code read wrong, or
+     * read into an app that is then deleted, locks nobody out.
+     */
+    verified: boolean('verified').notNull().default(false),
+    failedVerificationCount: smallint('failed_verification_count').notNull().default(0),
+    lockedUntil: timestamp('locked_until', { withTimezone: true }),
+    /**
+     * The last thirty second step this account has already spent.
+     *
+     * Neuron's, not Better Auth's. The plugin accepts any code inside the skew
+     * window, which means a code read over somebody's shoulder works for as
+     * long as that window lasts. Refusing anything at or below the last
+     * accepted step makes a code good exactly once.
+     *
+     * A default is required: Better Auth writes this row without naming the
+     * column, so a column it has to supply would make enrollment fail.
+     */
+    lastTotpStep: bigint('last_totp_step', { mode: 'number' }).notNull().default(0),
+  },
+  (table) => [uniqueIndex('two_factor_user_id_key').on(table.userId)],
+);
+
+/**
+ * How many accounts one address has successfully created today.
+ *
+ * Separate from `rate_limits`, which counts attempts. An attempt limit stops a
+ * script guessing passwords; it does nothing about somebody registering three
+ * hundred accounts patiently, one every ten seconds, each attempt succeeding.
+ * Both exist only until email verification is switched on.
+ *
+ * The address is hashed, so this table says how many accounts came from
+ * somewhere and nothing about where.
+ */
+export const registrationCounts = pgTable(
+  'registration_counts',
+  {
+    addressHash: text('address_hash').notNull(),
+    /** The UTC day. The cap is per day and the day does not need a timezone. */
+    day: text('day').notNull(),
+    count: smallint('count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('registration_counts_key').on(table.addressHash, table.day)],
 );

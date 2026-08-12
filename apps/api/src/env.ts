@@ -21,6 +21,20 @@ const httpUrl = (example: string) =>
       `must start with http:// or https://, for example ${example}`,
     );
 
+/**
+ * A switch, as it survives a trip through an environment variable.
+ *
+ * Everything in `process.env` is a string, and `Boolean('false')` is true,
+ * which is the single most common way a feature flag ends up doing the
+ * opposite of what the dashboard says. Only the words below are accepted, so a
+ * typo stops the server rather than silently meaning one of the two.
+ */
+const booleanFlag = z
+  .union([z.boolean(), z.enum(['true', 'false', '1', '0', 'yes', 'no'])])
+  .transform((value) =>
+    typeof value === 'boolean' ? value : value === 'true' || value === '1' || value === 'yes',
+  );
+
 const postgresUrl = z
   .string()
   .min(1)
@@ -55,37 +69,40 @@ const environmentSchema = z.object({
   BETTER_AUTH_URL: httpUrl('http://localhost:8787'),
   APP_ORIGIN: httpUrl('http://localhost:5173'),
   /**
-   * The Google OAuth credentials, both or neither.
+   * Whether anybody new may register.
    *
-   * Sign in with Google is offered only when they are here, so the api starts
-   * and works without them. That is not a convenience: it is what lets the
-   * server run before anyone has spent twenty minutes in the Google console,
-   * and what stops a half configured provider from failing at the moment a
-   * person clicks the button.
+   * True while friends are still signing up, false the moment they have. One
+   * switch in the Vercel settings, no deploy of a code change, and nobody with
+   * an account notices. It exists only until email verification is switched on,
+   * which is the real answer to somebody registering three hundred accounts.
    */
-  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
-  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  AUTH_REGISTRATION_OPEN: booleanFlag.default(true),
+  /**
+   * Accounts one address may successfully create in a day.
+   *
+   * Successes, not attempts. The rate limiter already counts attempts, and an
+   * attempt limit does nothing about somebody registering patiently. Also
+   * temporary, for the same reason.
+   */
+  AUTH_MAX_REGISTRATIONS_PER_DAY: z.coerce.number().int().min(1).max(1000).default(3),
+  /**
+   * Whether an account has to confirm its address before it can be used.
+   *
+   * False, because there is no mail sender. The whole path behind this flag is
+   * written and tested with it on, so switching it costs a domain, a provider
+   * and this variable, rather than a phase of work discovered on the day.
+   */
+  AUTH_REQUIRE_EMAIL_VERIFICATION: booleanFlag.default(false),
+  /**
+   * Which mailer to build.
+   *
+   * `log` writes the message to the server log and sends nothing, which is what
+   * makes the verification flow testable today. There is no second value yet;
+   * adding one is the entire cost of turning mail on.
+   */
+  MAILER: z.enum(['log']).default('log'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(8787),
-});
-
-/**
- * Google needs both halves or neither.
- *
- * One without the other is the shape of a half finished setup, and it would
- * show a sign in button that cannot work. Refusing at startup names the missing
- * half; accepting it would surface as an error message on Google's own domain.
- */
-const withProviderPairing = environmentSchema.superRefine((value, context) => {
-  if (Boolean(value.GOOGLE_CLIENT_ID) === Boolean(value.GOOGLE_CLIENT_SECRET)) {
-    return;
-  }
-
-  context.addIssue({
-    code: 'custom',
-    path: [value.GOOGLE_CLIENT_ID ? 'GOOGLE_CLIENT_SECRET' : 'GOOGLE_CLIENT_ID'],
-    message: 'is needed too, because the other half of the Google credentials is set',
-  });
 });
 
 /**
@@ -97,8 +114,8 @@ const withProviderPairing = environmentSchema.superRefine((value, context) => {
 const REMEDIES: Record<string, string> = {
   DATABASE_URL: 'is missing. Run pnpm db:role, which writes it',
   DATABASE_URL_AUTH: 'is missing. Run pnpm db:role, which writes it alongside DATABASE_URL',
-  GOOGLE_CLIENT_ID: 'is missing. It comes from the Google Cloud console, under Credentials',
-  GOOGLE_CLIENT_SECRET: 'is missing. It comes from the Google Cloud console, under Credentials',
+  BETTER_AUTH_SECRET:
+    'is missing. It signs session cookies and encrypts the two factor secrets, so it has to be at least 32 random characters and has to stay the same',
 };
 
 export type Env = z.infer<typeof environmentSchema>;
@@ -114,7 +131,7 @@ export class EnvironmentError extends Error {
  * @throws EnvironmentError listing every variable that is wrong, not just the first
  */
 export function parseEnv(source: Record<string, string | undefined>): Env {
-  const result = withProviderPairing.safeParse(source);
+  const result = environmentSchema.safeParse(source);
 
   if (result.success) {
     return result.data;

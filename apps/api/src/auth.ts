@@ -1,28 +1,50 @@
-import { hash, verify } from '@node-rs/argon2';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { createAuthMiddleware } from 'better-auth/api';
+import { twoFactor } from 'better-auth/plugins';
 import { eq } from 'drizzle-orm';
 
+import { hashSecret, verifySecret } from './auth/hashing.js';
+import { neuronAuth } from './auth/plugin.js';
+import { storeHashed } from './auth/reset-tokens.js';
+import { TOTP_DIGITS, TOTP_PERIOD_SECONDS } from './auth/totp-replay.js';
 import { authSchema, session as sessionTable } from './db/schema/index.js';
+import { actionLink } from './mailer.js';
 
 import type { AuthDatabase } from './db/client.js';
 import type { Env } from './env.js';
+import type { Mailer } from './mailer.js';
 
 /**
- * Password hashing parameters. These are the values OWASP recommends for
- * argon2id: 19 MiB of memory, two passes, one lane. Hashing takes roughly
- * 100 ms, which is the point. It is what makes a stolen table useless.
+ * Better Auth, configured.
+ *
+ * Email and password only. Google was removed in phase 4.5, on purpose, and
+ * what putting it back would involve is written down in docs/architecture.md so
+ * that a future reader does not take its absence for an oversight.
+ *
+ * Three plugins are in use, and no cryptography is written here:
+ *
+ *   `two-factor`, which brings TOTP and the codes for a lost phone. The secret
+ *     and those codes are encrypted with BETTER_AUTH_SECRET before they reach
+ *     the database.
+ *   `neuron-auth`, this project's own, in `src/auth/plugin.ts`. It holds the
+ *     account recovery codes, the password policy, the two guards on open
+ *     registration, and replay rejection for authenticator codes.
+ *   the Drizzle adapter, over the authentication connection.
  */
-const argon2Options = {
-  memoryCost: 19_456,
-  timeCost: 2,
-  parallelism: 1,
-} as const;
 
 const THIRTY_DAYS_IN_SECONDS = 60 * 60 * 24 * 30;
 const ONE_DAY_IN_SECONDS = 60 * 60 * 24;
 const ONE_HOUR_IN_SECONDS = 60 * 60;
+
+/**
+ * How long a verification or reset link lasts.
+ *
+ * An hour. Long enough to walk away from the computer and come back, short
+ * enough that a link sitting in an inbox somebody else later reads is usually
+ * already dead.
+ */
+const LINK_LIFETIME_IN_SECONDS = ONE_HOUR_IN_SECONDS;
 
 /**
  * The endpoints after which every other session has to go.
@@ -31,25 +53,28 @@ const ONE_HOUR_IN_SECONDS = 60 * 60;
  * reached. If the sessions opened with the old password survive it, the action
  * did nothing about the thing they were worried about. Better Auth leaves this
  * to a flag the client may or may not send, so it is decided here instead.
+ *
+ * `/recovery/complete` is deliberately not on this list. The sessions were
+ * already all closed when the recovery code was spent, and the one left is the
+ * one the person is sitting in front of.
  */
 const CREDENTIAL_CHANGE_PATHS = ['/change-password', '/set-password', '/reset-password'];
 
 export type Auth = ReturnType<typeof createAuth>;
 
-/**
- * Whether sign in with Google can be offered.
- *
- * @param env the parsed environment
- * @returns true when both halves of the credential are present
- */
-export function googleIsConfigured(env: Env): boolean {
-  return Boolean(env.GOOGLE_CLIENT_ID) && Boolean(env.GOOGLE_CLIENT_SECRET);
+export interface CreateAuthOptions {
+  readonly env: Env;
+  readonly db: AuthDatabase;
+  readonly mailer: Mailer;
+  /** Where the caller is, for the per address registration cap. */
+  readonly addressOf: (headers: Headers | undefined) => string;
 }
 
-export function createAuth({ env, db }: { env: Env; db: AuthDatabase }) {
+export function createAuth({ env, db, mailer, addressOf }: CreateAuthOptions) {
   const isProduction = env.NODE_ENV === 'production';
 
   return betterAuth({
+    appName: 'Neuron',
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
     trustedOrigins: [env.APP_ORIGIN],
@@ -60,51 +85,76 @@ export function createAuth({ env, db }: { env: Env; db: AuthDatabase }) {
       enabled: true,
       autoSignIn: true,
       /**
-       * Verification stays off until there is a domain to send mail from.
+       * Off, and the whole path behind it is written and tested.
        *
-       * Not an oversight and not a shortcut taken for speed: a free mail
-       * service will only deliver to arbitrary addresses from a verified
-       * domain, and the domain is deferred. Written down in the known
-       * limitations section of docs/architecture.md, with the phase that
-       * closes it.
+       * There is no mail sender, because a free service will only deliver to
+       * arbitrary addresses from a verified domain and the domain is deferred.
+       * What this flag controls is not a stub: with it on, an unverified
+       * account is refused everywhere, both links expire in an hour, and the
+       * tests drive the whole flow by reading the token back out of the
+       * LogMailer. Turning mail on is a domain, a provider and this variable.
+       *
+       * The reset token is a row, consumed on use, and stored as a digest. The
+       * verification token is a signed JWT rather than a row, so it is not
+       * consumed; using it twice gains nothing, because the second use returns
+       * before it would create a session. Both are written up under Known
+       * limitations in docs/architecture.md.
        */
-      requireEmailVerification: false,
+      requireEmailVerification: env.AUTH_REQUIRE_EMAIL_VERIFICATION,
       revokeSessionsOnPasswordReset: true,
+      resetPasswordTokenExpiresIn: LINK_LIFETIME_IN_SECONDS,
+      // The length rules live in packages/shared and are applied by the neuron
+      // plugin, which also refuses the passwords a list attack starts with.
+      // These two are Better Auth's own floor and ceiling, set to agree.
+      minPasswordLength: 10,
+      maxPasswordLength: 200,
       password: {
-        hash: (password) => hash(password, argon2Options),
-        verify: ({ hash: stored, password }) => verify(stored, password, argon2Options),
+        hash: hashSecret,
+        verify: ({ hash: stored, password }) => verifySecret(stored, password),
+      },
+      sendResetPassword: async ({ user, token }) => {
+        // The row Better Auth has just written holds this token in the clear.
+        // Rewritten here, before the token leaves the server, so what is kept
+        // is a digest and what is mailed is the key.
+        await storeHashed(db, token);
+
+        await mailer.send({
+          to: user.email,
+          subject: 'Reset your Neuron password',
+          body: [
+            'Somebody asked to reset the password on this account.',
+            '',
+            actionLink(env.APP_ORIGIN, '/reset-password', token),
+            '',
+            'The link works once and stops working in an hour.',
+            'If this was not you, nothing has changed and you can ignore this.',
+          ].join('\n'),
+        });
       },
     },
 
-    /**
-     * Google, when the credentials are there.
-     *
-     * Absent, the object is empty and the provider simply is not offered, so
-     * the server runs before anyone has been through the Google console.
-     */
-    socialProviders: googleIsConfigured(env)
-      ? {
-          google: {
-            clientId: env.GOOGLE_CLIENT_ID ?? '',
-            clientSecret: env.GOOGLE_CLIENT_SECRET ?? '',
-          },
-        }
-      : {},
-
-    account: {
-      accountLinking: {
-        /**
-         * Signing in with Google using the address of an existing password
-         * account attaches to that account rather than making a second one.
-         *
-         * Google is trusted for this because it tells us whether it verified
-         * the address itself, which is a stronger claim than the one we can
-         * make without a mail sender of our own.
-         */
-        enabled: true,
-        trustedProviders: ['google'],
-        requireLocalEmailVerified: false,
-      },
+    emailVerification: {
+      /**
+       * Sent as soon as somebody registers, when verification is on at all.
+       *
+       * With the flag off this never runs, so nothing reaches the log and
+       * nothing waits on a link that is not coming.
+       */
+      sendOnSignUp: env.AUTH_REQUIRE_EMAIL_VERIFICATION,
+      autoSignInAfterVerification: true,
+      expiresIn: LINK_LIFETIME_IN_SECONDS,
+      sendVerificationEmail: ({ user, token }) =>
+        mailer.send({
+          to: user.email,
+          subject: 'Confirm your email for Neuron',
+          body: [
+            'Confirm this address to finish setting up your account.',
+            '',
+            actionLink(env.APP_ORIGIN, '/verify-email', token),
+            '',
+            'The link works once and stops working in an hour.',
+          ].join('\n'),
+        }),
     },
 
     session: {
@@ -119,6 +169,22 @@ export function createAuth({ env, db }: { env: Env; db: AuthDatabase }) {
        * borrowed laptop left open a month ago is enough.
        */
       freshAge: ONE_HOUR_IN_SECONDS,
+      additionalFields: {
+        /**
+         * Set on the one session a recovery code opens.
+         *
+         * Declared here so `getSession` returns it, which is what lets the
+         * session middleware refuse everything except choosing a password
+         * without asking the database a second question on every request.
+         */
+        passwordChangeRequired: {
+          type: 'boolean',
+          defaultValue: false,
+          // Never set by anything a client sends. Only the recovery endpoint
+          // writes it, and only the recovery endpoint clears it.
+          input: false,
+        },
+      },
     },
 
     user: {
@@ -128,6 +194,37 @@ export function createAuth({ env, db }: { env: Env; db: AuthDatabase }) {
       // that would hit the trigger that keeps the review log append only.
       deleteUser: { enabled: false },
     },
+
+    plugins: [
+      twoFactor({
+        issuer: 'Neuron',
+        /**
+         * The QR code is not enough on its own.
+         *
+         * Enrollment stays inactive until the person types a code the app
+         * produced, so a QR read wrong, or read into an app that is then
+         * deleted, locks nobody out. It is the difference between an optional
+         * second factor and a way to lose an account.
+         */
+        skipVerificationOnEnable: false,
+        totpOptions: {
+          digits: TOTP_DIGITS,
+          period: TOTP_PERIOD_SECONDS,
+        },
+        backupCodeOptions: {
+          /**
+           * Encrypted, not left as plain JSON, which is the default.
+           *
+           * Encrypted rather than hashed, unlike the account recovery codes,
+           * and the difference is forced: this plugin has to be able to list
+           * the codes that are left, and a hash cannot be read back. Said out
+           * loud in the known limitations rather than glossed over.
+           */
+          storeBackupCodes: 'encrypted',
+        },
+      }),
+      neuronAuth({ env, db, addressOf }),
+    ],
 
     hooks: {
       after: createAuthMiddleware(async (context) => {

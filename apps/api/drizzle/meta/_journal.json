@@ -43,6 +43,27 @@
       "when": 1786409109513,
       "tag": "0005_auth_isolation",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786502068393,
+      "tag": "0006_steep_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786502068394,
+      "tag": "0007_auth_rework",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786502396101,
+      "tag": "0008_regular_alice",
+      "breakpoints": true
     }
   ]
 }

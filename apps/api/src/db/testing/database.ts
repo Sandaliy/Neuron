@@ -37,6 +37,16 @@ export interface TestDatabase {
   readonly authUrl: string | undefined;
 }
 
+/**
+ * Sockets per pool in the tests.
+ *
+ * The files run side by side and each builds pools of its own, all against one
+ * Neon endpoint. The driver's default of ten each adds up to more connections
+ * than the endpoint will give out, and the symptom is not a clear refusal: it
+ * is a `begin` that times out in the middle of an unrelated test.
+ */
+const TEST_MAX_SOCKETS = 2;
+
 let resolved: TestDatabase | undefined | null = null;
 
 /**
@@ -159,6 +169,11 @@ export async function prepareSchema(database: TestDatabase): Promise<void> {
  * referencing table rather than the matching rows, so the built in types are
  * written again afterwards.
  *
+ * `rate_limits` and `registration_counts` are named separately because neither
+ * belongs to a user and neither has a key pointing at one, so the cascade never
+ * reaches them. Left alone, one test's failed sign ins and another's
+ * registrations decide whether a third test is allowed to run at all.
+ *
  * @param database the test connections
  */
 export async function resetDatabase(database: TestDatabase): Promise<void> {
@@ -167,6 +182,8 @@ export async function resetDatabase(database: TestDatabase): Promise<void> {
   try {
     await pool.query('truncate table "user" cascade');
     await pool.query('truncate table note_types cascade');
+    await pool.query('truncate table rate_limits');
+    await pool.query('truncate table registration_counts');
 
     // The same function the seed uses, so both put the built in types in with
     // the same ids. Two versions of this is how they end up disagreeing.
@@ -228,12 +245,12 @@ export function repositoriesFor(database: TestDatabase, userId: string): Reposit
  * @returns a pool the caller has to close
  */
 export function rawAppPool(database: TestDatabase): Pool {
-  return new Pool({ connectionString: database.appUrl });
+  return new Pool({ connectionString: database.appUrl, max: TEST_MAX_SOCKETS });
 }
 
 /** A raw connection as the owner, for setup and for teardown. */
 export function rawOwnerPool(database: TestDatabase): Pool {
-  return new Pool({ connectionString: database.ownerUrl });
+  return new Pool({ connectionString: database.ownerUrl, max: TEST_MAX_SOCKETS });
 }
 
 /** A raw connection as the authentication role, for the tests about it. */
@@ -244,7 +261,7 @@ export function rawAuthPool(database: TestDatabase): Pool {
     );
   }
 
-  return new Pool({ connectionString: database.authUrl });
+  return new Pool({ connectionString: database.authUrl, max: TEST_MAX_SOCKETS });
 }
 
 /**

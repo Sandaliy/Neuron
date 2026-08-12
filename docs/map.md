@@ -63,6 +63,9 @@ Zod schemas and types used by both sides of the wire.
 | `src/note-types.ts`    | The three built in note types (`vocab`, `basic`, `cloze`), their fields and card templates |
 | `src/deck-settings.ts` | Per deck settings schema, defaults, and inheritance from the parent deck                   |
 | `src/preferences.ts`   | Locale, theme, plan, time zone, day cutoff hour                                            |
+| `src/password.ts`      | The password policy: ten character floor, the small list of the worst ones                 |
+| `src/recovery-code.ts` | The recovery code alphabet, grouping, and how a typed one is read back                     |
+| `src/i18n/`            | `en.ts`, `ru.ts` and `translate`. Every user visible string, in both languages             |
 
 ### The wire contract (`src/api/`)
 
@@ -81,6 +84,7 @@ objects, which is what stops it drifting away from the code.
 | `reviews.ts` | Submitting an answer, one or a batch, and what comes back                     |
 | `sync.ts`    | The revision stream, and what a client may push for each kind of row          |
 | `account.ts` | Who is signed in, preferences, and leaving                                    |
+| `auth.ts`    | Registering, signing in, recovery codes, TOTP, verification and reset          |
 
 ## packages/config
 
@@ -102,6 +106,7 @@ Hono on the Node runtime, deployed to Vercel Functions. Drizzle over Postgres on
 | `src/dev.ts`            | Local start. Reads `.env` before anything else runs                                                                       |
 | `src/env.ts`            | Environment parsing and validation                                                                                        |
 | `src/auth.ts`           | Better Auth setup, over the authentication connection. Do not hand roll sessions or password hashing anywhere else        |
+| `src/mailer.ts`         | The `Mailer` interface, `LogMailer`, and the variable that chooses. No provider is configured                            |
 | `src/context.ts`        | `requireSession`: refuses anything without one, hands the rest their repositories                                         |
 | `src/errors.ts`         | `ApiError`, the mapping from thrown things to codes, and the one response shape                                           |
 | `src/validation.ts`     | `readBody`, `readQuery`, `readParams`. Nothing reaches a handler unparsed                                                 |
@@ -110,6 +115,25 @@ Hono on the Node runtime, deployed to Vercel Functions. Drizzle over Postgres on
 | `src/note-cards.ts`     | Which directions a new note starts with, from the deck's ladder                                                           |
 | `src/openapi.ts`        | The api described, generated from the schemas in `packages/shared`                                                        |
 | `src/testing/server.ts` | The real routes over the real database, behind a stubbed session. Only the session is replaced                            |
+
+### Authentication (`src/auth/`)
+
+What Neuron adds to Better Auth. Everything here runs on the authentication connection, so none of it is
+reachable from a route handler.
+
+| File               | Holds                                                                                          |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| `plugin.ts`        | The Better Auth plugin: recovery endpoints, the registration guards, the password policy hook   |
+| `recovery-codes.ts`| Generating, hashing, counting and spending the ten account recovery codes                      |
+| `hashing.ts`       | One set of argon2id parameters for every secret, and the constant time miss for unknown addresses |
+| `registration.ts`  | The per address daily cap on successful registrations                                          |
+| `totp-replay.ts`   | Which step a code came from, and claiming it so the same code cannot be used twice              |
+| `reset-tokens.ts`  | Storing the password reset token as a digest instead of in the clear                           |
+| `testing/harness.ts`| A real server, a real cookie jar, and the helpers the authentication tests share                |
+
+The tests next to these are the only ones that do not stub the session: `registration.test.ts`,
+`sessions.test.ts`, `recovery.test.ts`, `totp.test.ts`, `email-verification.test.ts`,
+`account-deletion.test.ts`, `admin-reset.test.ts`.
 
 ### Routes (`src/routes/`)
 
@@ -128,13 +152,13 @@ middleware put on the request, and answers only in the shape `src/errors.ts` dec
 
 ### Schema (`src/db/schema/`)
 
-Fourteen tables. `index.ts` also exports `USER_OWNED_TABLES`, `AUTH_TABLES`, `WRITE_ORDER` and the two
+Seventeen tables. `index.ts` also exports `USER_OWNED_TABLES`, `AUTH_TABLES`, `WRITE_ORDER` and the two
 lists of `user` columns the application role may touch, so a new table cannot be silently left out of
 the checks that prove isolation works.
 
 | File                     | Tables                                                                                                 |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `auth.ts`                | `user`, `session`, `account`, `verification`. Reached over a second connection, as a role of their own |
+| `auth.ts`                | `user`, `session`, `account`, `verification`, `two_factor`, `recovery_codes`, `registration_counts`. Reached over a second connection, as a role of their own |
 | `decks.ts`               | `decks`. Folder and deck are the same entity. Ancestors stored as an array for subtree queries         |
 | `notes.ts`               | `notes`. The fact, with all its fields                                                                 |
 | `note-types.ts`          | `note_types`. Built in types belong to nobody, so this has its own policy                              |
@@ -177,13 +201,15 @@ The user is supplied once when the set is built. Do not write ad hoc queries in 
 | `seed/main.ts`, `seed/data.ts`                   | Seeds a database with sample decks and notes                           |
 | `role/main.ts`                                   | Gives both restricted roles a password and writes their connections    |
 | `erase/main.ts`                                  | The only code that removes a review. Runs as the owner, thirty days on |
+| `admin/reset-password.ts`                        | `pnpm admin:reset-password`. The last way in, run by hand as the owner |
 | `bench/main.ts`                                  | Measures the due query, which is how the index was chosen              |
 | `test-db/main.ts`                                | Prepares the Neon `test` branch                                        |
 | `testing/database.ts`, `testing/global-setup.ts` | Test harness. Wipes the test database before each run                  |
 | `isolation.test.ts`                              | Proves what each role can and cannot reach, straight at the database   |
 
-Migrations are in `drizzle/`, numbered. `0002_isolation.sql` is the row level security one and
-`0005_auth_isolation.sql` is the split into two roles.
+Migrations are in `drizzle/`, numbered. `0002_isolation.sql` is the row level security one,
+`0005_auth_isolation.sql` is the split into two roles, and `0007_auth_rework.sql` puts the recovery codes
+and the two factor secrets on the authentication side of that split.
 
 ## apps/web
 

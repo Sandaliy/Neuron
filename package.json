@@ -27,7 +27,8 @@
     "db:test-db": "pnpm --filter @neuron/api db:test-db",
     "db:bench": "pnpm --filter @neuron/api db:bench",
     "db:erase": "pnpm --filter @neuron/api db:erase",
-    "db:studio": "pnpm --filter @neuron/api db:studio"
+    "db:studio": "pnpm --filter @neuron/api db:studio",
+    "admin:reset-password": "pnpm --filter @neuron/api admin:reset-password"
   },
   "devDependencies": {
     "@neuron/config": "workspace:*",

@@ -73,23 +73,49 @@ describe('parseEnv', () => {
     expect(() => parseEnv(withoutAuth)).toThrow(/DATABASE_URL_AUTH is missing. Run pnpm db:role/);
   });
 
-  it('runs without Google, because the credentials arrive later', () => {
-    expect(parseEnv(valid).GOOGLE_CLIENT_ID).toBeUndefined();
+  it('leaves registration open and email verification off by default', () => {
+    const env = parseEnv(valid);
+
+    expect(env.AUTH_REGISTRATION_OPEN).toBe(true);
+    expect(env.AUTH_REQUIRE_EMAIL_VERIFICATION).toBe(false);
+    expect(env.AUTH_MAX_REGISTRATIONS_PER_DAY).toBe(3);
   });
 
-  it('accepts both halves of the Google credentials', () => {
+  it('reads a switch that arrived as the word false', () => {
+    // The one that matters. Every environment variable is a string, and
+    // Boolean('false') is true, which is how a flag ends up doing the opposite
+    // of what the dashboard says it does.
+    expect(parseEnv({ ...valid, AUTH_REGISTRATION_OPEN: 'false' }).AUTH_REGISTRATION_OPEN).toBe(
+      false,
+    );
+    expect(parseEnv({ ...valid, AUTH_REGISTRATION_OPEN: '0' }).AUTH_REGISTRATION_OPEN).toBe(false);
+    expect(parseEnv({ ...valid, AUTH_REGISTRATION_OPEN: 'no' }).AUTH_REGISTRATION_OPEN).toBe(false);
+  });
+
+  it('reads a switch that arrived as the word true', () => {
+    expect(
+      parseEnv({ ...valid, AUTH_REQUIRE_EMAIL_VERIFICATION: 'true' })
+        .AUTH_REQUIRE_EMAIL_VERIFICATION,
+    ).toBe(true);
+  });
+
+  it('refuses a switch it cannot read, rather than guessing', () => {
+    // A typo has to stop the server. Guessing means the flag silently means
+    // one of the two things and nobody finds out which until it matters.
+    expect(() => parseEnv({ ...valid, AUTH_REGISTRATION_OPEN: 'off' })).toThrow(EnvironmentError);
+  });
+
+  it('reads the registration cap as a number when the shell gives it as text', () => {
+    expect(parseEnv({ ...valid, AUTH_MAX_REGISTRATIONS_PER_DAY: '10' })
+      .AUTH_MAX_REGISTRATIONS_PER_DAY).toBe(10);
+  });
+
+  it('knows nothing about Google any more', () => {
+    // Removed in phase 4.5. Setting the old variables changes nothing, rather
+    // than half configuring a provider that is no longer there.
     const env = parseEnv({ ...valid, GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'secret' });
 
-    expect(env.GOOGLE_CLIENT_ID).toBe('id');
-    expect(env.GOOGLE_CLIENT_SECRET).toBe('secret');
-  });
-
-  it('refuses one half of the Google credentials without the other', () => {
-    // A half finished setup would show a sign in button that cannot work, and
-    // the failure would surface on Google's own domain rather than here.
-    expect(() => parseEnv({ ...valid, GOOGLE_CLIENT_ID: 'id' })).toThrow(/GOOGLE_CLIENT_SECRET/);
-    expect(() => parseEnv({ ...valid, GOOGLE_CLIENT_SECRET: 'secret' })).toThrow(
-      /GOOGLE_CLIENT_ID/,
-    );
+    expect(env).not.toHaveProperty('GOOGLE_CLIENT_ID');
+    expect(env).not.toHaveProperty('GOOGLE_CLIENT_SECRET');
   });
 });

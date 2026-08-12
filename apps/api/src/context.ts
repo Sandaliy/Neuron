@@ -45,6 +45,13 @@ export interface ServerParts {
   readonly authDb: AuthDatabase;
   readonly auth: Auth;
   readonly limiter: RateLimiter;
+  /**
+   * Whether an unconfirmed address is allowed to reach the collection.
+   *
+   * Comes from AUTH_REQUIRE_EMAIL_VERIFICATION. False today, because there is
+   * no mail sender, and the path behind it is written and tested regardless.
+   */
+  readonly requireVerifiedEmail: boolean;
 }
 
 /**
@@ -59,6 +66,31 @@ export function requireSession(parts: ServerParts): MiddlewareHandler<RequestBin
 
     if (!session) {
       throw new ApiError('not_authenticated');
+    }
+
+    /**
+     * A session opened with a recovery code may do exactly one thing.
+     *
+     * That one thing lives under `/api/auth/recovery/complete`, which is not
+     * behind this middleware, so refusing here refuses everything else: the
+     * whole collection, the account, sync. A recovery code is the entire
+     * credential, and until it has been traded for a password the account is
+     * only half in the hands of whoever is holding it.
+     */
+    if (session.session.passwordChangeRequired) {
+      throw new ApiError('password_change_required');
+    }
+
+    /**
+     * An account that has not confirmed its address, when that is required.
+     *
+     * Better Auth refuses to sign such an account in at all while the flag is
+     * on, so this is the second barrier rather than the first. It matters
+     * because the flag can be turned on while somebody already holds a session
+     * from before it was.
+     */
+    if (parts.requireVerifiedEmail && !session.user.emailVerified) {
+      throw new ApiError('email_not_verified');
     }
 
     context.set('user', {
@@ -94,7 +126,22 @@ export function repositoriesOf(context: Context<RequestBindings>): Repositories 
  * @returns the address, or a constant when there is none to read
  */
 export function clientAddress(context: Context): string {
-  const forwarded = context.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+  return addressFromHeaders(context.req.raw.headers);
+}
 
-  return forwarded ?? context.req.header('x-real-ip') ?? 'unknown';
+/**
+ * The same, from bare headers.
+ *
+ * Better Auth hands its plugins a `Headers` rather than a Hono context, and the
+ * registration cap has to key on the same address the rate limiter does. One
+ * function, so the two cannot come to different conclusions about who is
+ * calling.
+ *
+ * @param headers the request headers, if there are any
+ * @returns the address, or a constant when there is none to read
+ */
+export function addressFromHeaders(headers: Headers | undefined): string {
+  const forwarded = headers?.get('x-forwarded-for')?.split(',')[0]?.trim();
+
+  return forwarded ?? headers?.get('x-real-ip') ?? 'unknown';
 }

@@ -1,4 +1,12 @@
-import { account, session, user, verification } from './auth.js';
+import {
+  account,
+  recoveryCodes,
+  registrationCounts,
+  session,
+  twoFactor,
+  user,
+  verification,
+} from './auth.js';
 import { cards } from './cards.js';
 import { decks } from './decks.js';
 import { noteTypes } from './note-types.js';
@@ -19,7 +27,15 @@ import { syncConflicts } from './sync.js';
  * quietly left out of the checks that prove isolation works.
  */
 
-export { account, session, user, verification } from './auth.js';
+export {
+  account,
+  recoveryCodes,
+  registrationCounts,
+  session,
+  twoFactor,
+  user,
+  verification,
+} from './auth.js';
 export { cards } from './cards.js';
 export { decks } from './decks.js';
 export { noteTypes } from './note-types.js';
@@ -30,19 +46,33 @@ export { importBatches, studyPresets } from './study.js';
 export { CONFLICT_REASONS, syncConflicts } from './sync.js';
 
 /**
- * The four tables Better Auth owns, on their own.
+ * The tables the authentication role owns, on their own.
  *
  * Better Auth is handed this rather than the whole schema, so the one client
  * holding the credential that can read a password hash cannot also name a
  * table in the collection.
+ *
+ * `twoFactor` has to be spelled that way: the Drizzle adapter looks a model up
+ * by the property name, and that is the name the plugin asks for.
  */
-export const authSchema = { user, session, account, verification };
+export const authSchema = {
+  user,
+  session,
+  account,
+  verification,
+  twoFactor,
+  recoveryCodes,
+  registrationCounts,
+};
 
 export const schema = {
   user,
   session,
   account,
   verification,
+  twoFactor,
+  recoveryCodes,
+  registrationCounts,
   decks,
   noteTypes,
   notes,
@@ -66,14 +96,23 @@ export const USER_OWNED_TABLES = [
 ] as const;
 
 /**
- * Tables Better Auth owns.
+ * Tables the authentication role owns.
  *
  * These are reached over a second connection, as a role of their own. The
  * application role can read a few columns of `user` and nothing else here,
- * which is what keeps an email address and a password hash out of reach of a
- * bug in a route handler. See `0004_auth_isolation.sql`.
+ * which is what keeps an email address, a password hash, a recovery code and a
+ * TOTP secret out of reach of a bug in a route handler. See
+ * `0005_auth_isolation.sql` and `0007_auth_rework.sql`.
  */
-export const AUTH_TABLES = ['user', 'session', 'account', 'verification'] as const;
+export const AUTH_TABLES = [
+  'user',
+  'session',
+  'account',
+  'verification',
+  'two_factor',
+  'recovery_codes',
+  'registration_counts',
+] as const;
 
 /**
  * Columns of `user` the application role may read.

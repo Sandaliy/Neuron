@@ -1,11 +1,12 @@
 import { cors } from 'hono/cors';
 
-import { createAuth, googleIsConfigured } from './auth.js';
-import { clientAddress, requireSession, signedIn } from './context.js';
+import { createAuth } from './auth.js';
+import { addressFromHeaders, clientAddress, requireSession, signedIn } from './context.js';
 import { createAuthDb, createDb } from './db/client.js';
 import { readDatabaseTime } from './db/health.js';
 import { loadEnv } from './env.js';
 import { ApiError, respondWithError } from './errors.js';
+import { createMailer } from './mailer.js';
 import { openApiDocument } from './openapi.js';
 import {
   AUTH_ACCOUNT_LIMIT,
@@ -23,6 +24,9 @@ import { importRoutes, presetRoutes } from './routes/study.js';
 import { syncRoutes } from './routes/sync.js';
 
 import type { RequestBindings, ServerParts } from './context.js';
+import type { AuthDatabase, Database } from './db/client.js';
+import type { Env } from './env.js';
+import type { Mailer } from './mailer.js';
 import type { RateLimitRule } from './rate-limit.js';
 import type { Hono, MiddlewareHandler } from 'hono';
 
@@ -35,9 +39,39 @@ import type { Hono, MiddlewareHandler } from 'hono';
  */
 export function registerRoutes(app: Hono): Hono {
   const env = loadEnv();
-  const db = createDb(env.DATABASE_URL);
-  const authDb = createAuthDb(env.DATABASE_URL_AUTH);
-  const auth = createAuth({ env, db: authDb });
+
+  return mountApp(app, {
+    env,
+    db: createDb(env.DATABASE_URL),
+    authDb: createAuthDb(env.DATABASE_URL_AUTH),
+    mailer: createMailer(env),
+  });
+}
+
+/** What a whole server is built from. */
+export interface AppParts {
+  readonly env: Env;
+  readonly db: Database;
+  readonly authDb: AuthDatabase;
+  readonly mailer: Mailer;
+}
+
+/**
+ * The whole api, from parts the caller supplies.
+ *
+ * Split out of `registerRoutes` so the authentication tests can stand a real
+ * server up against the test database with the flags set however the test
+ * needs them, and read the verification token back out of the mailer they
+ * passed in. Every one of those tests runs this exact function, so what they
+ * cover is the server rather than an arrangement resembling it.
+ *
+ * @param app the app to mount onto
+ * @param parts the environment, the two connections, and the mailer
+ * @returns the same app
+ */
+export function mountApp(app: Hono, parts: AppParts): Hono {
+  const { env, db, authDb, mailer } = parts;
+  const auth = createAuth({ env, db: authDb, mailer, addressOf: addressFromHeaders });
   const limiter = createRateLimiter(db);
 
   // One origin, no wildcard. Credentials are on because the session lives in a
@@ -56,10 +90,11 @@ export function registerRoutes(app: Hono): Hono {
     context.json({
       status: 'ok',
       time: new Date().toISOString(),
-      // Useful enough on a fresh deploy to be worth saying, and it gives away
-      // nothing: whether a sign in button exists is visible from the sign in
-      // page anyway.
-      google: googleIsConfigured(env),
+      // Both are visible from the sign in screen anyway: whether it offers a
+      // registration form, and whether it asks for a confirmation link. Saying
+      // so here is what makes a fresh deploy checkable without a browser.
+      registrationOpen: env.AUTH_REGISTRATION_OPEN,
+      emailVerificationRequired: env.AUTH_REQUIRE_EMAIL_VERIFICATION,
     }),
   );
 
@@ -97,7 +132,17 @@ export function registerRoutes(app: Hono): Hono {
 
   app.on(['GET', 'POST'], '/api/auth/*', (context) => auth.handler(context.req.raw));
 
-  mountCollection(app, { db, authDb, auth, limiter }, env.BETTER_AUTH_URL);
+  mountCollection(
+    app,
+    {
+      db,
+      authDb,
+      auth,
+      limiter,
+      requireVerifiedEmail: env.AUTH_REQUIRE_EMAIL_VERIFICATION,
+    },
+    env.BETTER_AUTH_URL,
+  );
 
   return app;
 

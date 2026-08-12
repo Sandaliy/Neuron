@@ -39,6 +39,32 @@ export const API_ERROR_CODES = [
   'invalid_note_fields',
   /** Too many attempts. `retryAfterSeconds` says how long to wait. */
   'rate_limited',
+  /** Registration is closed. Says nothing about the address that was tried. */
+  'registration_closed',
+  /** The password is too short, too long, or one of the ones attacked first. */
+  'weak_password',
+  /** That address already has an account. */
+  'email_taken',
+  /** The email and password given do not go together, or there is no account. */
+  'invalid_credentials',
+  /** The recovery code was wrong, or has already been spent. */
+  'invalid_recovery_code',
+  /** No recovery codes are left. Only the admin script can help now. */
+  'no_recovery_codes',
+  /** This session may only set a new password until it has done so. */
+  'password_change_required',
+  /** The account exists but the address has not been confirmed. */
+  'email_not_verified',
+  /** Signing in got as far as the password. The second factor is still owed. */
+  'two_factor_required',
+  /** The authenticator code was wrong. */
+  'invalid_two_factor_code',
+  /** That authenticator code was already used once. */
+  'two_factor_code_reused',
+  /** The second factor is not set up, or is set up already. */
+  'two_factor_unavailable',
+  /** The verification or reset link is wrong, spent, or too old. */
+  'invalid_token',
   /** A card cannot take another direction, or the direction is already there. */
   'direction_unavailable',
   /** A sync batch was rejected as a whole. */
@@ -90,6 +116,21 @@ export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
   unknown_note_type: 400,
   invalid_note_fields: 400,
   rate_limited: 429,
+  registration_closed: 403,
+  weak_password: 400,
+  email_taken: 409,
+  // 401, not 404. Whether the address has an account is exactly what a list
+  // attack is trying to learn, and one answer for both cases is what stops it.
+  invalid_credentials: 401,
+  invalid_recovery_code: 401,
+  no_recovery_codes: 403,
+  password_change_required: 403,
+  email_not_verified: 403,
+  two_factor_required: 401,
+  invalid_two_factor_code: 401,
+  two_factor_code_reused: 401,
+  two_factor_unavailable: 409,
+  invalid_token: 400,
   direction_unavailable: 409,
   sync_rejected: 409,
   service_unavailable: 503,

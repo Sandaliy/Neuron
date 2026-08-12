@@ -17,9 +17,11 @@
     "db:test-db": "tsx src/db/test-db/main.ts",
     "db:seed": "tsx src/db/seed/main.ts",
     "db:bench": "tsx src/db/bench/main.ts",
-    "db:erase": "tsx src/db/erase/main.ts"
+    "db:erase": "tsx src/db/erase/main.ts",
+    "admin:reset-password": "tsx src/db/admin/reset-password.ts"
   },
   "dependencies": {
+    "@better-auth/utils": "^0.4.2",
     "@neondatabase/serverless": "^1.1.0",
     "@neuron/core": "workspace:*",
     "@neuron/shared": "workspace:*",

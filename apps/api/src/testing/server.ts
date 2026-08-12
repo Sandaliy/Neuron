@@ -39,7 +39,12 @@ export function testServer(database: TestDatabase, userId: string): Hono {
             name: userId,
             email: `${userId}@neuron.test`,
             image: null,
+            // Verified, because these tests are about the collection rather
+            // than about signing in. The unverified case has its own tests,
+            // against the real Better Auth, in src/auth/.
+            emailVerified: true,
           },
+          session: { passwordChangeRequired: false },
         }),
     },
   } as unknown as Auth;
@@ -55,6 +60,7 @@ export function testServer(database: TestDatabase, userId: string): Hono {
       authDb: db as unknown as AuthDatabase,
       auth,
       limiter: createPermissiveRateLimiter(),
+      requireVerifiedEmail: false,
     },
     'http://localhost:8787',
   );
@@ -72,6 +78,7 @@ export function signedOutServer(database: TestDatabase): Hono {
       authDb: db as unknown as AuthDatabase,
       auth,
       limiter: createPermissiveRateLimiter(),
+      requireVerifiedEmail: false,
     },
     'http://localhost:8787',
   );

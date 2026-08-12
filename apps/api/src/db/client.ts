@@ -20,8 +20,19 @@ import { authSchema, schema } from './schema/index.js';
 
 export type Database = ReturnType<typeof createDb>;
 
+/**
+ * How many sockets one pool may hold open.
+ *
+ * The driver's default is ten. That is right for a long lived server and wrong
+ * here twice over: a serverless invocation handles one request, so nine of the
+ * ten are never used, and the test run builds a couple of dozen pools against
+ * one Neon endpoint, where ten each is enough to exhaust it. Two, so a
+ * transaction and the statement that starts it are never waiting on each other.
+ */
+const MAX_SOCKETS = 2;
+
 export function createDb(connectionString: string) {
-  const pool = new Pool({ connectionString });
+  const pool = new Pool({ connectionString, max: MAX_SOCKETS });
 
   return drizzle(pool, { schema });
 }
@@ -35,7 +46,7 @@ export type AuthDatabase = ReturnType<typeof createAuthDb>;
  * @returns a client that can see the auth tables and no others
  */
 export function createAuthDb(connectionString: string) {
-  const pool = new Pool({ connectionString });
+  const pool = new Pool({ connectionString, max: MAX_SOCKETS });
 
   return drizzle(pool, { schema: authSchema });
 }

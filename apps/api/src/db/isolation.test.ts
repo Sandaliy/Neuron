@@ -329,6 +329,76 @@ describe.skipIf(!database)('the auth tables', () => {
       asUser(app, ALICE, async (connection) => connection.query('select * from verification')),
     ).rejects.toThrow(/permission denied/i);
   });
+
+  /**
+   * The two secrets phase 4.5 added, checked at the database rather than
+   * through the repository layer.
+   *
+   * Both open an account on their own: a recovery code is the whole credential
+   * when the password is gone, and a TOTP secret generates every code the
+   * account will ever be asked for. Neither has any business being reachable
+   * from a route handler, and "no handler happens to select it" is not the same
+   * claim as "no handler can".
+   */
+  it('cannot read a recovery code, even a hashed one', async () => {
+    await expect(
+      asUser(app, ALICE, async (connection) => connection.query('select * from recovery_codes')),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('cannot count the recovery codes either, which would say when somebody is nearly out', async () => {
+    await expect(
+      asUser(app, ALICE, async (connection) =>
+        connection.query('select count(*) from recovery_codes'),
+      ),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('cannot write a recovery code, so it cannot mint itself one', async () => {
+    await expect(
+      asUser(app, ALICE, async (connection) =>
+        connection.query('insert into recovery_codes (id, user_id, code_hash) values ($1, $2, $3)', [
+          'forged',
+          ALICE,
+          'anything',
+        ]),
+      ),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('cannot read a two factor secret', async () => {
+    await expect(
+      asUser(app, ALICE, async (connection) => connection.query('select secret from two_factor')),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('cannot read the codes for a lost phone either', async () => {
+    await expect(
+      asUser(app, ALICE, async (connection) =>
+        connection.query('select backup_codes from two_factor'),
+      ),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('cannot move the last accepted step back, which would let a code be replayed', async () => {
+    await expect(
+      asUser(app, ALICE, async (connection) =>
+        connection.query('update two_factor set last_totp_step = 0'),
+      ),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('cannot read or clear the registration counts', async () => {
+    await expect(
+      asUser(app, ALICE, async (connection) =>
+        connection.query('select * from registration_counts'),
+      ),
+    ).rejects.toThrow(/permission denied/i);
+
+    await expect(
+      asUser(app, ALICE, async (connection) => connection.query('delete from registration_counts')),
+    ).rejects.toThrow(/permission denied/i);
+  });
 });
 
 describe.skipIf(!database?.authUrl)('the authentication role', () => {
@@ -373,6 +443,18 @@ describe.skipIf(!database?.authUrl)('the authentication role', () => {
     );
 
     expect(result.rows[0]?.rolbypassrls).toBe(false);
+  });
+
+  it('can reach the recovery codes, because it is the one that issues them', async () => {
+    await expect(auth.query('select count(*) from recovery_codes')).resolves.toBeDefined();
+  });
+
+  it('can reach the two factor table, for the same reason', async () => {
+    await expect(auth.query('select count(*) from two_factor')).resolves.toBeDefined();
+  });
+
+  it('can reach the registration counts', async () => {
+    await expect(auth.query('select count(*) from registration_counts')).resolves.toBeDefined();
   });
 });
 

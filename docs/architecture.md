@@ -373,17 +373,47 @@ seconds and a list costs the afternoon.
 
 Things that do not work yet, on purpose, with the reason and the phase that closes them.
 
-**No email verification.** Anyone can sign up with an address they do not own. Sending mail to arbitrary
-addresses needs a verified domain, and the domain is deferred. With three people who know each other the
-practical risk is nil. Closed in phase 11, with the domain.
+**Email is not delivered.** No domain, and a free mail service will only deliver to arbitrary addresses
+from a verified one. What exists instead is the seam: a `Mailer` interface, a `LogMailer` that writes the
+message to the server log, and `MAILER` to choose between them. Email verification and password reset by
+link are implemented in full behind `AUTH_REQUIRE_EMAIL_VERIFICATION`, which defaults to false. Both are
+driven end to end by tests that run with the flag on and read the token back out of the LogMailer, so the
+code being switched on has already run. Turning it on is a domain, a provider and that one flag. Closed
+in phase 11.
 
-**No self service password reset.** Same cause. If someone forgets their password it is reset by hand,
-through the database. Closed in phase 11.
+**Two details of the mail tokens are worth knowing before that day.** The reset token is a row, consumed
+on use, and stored as a SHA-256 digest rather than in the clear, which Better Auth does not do on its
+own. The verification token is a signed JWT rather than a row, so it expires but is not consumed; using
+it twice gains nothing, because the handler returns before it would create a session, and the test says
+so. If a strictly single use verification link is ever needed, it needs a row of its own.
 
-**Sign in with Google needs twenty minutes in the Google Cloud console first.** The api runs without the
-credentials and simply does not offer the provider; it gains the button the moment `GOOGLE_CLIENT_ID` and
-`GOOGLE_CLIENT_SECRET` are set. Both or neither: one without the other is refused at startup, because a
-half configured provider fails on Google's domain rather than on ours.
+**Registration is open, with two temporary guards.** `AUTH_REGISTRATION_OPEN` closes it with one switch
+in the Vercel settings, and `AUTH_MAX_REGISTRATIONS_PER_DAY` caps successful registrations per address
+per day at three. Both exist only because there is no email verification. Both become unnecessary in
+phase 11 and should be removed then rather than left to rot.
+
+**The password policy is a length floor and a small list.** Ten characters, no character class rules, and
+a few dozen of the passwords a list attack starts with. A real check means a breach corpus, which is a
+service call or a large file shipped to the browser. Worth doing in phase 11, when there is a mail sender
+to warn somebody with.
+
+**A recovery code is the whole credential, not a step towards one.** With no mail sender there is no way
+to prove somebody owns an address, so recovery rests on something they hold. Anybody with one of the ten
+codes is in the account, without the password. The screen that issues them says exactly that, in both
+languages, and the text is a translation key rather than a sentence chosen by the server. This stops
+being the only route back in phase 11.
+
+**The codes for a lost phone are encrypted, not hashed.** The account recovery codes are argon2id hashes,
+the same as a password, because nothing ever needs to read one back. The second set, issued when TOTP is
+turned on, belongs to Better Auth's two factor plugin, which has to be able to list what is left and so
+stores them symmetrically encrypted with `BETTER_AUTH_SECRET`. That is weaker, and it is the plugin's
+design rather than a choice made here. Both sets are reachable only by the authentication role.
+
+**Sign in with Google was removed on purpose in phase 4.5.** Not forgotten and not broken. Email and
+password is the only way in. Putting it back means credentials from the Google Cloud console, a
+`socialProviders` block in `src/auth.ts`, the account linking rules that decide whether a Google sign in
+attaches to an existing password account or makes a second one, and a button on the sign in screen.
+Nothing else in the schema needs to change: the `account` table already carries the provider columns.
 
 **The conflict log is written and never read.** `sync_conflicts` records the version that lost a merge,
 whole. The screen that offers "this is what your other device had" belongs with the interface. The rows
