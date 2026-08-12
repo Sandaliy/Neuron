@@ -12,6 +12,9 @@ const ignores = [
   '**/build/**',
   '**/coverage/**',
   '**/.turbo/**',
+  // What `vercel build` leaves behind. Running that build is part of the push
+  // checks, so without this the next lint reads its bundled output.
+  '**/.vercel/**',
   '**/*.d.ts',
 ];
 
