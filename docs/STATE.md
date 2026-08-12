@@ -3,7 +3,7 @@
 Where the project stands right now. This file replaces reading `neuron-plan.md` and `phase-*.md`.
 Update it with `/handoff` at the end of a working session.
 
-Last updated: 2026-08-12, phase 4.5 committed as `1bbe845`.
+Last updated: 2026-08-12, phase 4.5 committed as `1bbe845`. Production database migrated.
 
 ## Now
 
@@ -49,22 +49,21 @@ end to end by tests that run with it on, reading the token out of the log mailer
 
 ## Next
 
-1. **Update the environment on Vercel.** Remove `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Add
-   `AUTH_REGISTRATION_OPEN`, `AUTH_MAX_REGISTRATIONS_PER_DAY`, `AUTH_REQUIRE_EMAIL_VERIFICATION` and
-   `MAILER`. Replace `DATABASE_URL` and `DATABASE_URL_AUTH`: `pnpm db:role` rotated both this session,
-   so whatever Vercel holds is now wrong.
-2. **`pnpm db:migrate`** against the real database. Only the test database has migrations 0006 to 0008.
-3. **Deploy and walk through the checks** in `phase-4.5.md`, which cover registering, spending a code,
-   the switch, and the second factor.
-4. **Phase 5**, the first screens. Sign in, the ten codes with their warning, sign in by code, the QR
+1. **Set the Vercel Root Directory to `apps/api`.** It is `.`, which is why the deploy fails. Nothing
+   else about the project needs changing. See the open thread below for why.
+2. **Deploy and walk through the checks** in `phase-4.5.md`, which cover registering, spending a code,
+   the switch, and the second factor. Checks 5, 7 and 8 are already done and do not need a deploy.
+3. **Phase 5**, the first screens. Sign in, the ten codes with their warning, sign in by code, the QR
    enrollment, the library tree, two languages, two themes.
 
 ## Open threads
 
-- **The real database is behind the test one.** Migrations 0006, 0007 and 0008 have only been applied to
-  `neuron_test`. `pnpm db:migrate` closes it.
-- **Vercel holds stale database credentials.** `pnpm db:role` rotated `neuron_app` and `neuron_auth` this
-  session and wrote the new strings into `.env` only.
+- **The deploy is broken, and has been since phase 3.** Vercel's Root Directory is `.`, so it uploads
+  only `apps/api`, finds no `pnpm-lock.yaml`, installs with npm, and npm cannot read `workspace:*`. It
+  worked on 7 August because `apps/api` had no workspace dependencies then. Nobody noticed because
+  phase 4 was never deployed: the live site still answers with phase 0.5 code. Setting Root Directory to
+  `apps/api` makes Vercel upload the whole repo and install with pnpm. The CLI cannot change that
+  setting, only the dashboard or the REST API.
 - **The two registration guards are temporary.** Both exist only because there is no email verification.
   Remove them in phase 11 rather than leaving them to rot.
 - **The password policy is a length floor and about forty entries.** `packages/shared/src/password.ts`.
