@@ -121,7 +121,12 @@ export function mountApp(app: Hono, parts: AppParts): Hono {
 
     await spend(AUTH_LIMIT, clientAddress(context));
 
-    const account = await accountFromBody(context.req.raw.clone());
+    // The assertion is deliberate, and the deploy is what found it. Vercel's
+    // builder compiles this file against a `Request` that has neither `clone`
+    // nor `json` on it, while the runtime it deploys to has both. So the shape
+    // above says what the request really is, and this says the compiler's
+    // narrower idea of it can be ignored.
+    const account = await accountFromBody(context.req.raw as unknown as CloneableRequest);
 
     if (account) {
       await spend(AUTH_ACCOUNT_LIMIT, account);
@@ -271,6 +276,16 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
 }
 
 /**
+ * As much of a request as the account limiter touches.
+ *
+ * Two methods, both of which every runtime that can serve this api has. See the
+ * note on `accountFromBody` for why this is not simply `Request`.
+ */
+interface CloneableRequest {
+  readonly clone: () => { readonly json: () => Promise<unknown> };
+}
+
+/**
  * The account an auth request is about, for the second limit.
  *
  * Read out of the body and hashed before it goes anywhere, so no address is
@@ -278,12 +293,18 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
  * nothing: the per address limit still applies, and a request with no account
  * to attack cannot be attacking one.
  *
- * @param request a clone of the request, since reading the body consumes it
+ * The parameter is described structurally rather than as `Request`. The
+ * ambient `Request` type comes from whichever lib the compiler was given, and
+ * the deployment builder does not use this package's tsconfig: naming the two
+ * methods actually called is what makes this compile the same way locally and
+ * on the way to production. It was a `Request` until a deploy said otherwise.
+ *
+ * @param request the live request, cloned here because reading a body consumes it
  * @returns the address, lowercased, or undefined
  */
-async function accountFromBody(request: Request): Promise<string | undefined> {
+async function accountFromBody(request: CloneableRequest): Promise<string | undefined> {
   try {
-    const body: unknown = await request.json();
+    const body: unknown = await request.clone().json();
 
     if (typeof body !== 'object' || body === null || !('email' in body)) {
       return undefined;

@@ -56,3 +56,6 @@ card-generation-prompt.md
 Thumbs.db
 *.local
 *.log
+
+.vercel
+.env*
