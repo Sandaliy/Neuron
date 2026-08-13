@@ -1,11 +1,11 @@
-import { useCallback, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 
 import { THEMES } from '@neuron/shared';
 import type { Theme } from '@neuron/shared';
 
+import { STORAGE_KEYS } from '../lib/storage';
 import { createDevicePreference } from '../preferences/device';
 import { syncPreferences } from '../preferences/sync';
-import { STORAGE_KEYS } from '../lib/storage';
 
 import { DEFAULT_THEME, apply, resolve, systemPrefersDark } from './theme';
 
@@ -105,5 +105,7 @@ export function useTheme(): ThemeValue {
     () => resolve(preference.get(), false),
   );
 
-  return { theme, resolved, setTheme: useCallback(setTheme, []) };
+  // `setTheme` is a module function, so it is already the same reference on
+  // every render and needs no memoising.
+  return { theme, resolved, setTheme };
 }

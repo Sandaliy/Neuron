@@ -6,6 +6,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { ApiFailure } from './lib/api';
+import { trackViewport } from './lib/viewport';
 import { router } from './router';
 import { ToastProvider } from './ui/toast';
 
@@ -56,6 +57,10 @@ const queryClient = new QueryClient({
     mutations: { retry: false },
   },
 });
+
+// Started before the first render, so a dialog opened straight away already
+// knows where the keyboard is.
+void trackViewport();
 
 const container = document.getElementById('root');
 

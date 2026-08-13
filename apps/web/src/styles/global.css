@@ -112,6 +112,15 @@
      */
     --bar-height: 60px;
 
+    /*
+     * How much of the page the on-screen keyboard is covering, and how tall the
+     * part actually on screen is. src/lib/viewport.ts overwrites both while a
+     * keyboard is open. These are the answers before it has, and the answers on
+     * a browser with no visual viewport to ask.
+     */
+    --keyboard-inset: 0px;
+    --visual-viewport-height: 100svh;
+
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
   }

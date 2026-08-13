@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
-import { useAccount } from '../lib/account';
 import { adoptLocale, localeChosen } from '../i18n/locale';
+import { useAccount } from '../lib/account';
 import { adoptTheme, themeChosen } from '../theme/use-theme';
 
 /**

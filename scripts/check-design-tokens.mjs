@@ -69,7 +69,11 @@ for (const file of walk(source)) {
     }
 
     for (const [whole, value] of line.matchAll(ARBITRARY_SPACING)) {
-      if (!value.includes('--safe-') && !value.includes('--bar-height')) {
+      if (
+        !value.includes('--safe-') &&
+        !value.includes('--bar-height') &&
+        !value.includes('--keyboard-inset')
+      ) {
         problems.push(
           `${at} ${whole} is off the spacing scale. Use 4, 8, 12, 16, 24, 32 or 48.\n  ${line.trim()}`,
         );
