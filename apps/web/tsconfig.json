@@ -1,0 +1,18 @@
+{
+  "extends": "../../packages/config/tsconfig.base.json",
+  "compilerOptions": {
+    // The browser half, so the DOM is the point rather than a side effect.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+
+    // Vite resolves like a bundler: no file extension on a relative import, and
+    // package exports maps are honoured. NodeNext would demand `.js` suffixes
+    // on TypeScript files that are never emitted as files at all.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+
+    "jsx": "react-jsx",
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+}

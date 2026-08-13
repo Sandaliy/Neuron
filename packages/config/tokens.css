@@ -22,6 +22,15 @@
   /* The single accent. Primary action and focus rings only. */
   --accent: #4d7fe8;
 
+  /*
+   * What is legible on top of the accent, which is not the same answer in both
+   * themes. White on the dark theme's accent measures 3.8 to 1 and fails AA for
+   * body text, while the page background measures 5.2 to 1 and passes. The
+   * light theme's accent is darker, and there the answer is the other way
+   * round. Both are checked in packages/config/contrast.test.ts.
+   */
+  --accent-text: #0b0b0c;
+
   /* Status colours. Shared by both themes. */
   --success: #3f9e6b;
   --warn: #c08a2e;
@@ -58,6 +67,7 @@
   --text-dim: #6e6e76;
 
   --accent: #3565ce;
+  --accent-text: #ffffff;
 }
 
 /*

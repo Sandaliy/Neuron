@@ -28,6 +28,19 @@ export default defineConfig({
         },
       },
       {
+        // The browser half. jsdom rather than a real browser: what is worth
+        // testing here is the wiring, and the two things a real browser would
+        // add, layout and paint, are checked by hand at 375 px instead.
+        test: {
+          name: 'web',
+          root: 'apps/web',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+          setupFiles: ['src/testing/setup.ts'],
+          globals: true,
+        },
+      },
+      {
         test: {
           name: 'api',
           root: 'apps/api',

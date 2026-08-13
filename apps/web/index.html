@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Neuron</title>
+    <meta
+      name="description"
+      content="Spaced repetition that schedules your time, not your card count"
+    />
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fbfbfc" media="(prefers-color-scheme: light)" />
+
+    <!--
+      The theme, before anything paints.
+
+      This runs synchronously in the head, ahead of the stylesheet and well
+      ahead of React, so the first frame the browser draws is already the right
+      colour. Doing it in a React effect instead means one frame of dark behind
+      a light theme on every single load, which reads as a broken app.
+
+      It is duplicated logic, and deliberately so: src/theme/theme.ts holds the
+      same three lines for the app to use once it is running. Both are covered
+      by the same test, so they cannot drift apart silently.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('neuron.theme');
+          var choice =
+            stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+          var dark =
+            choice === 'dark' ||
+            (choice === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var root = document.documentElement;
+
+          root.dataset.theme = dark ? 'dark' : 'light';
+          root.style.colorScheme = dark ? 'dark' : 'light';
+
+          var locale = localStorage.getItem('neuron.locale');
+
+          if (locale === 'en' || locale === 'ru') {
+            root.lang = locale;
+          }
+        } catch (error) {
+          // A browser with storage blocked still gets the default theme from
+          // the attribute on the html element. Nothing here is worth failing
+          // the page load over.
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

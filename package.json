@@ -14,7 +14,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "lint": "node scripts/check-core-isolation.mjs && eslint . --max-warnings 0",
+    "lint": "node scripts/check-core-isolation.mjs && node scripts/check-design-tokens.mjs && eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",

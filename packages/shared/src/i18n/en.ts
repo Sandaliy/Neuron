@@ -14,6 +14,8 @@ export const en = {
   'auth.password.tooCommon':
     'That is one of the first passwords an attacker tries. Pick something else.',
   'auth.password.hint': 'At least 10 characters. Length matters more than symbols.',
+  'auth.password.show': 'Show the password',
+  'auth.password.hide': 'Hide the password',
 
   'auth.signIn.title': 'Sign in',
   'auth.signIn.submit': 'Sign in',
@@ -84,6 +86,69 @@ export const en = {
   'auth.reset.title': 'Reset your password',
   'auth.reset.sent': 'If that address has an account, a link is on its way.',
   'auth.reset.done': 'Password changed. Everywhere else has been signed out.',
+
+  'app.name': 'Neuron',
+  'app.tagline': 'Spaced repetition that schedules your time, not your card count',
+
+  'nav.today': 'Today',
+  'nav.library': 'Library',
+  'nav.settings': 'Settings',
+
+  'common.cancel': 'Cancel',
+  'common.continue': 'Continue',
+  'common.save': 'Save',
+  'common.retry': 'Try again',
+  'common.loading': 'Loading',
+  'common.signOut': 'Sign out',
+
+  'auth.email.label': 'Email',
+  'auth.signIn.noAccount': 'No account yet? Create one.',
+  'auth.signIn.recover': 'Sign in with a recovery code',
+  'auth.register.haveAccount': 'Already have an account? Sign in.',
+  'auth.recoveryCodes.fileName': 'neuron-recovery-codes.txt',
+  'auth.twoFactor.secretLabel': 'Cannot scan it? Type this into the app instead.',
+  'auth.twoFactor.password': 'Your password',
+  'auth.twoFactor.passwordHint': 'Asked for because turning this on issues new codes.',
+
+  'today.title': 'Today',
+  'today.waiting': 'Cards waiting: {count}',
+  'today.estimate': 'About {minutes} minutes',
+  'today.estimateHint':
+    'Worked out from a typical answer time. It turns into a real measurement once there are a few days of answers to measure.',
+  'today.study': 'Study',
+  'today.studyLater': 'The study screen is not built yet. It arrives in phase 7.',
+  'today.emptyTitle': 'Nothing is waiting',
+  'today.emptyBody': 'Cards appear here on the day they are due.',
+
+  'library.title': 'Library',
+  'library.dueLabel': 'Cards waiting',
+  'library.newLabel': 'Cards never answered',
+  'library.expand': 'Show what is inside',
+  'library.collapse': 'Hide what is inside',
+  'library.emptyTitle': 'No decks yet',
+  'library.emptyBody':
+    'Decks show up here as soon as there are any. Making them arrives in phase 6.',
+  'library.readOnly': 'Reading only for now. Making and moving decks arrives in phase 6.',
+
+  'settings.title': 'Settings',
+  'settings.appearance': 'Appearance',
+  'settings.theme': 'Theme',
+  'settings.theme.system': 'Follow the system',
+  'settings.theme.light': 'Light',
+  'settings.theme.dark': 'Dark',
+  'settings.language': 'Language',
+  'settings.security': 'Security',
+  'settings.changePassword': 'Change password',
+  'settings.currentPassword': 'Current password',
+  'settings.newPassword': 'New password',
+  'settings.passwordChanged': 'Password changed. Everywhere else has been signed out.',
+  'settings.account': 'Account',
+  'settings.deleteAccount': 'Delete account',
+  'settings.deleteAccountWarning':
+    'This closes the account and takes the decks, the notes and the whole review history with it. The rows are erased for good after thirty days, and nothing inside the app can stop that once it has started.',
+  'settings.deleteAccountConfirm': 'Type the words below to confirm',
+  'settings.deleteAccountPhrase': 'delete my account',
+  'settings.deleted': 'The account is closed.',
 
   'error.not_authenticated': 'Sign in to continue.',
   'error.not_allowed': 'You cannot do that.',
