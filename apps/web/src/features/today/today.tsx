@@ -66,9 +66,17 @@ export function TodayScreen() {
 
 function Waiting({ decks }: { readonly decks: readonly DeckNode[] }) {
   const t = useTranslate();
-  const { due } = totals(decks);
+  const { due, fresh } = totals(decks);
 
-  if (due === 0) {
+  /*
+   * Empty only when there is genuinely nothing.
+   *
+   * Due and new are two different facts and the screen says both. A collection
+   * imported an hour ago has nothing due and plenty new, and telling that
+   * person "nothing is waiting" reads as a broken app rather than as a
+   * scheduler doing its job.
+   */
+  if (due === 0 && fresh === 0) {
     return <EmptyState title={t('today.emptyTitle')} description={t('today.emptyBody')} />;
   }
 
@@ -77,10 +85,22 @@ function Waiting({ decks }: { readonly decks: readonly DeckNode[] }) {
       <div className="flex flex-col gap-8 rounded-14 border border-border bg-surface p-24">
         <p className="text-32 font-semibold text-text tabular-nums">{due}</p>
         <p className="text-16 text-text-dim">{t('today.waiting', { count: due })}</p>
-        <p className="text-16 text-text">
-          {t('today.estimate', { minutes: estimateMinutes(due) })}
-        </p>
-        <p className="text-14 text-text-dim">{t('today.estimateHint')}</p>
+
+        {due > 0 ? (
+          <>
+            <p className="text-16 text-text">
+              {t('today.estimate', { minutes: estimateMinutes(due) })}
+            </p>
+            <p className="text-14 text-text-dim">{t('today.estimateHint')}</p>
+          </>
+        ) : undefined}
+
+        {fresh > 0 ? (
+          <>
+            <p className="mt-8 text-16 text-text">{t('today.newAvailable', { count: fresh })}</p>
+            <p className="text-14 text-text-dim">{t('today.newAvailableHint')}</p>
+          </>
+        ) : undefined}
       </div>
 
       {/*

@@ -112,6 +112,9 @@ export const en = {
 
   'today.title': 'Today',
   'today.waiting': 'Cards waiting: {count}',
+  'today.newAvailable': 'New cards ready to start: {count}',
+  'today.newAvailableHint':
+    'How many of them a session actually introduces is decided when studying starts, from how much time the reviews already need.',
   'today.estimate': 'About {minutes} minutes',
   'today.estimateHint':
     'Worked out from a typical answer time. It turns into a real measurement once there are a few days of answers to measure.',

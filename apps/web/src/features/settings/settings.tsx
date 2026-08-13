@@ -14,7 +14,7 @@ import { Button } from '../../ui/button';
 import { Dialog } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
-import { Select } from '../../ui/select';
+import { Segmented } from '../../ui/segmented';
 import { SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { PasswordField } from '../auth/password-field';
@@ -88,35 +88,31 @@ function Appearance() {
 
   return (
     <Group title={t('settings.appearance')}>
-      <FormField label={t('settings.theme')}>
-        {(props) => (
-          <Select
-            id={props.id}
-            label={t('settings.theme')}
-            value={theme}
-            onChange={(next: Theme) => {
-              setTheme(next);
-              preferences.mutate({ theme: next });
-            }}
-            options={THEMES.map((value) => ({ value, label: themeLabels[value] }))}
-          />
-        )}
-      </FormField>
+      <div className="flex flex-col gap-8">
+        <p className="text-14 text-text-dim">{t('settings.theme')}</p>
+        <Segmented
+          label={t('settings.theme')}
+          value={theme}
+          onChange={(next: Theme) => {
+            setTheme(next);
+            preferences.mutate({ theme: next });
+          }}
+          options={THEMES.map((value) => ({ value, label: themeLabels[value] }))}
+        />
+      </div>
 
-      <FormField label={t('settings.language')}>
-        {(props) => (
-          <Select
-            id={props.id}
-            label={t('settings.language')}
-            value={locale}
-            onChange={(next: Locale) => {
-              setLocale(next);
-              preferences.mutate({ locale: next });
-            }}
-            options={LOCALES.map((value) => ({ value, label: localeLabels[value] }))}
-          />
-        )}
-      </FormField>
+      <div className="flex flex-col gap-8">
+        <p className="text-14 text-text-dim">{t('settings.language')}</p>
+        <Segmented
+          label={t('settings.language')}
+          value={locale}
+          onChange={(next: Locale) => {
+            setLocale(next);
+            preferences.mutate({ locale: next });
+          }}
+          options={LOCALES.map((value) => ({ value, label: localeLabels[value] }))}
+        />
+      </div>
     </Group>
   );
 }

@@ -6,6 +6,7 @@ import {
   useSearch,
 } from '@tanstack/react-router';
 
+import { Failure, NotFound } from './app/failure';
 import { PreferencesSync } from './app/preferences-sync';
 import { SessionGate } from './app/session-gate';
 import { Shell } from './app/shell';
@@ -114,7 +115,16 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([todayRoute, libraryRoute, settingsRoute]),
 ]);
 
-export const router = createRouter({ routeTree });
+export const router = createRouter({
+  routeTree,
+  /*
+   * A thrown component and an address that is not a screen both have to arrive
+   * as a sentence in the language on screen. The router's own versions are an
+   * English string over a stack trace.
+   */
+  defaultErrorComponent: ({ error, reset }) => <Failure error={error} reset={reset} />,
+  defaultNotFoundComponent: NotFound,
+});
 
 declare module '@tanstack/react-router' {
   interface Register {
