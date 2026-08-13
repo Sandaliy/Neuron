@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BUDGET } from '@neuron/core';
 
-import {
-  DEFAULT_DECK_SETTINGS,
-  deckSettingsSchema,
-  resolveDeckSettings,
-} from './deck-settings.js';
+import { DEFAULT_DECK_SETTINGS, deckSettingsSchema, resolveDeckSettings } from './deck-settings.js';
 
 describe('deckSettingsSchema', () => {
   it('accepts an empty object, which is a deck that inherits everything', () => {
@@ -89,7 +85,10 @@ describe('resolveDeckSettings', () => {
   });
 
   it('does not let an absent key on a child wipe out the parent', () => {
-    const resolved = resolveDeckSettings([{ targetRetention: 0.95 }, { targetRetention: undefined }]);
+    const resolved = resolveDeckSettings([
+      { targetRetention: 0.95 },
+      { targetRetention: undefined },
+    ]);
 
     expect(resolved.targetRetention).toBe(0.95);
   });

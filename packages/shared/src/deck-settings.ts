@@ -20,7 +20,13 @@ import { CARD_DIRECTIONS, DAYS_PER_WEEK, type CardDirection } from '@neuron/core
  * bug that hides for six days at a time.
  */
 const budgetMinutesSchema = z
-  .array(z.number().int().min(0).max(24 * 60))
+  .array(
+    z
+      .number()
+      .int()
+      .min(0)
+      .max(24 * 60),
+  )
   .length(DAYS_PER_WEEK, `needs ${DAYS_PER_WEEK} values, Sunday first`);
 
 // The list of directions belongs to packages/core, which owns the scheduling

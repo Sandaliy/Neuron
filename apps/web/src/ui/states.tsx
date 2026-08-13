@@ -1,3 +1,5 @@
+import { useTranslate } from '../i18n/locale';
+
 import { Button } from './button';
 
 import type { ReactNode } from 'react';
@@ -29,8 +31,10 @@ export function Skeleton({ className = '' }: { readonly className?: string }) {
 
 /** Several skeleton rows, for a list. */
 export function SkeletonRows({ rows = 3 }: { readonly rows?: number }) {
+  const t = useTranslate();
+
   return (
-    <div className="flex flex-col gap-8" role="status" aria-label="Loading">
+    <div className="flex flex-col gap-8" role="status" aria-label={t('common.loading')}>
       {Array.from({ length: rows }, (_, index) => (
         <Skeleton key={index} className="h-44 w-full" />
       ))}

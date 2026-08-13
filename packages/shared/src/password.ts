@@ -126,6 +126,49 @@ export function isAcceptablePassword(password: string): boolean {
 }
 
 /**
+ * How strong an acceptable password is, and what would make it stronger.
+ *
+ * Advice, not a gate. Anything past the ten character floor may be used; this
+ * only says what the next improvement would be, and it always names one thing
+ * rather than listing rules. Nobody is told to add a capital letter, because
+ * that is the demand that produces `Password1!`.
+ *
+ * Length is what the levels are made of, for the same reason the floor is a
+ * length. Two words of a passphrase beat every symbol substitution there is.
+ */
+export const PASSWORD_STRENGTHS = ['short', 'fair', 'good', 'strong'] as const;
+
+export type PasswordStrength = (typeof PASSWORD_STRENGTHS)[number];
+
+/** Comfortably past guessing, where the advice stops. */
+const STRONG_LENGTH = 20;
+
+/** Past the floor by enough to be worth calling good. */
+const GOOD_LENGTH = 14;
+
+/**
+ * Judges how strong a password is.
+ *
+ * @param password what the person typed
+ * @returns the level it reaches
+ */
+export function passwordStrength(password: string): PasswordStrength {
+  if (password.length < MINIMUM_PASSWORD_LENGTH) {
+    return 'short';
+  }
+
+  if (password.length >= STRONG_LENGTH) {
+    return 'strong';
+  }
+
+  if (password.length >= GOOD_LENGTH) {
+    return 'good';
+  }
+
+  return 'fair';
+}
+
+/**
  * The password field, for any schema that takes one being chosen.
  *
  * Not for the sign in field: an existing password chosen before this rule

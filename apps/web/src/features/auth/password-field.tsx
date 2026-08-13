@@ -1,7 +1,7 @@
 import { Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 
-import { MINIMUM_PASSWORD_LENGTH, passwordProblem } from '@neuron/shared';
+import { MINIMUM_PASSWORD_LENGTH, passwordProblem, passwordStrength } from '@neuron/shared';
 import type { MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
@@ -18,11 +18,22 @@ import { Input } from '../../ui/input';
  * red on the first character is a field that is wrong for as long as it takes
  * to type a good password. The judgement arrives when they leave the field, or
  * once the password is long enough to be judged fairly.
+ *
+ * Once it is acceptable, the note underneath stops being a rule and becomes
+ * advice: what the next improvement would be, named as one thing to do. It
+ * never asks for a capital letter or a symbol, because that is the demand that
+ * produces `Password1!` on a sticky note.
  */
 const PROBLEM_KEYS: Record<string, MessageKey> = {
   too_short: 'auth.password.tooShort',
   too_long: 'auth.password.tooLong',
   too_common: 'auth.password.tooCommon',
+};
+
+const STRENGTH_KEYS: Record<string, MessageKey> = {
+  fair: 'auth.password.strength.fair',
+  good: 'auth.password.strength.good',
+  strong: 'auth.password.strength.strong',
 };
 
 export function PasswordField({
@@ -32,6 +43,9 @@ export function PasswordField({
   autoComplete,
   checkStrength = false,
   error,
+  note,
+  hint,
+  autoFocus,
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -40,6 +54,11 @@ export function PasswordField({
   /** Judge it as it is typed. On for a password being chosen, off for one being given. */
   readonly checkStrength?: boolean;
   readonly error?: string | undefined;
+  /** Something to say under the field that is not a fault. Used for the match. */
+  readonly note?: string | undefined;
+  /** Replaces the default hint. */
+  readonly hint?: string | undefined;
+  readonly autoFocus?: boolean;
 }) {
   const t = useTranslate();
   const [visible, setVisible] = useState(false);
@@ -50,12 +69,18 @@ export function PasswordField({
   const problemKey = problem && judged ? PROBLEM_KEYS[problem] : undefined;
   const shown = error ?? (problemKey ? t(problemKey) : undefined);
 
+  // Advice only once there is nothing wrong. While it is too short, the thing
+  // to say is that it is too short.
+  const advice =
+    checkStrength && !shown && value.length > 0
+      ? STRENGTH_KEYS[passwordStrength(value)]
+      : undefined;
+
+  const underneath =
+    note ?? (advice ? t(advice) : (hint ?? (checkStrength ? t('auth.password.hint') : undefined)));
+
   return (
-    <FormField
-      label={label}
-      hint={checkStrength ? t('auth.password.hint') : undefined}
-      error={shown}
-    >
+    <FormField label={label} hint={underneath} error={shown}>
       {(props) => (
         <div className="relative">
           <Input
@@ -63,6 +88,7 @@ export function PasswordField({
             type={visible ? 'text' : 'password'}
             value={value}
             autoComplete={autoComplete}
+            autoFocus={autoFocus}
             onChange={(event) => onChange(event.target.value)}
             onBlur={() => setTouched(true)}
             invalid={shown !== undefined}

@@ -43,7 +43,9 @@ export interface DevicePreferenceOptions<T> {
   readonly apply?: (value: T) => void;
 }
 
-export function createDevicePreference<T>(options: DevicePreferenceOptions<T>): DevicePreference<T> {
+export function createDevicePreference<T>(
+  options: DevicePreferenceOptions<T>,
+): DevicePreference<T> {
   const raw = read(options.key);
   const stored = raw === undefined ? undefined : options.parse(raw);
 

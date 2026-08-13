@@ -1,5 +1,6 @@
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import type { MessageKey } from '@neuron/shared';
 
@@ -112,14 +113,7 @@ export function TotpEnrollment({
           <QRCodeSVG value={uri} size={180} level="M" />
         </div>
 
-        <details className="text-14 text-text-dim">
-          <summary className="min-h-44 cursor-pointer py-12">
-            {t('auth.twoFactor.secretLabel')}
-          </summary>
-          <code className="mt-8 block break-all rounded-6 bg-surface-2 p-12 font-mono text-14 text-text">
-            {new URL(uri).searchParams.get('secret')}
-          </code>
-        </details>
+        <ManualKey uri={uri} />
 
         <p className="text-14 text-text-dim">{t('auth.twoFactor.confirmHint')}</p>
 
@@ -185,6 +179,72 @@ export function TotpEnrollment({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * The setup key, for a camera that will not read the code.
+ *
+ * A `details` element with the default triangle was the whole disclosure
+ * before, and a triangle next to a sentence does not read as something to
+ * press. This is a button that says whether it is open, and what is inside it
+ * says where the key goes rather than leaving somebody to guess which field of
+ * their authenticator app it belongs in.
+ */
+function ManualKey({ uri }: { readonly uri: string }) {
+  const t = useTranslate();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const secret = new URL(uri).searchParams.get('secret') ?? '';
+
+  return (
+    <div className="flex flex-col gap-8">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((current) => !current)}
+        className="flex min-h-44 items-center justify-between gap-8 rounded-10 border border-border px-12 text-left text-14 text-text"
+      >
+        {t('auth.twoFactor.manualTitle')}
+        {open ? (
+          <ChevronUp size={20} strokeWidth={1.5} aria-hidden="true" />
+        ) : (
+          <ChevronDown size={20} strokeWidth={1.5} aria-hidden="true" />
+        )}
+      </button>
+
+      {open ? (
+        <div id={panelId} className="flex flex-col gap-12">
+          <p className="text-14 text-text-dim">{t('auth.twoFactor.manualHint')}</p>
+
+          {/*
+            Read only rather than plain text: it can be selected, dragged and
+            long pressed on a phone, which is how somebody without a working
+            clipboard button gets it out.
+          */}
+          <input
+            readOnly
+            value={secret}
+            aria-label={t('auth.twoFactor.manualTitle')}
+            onFocus={(event) => event.target.select()}
+            className="min-h-44 w-full rounded-10 border border-border bg-surface-2 px-12 font-mono text-16 tracking-wide text-text"
+          />
+
+          <Button
+            full
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(secret)
+                .then(() => toast.show(t('auth.twoFactor.secretCopied')));
+            }}
+          >
+            {t('auth.twoFactor.secretCopy')}
+          </Button>
+        </div>
+      ) : undefined}
+    </div>
   );
 }
 

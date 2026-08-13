@@ -119,16 +119,21 @@ function Security() {
 
   return (
     <Group title={t('settings.security')}>
+      {/*
+        Each label names the thing it changes, not just the verb. "Turn off" on
+        its own was in a list of four security controls and said nothing about
+        which of them it turned off.
+      */}
       <Button full onClick={() => setPanel('password')}>
-        {t('settings.changePassword')}
+        {t('settings.changePasswordAction')}
       </Button>
 
       <Button full onClick={() => setPanel('codes')}>
-        {t('auth.recoveryCodes.regenerate')}
+        {t('settings.regenerateAction')}
       </Button>
 
       <Button full onClick={() => setPanel('totp-on')}>
-        {t('auth.twoFactor.title')}
+        {t('auth.twoFactor.setUp')}
       </Button>
 
       <Button variant="danger" full onClick={() => setPanel('totp-off')}>
@@ -350,7 +355,7 @@ function Account({ email }: { readonly email: string }) {
       </Button>
 
       <Button variant="danger" full onClick={() => setLeaving(true)}>
-        {t('settings.deleteAccount')}
+        {t('settings.deleteAccountAction')}
       </Button>
 
       <Dialog

@@ -2,6 +2,8 @@ import * as RadixDialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { X } from 'lucide-react';
 
+import { useTranslate } from '../i18n/locale';
+
 import type { ReactNode } from 'react';
 
 /**
@@ -36,6 +38,8 @@ export function Dialog({
   readonly dismissable?: boolean;
   readonly children: ReactNode;
 }) {
+  const t = useTranslate();
+
   return (
     <RadixDialog.Root open={open} {...(dismissable && onOpenChange ? { onOpenChange } : {})}>
       <RadixDialog.Portal>
@@ -97,7 +101,7 @@ export function Dialog({
           {dismissable ? (
             <RadixDialog.Close
               className="absolute top-16 right-16 flex size-44 items-center justify-center rounded-10 text-text-dim hover:text-text"
-              aria-label="Close"
+              aria-label={t('common.close')}
             >
               <X size={20} strokeWidth={1.5} aria-hidden="true" />
             </RadixDialog.Close>

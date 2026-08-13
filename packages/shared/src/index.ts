@@ -176,12 +176,14 @@ export {
   MAXIMUM_PASSWORD_LENGTH,
   MINIMUM_PASSWORD_LENGTH,
   PASSWORD_PROBLEMS,
+  PASSWORD_STRENGTHS,
   isAcceptablePassword,
   newPasswordSchema,
   passwordProblem,
   passwordSchema,
+  passwordStrength,
 } from './password.js';
-export type { PasswordProblem } from './password.js';
+export type { PasswordProblem, PasswordStrength } from './password.js';
 
 export {
   RECOVERY_CODE_ALPHABET,

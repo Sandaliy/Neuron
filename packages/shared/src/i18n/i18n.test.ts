@@ -59,7 +59,7 @@ describe('filling in a message', () => {
 
   it('answers in the language asked for', () => {
     expect(translate('ru', 'error.rate_limited', { seconds: 30 })).toBe(
-      'Слишком много попыток. Подождите 30 секунд.',
+      'Слишком много попыток. Подожди 30 секунд.',
     );
   });
 
@@ -71,5 +71,48 @@ describe('filling in a message', () => {
 
   it('needs no values for a message that has no placeholders', () => {
     expect(translate('en', 'auth.signIn.submit')).toBe('Sign in');
+  });
+});
+
+/**
+ * Russian addresses the reader as ты, everywhere.
+ *
+ * This is a personal study tool, and вы reads institutional. Mixing the two
+ * reads worse than either, and mixing is what happens when a string is added
+ * months later by somebody working from the English. So it is checked rather
+ * than agreed.
+ */
+describe('the form of address in Russian', () => {
+  /** Pronouns and possessives. */
+  const PRONOUN = /(?<!\p{L})(?:вы|вас|вам|вами|ваш(?:а|е|и|его|ей|их|у|им|ими|ем)?)(?!\p{L})/iu;
+
+  /** Plural imperatives: введите, подождите, сохраните. */
+  const IMPERATIVE = /(?<!\p{L})[а-яё]{2,}(?:йте|ите|ьте)(?!\p{L})/iu;
+
+  it('never says вы, and never uses a вы imperative', () => {
+    const offenders = Object.entries(ru)
+      .filter(([, value]) => PRONOUN.test(value) || IMPERATIVE.test(value))
+      .map(([key, value]) => `${key}: ${value}`);
+
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * The term is two-factor authentication, shortened to 2FA. "Two step sign in"
+ * and "вход в два шага" are the phrasings this replaced: the second is a calque
+ * of the first, and nobody says either.
+ */
+describe('what the second factor is called', () => {
+  it('uses neither of the phrasings that were invented for it', () => {
+    const english = Object.entries(en)
+      .filter(([, value]) => /two.step sign in/i.test(value))
+      .map(([key]) => key);
+
+    const russian = Object.entries(ru)
+      .filter(([, value]) => /в два шага|двухэтапн/i.test(value))
+      .map(([key]) => key);
+
+    expect({ english, russian }).toEqual({ english: [], russian: [] });
   });
 });

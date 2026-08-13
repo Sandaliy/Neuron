@@ -21,8 +21,21 @@ interface Probe {
   commits: Commit[];
   theme: { at: number; value: string }[];
   lang: { at: number; value: string }[];
-  requests: { at: number; method: string; url: string; status?: number; done?: number; body?: string }[];
-  interactions: { at: number; name: string; duration: number; processing: number; presentation: number }[];
+  requests: {
+    at: number;
+    method: string;
+    url: string;
+    status?: number;
+    done?: number;
+    body?: string;
+  }[];
+  interactions: {
+    at: number;
+    name: string;
+    duration: number;
+    processing: number;
+    presentation: number;
+  }[];
   reset: () => void;
   report: () => unknown;
 }
@@ -74,12 +87,13 @@ const probe: Probe = {
   },
 };
 
-function nameOf(fiber: { type?: unknown; elementType?: unknown; tag?: number }): string | undefined {
+function nameOf(fiber: {
+  type?: unknown;
+  elementType?: unknown;
+  tag?: number;
+}): string | undefined {
   const type = (fiber.elementType ?? fiber.type) as
-    | { displayName?: string; name?: string; render?: { name?: string } }
-    | string
-    | null
-    | undefined;
+    { displayName?: string; name?: string; render?: { name?: string } } | string | null | undefined;
 
   if (typeof type === 'string' || type === null || type === undefined) {
     return undefined;
@@ -87,7 +101,6 @@ function nameOf(fiber: { type?: unknown; elementType?: unknown; tag?: number }):
 
   return type.displayName ?? type.name ?? type.render?.name ?? undefined;
 }
-
 
 /**
  * One switch, measured end to end.

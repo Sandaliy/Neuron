@@ -17,6 +17,16 @@ export const en = {
   'auth.password.show': 'Show the password',
   'auth.password.hide': 'Hide the password',
 
+  'auth.password.strength.fair':
+    'Long enough. Another few characters, or one more word, is the easiest way to make it stronger.',
+  'auth.password.strength.good': 'Good length. Another word would make it harder still.',
+  'auth.password.strength.strong': 'Long enough that length is no longer the weak part.',
+  'auth.password.confirmLabel': 'Type the password again',
+  'auth.password.confirmMatch': 'Both fields match.',
+  'auth.password.confirmMismatch': 'The two passwords are different.',
+  'auth.password.confirmHint':
+    'There is no email recovery here, so a password typed wrong twice cannot be undone.',
+
   'auth.signIn.title': 'Sign in',
   'auth.signIn.submit': 'Sign in',
   'auth.signIn.failed': 'That email and password do not go together.',
@@ -57,20 +67,19 @@ export const en = {
     'The code has been used up. Choose a new password to finish signing in.',
   'auth.recovery.signedOutElsewhere': 'Everywhere else has been signed out.',
 
-  'auth.twoFactor.title': 'Two step sign in',
+  'auth.twoFactor.title': 'Two-factor authentication',
   'auth.twoFactor.subtitle':
     'Optional. Adds a six digit code from an app on your phone to every sign in.',
-  'auth.twoFactor.enable': 'Turn on',
-  'auth.twoFactor.disable': 'Turn off',
+  'auth.twoFactor.enable': 'Turn on 2FA',
+  'auth.twoFactor.disable': 'Turn off 2FA',
   'auth.twoFactor.scan': 'Scan this with your authenticator app.',
-  'auth.twoFactor.confirmHint':
-    'Type the code the app shows. Until you do, two step sign in is not on.',
+  'auth.twoFactor.confirmHint': 'Type the code the app shows. Until you do, 2FA is not on.',
   'auth.twoFactor.codeLabel': 'Six digit code',
   'auth.twoFactor.invalid': 'That code is not right.',
   'auth.twoFactor.reused': 'That code has already been used. Wait for the app to show a new one.',
-  'auth.twoFactor.unavailable': 'Two step sign in is not set up on this account.',
-  'auth.twoFactor.enabled': 'Two step sign in is on.',
-  'auth.twoFactor.disabled': 'Two step sign in is off.',
+  'auth.twoFactor.unavailable': '2FA is not set up on this account.',
+  'auth.twoFactor.enabled': '2FA is on.',
+  'auth.twoFactor.disabled': '2FA is off.',
   /** The one that matters. Losing a phone must not mean losing the account. */
   'auth.twoFactor.recoveryCodes.warning':
     'These ten codes are separate from your account recovery codes, and they exist for one reason: getting in when you no longer have your phone. Save them now. Without them, a lost phone means a lost account.',
@@ -97,6 +106,7 @@ export const en = {
   'common.cancel': 'Cancel',
   'common.continue': 'Continue',
   'common.save': 'Save',
+  'common.close': 'Close',
   'common.retry': 'Try again',
   'common.loading': 'Loading',
   'common.signOut': 'Sign out',
@@ -109,6 +119,16 @@ export const en = {
   'auth.twoFactor.secretLabel': 'Cannot scan it? Type this into the app instead.',
   'auth.twoFactor.password': 'Your password',
   'auth.twoFactor.passwordHint': 'Asked for because turning this on issues new codes.',
+
+  'auth.twoFactor.setUp': 'Set up two-factor authentication',
+  'auth.twoFactor.manualTitle': 'Enter the key by hand instead',
+  'auth.twoFactor.manualHint':
+    'Paste this key into your authenticator app under "add account by key". It is the same account the QR code sets up, so use one or the other, not both.',
+  'auth.twoFactor.secretCopy': 'Copy the setup key',
+  'auth.twoFactor.secretCopied': 'Setup key copied',
+  'settings.changePasswordAction': 'Change your password',
+  'settings.regenerateAction': 'Replace your recovery codes',
+  'settings.deleteAccountAction': 'Delete this account and everything in it',
 
   'today.title': 'Today',
   'today.waiting': 'Cards waiting: {count}',
@@ -174,7 +194,7 @@ export const en = {
   'error.two_factor_required': 'Type the code from your authenticator app.',
   'error.invalid_two_factor_code': 'That code is not right.',
   'error.two_factor_code_reused': 'That code has already been used. Wait for a new one.',
-  'error.two_factor_unavailable': 'Two step sign in is not set up on this account.',
+  'error.two_factor_unavailable': '2FA is not set up on this account.',
   'error.invalid_token': 'That link is not valid any more. Ask for a new one.',
   'error.direction_unavailable': 'That card direction is not available.',
   'error.sync_rejected': 'Those changes could not be saved. They are still on this device.',

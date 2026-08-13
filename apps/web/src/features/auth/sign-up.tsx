@@ -26,6 +26,7 @@ export function SignUpScreen() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{
     key: MessageKey;
@@ -91,6 +92,8 @@ export function SignUpScreen() {
     void navigate({ to: '/settings' });
   };
 
+  const matches = password.length > 0 && password === confirmation;
+
   return (
     <AuthLayout
       title={t('auth.register.title')}
@@ -129,6 +132,25 @@ export function SignUpScreen() {
           checkStrength
         />
 
+        {/*
+          Typed twice, and judged while it is being typed rather than on
+          submit. There is no email recovery in this project, so a password
+          mistyped the same way twice is an account nobody can open, and a
+          password mistyped once is a sign in that fails with no explanation.
+        */}
+        <PasswordField
+          label={t('auth.password.confirmLabel')}
+          value={confirmation}
+          onChange={setConfirmation}
+          autoComplete="new-password"
+          hint={t('auth.password.confirmHint')}
+          {...(confirmation.length === 0
+            ? {}
+            : matches
+              ? { note: t('auth.password.confirmMatch') }
+              : { error: t('auth.password.confirmMismatch') })}
+        />
+
         {error ? (
           <p role="alert" className="text-14 text-danger">
             {t(error.key, error.values)}
@@ -140,7 +162,7 @@ export function SignUpScreen() {
           variant="primary"
           full
           busy={busy}
-          disabled={email.length === 0 || !isAcceptablePassword(password)}
+          disabled={email.length === 0 || !isAcceptablePassword(password) || !matches}
         >
           {t('auth.register.submit')}
         </Button>

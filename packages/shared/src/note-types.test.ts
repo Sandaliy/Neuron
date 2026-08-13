@@ -91,7 +91,10 @@ describe('field definitions', () => {
   it('marks a field required exactly when the schema requires it', () => {
     for (const type of NOTE_TYPES) {
       for (const field of NOTE_TYPE_FIELDS[type]) {
-        const shape = noteFieldsSchemas[type].shape as Record<string, { safeParse: (v: unknown) => { success: boolean } }>;
+        const shape = noteFieldsSchemas[type].shape as Record<
+          string,
+          { safeParse: (v: unknown) => { success: boolean } }
+        >;
         const entry = shape[field.name];
 
         expect(entry).toBeDefined();
