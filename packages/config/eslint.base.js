@@ -3,8 +3,32 @@ import path from 'node:path';
 import js from '@eslint/js';
 import prettierCompat from 'eslint-config-prettier';
 import importX from 'eslint-plugin-import-x';
+import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+
+/**
+ * Globals the DOM lib declares and the server does not have.
+ *
+ * Deliberately not a blanket ban on everything the DOM lib adds: `Request`,
+ * `Response`, `Headers`, `URL` and `fetch` all exist on the Node runtime and
+ * Hono is built on them. These are the ones that only ever exist in a page.
+ */
+const BROWSER_ONLY_GLOBALS = [
+  'window',
+  'document',
+  'localStorage',
+  'sessionStorage',
+  'navigator',
+  'location',
+  'history',
+  'screen',
+  'alert',
+  'confirm',
+  'prompt',
+  'requestAnimationFrame',
+  'matchMedia',
+];
 
 const ignores = [
   '**/node_modules/**',
@@ -153,6 +177,40 @@ export function createNeuronEslintConfig({ rootDir }) {
             ],
           },
         ],
+      },
+    },
+
+    // apps/api runs on the server, where none of these exist.
+    //
+    // The api's tsconfig pulls in the DOM lib, because Hono is typed against
+    // the web Request and Response and the fetch handler signature comes from
+    // there. That lib also tells the compiler that `window` and `localStorage`
+    // exist, which on Vercel Functions they do not. A typo would then typecheck
+    // cleanly, build cleanly, deploy, and throw on the first request that
+    // reached it. This rule is the barrier the type checker cannot be.
+    {
+      files: ['apps/api/**/*.ts'],
+      rules: {
+        'no-restricted-globals': [
+          'error',
+          ...BROWSER_ONLY_GLOBALS.map((name) => ({
+            name,
+            message: `${name} does not exist on the server. The DOM lib in apps/api/tsconfig.json only makes the compiler believe it does.`,
+          })),
+        ],
+      },
+    },
+
+    // apps/web is the browser half, so the same globals are simply available.
+    {
+      files: ['apps/web/**/*.{ts,tsx}'],
+      languageOptions: {
+        globals: globals.browser,
+        parserOptions: { ecmaFeatures: { jsx: true } },
+      },
+      plugins: { 'react-hooks': reactHooks },
+      rules: {
+        ...reactHooks.configs.recommended.rules,
       },
     },
 
