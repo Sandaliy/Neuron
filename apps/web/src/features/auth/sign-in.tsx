@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import type { MessageKey } from '@neuron/shared';
 
-import { useTranslate } from '../../i18n/provider';
+import { useTranslate } from '../../i18n/locale';
 import { describeAuthError, signIn } from '../../lib/auth-client';
 import { Button } from '../../ui/button';
 import { FormField } from '../../ui/form-field';

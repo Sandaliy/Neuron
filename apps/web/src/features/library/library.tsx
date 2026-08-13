@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 
 import type { DeckNode } from '@neuron/shared';
 
-import { useTranslate } from '../../i18n/provider';
+import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
 import { useDeckTree } from '../../lib/decks';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
@@ -44,7 +44,12 @@ export function LibraryScreen() {
 
       {decks.isPending ? <SkeletonRows rows={5} /> : undefined}
 
-      {decks.error ? (
+      {/*
+        Only when there is nothing to show. A refetch that failed behind
+        content already on screen leaves that content alone: the counts are a
+        few minutes old rather than gone, which is the better of the two.
+      */}
+      {decks.error && !decks.data ? (
         <ErrorState
           message={t(describe(decks.error).key, describe(decks.error).values)}
           retryLabel={t('common.retry')}

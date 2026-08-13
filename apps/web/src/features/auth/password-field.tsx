@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { MINIMUM_PASSWORD_LENGTH, passwordProblem } from '@neuron/shared';
 import type { MessageKey } from '@neuron/shared';
 
-import { useTranslate } from '../../i18n/provider';
+import { useTranslate } from '../../i18n/locale';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
 

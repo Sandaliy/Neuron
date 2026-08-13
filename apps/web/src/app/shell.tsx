@@ -3,7 +3,7 @@ import { CalendarCheck, Library, Settings } from 'lucide-react';
 
 import type { MessageKey } from '@neuron/shared';
 
-import { useTranslate } from '../i18n/provider';
+import { useTranslate } from '../i18n/locale';
 
 import type { LucideIcon } from 'lucide-react';
 

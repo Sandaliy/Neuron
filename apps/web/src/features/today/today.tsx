@@ -3,7 +3,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import { DEFAULT_ANSWER_SECONDS } from '@neuron/core';
 import type { DeckNode } from '@neuron/shared';
 
-import { useTranslate } from '../../i18n/provider';
+import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
 import { totals, useDeckTree } from '../../lib/decks';
 import { Button } from '../../ui/button';
@@ -51,7 +51,12 @@ export function TodayScreen() {
         </div>
       ) : undefined}
 
-      {decks.error ? (
+      {/*
+        Only when there is nothing to show. A refetch that failed behind
+        content already on screen leaves that content alone: the counts are a
+        few minutes old rather than gone, which is the better of the two.
+      */}
+      {decks.error && !decks.data ? (
         <ErrorState
           message={t(describe(decks.error).key, describe(decks.error).values)}
           retryLabel={t('common.retry')}

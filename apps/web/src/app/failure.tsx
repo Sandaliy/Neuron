@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 
-import { useTranslate } from '../i18n/provider';
+import { useTranslate } from '../i18n/locale';
 import { describe } from '../lib/api';
 import { ErrorState } from '../ui/states';
 

@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
-import type { Me, UpdatePreferencesBody } from '@neuron/shared';
+import type { Me } from '@neuron/shared';
 
 import { request } from './api';
 
@@ -23,22 +23,5 @@ export function useAccount() {
     // handled by the gate above the screens, and neither is helped by retrying.
     retry: false,
     staleTime: 30_000,
-  });
-}
-
-export function useUpdatePreferences() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (body: UpdatePreferencesBody) =>
-      request<Partial<Me>>('/account', { method: 'PATCH', body }),
-    onSuccess: (updated) => {
-      // Patched into the cache rather than refetched. The person is looking at
-      // the control they just moved, and a round trip would move it back for a
-      // moment first.
-      queryClient.setQueryData<Me>(ACCOUNT_KEY, (current) =>
-        current ? { ...current, ...updated } : current,
-      );
-    },
   });
 }

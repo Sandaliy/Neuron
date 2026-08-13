@@ -3,8 +3,7 @@ import { render } from '@testing-library/react';
 
 import type { Locale } from '@neuron/shared';
 
-import { LocaleProvider } from '../i18n/provider';
-import { ThemeProvider } from '../theme/provider';
+import { setLocale } from '../i18n/locale';
 import { ToastProvider } from '../ui/toast';
 
 import type { ReactElement, ReactNode } from 'react';
@@ -20,14 +19,14 @@ export function renderWithProviders(ui: ReactElement, { locale = 'en' as Locale 
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
 
+  // The language is a device preference rather than a provider, so it is
+  // pinned by setting it, the same way the application does.
+  setLocale(locale);
+
   function Providers({ children }: { readonly children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <LocaleProvider initial={locale}>
-          <ThemeProvider>
-            <ToastProvider>{children}</ToastProvider>
-          </ThemeProvider>
-        </LocaleProvider>
+        <ToastProvider>{children}</ToastProvider>
       </QueryClientProvider>
     );
   }

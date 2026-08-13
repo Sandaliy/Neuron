@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { formatRecoveryCode } from '@neuron/shared';
 import type { MessageKey } from '@neuron/shared';
 
-import { useTranslate } from '../../i18n/provider';
+import { useTranslate } from '../../i18n/locale';
 import { Button } from '../../ui/button';
 import { Checkbox } from '../../ui/checkbox';
 import { useToast } from '../../ui/toast';

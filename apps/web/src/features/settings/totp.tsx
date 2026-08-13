@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import type { MessageKey } from '@neuron/shared';
 
-import { useTranslate } from '../../i18n/provider';
+import { useTranslate } from '../../i18n/locale';
 import { describeAuthError, twoFactor } from '../../lib/auth-client';
 import { Button } from '../../ui/button';
 import { useToast } from '../../ui/toast';

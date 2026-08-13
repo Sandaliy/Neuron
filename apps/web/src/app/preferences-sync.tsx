@@ -1,45 +1,39 @@
 import { useEffect } from 'react';
 
-import { useLocale } from '../i18n/provider';
 import { useAccount } from '../lib/account';
-import { useTheme } from '../theme/provider';
+import { adoptLocale, localeChosen } from '../i18n/locale';
+import { adoptTheme, themeChosen } from '../theme/use-theme';
 
 /**
- * Brings the account's theme and language onto this device.
+ * The one moment the account's preferences are allowed onto this device.
  *
- * The two live in two places on purpose. `localStorage` is what the script in
- * `index.html` can read before the first paint, so it decides what is drawn;
- * the account row is what makes the choice follow somebody to a second device.
+ * Theme and language belong to the device. They are read from local storage
+ * before the first paint and changed without a request in the path, so the
+ * account row is a copy, not the source.
  *
- * This runs once a session exists and copies the account's answer down, which
- * also puts it into local storage for the next first paint. It only ever
- * changes anything on a device that disagrees, so signing in on a new phone
- * arrives in the right language and the right theme without a flash of the
- * wrong one on the load after.
+ * A device that has never chosen is the exception, and only that. Signing in on
+ * a new phone should arrive in the right language rather than in whatever the
+ * browser guessed, and there is no local choice to lose. Once this device has
+ * chosen, the account never overrides it again: that override is what used to
+ * flip the theme back roughly a second after every load, and what let a stale
+ * response undo a switch the person had just made.
  */
 export function PreferencesSync() {
-  const account = useAccount();
-  const { theme, setTheme } = useTheme();
-  const { locale, setLocale } = useLocale();
-
-  const fromAccount = account.data;
+  const fromAccount = useAccount().data;
 
   useEffect(() => {
-    if (fromAccount && fromAccount.theme !== theme) {
-      setTheme(fromAccount.theme);
+    if (!fromAccount) {
+      return;
     }
-    // Only when the account's answer changes. Listing the local value here
-    // would undo a switch in settings on the next render, because settings
-    // writes to the account and the account has not answered yet.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromAccount?.theme]);
 
-  useEffect(() => {
-    if (fromAccount && fromAccount.locale !== locale) {
-      setLocale(fromAccount.locale);
+    if (!themeChosen()) {
+      adoptTheme(fromAccount.theme);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromAccount?.locale]);
+
+    if (!localeChosen()) {
+      adoptLocale(fromAccount.locale);
+    }
+  }, [fromAccount]);
 
   return null;
 }

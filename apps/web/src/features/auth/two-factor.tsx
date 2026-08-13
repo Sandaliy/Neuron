@@ -5,7 +5,7 @@ import { useCallback, useState } from 'react';
 import { looksLikeRecoveryCode, normaliseRecoveryCode } from '@neuron/shared';
 import type { MessageKey } from '@neuron/shared';
 
-import { useTranslate } from '../../i18n/provider';
+import { useTranslate } from '../../i18n/locale';
 import { describeAuthError, twoFactor } from '../../lib/auth-client';
 import { Button } from '../../ui/button';
 import { FormField } from '../../ui/form-field';

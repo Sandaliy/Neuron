@@ -5,11 +5,11 @@ import { useState } from 'react';
 import { LOCALES, THEMES, isAcceptablePassword } from '@neuron/shared';
 import type { Locale, MessageKey, Theme } from '@neuron/shared';
 
-import { useLocale, useTranslate } from '../../i18n/provider';
-import { useAccount, useUpdatePreferences } from '../../lib/account';
+import { useLocale, useTranslate } from '../../i18n/locale';
+import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { authClient, changePassword, describeAuthError, signOut } from '../../lib/auth-client';
-import { useTheme } from '../../theme/provider';
+import { useTheme } from '../../theme/use-theme';
 import { Button } from '../../ui/button';
 import { Dialog } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
@@ -66,15 +66,15 @@ function Group({ title, children }: { readonly title: string; readonly children:
 /**
  * Theme and language.
  *
- * Both are applied locally first and written to the account after, so the
- * control moves the instant it is touched even on a slow connection, and both
- * survive a reload on a device that has never signed in.
+ * Both belong to the device. The switch writes local storage and the document
+ * synchronously, then tells the account row in the background without anything
+ * on screen waiting for the answer. Switching the theme with the network off
+ * works exactly as it does with the network on.
  */
 function Appearance() {
   const t = useTranslate();
   const { theme, setTheme } = useTheme();
   const { locale, setLocale } = useLocale();
-  const preferences = useUpdatePreferences();
 
   const themeLabels: Record<Theme, string> = {
     system: t('settings.theme.system'),
@@ -93,10 +93,7 @@ function Appearance() {
         <Segmented
           label={t('settings.theme')}
           value={theme}
-          onChange={(next: Theme) => {
-            setTheme(next);
-            preferences.mutate({ theme: next });
-          }}
+          onChange={setTheme}
           options={THEMES.map((value) => ({ value, label: themeLabels[value] }))}
         />
       </div>
@@ -106,10 +103,7 @@ function Appearance() {
         <Segmented
           label={t('settings.language')}
           value={locale}
-          onChange={(next: Locale) => {
-            setLocale(next);
-            preferences.mutate({ locale: next });
-          }}
+          onChange={setLocale}
           options={LOCALES.map((value) => ({ value, label: localeLabels[value] }))}
         />
       </div>
