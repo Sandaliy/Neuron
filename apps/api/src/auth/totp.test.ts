@@ -160,7 +160,7 @@ describe.skipIf(!database)('two step sign in', () => {
       const { answer, jar } = await signIn(harness, enrolling.email);
 
       expect(answer.status).toBe(200);
-      expect((await harness.get('/account', { jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar })).status).toBe(200);
       expect(await isVerified(enrolling.userId)).toBe(false);
     });
 
@@ -322,7 +322,7 @@ describe.skipIf(!database)('two step sign in', () => {
       expect((answer.body as { twoFactorRedirect?: boolean }).twoFactorRedirect).toBe(true);
 
       // The password alone opens nothing.
-      expect((await harness.get('/account', { jar })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar })).status).toBe(401);
     });
 
     it('finishes when the code is given', async () => {
@@ -339,7 +339,7 @@ describe.skipIf(!database)('two step sign in', () => {
       );
 
       expect(second.status).toBe(200);
-      expect((await harness.get('/account', { jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar })).status).toBe(200);
     });
 
     it('finishes with a code for a lost phone instead', async () => {
@@ -354,7 +354,7 @@ describe.skipIf(!database)('two step sign in', () => {
       );
 
       expect(used.status).toBe(200);
-      expect((await harness.get('/account', { jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar })).status).toBe(200);
     });
   });
 
@@ -417,8 +417,8 @@ describe.skipIf(!database)('two step sign in', () => {
 
       // Never enrolled, and everything works. Nothing in the application may
       // require a second factor.
-      expect((await harness.get('/account', { jar: person.jar })).status).toBe(200);
-      expect((await harness.get('/decks', { jar: person.jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: person.jar })).status).toBe(200);
+      expect((await harness.get('/api/decks', { jar: person.jar })).status).toBe(200);
     });
   });
 });

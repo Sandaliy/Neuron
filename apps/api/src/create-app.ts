@@ -1,3 +1,4 @@
+import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
 import { createAuth } from './auth.js';
@@ -28,7 +29,7 @@ import type { AuthDatabase, Database } from './db/client.js';
 import type { Env } from './env.js';
 import type { Mailer } from './mailer.js';
 import type { RateLimitRule } from './rate-limit.js';
-import type { Hono, MiddlewareHandler } from 'hono';
+import type { MiddlewareHandler } from 'hono';
 
 /**
  * Mounts every route onto an app the caller owns.
@@ -184,14 +185,27 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
   app.onError(respondWithError);
 
   /**
-   * Everything from here needs a session.
+   * Everything from here needs a session, and everything from here sits under
+   * `/api`.
    *
    * The middleware builds the repositories for whoever signed in and puts them
    * on the request. There is no other way to reach the database from a handler,
    * and no way to build them without a user, so a handler cannot read somebody
    * else's rows by forgetting a clause.
+   *
+   * A sub app rather than routes on the app itself, because everything the
+   * browser asks for has to sit under one prefix: the web app forwards `/api`
+   * to this deployment with a single path preserving rule, and the browser must
+   * never see a second origin or it will not send the session cookie. Better
+   * Auth already answered under `/api/auth`. The collection used to answer at
+   * the root, so no one rule could have covered both.
+   *
+   * The error handler and the not found handler stay on the app outside this
+   * one. Hono runs a sub app's own error handler in place of the parent's when
+   * it has one, so registering `onError` here would quietly take over the shape
+   * of every failure under `/api`.
    */
-  const api = app as unknown as Hono<RequestBindings>;
+  const api = new Hono<RequestBindings>();
 
   /**
    * Each resource twice: the collection and everything under it.
@@ -248,7 +262,11 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
    * head start nobody needs, and the only people who want it are already
    * signed in.
    */
-  api.get('/docs', (context) => context.json(openApiDocument(baseUrl)));
+  // The document's server url carries the prefix the routes are mounted
+  // behind, so the paths in it are the paths a client types.
+  api.get('/docs', (context) => context.json(openApiDocument(new URL('/api', baseUrl).toString())));
+
+  app.route('/api', api);
 
   app.notFound((context) => respondWithError(new ApiError('not_found'), context));
 

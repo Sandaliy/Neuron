@@ -69,7 +69,7 @@ describe.skipIf(!database)('leaving', () => {
     const jar = person.jar;
 
     const deck = await harness.post<{ deck: { id: string } }>(
-      '/decks',
+      '/api/decks',
       { name: 'Leaving' },
       { jar },
     );
@@ -77,7 +77,7 @@ describe.skipIf(!database)('leaving', () => {
     expect(deck.status).toBe(201);
 
     const note = await harness.post<{ id: string }>(
-      '/notes',
+      '/api/notes',
       {
         deckId: deck.body.deck.id,
         noteType: 'vocab',
@@ -88,13 +88,13 @@ describe.skipIf(!database)('leaving', () => {
 
     expect(note.status).toBe(201);
 
-    const due = await harness.get<{ cards: { id: string }[] }>('/cards/due?limit=5', { jar });
+    const due = await harness.get<{ cards: { id: string }[] }>('/api/cards/due?limit=5', { jar });
     const card = due.body.cards[0];
 
     expect(card).toBeDefined();
 
     const review = await harness.post(
-      '/reviews',
+      '/api/reviews',
       {
         id: uuidV7(),
         cardId: card?.id,
@@ -135,7 +135,7 @@ describe.skipIf(!database)('leaving', () => {
 
       expect(before).toBe(1);
 
-      const left = await harness.request('DELETE', '/account', {
+      const left = await harness.request('DELETE', '/api/account', {
         jar,
         body: { confirm: 'delete my account' },
       });
@@ -152,15 +152,15 @@ describe.skipIf(!database)('leaving', () => {
       const person = await withOneReview(harness, 'unreachable');
       const jar = person.jar;
 
-      await harness.request('DELETE', '/account', {
+      await harness.request('DELETE', '/api/account', {
         jar,
         body: { confirm: 'delete my account' },
       });
 
       // The session that made the request is gone with everything else, so the
       // cookie in hand opens nothing.
-      expect((await harness.get('/account', { jar })).status).toBe(401);
-      expect((await harness.get('/cards/due', { jar })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar })).status).toBe(401);
+      expect((await harness.get('/api/cards/due', { jar })).status).toBe(401);
 
       // And the password no longer signs anybody in, because the credential row
       // was removed rather than marked.
@@ -174,7 +174,7 @@ describe.skipIf(!database)('leaving', () => {
       const person = await withOneReview(harness, 'nocodes');
       const jar = person.jar;
 
-      await harness.request('DELETE', '/account', {
+      await harness.request('DELETE', '/api/account', {
         jar,
         body: { confirm: 'delete my account' },
       });
@@ -195,7 +195,7 @@ describe.skipIf(!database)('leaving', () => {
       const person = await withOneReview(harness, 'anonymous');
       const jar = person.jar;
 
-      await harness.request('DELETE', '/account', {
+      await harness.request('DELETE', '/api/account', {
         jar,
         body: { confirm: 'delete my account' },
       });
@@ -215,7 +215,7 @@ describe.skipIf(!database)('leaving', () => {
       const person = await withOneReview(harness, 'reusable');
       const jar = person.jar;
 
-      await harness.request('DELETE', '/account', {
+      await harness.request('DELETE', '/api/account', {
         jar,
         body: { confirm: 'delete my account' },
       });
@@ -226,7 +226,7 @@ describe.skipIf(!database)('leaving', () => {
 
       // A fresh, empty collection. The old one is still on its own row, waiting
       // out its thirty days.
-      const decks = await harness.get<{ decks: unknown[] }>('/decks', { jar: again.jar });
+      const decks = await harness.get<{ decks: unknown[] }>('/api/decks', { jar: again.jar });
 
       expect(decks.body.decks).toHaveLength(0);
     });

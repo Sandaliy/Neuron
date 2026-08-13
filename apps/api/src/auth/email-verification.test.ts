@@ -79,8 +79,8 @@ describe.skipIf(!database)('email verification', () => {
       const harness = harnessFor(testDb, { requireEmailVerification: false });
       const person = await signUp(harness, 'immediate');
 
-      expect((await harness.get('/account', { jar: person.jar })).status).toBe(200);
-      expect((await harness.get('/decks', { jar: person.jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: person.jar })).status).toBe(200);
+      expect((await harness.get('/api/decks', { jar: person.jar })).status).toBe(200);
     });
 
     it('sends nothing at all', async () => {
@@ -100,7 +100,7 @@ describe.skipIf(!database)('email verification', () => {
       const { answer, jar } = await signIn(harness, person.email);
 
       expect(answer.status).toBe(200);
-      expect((await harness.get('/account', { jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar })).status).toBe(200);
     });
   });
 
@@ -124,7 +124,7 @@ describe.skipIf(!database)('email verification', () => {
 
       // Signing in does not even produce a session while the address is
       // unconfirmed, so every route is closed rather than a chosen few.
-      for (const path of ['/account', '/decks', '/cards', '/sync']) {
+      for (const path of ['/api/account', '/api/decks', '/api/cards', '/api/sync']) {
         expect((await harness.get(path, { jar })).status).toBeGreaterThanOrEqual(400);
       }
     });
@@ -150,7 +150,7 @@ describe.skipIf(!database)('email verification', () => {
       const { answer, jar } = await signIn(harness, person.email);
 
       expect(answer.status).toBe(200);
-      expect((await harness.get('/account', { jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar })).status).toBe(200);
     });
 
     it('gives a second use of the same link nothing', async () => {
@@ -300,7 +300,7 @@ describe.skipIf(!database)('email verification', () => {
 
       const phone = (await signIn(harness, person.email)).jar;
 
-      expect((await harness.get('/account', { jar: phone })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: phone })).status).toBe(200);
 
       harness.mailer.clear();
 
@@ -327,7 +327,7 @@ describe.skipIf(!database)('email verification', () => {
       expect(
         (await signIn(harness, person.email, GOOD_PASSWORD)).answer.status,
       ).toBeGreaterThanOrEqual(400);
-      expect((await harness.get('/account', { jar: phone })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: phone })).status).toBe(401);
     });
 
     it('applies the password policy to the new password', async () => {

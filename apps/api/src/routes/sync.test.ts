@@ -43,7 +43,7 @@ describe.skipIf(!database)('sync', () => {
 
   async function push(body: unknown) {
     return json<PushSyncResult>(
-      await server.request('/sync', {
+      await server.request('/api/sync', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
@@ -53,7 +53,7 @@ describe.skipIf(!database)('sync', () => {
   }
 
   async function pull(query: string) {
-    return json<PullSyncResult>(await server.request(`/sync${query}`), 200);
+    return json<PullSyncResult>(await server.request(`/api/sync${query}`), 200);
   }
 
   it('sends everything above a revision, oldest first', async () => {
@@ -212,7 +212,7 @@ describe.skipIf(!database)('sync', () => {
     const goodDeck = uuidV7();
     const before = await repositories.decks.list();
 
-    const response = await server.request('/sync', {
+    const response = await server.request('/api/sync', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -295,7 +295,7 @@ describe.skipIf(!database)('sync', () => {
       due: new Date(),
     });
 
-    const response = await server.request('/sync', {
+    const response = await server.request('/api/sync', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({

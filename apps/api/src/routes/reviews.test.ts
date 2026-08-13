@@ -61,7 +61,7 @@ describe.skipIf(!database)('POST /reviews', () => {
 
   async function answer(body: Record<string, unknown>, expected = 200) {
     return json<ReviewResult>(
-      await server.request('/reviews', {
+      await server.request('/api/reviews', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
@@ -193,7 +193,7 @@ describe.skipIf(!database)('POST /reviews', () => {
   });
 
   it('refuses a body with a field nobody asked for', async () => {
-    const response = await server.request('/reviews', {
+    const response = await server.request('/api/reviews', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -216,7 +216,7 @@ describe.skipIf(!database)('POST /reviews', () => {
   });
 
   it('answers a card that is not there without saying whose it is', async () => {
-    const response = await server.request('/reviews', {
+    const response = await server.request('/api/reviews', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -287,7 +287,7 @@ describe.skipIf(!database)('POST /reviews/batch', () => {
       skipped: unknown[];
       revision: number;
     }>(
-      await server.request('/reviews/batch', {
+      await server.request('/api/reviews/batch', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
@@ -316,7 +316,7 @@ describe.skipIf(!database)('POST /reviews/batch', () => {
     }
 
     const result = await json<{ results: ReviewResult[]; skipped: { cardId: string }[] }>(
-      await server.request('/reviews/batch', {
+      await server.request('/api/reviews/batch', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

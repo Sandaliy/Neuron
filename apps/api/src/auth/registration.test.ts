@@ -109,7 +109,7 @@ describe.skipIf(!database)('registration', () => {
       const harness = harnessFor(testDb);
       const person = await registerFresh(harness, 'signedin');
 
-      expect((await harness.get('/account', { jar: person.jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: person.jar })).status).toBe(200);
     });
   });
 
@@ -134,7 +134,7 @@ describe.skipIf(!database)('registration', () => {
       const { answer, jar } = await signIn(closed, person.email);
 
       expect(answer.status).toBe(200);
-      expect((await closed.get('/account', { jar })).status).toBe(200);
+      expect((await closed.get('/api/account', { jar })).status).toBe(200);
     });
   });
 

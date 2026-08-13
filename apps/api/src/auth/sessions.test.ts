@@ -57,7 +57,7 @@ describe.skipIf(!database)('sessions', () => {
       const { answer, jar } = await signIn(harness, person.email);
 
       expect(answer.status).toBe(200);
-      expect((await harness.get('/account', { jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar })).status).toBe(200);
     });
 
     it('issues a new session, and the previous one stops working', async () => {
@@ -74,14 +74,14 @@ describe.skipIf(!database)('sessions', () => {
       const second = await signIn(harness, person.email);
 
       expect(second.jar.value('better-auth.session_token')).not.toBe(firstToken);
-      expect((await harness.get('/account', { jar: second.jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: second.jar })).status).toBe(200);
 
       // The old cookie, put back by hand. The session behind it is gone.
       const stale = new CookieJar();
 
       stale.set('better-auth.session_token', firstToken as string);
 
-      expect((await harness.get('/account', { jar: stale })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: stale })).status).toBe(401);
     });
 
     it('answers a wrong password the same way as an address nobody uses', async () => {
@@ -119,7 +119,7 @@ describe.skipIf(!database)('sessions', () => {
 
       await registerFresh(harness, 'anon');
 
-      const answer = await harness.get<{ error?: { code: string } }>('/account', {
+      const answer = await harness.get<{ error?: { code: string } }>('/api/account', {
         jar: new CookieJar(),
       });
 
@@ -131,7 +131,7 @@ describe.skipIf(!database)('sessions', () => {
       const harness = harnessFor(testDb);
       const person = await registerFresh(harness, 'expired');
 
-      expect((await harness.get('/account', { jar: person.jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: person.jar })).status).toBe(200);
 
       // Aged past its expiry rather than waited out. A month is a long test.
       // This person's sessions only: the table is shared with every other file.
@@ -140,7 +140,7 @@ describe.skipIf(!database)('sessions', () => {
         [person.userId],
       );
 
-      expect((await harness.get('/account', { jar: person.jar })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: person.jar })).status).toBe(401);
     });
 
     it('is refused when somebody has edited it', async () => {
@@ -156,7 +156,7 @@ describe.skipIf(!database)('sessions', () => {
 
       forged.set('better-auth.session_token', `${swapFirst(token as string)}.${signature ?? ''}`);
 
-      expect((await harness.get('/account', { jar: forged })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: forged })).status).toBe(401);
     });
 
     it('is refused when somebody has invented one', async () => {
@@ -168,7 +168,7 @@ describe.skipIf(!database)('sessions', () => {
 
       invented.set('better-auth.session_token', 'not-a-token.not-a-signature');
 
-      expect((await harness.get('/account', { jar: invented })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: invented })).status).toBe(401);
     });
 
     it('is refused for a session that has been deleted underneath it', async () => {
@@ -177,7 +177,7 @@ describe.skipIf(!database)('sessions', () => {
 
       await owner.query('delete from "session" where user_id = $1', [person.userId]);
 
-      expect((await harness.get('/account', { jar: person.jar })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: person.jar })).status).toBe(401);
     });
   });
 
@@ -189,7 +189,7 @@ describe.skipIf(!database)('sessions', () => {
       const phone = (await signIn(harness, person.email)).jar;
       const laptop = (await signIn(harness, person.email)).jar;
 
-      expect((await harness.get('/account', { jar: phone })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: phone })).status).toBe(200);
 
       const changed = await harness.post(
         '/api/auth/change-password',
@@ -202,7 +202,7 @@ describe.skipIf(!database)('sessions', () => {
       // Changing a password is how somebody reacts to thinking their account
       // has been reached. A session opened with the old password surviving it
       // would mean the action did nothing about what they were worried about.
-      expect((await harness.get('/account', { jar: phone })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: phone })).status).toBe(401);
     });
 
     it('needs the current password', async () => {
@@ -353,8 +353,8 @@ describe.skipIf(!database)('sessions', () => {
 
       await harness.post('/api/auth/sign-out', {}, { jar: laptop });
 
-      expect((await harness.get('/account', { jar: laptop })).status).toBe(401);
-      expect((await harness.get('/account', { jar: phone })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: laptop })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: phone })).status).toBe(200);
     });
   });
 });

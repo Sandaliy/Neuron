@@ -166,8 +166,8 @@ describe.skipIf(!database)('recovery codes', () => {
       const phone = (await signIn(harness, person.email)).jar;
       const laptop = (await signIn(harness, person.email)).jar;
 
-      expect((await harness.get('/account', { jar: phone })).status).toBe(200);
-      expect((await harness.get('/account', { jar: laptop })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: phone })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: laptop })).status).toBe(200);
 
       await harness.post(
         '/api/auth/recovery/sign-in',
@@ -178,8 +178,8 @@ describe.skipIf(!database)('recovery codes', () => {
       // Somebody reaching for a recovery code thinks they have lost control of
       // the account. Leaving the other devices signed in would do nothing about
       // the thing they are worried about.
-      expect((await harness.get('/account', { jar: phone })).status).toBe(401);
-      expect((await harness.get('/account', { jar: laptop })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: phone })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: laptop })).status).toBe(401);
     });
   });
 
@@ -195,8 +195,8 @@ describe.skipIf(!database)('recovery codes', () => {
         { jar, address: uniqueAddress() },
       );
 
-      const account = await harness.get<{ error?: { code: string } }>('/account', { jar });
-      const decks = await harness.get('/decks', { jar });
+      const account = await harness.get<{ error?: { code: string } }>('/api/account', { jar });
+      const decks = await harness.get('/api/decks', { jar });
 
       expect(account.status).toBe(403);
       expect(account.body.error?.code).toBe('password_change_required');
@@ -221,7 +221,7 @@ describe.skipIf(!database)('recovery codes', () => {
       );
 
       expect(completed.status).toBe(200);
-      expect((await harness.get('/account', { jar })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar })).status).toBe(200);
     });
 
     it('refuses a new password that would not have been allowed at registration', async () => {
@@ -245,7 +245,7 @@ describe.skipIf(!database)('recovery codes', () => {
       expect(refused.body.code).toBe('weak_password');
       // Still stuck on the same screen, rather than let through with the weak
       // password quietly not applied.
-      expect((await harness.get('/account', { jar })).status).toBe(403);
+      expect((await harness.get('/api/account', { jar })).status).toBe(403);
     });
 
     it('leaves the new password working and the old one not', async () => {

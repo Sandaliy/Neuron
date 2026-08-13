@@ -94,13 +94,13 @@ describe.skipIf(!database)('the admin password reset', () => {
 
       const phone = (await signIn(harness, person.email)).jar;
 
-      expect((await harness.get('/account', { jar: phone })).status).toBe(200);
+      expect((await harness.get('/api/account', { jar: phone })).status).toBe(200);
 
       await issueReset(owner, person.email);
 
       // Somebody who needs this has lost control of their credentials, so a
       // session opened before now may not be theirs.
-      expect((await harness.get('/account', { jar: phone })).status).toBe(401);
+      expect((await harness.get('/api/account', { jar: phone })).status).toBe(401);
     });
 
     it('stores the token as a digest, not as itself', async () => {

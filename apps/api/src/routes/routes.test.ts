@@ -41,7 +41,7 @@ describe.skipIf(!database)('the routes', () => {
         return;
       }
 
-      const response = await signedOutServer(database).request('/decks');
+      const response = await signedOutServer(database).request('/api/decks');
 
       expect(response.status).toBe(401);
 
@@ -55,7 +55,7 @@ describe.skipIf(!database)('the routes', () => {
   describe('decks', () => {
     it('creates a deck and gives it back', async () => {
       const body = await json<{ deck: Deck }>(
-        await server.request('/decks', {
+        await server.request('/api/decks', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ name: 'German' }),
@@ -92,7 +92,7 @@ describe.skipIf(!database)('the routes', () => {
         due: new Date(),
       });
 
-      const body = await json<{ decks: DeckNode[] }>(await server.request('/decks'), 200);
+      const body = await json<{ decks: DeckNode[] }>(await server.request('/api/decks'), 200);
       const counting = body.decks.find((deck) => deck.id === root.id);
 
       expect(counting?.fresh).toBe(1);
@@ -114,7 +114,7 @@ describe.skipIf(!database)('the routes', () => {
 
       await repositories.cards.suspend(card.id);
 
-      const body = await json<{ decks: DeckNode[] }>(await server.request('/decks'), 200);
+      const body = await json<{ decks: DeckNode[] }>(await server.request('/api/decks'), 200);
       const found = body.decks.find((entry) => entry.id === deck.id);
 
       expect(found?.fresh).toBe(0);
@@ -124,7 +124,7 @@ describe.skipIf(!database)('the routes', () => {
       const parent = await repositories.decks.create({ name: 'Cycle top' });
       const child = await repositories.decks.create({ name: 'Cycle bottom', parentId: parent.id });
 
-      const response = await server.request(`/decks/${parent.id}/move`, {
+      const response = await server.request(`/api/decks/${parent.id}/move`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ parentId: child.id }),
@@ -142,7 +142,7 @@ describe.skipIf(!database)('the routes', () => {
 
       await repositories.decks.create({ name: 'Lesson', parentId: parent.id });
 
-      const response = await server.request('/decks', {
+      const response = await server.request('/api/decks', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: 'lesson', parentId: parent.id }),
@@ -159,11 +159,11 @@ describe.skipIf(!database)('the routes', () => {
       const deck = await repositories.decks.create({ name: 'Regret' });
       const child = await repositories.decks.create({ name: 'Also regret', parentId: deck.id });
 
-      await json(await server.request(`/decks/${deck.id}`, { method: 'DELETE' }), 200);
+      await json(await server.request(`/api/decks/${deck.id}`, { method: 'DELETE' }), 200);
 
       expect(await repositories.decks.byId(deck.id)).toBeUndefined();
 
-      await json(await server.request(`/decks/${deck.id}/restore`, { method: 'POST' }), 200);
+      await json(await server.request(`/api/decks/${deck.id}/restore`, { method: 'POST' }), 200);
 
       expect(await repositories.decks.byId(deck.id)).toBeDefined();
       expect(await repositories.decks.byId(child.id)).toBeDefined();
@@ -186,7 +186,7 @@ describe.skipIf(!database)('the routes', () => {
       // two cannot arrive separately. Only the first rung of the ladder opens:
       // three cards on day one triples the work of day one.
       const body = await json<{ note: Note; cards: Card[] }>(
-        await server.request('/notes', {
+        await server.request('/api/notes', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -208,7 +208,7 @@ describe.skipIf(!database)('the routes', () => {
       // produces neither. Without the fallback it would be created with no
       // cards at all, which looks exactly like it not being created.
       const body = await json<{ cards: Card[] }>(
-        await server.request('/notes', {
+        await server.request('/api/notes', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -225,7 +225,7 @@ describe.skipIf(!database)('the routes', () => {
     });
 
     it('names the field that was wrong without quoting what was typed', async () => {
-      const response = await server.request('/notes', {
+      const response = await server.request('/api/notes', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -261,7 +261,7 @@ describe.skipIf(!database)('the routes', () => {
       }
 
       const first = await json<{ items: Note[]; nextCursor?: string }>(
-        await server.request(`/notes?deckId=${paging.id}&limit=2`),
+        await server.request(`/api/notes?deckId=${paging.id}&limit=2`),
         200,
       );
 
@@ -269,7 +269,7 @@ describe.skipIf(!database)('the routes', () => {
       expect(first.nextCursor).toBeTruthy();
 
       const second = await json<{ items: Note[] }>(
-        await server.request(`/notes?deckId=${paging.id}&limit=2&cursor=${first.nextCursor}`),
+        await server.request(`/api/notes?deckId=${paging.id}&limit=2&cursor=${first.nextCursor}`),
         200,
       );
 
@@ -292,7 +292,7 @@ describe.skipIf(!database)('the routes', () => {
       }
 
       const body = await json<{ changed: number }>(
-        await server.request('/notes/status', {
+        await server.request('/api/notes/status', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ ids, status: 'known' }),
@@ -308,7 +308,7 @@ describe.skipIf(!database)('the routes', () => {
     it('opens a direction the ladder has not reached, and refuses one twice', async () => {
       const deck = await repositories.decks.create({ name: 'Unlocking' });
       const created = await json<{ note: Note; cards: Card[] }>(
-        await server.request('/notes', {
+        await server.request('/api/notes', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -321,7 +321,7 @@ describe.skipIf(!database)('the routes', () => {
       );
 
       const opened = await json<{ card: Card }>(
-        await server.request(`/notes/${created.note.id}/cards`, {
+        await server.request(`/api/notes/${created.note.id}/cards`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ direction: 'recall' }),
@@ -331,7 +331,7 @@ describe.skipIf(!database)('the routes', () => {
 
       expect(opened.card.direction).toBe('recall');
 
-      const again = await server.request(`/notes/${created.note.id}/cards`, {
+      const again = await server.request(`/api/notes/${created.note.id}/cards`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ direction: 'recall' }),
@@ -345,7 +345,7 @@ describe.skipIf(!database)('the routes', () => {
       // the note can be asked in, however much anyone would like it to be.
       const deck = await repositories.decks.create({ name: 'No audio' });
       const created = await json<{ note: Note }>(
-        await server.request('/notes', {
+        await server.request('/api/notes', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -357,7 +357,7 @@ describe.skipIf(!database)('the routes', () => {
         201,
       );
 
-      const response = await server.request(`/notes/${created.note.id}/cards`, {
+      const response = await server.request(`/api/notes/${created.note.id}/cards`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ direction: 'listening' }),
@@ -383,19 +383,19 @@ describe.skipIf(!database)('the routes', () => {
         due: new Date(Date.now() - 1000),
       });
 
-      await json(await server.request(`/cards/${card.id}/suspend`, { method: 'POST' }), 200);
+      await json(await server.request(`/api/cards/${card.id}/suspend`, { method: 'POST' }), 200);
 
       const due = await json<{ cards: Card[] }>(
-        await server.request(`/cards/due?deckId=${deck.id}`),
+        await server.request(`/api/cards/due?deckId=${deck.id}`),
         200,
       );
 
       expect(due.cards.some((entry) => entry.id === card.id)).toBe(false);
 
-      await json(await server.request(`/cards/${card.id}/unsuspend`, { method: 'POST' }), 200);
+      await json(await server.request(`/api/cards/${card.id}/unsuspend`, { method: 'POST' }), 200);
 
       const after = await json<{ cards: Card[] }>(
-        await server.request(`/cards/due?deckId=${deck.id}`),
+        await server.request(`/api/cards/due?deckId=${deck.id}`),
         200,
       );
 
@@ -425,7 +425,7 @@ describe.skipIf(!database)('the routes', () => {
       await repositories.reviews.record({ cardId: card.id, rating: 3, now: new Date() });
 
       const body = await json<{ card: Card }>(
-        await server.request(`/cards/${card.id}/reset`, { method: 'POST' }),
+        await server.request(`/api/cards/${card.id}/reset`, { method: 'POST' }),
         200,
       );
 
@@ -449,7 +449,7 @@ describe.skipIf(!database)('the routes', () => {
       const deck = await repositories.decks.create({ name: 'Imported' });
 
       const created = await json<{ import: { id: string }; notes: number; cards: number }>(
-        await server.request('/imports', {
+        await server.request('/api/imports', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -468,7 +468,7 @@ describe.skipIf(!database)('the routes', () => {
       expect(created.cards).toBe(2);
 
       const undone = await json<{ undone: number }>(
-        await server.request(`/imports/${created.import.id}/undo`, { method: 'POST' }),
+        await server.request(`/api/imports/${created.import.id}/undo`, { method: 'POST' }),
         200,
       );
 
@@ -482,7 +482,7 @@ describe.skipIf(!database)('the routes', () => {
     it('writes nothing at all when one row of the import is wrong', async () => {
       const deck = await repositories.decks.create({ name: 'Bad import' });
 
-      const response = await server.request('/imports', {
+      const response = await server.request('/api/imports', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -509,7 +509,7 @@ describe.skipIf(!database)('the routes', () => {
         openapi: string;
         paths: Record<string, unknown>;
         components: { schemas: Record<string, unknown> };
-      }>(await server.request('/docs'), 200);
+      }>(await server.request('/api/docs'), 200);
 
       expect(document.openapi).toBe('3.1.0');
       expect(Object.keys(document.paths).length).toBeGreaterThan(20);
@@ -521,7 +521,7 @@ describe.skipIf(!database)('the routes', () => {
         return;
       }
 
-      const response = await signedOutServer(database).request('/docs');
+      const response = await signedOutServer(database).request('/api/docs');
 
       expect(response.status).toBe(401);
     });
@@ -529,7 +529,7 @@ describe.skipIf(!database)('the routes', () => {
 
   describe('addresses that are not there', () => {
     it('answers in the same shape as everything else', async () => {
-      const response = await server.request('/nowhere');
+      const response = await server.request('/api/nowhere');
 
       expect(response.status).toBe(404);
 
@@ -539,13 +539,36 @@ describe.skipIf(!database)('the routes', () => {
     });
 
     it('refuses an id that is not a uuid without touching the database', async () => {
-      const response = await server.request('/decks/not-a-uuid');
+      const response = await server.request('/api/decks/not-a-uuid');
 
       expect(response.status).toBe(400);
     });
 
+    /**
+     * The collection is a sub app mounted at `/api`, and Hono runs a sub app's
+     * own error handler in place of the parent's when it has one. Registering
+     * `onError` on the wrong side would leave every failure under `/api`
+     * answering as Hono's default text rather than as the one shape, and every
+     * other test here asserts a status rather than a body, so nothing else
+     * would notice.
+     */
+    it('still answers a thrown failure in the one shape once mounted', async () => {
+      const response = await server.request('/api/decks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '' }),
+      });
+
+      expect(response.status).toBe(400);
+
+      const body = (await response.json()) as { error: { code: string; correlationId: string } };
+
+      expect(body.error.code).toBe('invalid_request');
+      expect(body.error.correlationId).toBeTruthy();
+    });
+
     it('does not say whether somebody else’s row exists', async () => {
-      const response = await server.request(`/decks/${uuidV7()}`);
+      const response = await server.request(`/api/decks/${uuidV7()}`);
 
       expect(response.status).toBe(404);
     });
