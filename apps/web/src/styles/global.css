@@ -2,13 +2,16 @@
 
 /*
  * Inter, from the package rather than from a CDN, so the app is one origin for
- * fonts too and works on a machine with no route to Google. Two weights and two
- * subsets, which is every combination anything on screen asks for.
+ * fonts too and works on a machine with no route to Google.
+ *
+ * The whole stylesheet for each weight, not the four per subset files. Those
+ * carry no `unicode-range`, so the browser cannot tell which file covers which
+ * characters and downloads all four on every load, in both languages. These
+ * declare the range for each subset, so an English session fetches the Latin
+ * file and nothing else, and a Russian one fetches two.
  */
-@import '@fontsource/inter/latin-400.css';
-@import '@fontsource/inter/latin-600.css';
-@import '@fontsource/inter/cyrillic-400.css';
-@import '@fontsource/inter/cyrillic-600.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/600.css';
 
 /* Every colour, space, radius and duration in the product. */
 @import '@neuron/config/tokens.css';
@@ -87,12 +90,40 @@
   --font-weight-normal: 400;
   --font-weight-semibold: 600;
 
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Inter', 'Inter fallback', system-ui, sans-serif;
 
   --default-transition-duration: var(--duration-fast);
   --default-transition-timing-function: var(--ease);
 
   --ease-out: var(--ease);
+}
+
+/*
+ * The font that stands in while Inter is still arriving, resized to match it.
+ *
+ * Inter sets this interface's own text 6.7% wider than Arial and about 9%
+ * wider than system-ui, measured, and its line box is taller. With
+ * `font-display: swap` that means every line reflows the moment the font
+ * lands, on every cold load.
+ *
+ * These four descriptors squash Arial into Inter's metrics: the same advance
+ * width, the same ascent and descent, so the stand-in occupies the space Inter
+ * will occupy and the swap moves nothing. All four numbers were measured
+ * against the loaded font rather than copied: size-adjust is how much wider
+ * Inter sets the interface's own text, in both languages, than Arial does, and
+ * the overrides are Inter's ascent and descent divided by that. Inter's line
+ * gap is zero, measured the same way.
+ *
+ * A platform with no Arial drops this face and falls through to system-ui,
+ * which is the behaviour there was before.
+ */
+@font-face {
+  font-family: 'Inter fallback';
+  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
+  size-adjust: 106.66%;
+  ascent-override: 90.85%;
+  descent-override: 22.59%;
+  line-gap-override: 0%;
 }
 
 @layer base {
