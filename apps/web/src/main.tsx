@@ -1,5 +1,3 @@
-import './testing/probe';
-
 import { QueryClient, QueryClientProvider, keepPreviousData } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';

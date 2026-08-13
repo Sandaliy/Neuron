@@ -223,7 +223,7 @@ development. An absolute url to the api anywhere here would cost the session coo
 | ---------------------- | --------------------------------------------------------------------------------------------- |
 | `shell.tsx`            | The layout every signed in screen sits in, and the navigation bar along the bottom of a phone |
 | `session-gate.tsx`     | Asks the api who is signed in, and tells apart no session, a recovery session, and no server  |
-| `preferences-sync.tsx` | Copies the account's theme and language onto this device once a session exists                |
+| `preferences-sync.tsx` | Adopts the account's theme and language, but only on a device that never chose                |
 | `failure.tsx`          | What a thrown component and an unknown address look like. Never a stack trace                 |
 
 ### Screens (`src/features/`)
@@ -259,17 +259,21 @@ one that somebody recognises.
 
 ### The wiring (`src/lib/`, `src/i18n/`, `src/theme/`)
 
-| File                 | Holds                                                                            |
-| -------------------- | -------------------------------------------------------------------------------- |
-| `lib/api.ts`         | One request, the error envelope unpacked, and the code turned into a message key |
-| `lib/auth-client.ts` | Better Auth over the same origin, and its own codes mapped onto the shared ones  |
-| `lib/account.ts`     | Who is signed in, and writing a preference back                                  |
-| `lib/decks.ts`       | The tree in one request, and adding up the roots                                 |
-| `lib/storage.ts`     | Local storage that cannot throw, because Safari's private mode does              |
-| `i18n/provider.tsx`  | Which language is on. The catalogue itself is in `packages/shared`               |
-| `theme/theme.ts`     | Which theme is on, and the copy of that rule `index.html` runs first             |
-| `styles/global.css`  | Tailwind wired to the tokens: the only utilities that exist are the ones allowed |
-| `scripts/icons.mjs`  | Draws the icons in `public/` from the same tokens                                |
+| File                    | Holds                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `lib/api.ts`            | One request, the error envelope unpacked, and the code turned into a message key |
+| `lib/auth-client.ts`    | Better Auth over the same origin, and its own codes mapped onto the shared ones  |
+| `lib/account.ts`        | Who is signed in. One query, and the session check for the whole app             |
+| `lib/decks.ts`          | The tree in one request, and adding up the roots                                 |
+| `lib/storage.ts`        | Local storage that cannot throw, because Safari's private mode does              |
+| `lib/viewport.ts`       | Where the on-screen keyboard is, as CSS variables a sheet is positioned against  |
+| `preferences/device.ts` | A preference that belongs to the device: read at import, applied before React    |
+| `preferences/sync.ts`   | Tells the account row, one request at a time, and discards the answer            |
+| `i18n/locale.ts`        | Which language is on. The catalogue itself is in `packages/shared`               |
+| `theme/theme.ts`        | Which theme is on, and the copy of that rule `index.html` runs first             |
+| `theme/use-theme.ts`    | The theme as a device preference, and the hook that reads it                     |
+| `styles/global.css`     | Tailwind wired to the tokens: the only utilities that exist are the ones allowed |
+| `scripts/icons.mjs`     | Draws the icons in `public/` from the same tokens                                |
 
 ## Documentation
 
@@ -279,4 +283,5 @@ one that somebody recognises.
 | `docs/architecture.md`      | Why the structure is what it is, and the known limitations                  |
 | `docs/algorithm.md`         | FSRS and the workload manager explained in full, with the simulator results |
 | `docs/design-principles.md` | The visual system                                                           |
+| `docs/copy-audit.md`        | Every interface string in both languages, and what looks wrong with it      |
 | `docs/assets/*.svg`         | Charts produced by `sim/main.ts`                                            |
