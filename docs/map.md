@@ -84,7 +84,7 @@ objects, which is what stops it drifting away from the code.
 | `reviews.ts` | Submitting an answer, one or a batch, and what comes back                     |
 | `sync.ts`    | The revision stream, and what a client may push for each kind of row          |
 | `account.ts` | Who is signed in, preferences, and leaving                                    |
-| `auth.ts`    | Registering, signing in, recovery codes, TOTP, verification and reset          |
+| `auth.ts`    | Registering, signing in, recovery codes, TOTP, verification and reset         |
 
 ## packages/config
 
@@ -106,7 +106,7 @@ Hono on the Node runtime, deployed to Vercel Functions. Drizzle over Postgres on
 | `src/dev.ts`            | Local start. Reads `.env` before anything else runs                                                                       |
 | `src/env.ts`            | Environment parsing and validation                                                                                        |
 | `src/auth.ts`           | Better Auth setup, over the authentication connection. Do not hand roll sessions or password hashing anywhere else        |
-| `src/mailer.ts`         | The `Mailer` interface, `LogMailer`, and the variable that chooses. No provider is configured                            |
+| `src/mailer.ts`         | The `Mailer` interface, `LogMailer`, and the variable that chooses. No provider is configured                             |
 | `src/context.ts`        | `requireSession`: refuses anything without one, hands the rest their repositories                                         |
 | `src/errors.ts`         | `ApiError`, the mapping from thrown things to codes, and the one response shape                                           |
 | `src/validation.ts`     | `readBody`, `readQuery`, `readParams`. Nothing reaches a handler unparsed                                                 |
@@ -121,15 +121,15 @@ Hono on the Node runtime, deployed to Vercel Functions. Drizzle over Postgres on
 What Neuron adds to Better Auth. Everything here runs on the authentication connection, so none of it is
 reachable from a route handler.
 
-| File               | Holds                                                                                          |
-| ------------------ | ---------------------------------------------------------------------------------------------- |
-| `plugin.ts`        | The Better Auth plugin: recovery endpoints, the registration guards, the password policy hook   |
-| `recovery-codes.ts`| Generating, hashing, counting and spending the ten account recovery codes                      |
-| `hashing.ts`       | One set of argon2id parameters for every secret, and the constant time miss for unknown addresses |
-| `registration.ts`  | The per address daily cap on successful registrations                                          |
-| `totp-replay.ts`   | Which step a code came from, and claiming it so the same code cannot be used twice              |
-| `reset-tokens.ts`  | Storing the password reset token as a digest instead of in the clear                           |
-| `testing/harness.ts`| A real server, a real cookie jar, and the helpers the authentication tests share                |
+| File                 | Holds                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| `plugin.ts`          | The Better Auth plugin: recovery endpoints, the registration guards, the password policy hook     |
+| `recovery-codes.ts`  | Generating, hashing, counting and spending the ten account recovery codes                         |
+| `hashing.ts`         | One set of argon2id parameters for every secret, and the constant time miss for unknown addresses |
+| `registration.ts`    | The per address daily cap on successful registrations                                             |
+| `totp-replay.ts`     | Which step a code came from, and claiming it so the same code cannot be used twice                |
+| `reset-tokens.ts`    | Storing the password reset token as a digest instead of in the clear                              |
+| `testing/harness.ts` | A real server, a real cookie jar, and the helpers the authentication tests share                  |
 
 The tests next to these are the only ones that do not stub the session: `registration.test.ts`,
 `sessions.test.ts`, `recovery.test.ts`, `totp.test.ts`, `email-verification.test.ts`,
@@ -156,18 +156,18 @@ Seventeen tables. `index.ts` also exports `USER_OWNED_TABLES`, `AUTH_TABLES`, `W
 lists of `user` columns the application role may touch, so a new table cannot be silently left out of
 the checks that prove isolation works.
 
-| File                     | Tables                                                                                                 |
-| ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| File                     | Tables                                                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `auth.ts`                | `user`, `session`, `account`, `verification`, `two_factor`, `recovery_codes`, `registration_counts`. Reached over a second connection, as a role of their own |
-| `decks.ts`               | `decks`. Folder and deck are the same entity. Ancestors stored as an array for subtree queries         |
-| `notes.ts`               | `notes`. The fact, with all its fields                                                                 |
-| `note-types.ts`          | `note_types`. Built in types belong to nobody, so this has its own policy                              |
-| `cards.ts`               | `cards`. One review direction of a note, with its FSRS state                                           |
-| `reviews.ts`             | `reviews`. Append only. Never updated, never deleted                                                   |
-| `study.ts`               | `study_presets`, `import_batches`                                                                      |
-| `sync.ts`                | `sync_conflicts`. The version that lost a merge, kept whole                                            |
-| `rate-limits.ts`         | `rate_limits`. Counters only, no user data, reachable through one function                             |
-| `columns.ts`, `owned.ts` | Shared column builders: the id, timestamp and `user_id` columns every owned table carries              |
+| `decks.ts`               | `decks`. Folder and deck are the same entity. Ancestors stored as an array for subtree queries                                                                |
+| `notes.ts`               | `notes`. The fact, with all its fields                                                                                                                        |
+| `note-types.ts`          | `note_types`. Built in types belong to nobody, so this has its own policy                                                                                     |
+| `cards.ts`               | `cards`. One review direction of a note, with its FSRS state                                                                                                  |
+| `reviews.ts`             | `reviews`. Append only. Never updated, never deleted                                                                                                          |
+| `study.ts`               | `study_presets`, `import_batches`                                                                                                                             |
+| `sync.ts`                | `sync_conflicts`. The version that lost a merge, kept whole                                                                                                   |
+| `rate-limits.ts`         | `rate_limits`. Counters only, no user data, reachable through one function                                                                                    |
+| `columns.ts`, `owned.ts` | Shared column builders: the id, timestamp and `user_id` columns every owned table carries                                                                     |
 
 ### Repositories (`src/db/repositories/`)
 
@@ -213,7 +213,63 @@ and the two factor secrets on the authentication side of that split.
 
 ## apps/web
 
-`README.md` only. Nothing built yet.
+React 19 on Vite, deployed as `neuron-web`. Every request goes to the origin the page came from:
+`vercel.json` forwards `/api` to the api deployment in production, the Vite proxy does it in
+development. An absolute url to the api anywhere here would cost the session cookie.
+
+### The frame (`src/app/`)
+
+| File                   | Holds                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `shell.tsx`            | The layout every signed in screen sits in, and the navigation bar along the bottom of a phone |
+| `session-gate.tsx`     | Asks the api who is signed in, and tells apart no session, a recovery session, and no server  |
+| `preferences-sync.tsx` | Copies the account's theme and language onto this device once a session exists                |
+| `failure.tsx`          | What a thrown component and an unknown address look like. Never a stack trace                 |
+
+### Screens (`src/features/`)
+
+| Path                      | Holds                                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `auth/sign-up.tsx`        | Registering, then the ten codes, which it does not navigate away from                           |
+| `auth/sign-in.tsx`        | Email and password, and the hand off to the second factor when there is one                     |
+| `auth/recovery.tsx`       | Signing in with a code, then the new password that session owes                                 |
+| `auth/recovery-codes.tsx` | The codes, the warning, copy, download, and the box that has to be ticked. Held across a reload |
+| `auth/two-factor.tsx`     | The six digit challenge, with the lost phone codes on the same screen                           |
+| `auth/code-input.tsx`     | One field, not six boxes: it takes a paste and submits itself when full                         |
+| `auth/password-field.tsx` | The policy from `packages/shared`, judged when leaving the field rather than on every keystroke |
+| `settings/settings.tsx`   | Theme, language, password, codes, the second factor, and leaving                                |
+| `settings/totp.tsx`       | Enrollment in three steps that cannot be skipped, and removal                                   |
+| `library/library.tsx`     | The deck tree, read only, with the open folders remembered                                      |
+| `today/today.tsx`         | What is due, what is new, and the estimate that says "about"                                    |
+
+### The design system (`src/ui/`)
+
+Radix primitives styled with the tokens. No prebuilt kit: they carry a look, and this should not have
+one that somebody recognises.
+
+| File                                                        | Holds                                                                                   |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `button.tsx`                                                | Three variants, 44 px tall at the smallest                                              |
+| `dialog.tsx`                                                | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip |
+| `segmented.tsx`                                             | The theme and language switches: native radios, so the arrow keys are the browser's own |
+| `input.tsx`, `form-field.tsx`, `checkbox.tsx`, `switch.tsx` | The form parts, with the error wired to the control                                     |
+| `toast.tsx`                                                 | Short confirmations, above the bottom bar and above the home indicator                  |
+| `states.tsx`                                                | Skeleton, empty and error. A list never renders as a blank area                         |
+| `spinner.tsx`                                               | For a button that is waiting. A screen gets a skeleton instead                          |
+
+### The wiring (`src/lib/`, `src/i18n/`, `src/theme/`)
+
+| File                 | Holds                                                                            |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `lib/api.ts`         | One request, the error envelope unpacked, and the code turned into a message key |
+| `lib/auth-client.ts` | Better Auth over the same origin, and its own codes mapped onto the shared ones  |
+| `lib/account.ts`     | Who is signed in, and writing a preference back                                  |
+| `lib/decks.ts`       | The tree in one request, and adding up the roots                                 |
+| `lib/storage.ts`     | Local storage that cannot throw, because Safari's private mode does              |
+| `i18n/provider.tsx`  | Which language is on. The catalogue itself is in `packages/shared`               |
+| `theme/theme.ts`     | Which theme is on, and the copy of that rule `index.html` runs first             |
+| `styles/global.css`  | Tailwind wired to the tokens: the only utilities that exist are the ones allowed |
+| `scripts/icons.mjs`  | Draws the icons in `public/` from the same tokens                                |
 
 ## Documentation
 
