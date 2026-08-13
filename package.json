@@ -20,6 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:core": "vitest --project core",
+    "copy-audit": "node scripts/copy-audit.mjs",
     "db:generate": "pnpm --filter @neuron/api db:generate",
     "db:migrate": "pnpm --filter @neuron/api db:migrate",
     "db:seed": "pnpm --filter @neuron/api db:seed",
