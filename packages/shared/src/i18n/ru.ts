@@ -188,7 +188,7 @@ export const ru: Messages = {
   'settings.deleted': 'Аккаунт закрыт.',
 
   'error.not_authenticated': 'Войди, чтобы продолжить.',
-  'error.not_allowed': 'Это действие недоступно.',
+  'error.not_allowed': 'Это действие отклонено. Обнови страницу и попробуй ещё раз.',
   'error.not_found': 'Этого здесь нет.',
   'error.invalid_request': 'В запросе что-то не так.',
   'error.name_taken': 'Такое имя здесь уже занято.',
@@ -213,5 +213,11 @@ export const ru: Messages = {
   'error.direction_unavailable': 'Это направление карточки недоступно.',
   'error.sync_rejected': 'Эти изменения не удалось сохранить. Они остались на устройстве.',
   'error.service_unavailable': 'Сервер не отвечает. Работа сохранена на устройстве.',
-  'error.internal_error': 'Что-то сломалось на нашей стороне. Номер обращения: {correlationId}',
+  'error.network_unreachable':
+    'Устройство не может связаться с сервером. Проверь соединение и попробуй ещё раз. Работа сохранена здесь.',
+  'error.untrusted_origin':
+    'Сервер не знает этот веб-адрес. Открой приложение по его обычному адресу и войди там.',
+  'error.unexpected': 'Что-то пошло не так. Попробуй ещё раз.',
+  'error.internal_error':
+    'Что-то сломалось на нашей стороне. Попробуй ещё раз, а если повторится, назови этот номер: {correlationId}',
 };

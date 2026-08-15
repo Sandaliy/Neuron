@@ -193,7 +193,7 @@ export const en = {
   'settings.deleted': 'The account is closed.',
 
   'error.not_authenticated': 'Sign in to continue.',
-  'error.not_allowed': 'You cannot do that.',
+  'error.not_allowed': 'That action was refused. Reload the page and try again.',
   'error.not_found': 'That is not here.',
   'error.invalid_request': 'Something in that request was not right.',
   'error.name_taken': 'That name is already used here.',
@@ -218,7 +218,13 @@ export const en = {
   'error.direction_unavailable': 'That card direction is not available.',
   'error.sync_rejected': 'Those changes could not be saved. They are still on this device.',
   'error.service_unavailable': 'The server is not answering. Your work is saved on this device.',
-  'error.internal_error': 'Something went wrong at our end. Reference: {correlationId}',
+  'error.network_unreachable':
+    'This device cannot reach the server. Check the connection and try again. Your work is saved here.',
+  'error.untrusted_origin':
+    'The server does not recognise this web address. Open the app at its usual address and sign in there.',
+  'error.unexpected': 'Something went wrong. Try again in a moment.',
+  'error.internal_error':
+    'Something went wrong at our end. Try again in a moment, and quote this if it keeps happening: {correlationId}',
 } as const;
 
 /** Every key the interface can ask for. */

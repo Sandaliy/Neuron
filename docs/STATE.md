@@ -189,10 +189,21 @@ end to end by tests that run with it on, reading the token out of the log mailer
 
 - **Two deploys work, as of 13 August.** `neuron-api` from `apps/api`, `neuron-web` from `apps/web`,
   both connected to GitHub. `https://neuron-api-parkour-clan.vercel.app/health` answers, and the app is
-  at `https://neuron-web-parkour-clan.vercel.app`. `APP_ORIGIN` and `BETTER_AUTH_URL` on the api both
-  point at the web origin now, in Production and Preview. Vercel Authentication is off on both, or the
-  preview and the app would both sit behind an SSO page. Push a branch and let the preview build it;
-  merge to `main` only once it is green. The deployment section of `CLAUDE.md` has the rest.
+  at `https://neuron-web-parkour-clan.vercel.app`. Vercel Authentication is off on both, or the preview
+  and the app would both sit behind an SSO page. Push a branch and let the preview build it; merge to
+  `main` only once it is green. The deployment section of `CLAUDE.md` has the rest.
+- **`APP_ORIGIN` is the only address variable, as of 15 August.** One comma separated list on the api.
+  The first entry is canonical: Better Auth signs cookies for it, CORS answers with it, reset links
+  point at it, and `GET /health` reports it so the question can be answered with one request. Every
+  entry is allowed to make a request, and an entry after the first may contain `*`, which is how the
+  preview deployments are trusted as a pattern rather than one hostname at a time. `BETTER_AUTH_URL`
+  is gone: it held the same address and could disagree with it, and when it did every sign in and
+  every sign up was refused with a 403 nobody could read. Moving to a real domain is this one entry.
+- **Preview deployments sign in against the production api and the production database.** The rewrite
+  in `apps/web/vercel.json` names the api's stable alias, and a preview of the web app uses it like
+  any other build. That is what makes an auth change testable before it reaches `main`, and it also
+  means an account made on a preview is a real account. The api's own preview deployments have never
+  had `DATABASE_URL`, so they do not boot; nothing points at them.
 - **The two registration guards are temporary.** Both exist only because there is no email verification.
   Remove them in phase 11 rather than leaving them to rot.
 - **The password policy is a length floor and about forty entries.** `packages/shared/src/password.ts`.

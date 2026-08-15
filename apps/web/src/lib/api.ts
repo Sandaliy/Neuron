@@ -17,20 +17,40 @@ import type { ApiErrorCode, MessageKey, MessageValues } from '@neuron/shared';
 export const API_BASE = '/api';
 
 /**
+ * What the client can work out on its own, when the api did not say.
+ *
+ * Separate from the api's own list because the api never sends these: they are
+ * conclusions drawn here, about a request that did not arrive or an answer that
+ * did not come from the api at all. Keeping them out of the wire contract is
+ * what stops a route handler from reaching for one.
+ *
+ * The three exist because "it failed" is not a diagnosis. A request the network
+ * swallowed, an address the server refuses to trust, and a failure nobody
+ * predicted need three different things done about them, and the person on
+ * screen is the one who has to do it.
+ */
+export const CLIENT_ERROR_CODES = ['network_unreachable', 'untrusted_origin', 'unexpected'] as const;
+
+export type ClientErrorCode = (typeof CLIENT_ERROR_CODES)[number];
+
+/** Every code a failure on this side can carry. */
+export type FailureCode = ApiErrorCode | ClientErrorCode;
+
+/**
  * A refusal from the api, carrying the code rather than a sentence.
  *
  * The sentence is chosen by whatever is rendering, in whichever language is on
  * screen. Nothing in here is ever shown as it stands.
  */
 export class ApiFailure extends Error {
-  readonly code: ApiErrorCode;
+  readonly code: FailureCode;
   readonly status: number;
   readonly correlationId: string;
   readonly retryAfterSeconds: number | undefined;
   readonly fields: readonly { readonly path: string; readonly code: string }[];
 
   constructor(init: {
-    code: ApiErrorCode;
+    code: FailureCode;
     status: number;
     correlationId: string;
     retryAfterSeconds?: number | undefined;
@@ -51,10 +71,11 @@ export class ApiFailure extends Error {
 /**
  * The message key for a failure, in whatever language is on screen.
  *
- * Anything that is not an `ApiFailure` is a fetch that never arrived: no
- * network, a proxy in the way, the deployment restarting. From where the person
- * is sitting that is the same event as the server not answering, and it says so
- * in their language rather than as `TypeError: Failed to fetch`.
+ * Every failure reaching a screen is one of three things, and they are told
+ * apart here rather than flattened into one apology: the server refused and
+ * said why, the request never left the device, or nobody predicted this. The
+ * third carries the id the server log is searched by, because "it said
+ * something went wrong" is not a bug report and "it said 01a00697" is.
  *
  * @param error whatever was thrown
  * @returns the key and the values its placeholders need
@@ -70,7 +91,9 @@ export function describe(error: unknown): { key: MessageKey; values: MessageValu
     };
   }
 
-  return { key: 'error.service_unavailable', values: {} };
+  // Not an answer from the api at all: something threw on this side. There is
+  // no id to quote, because nothing was ever sent.
+  return { key: 'error.unexpected', values: {} };
 }
 
 interface RequestOptions {
@@ -109,9 +132,16 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       throw cause;
     }
 
+    /*
+     * The request never arrived. No aeroplane mode, a captive portal, a dead
+     * tunnel, the deployment restarting: from where the person is sitting
+     * these are one event, and it is not the same event as the server
+     * answering badly. Saying so is the difference between checking the wifi
+     * and waiting for someone else to fix something.
+     */
     throw new ApiFailure({
-      code: 'service_unavailable',
-      status: 503,
+      code: 'network_unreachable',
+      status: 0,
       correlationId: 'no-response',
     });
   }
@@ -137,13 +167,20 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     /*
      * A failure that did not come from the api at all: a proxy timing out, a
      * platform error page, an html body. The status is real, so it is kept, but
-     * the code cannot be trusted and is reported as the one thing that is
-     * certainly true, which is that this request did not work.
+     * the code cannot be trusted, and the honest thing to call this is
+     * unexpected.
+     *
+     * Vercel stamps every response it handles with an id of its own, and that
+     * id is what the runtime log is searched by. When there is one it stands in
+     * for the correlation id the api would have given, so even a failure that
+     * never reached our code can be traced to one request.
      */
+    const platformId = response.headers.get('x-vercel-id');
+
     throw new ApiFailure({
-      code: response.status >= 500 ? 'service_unavailable' : 'invalid_request',
+      code: platformId === null ? 'unexpected' : 'internal_error',
       status: response.status,
-      correlationId: 'not-from-the-api',
+      correlationId: platformId ?? 'no-reference',
     });
   }
 

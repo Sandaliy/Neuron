@@ -75,9 +75,19 @@ export function createAuth({ env, db, mailer, addressOf }: CreateAuthOptions) {
 
   return betterAuth({
     appName: 'Neuron',
-    baseURL: env.BETTER_AUTH_URL,
+    /*
+     * Both come from APP_ORIGIN and cannot drift apart.
+     *
+     * The base url is the canonical entry rather than this deployment's own
+     * hostname, because the browser never talks to this deployment directly:
+     * the web app forwards /api to it, so the origin a request carries is the
+     * web app's. Pointing the base url at the api's own hostname would leave
+     * the browser's own origin untrusted, which is a 403 on every sign in and
+     * every sign up alike, with nothing in the response to say so.
+     */
+    baseURL: env.APP_ORIGIN.canonical,
     secret: env.BETTER_AUTH_SECRET,
-    trustedOrigins: [env.APP_ORIGIN],
+    trustedOrigins: [...env.APP_ORIGIN.trusted],
 
     database: drizzleAdapter(db, { provider: 'pg', schema: authSchema }),
 
@@ -124,7 +134,7 @@ export function createAuth({ env, db, mailer, addressOf }: CreateAuthOptions) {
           body: [
             'Somebody asked to reset the password on this account.',
             '',
-            actionLink(env.APP_ORIGIN, '/reset-password', token),
+            actionLink(env.APP_ORIGIN.canonical, '/reset-password', token),
             '',
             'The link works once and stops working in an hour.',
             'If this was not you, nothing has changed and you can ignore this.',
@@ -150,7 +160,7 @@ export function createAuth({ env, db, mailer, addressOf }: CreateAuthOptions) {
           body: [
             'Confirm this address to finish setting up your account.',
             '',
-            actionLink(env.APP_ORIGIN, '/verify-email', token),
+            actionLink(env.APP_ORIGIN.canonical, '/verify-email', token),
             '',
             'The link works once and stops working in an hour.',
           ].join('\n'),

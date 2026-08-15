@@ -34,11 +34,46 @@ describe('describing a failure', () => {
     expect(describeFailure(failure).values['correlationId']).toBe('019ff884-7c84-7000');
   });
 
-  it('reads a request that never arrived as the server not answering', () => {
-    // The person pulled into a lift, or the deployment restarting. From where
-    // they are sitting it is the same event, and it must not surface as
-    // "TypeError: Failed to fetch".
-    expect(describeFailure(new TypeError('Failed to fetch')).key).toBe('error.service_unavailable');
+  it('tells a request that never arrived from a server that refused', () => {
+    // The person pulled into a lift, or a captive portal in the way. Telling
+    // this apart from the server answering badly is what decides whether they
+    // check their connection or wait for somebody else, and it must not
+    // surface as "TypeError: Failed to fetch" either way.
+    const unreachable = new ApiFailure({
+      code: 'network_unreachable',
+      status: 0,
+      correlationId: 'no-response',
+    });
+
+    expect(describeFailure(unreachable).key).toBe('error.network_unreachable');
+    expect(describeFailure(unreachable).key).not.toBe(
+      describeFailure(
+        new ApiFailure({ code: 'service_unavailable', status: 503, correlationId: 'abc' }),
+      ).key,
+    );
+  });
+
+  it('calls a failure nobody predicted unexpected, rather than blaming the server', () => {
+    // Something threw on this side: a component, a parser, a bug. Nothing was
+    // sent, so there is no id to quote and it must not claim there is.
+    const described = describeFailure(new TypeError('Cannot read properties of undefined'));
+
+    expect(described.key).toBe('error.unexpected');
+    expect(described.values['correlationId']).toBeUndefined();
+  });
+
+  it('keeps the address refusal apart from every other 403', () => {
+    // The failure this file was rewritten for. A page opened at an address the
+    // api does not trust used to arrive as "You cannot do that", which sent
+    // the reader to check a password that was never looked at.
+    const refused = new ApiFailure({
+      code: 'untrusted_origin',
+      status: 403,
+      correlationId: 'abc',
+    });
+
+    expect(describeFailure(refused).key).toBe('error.untrusted_origin');
+    expect(describeFailure(refused).key).not.toBe('error.not_allowed');
   });
 
   it('has a message for a rate limit even when the server named no wait', () => {

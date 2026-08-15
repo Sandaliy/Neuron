@@ -6,7 +6,6 @@ const valid = {
   DATABASE_URL: 'postgresql://neuron_app:secret@host.neon.tech/neondb?sslmode=require',
   DATABASE_URL_AUTH: 'postgresql://neuron_auth:secret@host.neon.tech/neondb?sslmode=require',
   BETTER_AUTH_SECRET: 'a'.repeat(32),
-  BETTER_AUTH_URL: 'http://localhost:8787',
   APP_ORIGIN: 'http://localhost:5173',
 };
 
@@ -15,7 +14,7 @@ describe('parseEnv', () => {
     const env = parseEnv(valid);
 
     expect(env.DATABASE_URL).toBe(valid.DATABASE_URL);
-    expect(env.APP_ORIGIN).toBe(valid.APP_ORIGIN);
+    expect(env.APP_ORIGIN.canonical).toBe(valid.APP_ORIGIN);
   });
 
   it('defaults the mode to development and the port to 8787', () => {
@@ -49,7 +48,6 @@ describe('parseEnv', () => {
 
     expect(message).toContain('DATABASE_URL');
     expect(message).toContain('BETTER_AUTH_SECRET');
-    expect(message).toContain('BETTER_AUTH_URL');
     expect(message).toContain('APP_ORIGIN');
   });
 
@@ -65,6 +63,43 @@ describe('parseEnv', () => {
 
   it('rejects an origin that is not a url', () => {
     expect(() => parseEnv({ ...valid, APP_ORIGIN: 'localhost:5173' })).toThrow(EnvironmentError);
+  });
+
+  it('takes the first entry as the canonical address and trusts them all', () => {
+    const env = parseEnv({
+      ...valid,
+      APP_ORIGIN: 'https://neuron.example, https://neuron-web-git-*-team.vercel.app',
+    });
+
+    expect(env.APP_ORIGIN.canonical).toBe('https://neuron.example');
+    expect(env.APP_ORIGIN.trusted).toEqual([
+      'https://neuron.example',
+      'https://neuron-web-git-*-team.vercel.app',
+    ]);
+  });
+
+  it('drops a trailing slash, which an Origin header never carries', () => {
+    const env = parseEnv({ ...valid, APP_ORIGIN: 'https://neuron.example/' });
+
+    expect(env.APP_ORIGIN.canonical).toBe('https://neuron.example');
+  });
+
+  it('refuses a canonical address with a wildcard in it', () => {
+    expect(() => parseEnv({ ...valid, APP_ORIGIN: 'https://*.example' })).toThrow(
+      /canonical address/,
+    );
+  });
+
+  it('refuses the address of a page rather than of the app', () => {
+    expect(() => parseEnv({ ...valid, APP_ORIGIN: 'https://neuron.example/sign-in' })).toThrow(
+      EnvironmentError,
+    );
+  });
+
+  it('names the entry that is wrong, not just the variable', () => {
+    expect(() => parseEnv({ ...valid, APP_ORIGIN: 'https://neuron.example,nonsense' })).toThrow(
+      /"nonsense"/,
+    );
   });
 
   it('says where the authentication connection comes from when it is missing', () => {

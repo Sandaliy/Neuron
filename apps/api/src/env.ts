@@ -2,6 +2,10 @@ import process from 'node:process';
 
 import { z } from 'zod';
 
+import { buildOrigins, originListProblem } from './origins.js';
+
+import type { Origins } from './origins.js';
+
 /**
  * The only place in the api that touches process.env. Everything else takes the
  * parsed result, so a missing variable is caught once, at startup, with a
@@ -9,17 +13,28 @@ import { z } from 'zod';
  */
 
 /**
- * z.url() alone is not enough: the url parser reads "localhost:5173" as a url
- * with the scheme "localhost", so a missing http:// would slip through and
- * break CORS at runtime instead of at startup.
+ * The list of origins, parsed and checked.
+ *
+ * z.url() alone would not be enough even for one entry: the url parser reads
+ * "localhost:5173" as a url whose scheme is "localhost", so a missing http://
+ * would slip through and break CORS at runtime instead of at startup.
  */
-const httpUrl = (example: string) =>
-  z
-    .url(`must be a full url, for example ${example}`)
-    .refine(
-      (value) => value.startsWith('http://') || value.startsWith('https://'),
-      `must start with http:// or https://, for example ${example}`,
-    );
+const originList = z.string().transform((value, ctx): Origins => {
+  const entries = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  const problem = originListProblem(entries);
+
+  if (problem !== undefined) {
+    ctx.addIssue({ code: 'custom', message: problem });
+
+    return z.NEVER;
+  }
+
+  return buildOrigins(entries);
+});
 
 /**
  * A switch, as it survives a trip through an environment variable.
@@ -66,8 +81,30 @@ const environmentSchema = z.object({
    */
   DATABASE_URL_AUTH: postgresUrl,
   BETTER_AUTH_SECRET: z.string().min(32, 'must be at least 32 characters'),
-  BETTER_AUTH_URL: httpUrl('http://localhost:8787'),
-  APP_ORIGIN: httpUrl('http://localhost:5173'),
+  /**
+   * Where the web app is, and every other origin allowed to talk to this api.
+   *
+   * One variable, because the alternative is several that have to be kept in
+   * step and quietly are not. Entries are separated by commas.
+   *
+   * The first entry is the canonical address. Better Auth signs its cookies
+   * for it, a reset link points at it, the generated description names it, and
+   * it is the address that belongs in a bookmark. Moving the app to a real
+   * domain is changing this one entry and nothing else.
+   *
+   * Every entry, the first included, is allowed to make a request. An entry
+   * after the first may contain *, standing for any run of characters that is
+   * not a slash, which is how every preview deployment is trusted at once
+   * instead of one hostname per branch.
+   *
+   *   https://neuron.example
+   *   https://neuron.example,https://neuron-web-git-*-team.vercel.app
+   *
+   * BETTER_AUTH_URL used to sit next to this and had to be kept equal to it.
+   * It is gone: the base url is the canonical entry, so there is no second
+   * value to forget.
+   */
+  APP_ORIGIN: originList,
   /**
    * Whether anybody new may register.
    *

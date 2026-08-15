@@ -14,8 +14,14 @@ Hono on the Node runtime, deployed to Vercel Functions. It owns accounts, sessio
 
 ## Running it
 
-Needs `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` and `APP_ORIGIN` in the `.env` file at
-the top of the repository. A missing one stops the server at startup with a message naming it.
+Needs `DATABASE_URL`, `DATABASE_URL_AUTH`, `BETTER_AUTH_SECRET` and `APP_ORIGIN` in the `.env` file
+at the top of the repository. A missing one stops the server at startup with a message naming it.
+
+`APP_ORIGIN` is the whole of the address question: a comma separated list whose first entry is the
+canonical address of the web app. Better Auth signs cookies for it, CORS answers with it, links point
+at it, and every entry on the list is allowed to make a request. There is no `BETTER_AUTH_URL`, on
+purpose. Two variables holding the same address is two variables that can disagree, and when they do
+every sign in is refused with a 403 that says nothing.
 
 ```
 pnpm dev            starts on http://localhost:8787

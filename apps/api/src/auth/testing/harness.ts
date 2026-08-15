@@ -94,7 +94,6 @@ function environmentFor(database: TestDatabase, options: HarnessOptions): Env {
     // that changed between two servers in one test would make the second
     // unable to read what the first wrote.
     BETTER_AUTH_SECRET: 'test-secret-that-is-long-enough-to-be-accepted',
-    BETTER_AUTH_URL: BASE_URL,
     APP_ORIGIN: BASE_URL,
     AUTH_REGISTRATION_OPEN: String(options.registrationOpen ?? true),
     AUTH_REQUIRE_EMAIL_VERIFICATION: String(options.requireEmailVerification ?? false),

@@ -36,7 +36,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: (attempt, error) =>
-        attempt < 2 && error instanceof ApiFailure && error.code === 'service_unavailable',
+        attempt < 2 &&
+        error instanceof ApiFailure &&
+        (error.code === 'service_unavailable' || error.code === 'network_unreachable'),
 
       /*
        * Not on focus. Every alt-tab back to the app would otherwise spend a

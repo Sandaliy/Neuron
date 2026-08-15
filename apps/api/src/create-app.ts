@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
+import { uuidV7 } from '@neuron/shared';
+
 import { createAuth } from './auth.js';
 import { addressFromHeaders, clientAddress, requireSession, signedIn } from './context.js';
 import { createAuthDb, createDb } from './db/client.js';
@@ -9,6 +11,7 @@ import { loadEnv } from './env.js';
 import { ApiError, respondWithError } from './errors.js';
 import { createMailer } from './mailer.js';
 import { openApiDocument } from './openapi.js';
+import { isTrustedOrigin } from './origins.js';
 import {
   AUTH_ACCOUNT_LIMIT,
   AUTH_LIMIT,
@@ -29,7 +32,7 @@ import type { AuthDatabase, Database } from './db/client.js';
 import type { Env } from './env.js';
 import type { Mailer } from './mailer.js';
 import type { RateLimitRule } from './rate-limit.js';
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 
 /**
  * Mounts every route onto an app the caller owns.
@@ -75,12 +78,23 @@ export function mountApp(app: Hono, parts: AppParts): Hono {
   const auth = createAuth({ env, db: authDb, mailer, addressOf: addressFromHeaders });
   const limiter = createRateLimiter(db);
 
-  // One origin, no wildcard. Credentials are on because the session lives in a
-  // cookie the browser has to send back.
+  /*
+   * The same list Better Auth trusts, never a wildcard `*` in the header.
+   *
+   * Credentials are on because the session lives in a cookie the browser has to
+   * send back, and a browser refuses `Access-Control-Allow-Origin: *` outright
+   * when they are. Answering with the origin that asked, and only when it is on
+   * the list, is what keeps both true at once.
+   *
+   * Reading from the same parsed list as the origin check matters more than it
+   * looks: when these two disagree, a request passes one and is refused by the
+   * other, and the failure appears in the browser as a network error with no
+   * body to read.
+   */
   app.use(
     '*',
     cors({
-      origin: env.APP_ORIGIN,
+      origin: (origin) => (isTrustedOrigin(env.APP_ORIGIN, origin) ? origin : null),
       credentials: true,
       allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       allowHeaders: ['content-type'],
@@ -91,6 +105,16 @@ export function mountApp(app: Hono, parts: AppParts): Hono {
     context.json({
       status: 'ok',
       time: new Date().toISOString(),
+      /*
+       * The addresses this deployment answers to, so the question can be
+       * answered with one request instead of by reading a dashboard.
+       *
+       * Not a secret: every one of these is already visible in the CORS header
+       * of any request that asks. Saying it here is what turns "sign in is
+       * refused and I cannot see why" into one curl.
+       */
+      canonicalUrl: env.APP_ORIGIN.canonical,
+      trustedOrigins: env.APP_ORIGIN.trusted,
       // Both are visible from the sign in screen anyway: whether it offers a
       // registration form, and whether it asks for a confirmation link. Saying
       // so here is what makes a fresh deploy checkable without a browser.
@@ -131,7 +155,24 @@ export function mountApp(app: Hono, parts: AppParts): Hono {
     return next();
   });
 
-  app.on(['GET', 'POST'], '/api/auth/*', (context) => auth.handler(context.req.raw));
+  /**
+   * Better Auth answers for itself, with a correlation id added on the way out.
+   *
+   * Its refusals carry a code and an English sentence and nothing to find them
+   * by, so "sign in does not work" meant reading the log by timestamp and
+   * hoping. Every failure now leaves with an id that is also in the log line,
+   * and the origin of a refused request is named there, because that one fact
+   * is the whole diagnosis when a deployment is reached by the wrong address.
+   *
+   * The body is added to rather than replaced. Better Auth's own client reads
+   * `code` off it, and rewriting the shape here would break every screen to
+   * make a log line nicer.
+   */
+  app.on(['GET', 'POST'], '/api/auth/*', async (context) => {
+    const response = await auth.handler(context.req.raw);
+
+    return response.ok ? response : traceable(response, context);
+  });
 
   mountCollection(
     app,
@@ -142,7 +183,7 @@ export function mountApp(app: Hono, parts: AppParts): Hono {
       limiter,
       requireVerifiedEmail: env.AUTH_REQUIRE_EMAIL_VERIFICATION,
     },
-    env.BETTER_AUTH_URL,
+    env.APP_ORIGIN.canonical,
   );
 
   return app;
@@ -286,6 +327,80 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
       return next();
     };
   }
+}
+
+/**
+ * The origin checks, by the name Better Auth gives each of them.
+ *
+ * All five mean the same thing: the page asking is at an address this
+ * deployment does not trust, so the request was refused before a password was
+ * looked at. Worth telling apart in the log from a wrong password, because the
+ * fix is a configuration change and not a person remembering something.
+ */
+const ORIGIN_REFUSALS = new Set([
+  'INVALID_ORIGIN',
+  'MISSING_OR_NULL_ORIGIN',
+  'CROSS_SITE_NAVIGATION_LOGIN_BLOCKED',
+  'INVALID_CALLBACK_URL',
+  'INVALID_REDIRECT_URL',
+]);
+
+/**
+ * Logs a failure Better Auth produced and gives it back with an id on it.
+ *
+ * @param response what Better Auth answered
+ * @param context the request, for the method, the path and the origin
+ * @returns the same failure, carrying a correlationId
+ */
+async function traceable(response: Response, context: Context): Promise<Response> {
+  const correlationId = uuidV7();
+  const path = new URL(context.req.url).pathname;
+
+  let body: unknown;
+
+  try {
+    body = await response.clone().json();
+  } catch {
+    body = undefined;
+  }
+
+  const code =
+    typeof body === 'object' && body !== null && 'code' in body
+      ? String((body as { code: unknown }).code)
+      : 'unknown';
+
+  const line = `[${correlationId}] ${context.req.method} ${path} -> ${response.status} ${code}`;
+
+  if (ORIGIN_REFUSALS.has(code)) {
+    // The origin is the diagnosis. Without it this line says a request was
+    // refused and leaves the reader to guess which address it came from.
+    console.warn(`${line} from ${context.req.header('origin') ?? 'no origin header'}`);
+  } else if (response.status >= 500) {
+    console.error(line);
+  } else {
+    console.warn(line);
+  }
+
+  if (typeof body !== 'object' || body === null) {
+    return response;
+  }
+
+  /*
+   * Every header Better Auth set is kept, because some failures still carry a
+   * cookie. The two that describe the old body are dropped, since the body is
+   * a byte longer than it was.
+   */
+  const headers = new Headers(response.headers);
+
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+  headers.set('content-type', 'application/json');
+
+  return new Response(JSON.stringify({ ...body, correlationId }), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 /**
