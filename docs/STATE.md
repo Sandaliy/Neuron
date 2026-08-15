@@ -3,7 +3,8 @@
 Where the project stands right now. This file replaces reading `neuron-plan.md` and `phase-*.md`.
 Update it with `/handoff` at the end of a working session.
 
-Last updated: 2026-08-15, on `main`. Phase 5.5, the design pass, is merged as `a551921` and live.
+Last updated: 2026-08-16, on `main`. Phase 5.5, the design pass, is merged and live; `e44748d` is the
+pass over it that made it behave on a phone.
 
 ## Now
 
@@ -47,6 +48,42 @@ lands at 3.34 and 3.12, which is why it is banned there and the blurred layers r
 **Type is the platform's own face**, option A from the mockup. Nothing is downloaded, so there is no
 swap and nothing reflows when a face lands late. The role tokens stay, so the mockup's reading serif
 is two lines in `tokens.css` away.
+
+### What the phone pass changed
+
+Six things reported from a real iPhone, all fixed and all now tested.
+
+**The zoom nobody could undo was the fields.** They were fifteen pixels, and iOS Safari zooms the page
+the moment a field under sixteen is focused and never zooms back, so every screen opened at about 110%
+and scrolled sideways. Sixteen is a size in the theme now, with the reason next to it.
+
+**Sheets are three parts instead of one scrolling block**: a heading that stays, a body that scrolls,
+and a footer that stays. Setting up 2FA needed the keyboard dismissed before Continue could be pressed.
+A full page form gives its space back the same way, by collapsing the gap it was holding open and
+reserving the keyboard's height underneath so there is somewhere to scroll to.
+
+**The tab bar sits at the bottom on every size, against the bottom of what is on screen.** A fixed
+element is placed against the layout viewport, which on iOS runs on underneath Safari's toolbar, so the
+bar hid behind the toolbar while it was out and floated far too high once it retracted. The tracker
+publishes the browser's own inset separately from the keyboard's, because the bar lifts for one and
+leaves entirely for the other, and its offset is the safe area less twelve rather than plus a gap.
+
+**Where it applies is a real setting**, panels only or panels and cards.
+
+**Motion was specified and barely used.** Screens arrive, their first four blocks arrive a beat behind
+them, deck children reveal, chips pop, presses answer by less the larger the thing is, and the
+segmented thumb takes the screen duration rather than the control one.
+
+**Measuring that found a real bug.** Every entrance filled `both`, which holds the last keyframe on the
+element for ever, and a held transform keeps it on a composited layer of its own: the container holding
+five hundred rows became one 38,000 pixel layer and the library scroll fell from 60 frames a second to
+**8.7**, with nothing on screen looking any different. Entrances fill backwards now, exits fill
+forwards, and `motion.test.ts` fails the build on `both`.
+
+| 500 rows, 4x cpu | Frames a second | Worst frame | Blurred rows |
+| ---------------- | --------------- | ----------- | ------------ |
+| Panels only      | 60.0            | 16.8 ms     | 0            |
+| Panels and cards | 56.5            | 33.4 ms     | 500          |
 
 **Nobody can quietly degrade the interface now.** `/dev/components` draws every component in every
 state, both themes, all three glass levels, and it is registered only outside production. The
@@ -227,9 +264,12 @@ end to end by tests that run with it on, reading the token out of the log mailer
   wrong. A Linux runner has neither, so its baselines would have to be generated on a Linux machine.
   Run `pnpm --filter @neuron/web test:screens` before and after anything visual, and update a baseline
   deliberately with `test:screens:update` so the diff is the review.
-- **Glass scope is fixed at floating layers.** The mockup has a second control, panels only against
-  panels and cards, and it exists there to show why the rule is what it is: blur on every card and
-  every row is dozens of blurred layers repainting on a scroll. The rule shipped; the control did not.
+- **Panels and cards is offered and costs what it costs.** 56.5 frames a second against 60 on this
+  profile, and it falls apart on a slower one. That is the person's choice to make, and the frame rate
+  watchdog is what catches it when they make it on a phone that cannot afford it.
+- **The keyboard behaviour is tested against a staged keyboard, not a real one.** `keyboard.spec.ts`
+  sets the three variables `viewport.ts` publishes and measures where things land. The arithmetic and
+  the CSS are proved; iOS Safari's own behaviour still wants checking by hand.
 - **The copy from the design pass is not applied.** The glossary is in `docs/design-system.md` and the
   strings the new controls needed were written in both languages, but the rest of the interface still
   says what `docs/copy-audit.md` lists. The library is called Library, not Decks, for one.
