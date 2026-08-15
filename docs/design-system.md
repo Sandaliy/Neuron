@@ -170,11 +170,11 @@ fixed. `src/styles/motion.test.ts` and a Playwright test both check it.
 
 ### The three levels
 
-| Level    | Blur | Tint       | Saturation | Where                                        |
-| -------- | ---- | ---------- | ---------- | -------------------------------------------- |
-| `full`   | 34px | .78 / .54  | 1.9        | The default, and what the mockup recommends  |
-| `subtle` | 14px | .90 / .66  | 1.4        | Phones that stutter                          |
-| `off`    | none | opaque     | none       | The same surfaces without the blur           |
+| Level    | Blur | Tint      | Saturation | Where                                       |
+| -------- | ---- | --------- | ---------- | ------------------------------------------- |
+| `full`   | 34px | .78 / .54 | 1.9        | The default, and what the mockup recommends |
+| `subtle` | 14px | .90 / .66 | 1.4        | Phones that stutter                         |
+| `off`    | none | opaque    | none       | The same surfaces without the blur          |
 
 The second tint number is for a sheet, which sits over a scrim that has already dimmed the backdrop and
 can therefore be sheerer. Off is not a failure state: it is what a browser without `backdrop-filter`
@@ -259,16 +259,16 @@ movement cannot hide a layout change.
 Every ratio is computed from the token values by `src/styles/contrast.test.ts`, which prints all forty
 on every run. AA is the floor, not the target.
 
-| Surface                        | Primary | Secondary | Tertiary       | Accent |
-| ------------------------------ | ------- | --------- | -------------- | ------ |
-| Dark, canvas                   | 16.52   | 8.38      | 6.09           | 8.36   |
-| Dark, card                     | 14.92   | 7.57      | 5.50           | 7.56   |
-| Dark, bar glass, worst backdrop| 9.06    | 4.60      | 3.34 · banned  | 4.59   |
-| Dark, sheet over the scrim     | 9.88    | 5.02      | banned         | —      |
-| Light, canvas                  | 16.18   | 6.85      | 4.52           | 7.22   |
-| Light, card                    | 16.91   | 7.16      | 4.73           | 7.54   |
-| Light, bar glass, worst backdrop| 11.15  | 4.72      | 3.12 · banned  | 4.98   |
-| Light, sheet over the scrim    | 10.68   | 4.52      | banned         | —      |
+| Surface                          | Primary | Secondary | Tertiary      | Accent |
+| -------------------------------- | ------- | --------- | ------------- | ------ |
+| Dark, canvas                     | 16.52   | 8.38      | 6.09          | 8.36   |
+| Dark, card                       | 14.92   | 7.57      | 5.50          | 7.56   |
+| Dark, bar glass, worst backdrop  | 9.06    | 4.60      | 3.34 · banned | 4.59   |
+| Dark, sheet over the scrim       | 9.88    | 5.02      | banned        | —      |
+| Light, canvas                    | 16.18   | 6.85      | 4.52          | 7.22   |
+| Light, card                      | 16.91   | 7.16      | 4.73          | 7.54   |
+| Light, bar glass, worst backdrop | 11.15   | 4.72      | 3.12 · banned | 4.98   |
+| Light, sheet over the scrim      | 10.68   | 4.52      | banned        | —      |
 
 White on the accent fill measures 6.68 in dark and 7.54 in light, so a filled control never changes its
 label colour. Error text measures 6.89 on a dark card and 6.64 on a light one, and an error is always
@@ -292,26 +292,26 @@ other. Russian uses ты everywhere; the app belongs to one person.
 
 ### Glossary, and the only permitted pairs
 
-| Concept            | English                     | Русский                          | Never                              |
-| ------------------ | --------------------------- | -------------------------------- | ---------------------------------- |
-| deck (= folder)    | deck                        | набор                            | folder, папка, колода              |
-| note               | note                        | запись                           | заметка, факт                      |
-| card               | card                        | карточка                         | —                                  |
-| review             | review, to review           | повтор, повторить                | ревью, тренировка                  |
-| due                | to review, today            | на повтор, сегодня               | просрочено, к сдаче                |
-| new                | new                         | новое                            | невыученное                        |
-| stability          | holds for about 2 months    | держится ≈2 месяца               | стабильность                       |
-| difficulty         | hard for you                | трудное для тебя                 | сложность, difficulty              |
-| target retention   | how often you want to remember | как часто хочешь вспоминать   | удерживаемость, ретеншн            |
-| lapse              | forgot 3 times              | забыл 3 раза                     | срыв, ошибка, провал               |
-| leech              | slipping                    | ускользает                       | пиявка, проблемное                 |
-| session            | session                     | подход                           | сессия, сеанс                      |
-| streak             | 6 days in a row             | 6 дней подряд                    | серия, стрик                       |
-| daily time budget  | minutes a day               | минут в день                     | лимит, бюджет времени              |
-| wave               | wave, 8 new words let in    | волна, впустили 8 новых слов     | батч, партия                       |
-| two-factor auth    | 2FA                         | двухфакторная аутентификация (2FA) | вход в два шага, двухэтапная проверка |
-| recovery code      | recovery code               | резервный код                    | код доступа, код восстановления    |
-| direction          | ask both ways               | спрашивать с двух сторон         | направление, реверс                |
+| Concept           | English                        | Русский                            | Never                                 |
+| ----------------- | ------------------------------ | ---------------------------------- | ------------------------------------- |
+| deck (= folder)   | deck                           | набор                              | folder, папка, колода                 |
+| note              | note                           | запись                             | заметка, факт                         |
+| card              | card                           | карточка                           | —                                     |
+| review            | review, to review              | повтор, повторить                  | ревью, тренировка                     |
+| due               | to review, today               | на повтор, сегодня                 | просрочено, к сдаче                   |
+| new               | new                            | новое                              | невыученное                           |
+| stability         | holds for about 2 months       | держится ≈2 месяца                 | стабильность                          |
+| difficulty        | hard for you                   | трудное для тебя                   | сложность, difficulty                 |
+| target retention  | how often you want to remember | как часто хочешь вспоминать        | удерживаемость, ретеншн               |
+| lapse             | forgot 3 times                 | забыл 3 раза                       | срыв, ошибка, провал                  |
+| leech             | slipping                       | ускользает                         | пиявка, проблемное                    |
+| session           | session                        | подход                             | сессия, сеанс                         |
+| streak            | 6 days in a row                | 6 дней подряд                      | серия, стрик                          |
+| daily time budget | minutes a day                  | минут в день                       | лимит, бюджет времени                 |
+| wave              | wave, 8 new words let in       | волна, впустили 8 новых слов       | батч, партия                          |
+| two-factor auth   | 2FA                            | двухфакторная аутентификация (2FA) | вход в два шага, двухэтапная проверка |
+| recovery code     | recovery code                  | резервный код                      | код доступа, код восстановления       |
+| direction         | ask both ways                  | спрашивать с двух сторон           | направление, реверс                   |
 
 One word for one thing. A deck can contain decks, so the interface never says folder; nesting is shown
 by indentation, not by a second noun.

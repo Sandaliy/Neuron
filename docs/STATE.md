@@ -3,21 +3,55 @@
 Where the project stands right now. This file replaces reading `neuron-plan.md` and `phase-*.md`.
 Update it with `/handoff` at the end of a working session.
 
-Last updated: 2026-08-14, on `fix/web-behaviour`. Phase 5 is on main as `1b891a3`; this branch is
-the behaviour pass over it, before the design pass replaces the visual layer.
+Last updated: 2026-08-15, on `main`. Phase 5.5, the design pass, is merged as `a551921` and live.
 
 ## Now
 
-**Phase 5 is built, passing and live.** The app is at
-[neuron-web-parkour-clan.vercel.app](https://neuron-web-parkour-clan.vercel.app). Sign up, sign in,
-the ten codes, recovery by code, the second factor, settings, the read only library tree and Today.
-Two themes, two languages.
+**Phase 5.5 is built, passing and live.** The app is at
+[neuron-web-parkour-clan.vercel.app](https://neuron-web-parkour-clan.vercel.app), wearing the approved
+design system. Sign up, sign in, the ten codes, recovery by code, the second factor, settings, the read
+only library tree and Today. Two themes, two languages, three glass levels.
 
-**`fix/web-behaviour` is the behaviour pass over phase 5.** Five commits, waiting on the preview.
-A design pass is running beside it and owns everything visual, so nothing here changes a colour, a
-space, a type scale or a composition.
+`pnpm typecheck`, `pnpm lint` and `pnpm test` all pass: 659 tests, none skipped. The Playwright suite,
+`pnpm --filter @neuron/web test:screens`, passes its 41 checks, and the production deploy after the
+merge went green.
 
-`pnpm typecheck`, `pnpm lint` and `pnpm test` all pass: 649 tests, none skipped.
+**`docs/design-system.md` is the reference now, and `/dev/components` is the drawn version of it.**
+Read both before changing anything visual. `docs/design-principles.md` is a pointer to it; every value
+that used to be in that file is wrong.
+
+### What the design pass changed
+
+**Tokens are two layers.** A raw palette, then a semantic layer that is the only vocabulary a
+component speaks. `scripts/check-design-tokens.mjs` fails the build on a colour literal, a spacing
+value off the scale, a raw duration, or a raw token named in a component, so the second layer is a
+rule rather than a habit.
+
+**Glass is a setting, not a look.** Three levels, off, medium and max, device local, applied before
+React exists and never synced. The level painted is the chosen one capped by what the device can
+afford: reduced motion, four gigabytes of memory or less, or a scroll measured under 55 frames a
+second. When the ceiling comes down the panel says so instead of quietly disagreeing with the control.
+Nothing in the content flow is glass, two blurred layers never stack, and the blur radius is never
+animated.
+
+**The frame rate is measured, not asserted.** Five hundred rows in the library, the default level, a
+375 by 812 viewport at two device pixels per css pixel, the processor throttled to a quarter speed:
+**60.0 fps, worst frame 16.8 ms**, which is the display cap with nothing dropped. The same harness
+reports 58.4 fps at ten times throttling and 21.0 at twenty, so it can see past the cap.
+
+**Contrast is measured again, against the new tokens.** Forty ratios printed on every test run.
+Secondary text on dark bar glass over its worst backdrop is 4.60 to 1 and 4.72 on light; tertiary
+lands at 3.34 and 3.12, which is why it is banned there and the blurred layers redefine
+`--text-tertiary` to the secondary tone rather than leaving it to discipline.
+
+**Type is the platform's own face**, option A from the mockup. Nothing is downloaded, so there is no
+swap and nothing reflows when a face lands late. The role tokens stay, so the mockup's reading serif
+is two lines in `tokens.css` away.
+
+**Nobody can quietly degrade the interface now.** `/dev/components` draws every component in every
+state, both themes, all three glass levels, and it is registered only outside production. The
+Playwright suite photographs it and the five screens at 375 and 1440 in both themes, reads computed
+durations back with reduced motion on, and measures the scroll.
 
 Checked against the live deployment, not only locally: registering sets the session cookie on the web
 host with `__Secure-` and `HttpOnly`, and a second request carrying only that cookie is accepted. The
@@ -88,6 +122,7 @@ called two-factor authentication and 2FA, and Russian says ты in all thirty st
 | 4     | Two database roles, the whole api, sync, the review endpoint, rate limiting in Postgres                   | `phase-4.md`                   |
 | 4.5   | Google removed, recovery codes, optional TOTP, the mail seam, the admin reset script                      | `phase-4.5.md`                 |
 | 5     | The web app: shell, design system, two themes, two languages, every auth screen, library tree, Today      | `phase-5.md`                   |
+| 5.5   | The approved design system: two token layers, the inventory, glass, motion, the gallery, screenshots      | `docs/design-system.md`        |
 
 ## What phase 5 changed
 
@@ -138,7 +173,9 @@ end to end by tests that run with it on, reading the token out of the log mailer
 
 ## Next
 
-1. **Wait for the `fix/web-behaviour` preview**, then merge it. Nothing in it has been on `main`.
+1. **Look at the app on a real phone**, in both themes, and try the three glass levels. Everything
+   below 55 frames a second is a bug this project wants to hear about; the setting is in
+   Settings, Appearance.
 2. **Check the keyboard on a real phone.** The sheet was verified at 375 px against a simulated
    336 px keyboard, which proves the arithmetic and the CSS but not iOS Safari's own behaviour.
 3. **Walk through the checks** in `phase-5.md`, in order. The first one, that the session survives a
@@ -174,11 +211,17 @@ end to end by tests that run with it on, reading the token out of the log mailer
   chain: database, repository, api, client, screen.
 - **The Today estimate is not a forecast yet.** It multiplies the due count by one default answer time.
   The real thing needs the review log on the client, which arrives with sync in phase 8.
-- **Glass intensity and reduced motion are not preferences.** The behaviour pass was asked to make
-  them device local along with theme and language, and there is nothing to move: glass does not exist
-  in the code, and reduced motion is a `prefers-reduced-motion` media query in `tokens.css` with no
-  control over it. `preferences/device.ts` takes either of them the day one is added. Adding a glass
-  control now would collide with the design pass, which owns it.
+- **The screenshot baselines are `win32`, and the suite is not in CI.** The interface face is the
+  platform's own, so the same page is set in SF Pro on a Mac and Segoe UI on Windows and neither is
+  wrong. A Linux runner has neither, so its baselines would have to be generated on a Linux machine.
+  Run `pnpm --filter @neuron/web test:screens` before and after anything visual, and update a baseline
+  deliberately with `test:screens:update` so the diff is the review.
+- **Glass scope is fixed at floating layers.** The mockup has a second control, panels only against
+  panels and cards, and it exists there to show why the rule is what it is: blur on every card and
+  every row is dozens of blurred layers repainting on a scroll. The rule shipped; the control did not.
+- **The copy from the design pass is not applied.** The glossary is in `docs/design-system.md` and the
+  strings the new controls needed were written in both languages, but the rest of the interface still
+  says what `docs/copy-audit.md` lists. The library is called Library, not Decks, for one.
 - **The copy pass has not landed.** `docs/copy-audit.md` lists 153 strings with 47 flagged: 27 where
   the two languages differ in length by more than 40%, 22 errors that name a problem without a next
   step, 6 controls labelled with a bare verb. Regenerate it with `pnpm copy-audit` after rewriting.
@@ -222,6 +265,12 @@ Why things are the way they are. Do not relitigate these without a reason.
 | 2026-08-14 | A preference change never has a request in its path                                    | The person is looking at the control they moved. Nothing on screen may wait on a network that might be down, so the value is applied synchronously and the server is told afterwards, one request at a time, with the answer discarded                                                               |
 | 2026-08-14 | Content already on screen is never replaced by a spinner or an error                   | A refetch that failed behind a rendered screen leaves it alone. The session gate used to swap the whole app for an error page when one background request dropped                                                                                                                                    |
 | 2026-08-13 | The recovery codes are held in `sessionStorage` until the box is ticked                | A reload is the one exit a browser always keeps. Codes in tab storage for a few minutes is a smaller risk than a pull to refresh destroying the only credential an account has                                                                                                                       |
+| 2026-08-15 | Tokens are two layers, and a component may only name the second                        | A component that reaches into the palette is what makes a second theme a second stylesheet. The linter fails the build on it, so the layer is a rule and not a habit                                                                                                                                 |
+| 2026-08-15 | Glass is for floating layers only, and never stacks                                    | A blurred layer costs once per frame it covers. On a five hundred row list, blur on every row is dozens of layers repainting per frame, and the rule is enforced in css rather than left to discipline                                                                                               |
+| 2026-08-15 | The glass level a device paints is the chosen one capped by what it can afford         | A phone that stutters cannot be identified from a user agent string. Reduced motion and reported memory are read before the first paint, and a scroll measured under 55 fps steps the ceiling down for the session                                                                                   |
+| 2026-08-15 | The interface is set in the platform's own face                                        | Option A of the two in the mockup. It costs zero bytes, its Cyrillic and hinting are already tuned for a phone, and with nothing downloaded there is no swap and nothing reflows. The role tokens stay, so the reading serif is two lines away                                                       |
+| 2026-08-15 | The gallery at `/dev/components` exists, and only outside production                   | A new screen is composed from what is drawn there rather than improvised, and a regression is visible in one place. `VERCEL_ENV` decides, and the production bundle does not contain it                                                                                                              |
+| 2026-08-15 | The Playwright suite runs on one worker                                                | One of its tests measures a frame rate with the processor throttled to a quarter speed. A second worker competes for exactly the resource being measured                                                                                                                                             |
 
 ## Verification commands
 

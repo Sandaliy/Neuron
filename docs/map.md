@@ -248,63 +248,63 @@ Radix primitives styled with the tokens. No prebuilt kit: they carry a look, and
 one that somebody recognises. `docs/design-system.md` is the reference and `/dev/components` draws
 every one of these in every state.
 
-| File                                                | Holds                                                                                   |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `button.tsx`                                        | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form  |
-| `input.tsx`, `textarea.tsx`, `select.tsx`           | The fields. Sixteen pixels of text, or iOS zooms the page on focus                      |
-| `form-field.tsx`                                    | The label, the hint, the error, and the wiring between them                             |
-| `range.tsx`                                         | A rail, a filled portion, one white disc. The fill is handed to css as `--track`        |
-| `segmented.tsx`                                     | Native radios with a thumb that slides. Replaces radios everywhere                      |
-| `switch.tsx`, `checkbox.tsx`                        | A capsule and a white disc; a fill framed by an inset ring                              |
-| `card.tsx`                                          | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                |
-| `row.tsx`                                           | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                     |
-| `chip.tsx`, `progress.tsx`                          | Four chip tones and no others; a line that fills on `transform`                         |
-| `dialog.tsx`                                        | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip |
-| `toast.tsx`                                         | Short confirmations, above the bottom bar and above the home indicator                  |
-| `sheen.tsx`                                         | The specular streak that travels on a glass layer as content scrolls under it           |
-| `states.tsx`                                        | Skeleton, empty and error. A list never renders as a blank area                         |
-| `spinner.tsx`                                       | For a control that is waiting. A screen gets a skeleton instead                          |
+| File                                      | Holds                                                                                   |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form  |
+| `input.tsx`, `textarea.tsx`, `select.tsx` | The fields. Sixteen pixels of text, or iOS zooms the page on focus                      |
+| `form-field.tsx`                          | The label, the hint, the error, and the wiring between them                             |
+| `range.tsx`                               | A rail, a filled portion, one white disc. The fill is handed to css as `--track`        |
+| `segmented.tsx`                           | Native radios with a thumb that slides. Replaces radios everywhere                      |
+| `switch.tsx`, `checkbox.tsx`              | A capsule and a white disc; a fill framed by an inset ring                              |
+| `card.tsx`                                | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                |
+| `row.tsx`                                 | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                     |
+| `chip.tsx`, `progress.tsx`                | Four chip tones and no others; a line that fills on `transform`                         |
+| `dialog.tsx`                              | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip |
+| `toast.tsx`                               | Short confirmations, above the bottom bar and above the home indicator                  |
+| `sheen.tsx`                               | The specular streak that travels on a glass layer as content scrolls under it           |
+| `states.tsx`                              | Skeleton, empty and error. A list never renders as a blank area                         |
+| `spinner.tsx`                             | For a control that is waiting. A screen gets a skeleton instead                         |
 
 ### The wiring (`src/lib/`, `src/i18n/`, `src/theme/`)
 
-| File                    | Holds                                                                            |
-| ----------------------- | -------------------------------------------------------------------------------- |
-| `lib/api.ts`            | One request, the error envelope unpacked, and the code turned into a message key |
-| `lib/auth-client.ts`    | Better Auth over the same origin, and its own codes mapped onto the shared ones  |
-| `lib/account.ts`        | Who is signed in. One query, and the session check for the whole app             |
-| `lib/decks.ts`          | The tree in one request, and adding up the roots                                 |
-| `lib/storage.ts`        | Local storage that cannot throw, because Safari's private mode does              |
-| `lib/viewport.ts`       | Where the on-screen keyboard is, as CSS variables a sheet is positioned against  |
-| `preferences/device.ts` | A preference that belongs to the device: read at import, applied before React    |
-| `preferences/sync.ts`   | Tells the account row, one request at a time, and discards the answer            |
-| `preferences/glass.ts`  | The three glass levels, and the ceiling the device puts on the chosen one       |
-| `preferences/motion.ts` | Whether movement is off, by the system's request or by hand                     |
-| `preferences/frame-rate.ts` | Samples the frames during a scroll and lowers the glass when they are bad   |
-| `i18n/locale.ts`        | Which language is on. The catalogue itself is in `packages/shared`               |
-| `theme/theme.ts`        | Which theme is on, and the copy of that rule `index.html` runs first             |
-| `theme/use-theme.ts`    | The theme as a device preference, and the hook that reads it                     |
-| `styles/global.css`     | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft |
-| `scripts/icons.mjs`     | Draws the icons in `public/` from the same tokens                                |
+| File                        | Holds                                                                               |
+| --------------------------- | ----------------------------------------------------------------------------------- |
+| `lib/api.ts`                | One request, the error envelope unpacked, and the code turned into a message key    |
+| `lib/auth-client.ts`        | Better Auth over the same origin, and its own codes mapped onto the shared ones     |
+| `lib/account.ts`            | Who is signed in. One query, and the session check for the whole app                |
+| `lib/decks.ts`              | The tree in one request, and adding up the roots                                    |
+| `lib/storage.ts`            | Local storage that cannot throw, because Safari's private mode does                 |
+| `lib/viewport.ts`           | Where the on-screen keyboard is, as CSS variables a sheet is positioned against     |
+| `preferences/device.ts`     | A preference that belongs to the device: read at import, applied before React       |
+| `preferences/sync.ts`       | Tells the account row, one request at a time, and discards the answer               |
+| `preferences/glass.ts`      | The three glass levels, and the ceiling the device puts on the chosen one           |
+| `preferences/motion.ts`     | Whether movement is off, by the system's request or by hand                         |
+| `preferences/frame-rate.ts` | Samples the frames during a scroll and lowers the glass when they are bad           |
+| `i18n/locale.ts`            | Which language is on. The catalogue itself is in `packages/shared`                  |
+| `theme/theme.ts`            | Which theme is on, and the copy of that rule `index.html` runs first                |
+| `theme/use-theme.ts`        | The theme as a device preference, and the hook that reads it                        |
+| `styles/global.css`         | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft |
+| `scripts/icons.mjs`         | Draws the icons in `public/` from the same tokens                                   |
 
 ### The gallery and the browser tests
 
-| Path                          | Holds                                                                        |
-| ----------------------------- | ---------------------------------------------------------------------------- |
-| `src/features/dev/gallery.tsx` | Every component in every state, both themes, all three glass levels          |
-| `tests/gallery.spec.ts`       | One screenshot of the gallery per width                                      |
-| `tests/screens.spec.ts`       | The screens in both themes at 375 and 1440, with the api answered by fixtures |
-| `tests/motion.spec.ts`        | Computed durations under reduced motion, and what may be transitioned        |
-| `tests/performance.spec.ts`   | 500 rows, the default glass, a quarter speed processor, 55 fps               |
-| `tests/fixtures.ts`           | The api answers and the device preferences the browser tests run against     |
+| Path                           | Holds                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| `src/features/dev/gallery.tsx` | Every component in every state, both themes, all three glass levels           |
+| `tests/gallery.spec.ts`        | One screenshot of the gallery per width                                       |
+| `tests/screens.spec.ts`        | The screens in both themes at 375 and 1440, with the api answered by fixtures |
+| `tests/motion.spec.ts`         | Computed durations under reduced motion, and what may be transitioned         |
+| `tests/performance.spec.ts`    | 500 rows, the default glass, a quarter speed processor, 55 fps                |
+| `tests/fixtures.ts`            | The api answers and the device preferences the browser tests run against      |
 
 ## Documentation
 
-| File                        | Holds                                                                       |
-| --------------------------- | --------------------------------------------------------------------------- |
-| `docs/STATE.md`             | Current phase, open threads, decision log. Read this first                  |
-| `docs/architecture.md`      | Why the structure is what it is, and the known limitations                  |
-| `docs/algorithm.md`         | FSRS and the workload manager explained in full, with the simulator results |
+| File                        | Holds                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `docs/STATE.md`             | Current phase, open threads, decision log. Read this first                    |
+| `docs/architecture.md`      | Why the structure is what it is, and the known limitations                    |
+| `docs/algorithm.md`         | FSRS and the workload manager explained in full, with the simulator results   |
 | `docs/design-system.md`     | The visual system: tokens, inventory, motion, glass, the words, the checklist |
 | `docs/design-principles.md` | A pointer to the file above. The phase 5 values in it are all wrong now       |
-| `docs/copy-audit.md`        | Every interface string in both languages, and what looks wrong with it      |
-| `docs/assets/*.svg`         | Charts produced by `sim/main.ts`                                            |
+| `docs/copy-audit.md`        | Every interface string in both languages, and what looks wrong with it        |
+| `docs/assets/*.svg`         | Charts produced by `sim/main.ts`                                              |

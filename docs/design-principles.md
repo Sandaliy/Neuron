@@ -8,8 +8,8 @@ system, so every value here was wrong and a file of wrong values is worse than n
 
 What used to be here, and where it is now:
 
-| Was                        | Now                                                             |
-| -------------------------- | --------------------------------------------------------------- |
+| Was                        | Now                                                              |
+| -------------------------- | ---------------------------------------------------------------- |
 | The colour tokens          | design-system.md, Tokens. Two layers, and what each name means   |
 | The type rules             | design-system.md, Typography and the type scale                  |
 | The spacing and radii      | design-system.md, Scales                                         |
