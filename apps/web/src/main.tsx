@@ -5,8 +5,18 @@ import { createRoot } from 'react-dom/client';
 
 import { ApiFailure } from './lib/api';
 import { trackViewport } from './lib/viewport';
+import { watchFrameRate } from './preferences/frame-rate';
 import { router } from './router';
 import { ToastProvider } from './ui/toast';
+
+/*
+ * Imported for the side effect: each module reads its value out of local
+ * storage and puts it on the document while it is evaluated, before React
+ * renders anything. The script in index.html has already done the same thing
+ * earlier still, so these are the second of two agreeing answers.
+ */
+import './preferences/glass';
+import './preferences/motion';
 
 import './styles/global.css';
 
@@ -59,6 +69,12 @@ const queryClient = new QueryClient({
 // Started before the first render, so a dialog opened straight away already
 // knows where the keyboard is.
 void trackViewport();
+
+/*
+ * Watching the frames during a scroll, so a phone that cannot afford the glass
+ * says so by stuttering once rather than for the life of the install.
+ */
+watchFrameRate();
 
 const container = document.getElementById('root');
 

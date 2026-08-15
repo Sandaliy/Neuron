@@ -66,7 +66,7 @@ export function SignInScreen() {
           <Link to="/recovery" className="text-accent underline underline-offset-4">
             {t('auth.signIn.forgot')}
           </Link>
-          <Link to="/sign-up" className="text-text-dim underline underline-offset-4">
+          <Link to="/sign-up" className="text-tertiary underline underline-offset-4">
             {t('auth.signIn.noAccount')}
           </Link>
         </>
@@ -100,7 +100,7 @@ export function SignInScreen() {
         />
 
         {error ? (
-          <p role="alert" className="text-14 text-danger">
+          <p role="alert" className="text-14 text-error">
             {t(error.key, error.values)}
           </p>
         ) : undefined}

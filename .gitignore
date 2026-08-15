@@ -14,6 +14,13 @@ coverage/
 .vitest/
 .eslintcache
 
+# Playwright's own output. The baselines under tests/*-snapshots are committed,
+# the diffs and traces from a run are not.
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
 # Simulator output. The charts under docs/assets are committed, the raw rows
 # behind them are not.
 .sim-output/
@@ -50,7 +57,12 @@ phase-3-run.md
 phase-4.md
 phase-4.5.md
 phase-5.md
+phase-5.5-design.md
 card-generation-prompt.md
+
+# The design mockup the visual system was approved from. 460 KB of bundled
+# html, and what it specifies now lives in docs/design-system.md.
+Design systems/
 
 # OS and local files
 .DS_Store

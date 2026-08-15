@@ -13,8 +13,21 @@ import { defineConfig } from 'vite';
  */
 const API_TARGET = process.env.VITE_API_TARGET ?? 'http://localhost:8787';
 
+/**
+ * Whether this build carries the routes under `/dev`.
+ *
+ * Vercel sets `VERCEL_ENV` to `production` only for the production deployment,
+ * so a branch preview keeps the component gallery and the app people use does
+ * not. Locally it is always on.
+ */
+const DEV_ROUTES = process.env.VERCEL_ENV !== 'production';
+
 export default defineConfig({
   plugins: [react(), tailwind()],
+
+  define: {
+    __DEV_ROUTES__: JSON.stringify(DEV_ROUTES),
+  },
 
   server: {
     // Bound to every interface so the app can be opened from a phone on the

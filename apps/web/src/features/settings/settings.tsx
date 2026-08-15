@@ -9,19 +9,25 @@ import { useLocale, useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { authClient, changePassword, describeAuthError, signOut } from '../../lib/auth-client';
+import { GLASS_LEVELS, useGlass } from '../../preferences/glass';
+import { useMotion } from '../../preferences/motion';
 import { useTheme } from '../../theme/use-theme';
 import { Button } from '../../ui/button';
+import { Card, GroupLabel, RowGroup } from '../../ui/card';
 import { Dialog } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
+import { Row, RowChevron } from '../../ui/row';
 import { Segmented } from '../../ui/segmented';
 import { SkeletonRows } from '../../ui/states';
+import { Switch } from '../../ui/switch';
 import { useToast } from '../../ui/toast';
 import { PasswordField } from '../auth/password-field';
 import { RecoveryCodes } from '../auth/recovery-codes';
 
 import { TotpEnrollment, TotpRemoval } from './totp';
 
+import type { GlassLevel } from '../../preferences/glass';
 import type { ReactNode } from 'react';
 
 /**
@@ -36,8 +42,8 @@ export function SettingsScreen() {
   const account = useAccount();
 
   return (
-    <section className="flex flex-col gap-32 py-16">
-      <h1 className="text-24 font-semibold text-text">{t('settings.title')}</h1>
+    <section className="flex flex-col gap-32">
+      <h1 className="font-display text-24 tracking-tight text-primary">{t('settings.title')}</h1>
 
       {account.isPending ? <SkeletonRows rows={6} /> : undefined}
 
@@ -54,32 +60,61 @@ export function SettingsScreen() {
 
 function Group({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-16">
-      <h2 className="text-14 font-semibold tracking-wide text-text-dim uppercase">{title}</h2>
-      <div className="flex flex-col gap-16 rounded-14 border border-border bg-surface p-16">
-        {children}
-      </div>
+    <div className="flex flex-col gap-12">
+      <GroupLabel>{title}</GroupLabel>
+      {children}
+    </div>
+  );
+}
+
+/** A label over a control, with the sentence that explains it underneath. */
+function Setting({
+  label,
+  hint,
+  children,
+}: {
+  readonly label: string;
+  readonly hint?: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-8">
+      <span className="text-13 font-semibold text-secondary">{label}</span>
+      {children}
+      {hint ? <span className="text-13 leading-snug text-tertiary">{hint}</span> : undefined}
     </div>
   );
 }
 
 /**
- * Theme and language.
+ * The theme, the glass, the movement and the language.
  *
- * Both belong to the device. The switch writes local storage and the document
- * synchronously, then tells the account row in the background without anything
- * on screen waiting for the answer. Switching the theme with the network off
- * works exactly as it does with the network on.
+ * All four belong to the device. The control writes local storage and the
+ * document synchronously, then tells the account row in the background without
+ * anything on screen waiting for the answer. Switching the theme with the
+ * network off works exactly as it does with the network on.
+ *
+ * The glass and the movement never reach the account at all. A phone and a
+ * laptop have different reasons for their answer, and the whole point of the
+ * glass control is a phone that cannot keep up with the laptop's choice.
  */
 function Appearance() {
   const t = useTranslate();
   const { theme, setTheme } = useTheme();
   const { locale, setLocale } = useLocale();
+  const { glass, capReason, setGlass } = useGlass();
+  const { motion, setMotion } = useMotion();
 
   const themeLabels: Record<Theme, string> = {
     system: t('settings.theme.system'),
     light: t('settings.theme.light'),
     dark: t('settings.theme.dark'),
+  };
+
+  const glassLabels: Record<GlassLevel, string> = {
+    off: t('settings.glass.off'),
+    subtle: t('settings.glass.subtle'),
+    full: t('settings.glass.full'),
   };
 
   // The name of a language is written in that language. A Russian speaker
@@ -88,25 +123,59 @@ function Appearance() {
 
   return (
     <Group title={t('settings.appearance')}>
-      <div className="flex flex-col gap-8">
-        <p className="text-14 text-text-dim">{t('settings.theme')}</p>
-        <Segmented
-          label={t('settings.theme')}
-          value={theme}
-          onChange={setTheme}
-          options={THEMES.map((value) => ({ value, label: themeLabels[value] }))}
-        />
-      </div>
+      <Card className="flex flex-col gap-20">
+        <Setting label={t('settings.theme')}>
+          <Segmented
+            label={t('settings.theme')}
+            value={theme}
+            onChange={setTheme}
+            options={THEMES.map((value) => ({ value, label: themeLabels[value] }))}
+          />
+        </Setting>
 
-      <div className="flex flex-col gap-8">
-        <p className="text-14 text-text-dim">{t('settings.language')}</p>
-        <Segmented
-          label={t('settings.language')}
-          value={locale}
-          onChange={setLocale}
-          options={LOCALES.map((value) => ({ value, label: localeLabels[value] }))}
-        />
-      </div>
+        {/*
+          The setting ships to the person, not only to us. A phone that stutters
+          is not a phone anybody can detect, so whoever feels it gets the
+          switch. When the device has already lowered it on its own, the panel
+          says so in plain words rather than quietly disagreeing with the
+          control.
+        */}
+        <Setting
+          label={t('settings.glass')}
+          hint={capReason ? t(`settings.glassCapped.${capReason}`) : t('settings.glassHint')}
+        >
+          <Segmented
+            label={t('settings.glass')}
+            value={glass}
+            onChange={setGlass}
+            options={GLASS_LEVELS.map((value) => ({ value, label: glassLabels[value] }))}
+          />
+        </Setting>
+
+        <div className="flex items-center justify-between gap-16">
+          <div className="flex flex-col gap-4">
+            <span className="text-13 font-semibold text-secondary">{t('settings.motion')}</span>
+            <span className="text-13 leading-snug text-tertiary">{t('settings.motionHint')}</span>
+          </div>
+
+          <Switch
+            label={t('settings.motion')}
+            checked={motion === 'reduce'}
+            onChange={(on) => setMotion(on ? 'reduce' : 'system')}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <Setting label={t('settings.language')}>
+          <Segmented
+            label={t('settings.language')}
+            value={locale}
+            onChange={setLocale}
+            options={LOCALES.map((value) => ({ value, label: localeLabels[value] }))}
+          />
+        </Setting>
+      </Card>
     </Group>
   );
 }
@@ -124,21 +193,32 @@ function Security() {
         its own was in a list of four security controls and said nothing about
         which of them it turned off.
       */}
-      <Button full onClick={() => setPanel('password')}>
-        {t('settings.changePasswordAction')}
-      </Button>
-
-      <Button full onClick={() => setPanel('codes')}>
-        {t('settings.regenerateAction')}
-      </Button>
-
-      <Button full onClick={() => setPanel('totp-on')}>
-        {t('auth.twoFactor.setUp')}
-      </Button>
-
-      <Button variant="danger" full onClick={() => setPanel('totp-off')}>
-        {t('auth.twoFactor.disable')}
-      </Button>
+      <RowGroup>
+        <Row
+          standalone={false}
+          title={t('settings.changePasswordAction')}
+          trailing={<RowChevron />}
+          onClick={() => setPanel('password')}
+        />
+        <Row
+          standalone={false}
+          title={t('settings.regenerateAction')}
+          trailing={<RowChevron />}
+          onClick={() => setPanel('codes')}
+        />
+        <Row
+          standalone={false}
+          title={t('auth.twoFactor.setUp')}
+          trailing={<RowChevron />}
+          onClick={() => setPanel('totp-on')}
+        />
+        <Row
+          standalone={false}
+          title={<span className="text-error">{t('auth.twoFactor.disable')}</span>}
+          trailing={<RowChevron />}
+          onClick={() => setPanel('totp-off')}
+        />
+      </RowGroup>
 
       <Dialog
         open={panel === 'password'}
@@ -253,7 +333,7 @@ function ChangePassword({ onDone }: { readonly onDone: () => void }) {
       />
 
       {error ? (
-        <p role="alert" className="text-14 text-danger">
+        <p role="alert" className="text-13 text-error">
           {t(error.key, error.values)}
         </p>
       ) : undefined}
@@ -318,7 +398,7 @@ function RegenerateCodes({ onIssued }: { readonly onIssued: (codes: readonly str
       />
 
       {error ? (
-        <p role="alert" className="text-14 text-danger">
+        <p role="alert" className="text-13 text-error">
           {t(error.key, error.values)}
         </p>
       ) : undefined}
@@ -338,25 +418,34 @@ function Account({ email }: { readonly email: string }) {
 
   return (
     <Group title={t('settings.account')}>
-      <p className="text-16 text-text-dim break-all">{email}</p>
+      <RowGroup>
+        <Row
+          standalone={false}
+          title={t('auth.email.label')}
+          trailing={<span className="max-w-[55%] truncate text-13 text-tertiary">{email}</span>}
+        />
 
-      <Button
-        full
-        onClick={() => {
-          void signOut().then(async () => {
-            // Cleared rather than invalidated: nothing read under that session
-            // may be shown to whoever signs in next on this device.
-            queryClient.clear();
-            await navigate({ to: '/sign-in' });
-          });
-        }}
-      >
-        {t('common.signOut')}
-      </Button>
+        <Row
+          standalone={false}
+          title={t('common.signOut')}
+          trailing={<RowChevron />}
+          onClick={() => {
+            void signOut().then(async () => {
+              // Cleared rather than invalidated: nothing read under that
+              // session may be shown to whoever signs in next on this device.
+              queryClient.clear();
+              await navigate({ to: '/sign-in' });
+            });
+          }}
+        />
 
-      <Button variant="danger" full onClick={() => setLeaving(true)}>
-        {t('settings.deleteAccountAction')}
-      </Button>
+        <Row
+          standalone={false}
+          title={<span className="text-error">{t('settings.deleteAccountAction')}</span>}
+          trailing={<RowChevron />}
+          onClick={() => setLeaving(true)}
+        />
+      </RowGroup>
 
       <Dialog
         open={leaving}
@@ -429,12 +518,12 @@ function DeleteAccount() {
       </FormField>
 
       {error ? (
-        <p role="alert" className="text-14 text-danger">
+        <p role="alert" className="text-13 text-error">
           {t(error.key, error.values)}
         </p>
       ) : undefined}
 
-      <Button type="submit" variant="danger" full busy={busy} disabled={typed !== phrase}>
+      <Button type="submit" variant="destructive" full busy={busy} disabled={typed !== phrase}>
         {t('settings.deleteAccount')}
       </Button>
     </form>

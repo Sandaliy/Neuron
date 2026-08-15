@@ -7,6 +7,7 @@ import type { MessageKey } from '@neuron/shared';
 import { useTranslate } from '../../i18n/locale';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
+import { Progress } from '../../ui/progress';
 
 /**
  * A password field that says what is wrong before the server does.
@@ -35,6 +36,13 @@ const STRENGTH_KEYS: Record<string, MessageKey> = {
   good: 'auth.password.strength.good',
   strong: 'auth.password.strength.strong',
 };
+
+/*
+ * How full the bar is at each verdict. Four steps rather than a continuous
+ * measure of entropy, because the advice underneath has four things to say and
+ * a bar that disagrees with the sentence next to it is worse than no bar.
+ */
+const STRENGTH_FILL: Record<string, number> = { short: 0.25, fair: 0.5, good: 0.75, strong: 1 };
 
 export function PasswordField({
   value,
@@ -79,8 +87,23 @@ export function PasswordField({
   const underneath =
     note ?? (advice ? t(advice) : (hint ?? (checkStrength ? t('auth.password.hint') : undefined)));
 
+  const strength = checkStrength && value.length > 0 ? passwordStrength(value) : undefined;
+
   return (
-    <FormField label={label} hint={underneath} error={shown}>
+    <FormField
+      label={label}
+      hint={underneath}
+      error={shown}
+      after={
+        strength ? (
+          <Progress
+            label={label}
+            value={STRENGTH_FILL[strength] ?? 0}
+            tone={strength === 'short' ? 'error' : 'accent'}
+          />
+        ) : undefined
+      }
+    >
       {(props) => (
         <div className="relative">
           <Input
@@ -101,7 +124,7 @@ export function PasswordField({
             // The label is the action, not the state, so a screen reader hears
             // what pressing it will do.
             aria-label={visible ? t('auth.password.hide') : t('auth.password.show')}
-            className="absolute inset-y-0 right-0 flex w-44 items-center justify-center text-text-dim hover:text-text"
+            className="absolute inset-y-0 right-0 flex w-44 items-center justify-center text-tertiary hover:text-primary"
           >
             {visible ? (
               <EyeOff size={20} strokeWidth={1.5} aria-hidden="true" />

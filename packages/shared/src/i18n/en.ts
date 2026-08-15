@@ -131,6 +131,10 @@ export const en = {
   'settings.deleteAccountAction': 'Delete this account and everything in it',
 
   'today.title': 'Today',
+  'today.waitingIn': 'Waiting in',
+  'today.waitingLabel': 'cards to review',
+  'today.newLabel': 'new',
+  'today.deckCounts': '{due} to review · {fresh} new',
   'today.waiting': 'Cards waiting: {count}',
   'today.newAvailable': 'New cards ready to start: {count}',
   'today.newAvailableHint':
@@ -156,10 +160,25 @@ export const en = {
   'settings.title': 'Settings',
   'settings.appearance': 'Appearance',
   'settings.theme': 'Theme',
-  'settings.theme.system': 'Follow the system',
+  'settings.theme.system': 'System',
   'settings.theme.light': 'Light',
   'settings.theme.dark': 'Dark',
   'settings.language': 'Language',
+  'settings.glass': 'Liquid glass',
+  'settings.glass.off': 'Off',
+  'settings.glass.subtle': 'Medium',
+  'settings.glass.full': 'Max',
+  'settings.glassHint': 'Turn this down if scrolling stutters on your phone.',
+  'settings.glassCapped.motion':
+    'Your system asks for less movement, so the panels are running at Medium.',
+  'settings.glassCapped.memory':
+    'This device reports little memory, so the panels are running at Medium.',
+  'settings.glassCapped.frames':
+    'Scrolling dropped below 55 frames a second here, so the panels stepped down. Reload to try the full setting again.',
+  'settings.motion': 'Less movement',
+  'settings.motion.system': 'Follow the system',
+  'settings.motion.reduce': 'Off',
+  'settings.motionHint': 'Nothing slides or fades. States still change, they just change at once.',
   'settings.security': 'Security',
   'settings.changePassword': 'Change password',
   'settings.currentPassword': 'Current password',

@@ -102,20 +102,20 @@ export function TotpEnrollment({
   if (step === 'confirm') {
     return (
       <div className="flex flex-col gap-16">
-        <p className="text-16 text-text-dim">{t('auth.twoFactor.scan')}</p>
+        <p className="text-15 text-tertiary">{t('auth.twoFactor.scan')}</p>
 
         {/*
           Drawn from the otpauth uri the server issued. White behind it always,
           in both themes: a camera reading a dark on dark code is a camera that
           reads nothing.
         */}
-        <div className="mx-auto rounded-10 bg-white p-16">
+        <div className="mx-auto rounded-12 bg-white p-16">
           <QRCodeSVG value={uri} size={180} level="M" />
         </div>
 
         <ManualKey uri={uri} />
 
-        <p className="text-14 text-text-dim">{t('auth.twoFactor.confirmHint')}</p>
+        <p className="text-14 text-tertiary">{t('auth.twoFactor.confirmHint')}</p>
 
         <CodeInput
           label={t('auth.twoFactor.codeLabel')}
@@ -127,7 +127,7 @@ export function TotpEnrollment({
         />
 
         {error ? (
-          <p role="alert" className="text-14 text-danger">
+          <p role="alert" className="text-14 text-error">
             {t(error.key, error.values)}
           </p>
         ) : undefined}
@@ -153,7 +153,7 @@ export function TotpEnrollment({
         void start();
       }}
     >
-      <p className="text-16 text-text-dim">{t('auth.twoFactor.subtitle')}</p>
+      <p className="text-15 text-tertiary">{t('auth.twoFactor.subtitle')}</p>
 
       <PasswordField
         label={t('auth.twoFactor.password')}
@@ -162,10 +162,10 @@ export function TotpEnrollment({
         autoComplete="current-password"
       />
 
-      <p className="text-14 text-text-dim">{t('auth.twoFactor.passwordHint')}</p>
+      <p className="text-14 text-tertiary">{t('auth.twoFactor.passwordHint')}</p>
 
       {error ? (
-        <p role="alert" className="text-14 text-danger">
+        <p role="alert" className="text-14 text-error">
           {t(error.key, error.values)}
         </p>
       ) : undefined}
@@ -205,7 +205,7 @@ function ManualKey({ uri }: { readonly uri: string }) {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((current) => !current)}
-        className="flex min-h-44 items-center justify-between gap-8 rounded-10 border border-border px-12 text-left text-14 text-text"
+        className="flex min-h-44 items-center justify-between gap-8 rounded-12 border border-subtle px-12 text-left text-14 text-primary"
       >
         {t('auth.twoFactor.manualTitle')}
         {open ? (
@@ -217,7 +217,7 @@ function ManualKey({ uri }: { readonly uri: string }) {
 
       {open ? (
         <div id={panelId} className="flex flex-col gap-12">
-          <p className="text-14 text-text-dim">{t('auth.twoFactor.manualHint')}</p>
+          <p className="text-14 text-tertiary">{t('auth.twoFactor.manualHint')}</p>
 
           {/*
             Read only rather than plain text: it can be selected, dragged and
@@ -229,7 +229,7 @@ function ManualKey({ uri }: { readonly uri: string }) {
             value={secret}
             aria-label={t('auth.twoFactor.manualTitle')}
             onFocus={(event) => event.target.select()}
-            className="min-h-44 w-full rounded-10 border border-border bg-surface-2 px-12 font-mono text-16 tracking-wide text-text"
+            className="min-h-44 w-full rounded-12 border border-subtle bg-raised px-12 font-mono text-15 tracking-wide text-primary"
           />
 
           <Button
@@ -293,12 +293,12 @@ export function TotpRemoval({ onDone }: { readonly onDone: () => void }) {
       />
 
       {error ? (
-        <p role="alert" className="text-14 text-danger">
+        <p role="alert" className="text-14 text-error">
           {t(error.key, error.values)}
         </p>
       ) : undefined}
 
-      <Button type="submit" variant="danger" full busy={busy} disabled={password.length === 0}>
+      <Button type="submit" variant="destructive" full busy={busy} disabled={password.length === 0}>
         {t('auth.twoFactor.disable')}
       </Button>
     </form>

@@ -1,7 +1,7 @@
 import * as Label from '@radix-ui/react-label';
 import { useId } from 'react';
 
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 /**
  * A label, a control, and the two things that can be said about it.
@@ -18,6 +18,7 @@ export function FormField({
   hint,
   error,
   children,
+  after,
 }: {
   readonly label: string;
   readonly hint?: string | undefined;
@@ -27,6 +28,8 @@ export function FormField({
     'aria-describedby': string | undefined;
     'aria-invalid': true | undefined;
   }) => ReactElement;
+  /** Anything that belongs between the control and its message, like a strength bar. */
+  readonly after?: ReactNode;
 }) {
   const id = useId();
   const hintId = `${id}-hint`;
@@ -37,7 +40,7 @@ export function FormField({
 
   return (
     <div className="flex flex-col gap-8">
-      <Label.Root htmlFor={id} className="text-14 text-text-dim">
+      <Label.Root htmlFor={id} className="text-13 font-semibold text-secondary">
         {label}
       </Label.Root>
 
@@ -47,14 +50,16 @@ export function FormField({
         'aria-invalid': error ? true : undefined,
       })}
 
+      {after}
+
       {hint && !error ? (
-        <p id={hintId} className="text-14 text-text-dim">
+        <p id={hintId} className="text-13 leading-snug text-tertiary">
           {hint}
         </p>
       ) : undefined}
 
       {error ? (
-        <p id={errorId} role="alert" className="text-14 text-danger">
+        <p id={errorId} role="alert" className="text-13 leading-snug text-error">
           {error}
         </p>
       ) : undefined}

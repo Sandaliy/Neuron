@@ -1,0 +1,113 @@
+import { expect, test } from '@playwright/test';
+
+import { useFixtures, usePreferences } from './fixtures';
+
+import type { Page } from '@playwright/test';
+
+/**
+ * The screens, in both themes, at both widths.
+ *
+ * The api is answered from a fixture so the counts, the address and the deck
+ * names are the same on every run. A difference in one of these images is a
+ * difference in the interface, not in the data.
+ */
+const THEMES = ['dark', 'light'] as const;
+
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  // Nothing is measured for layout, but the tab bar's pill and the segmented
+  // thumb are placed from the first frame, so one frame is enough.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+}
+
+for (const theme of THEMES) {
+  test.describe(`${theme} theme`, () => {
+    test('sign in', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page, { signedIn: false });
+      await page.goto('/sign-in');
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await settle(page);
+
+      await expect(page).toHaveScreenshot(`sign-in-${theme}.png`, { fullPage: true });
+    });
+
+    test('sign up', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page, { signedIn: false });
+      await page.goto('/sign-up');
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await settle(page);
+
+      await expect(page).toHaveScreenshot(`sign-up-${theme}.png`, { fullPage: true });
+    });
+
+    test('today', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/');
+      await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
+      await settle(page);
+
+      await expect(page).toHaveScreenshot(`today-${theme}.png`, { fullPage: true });
+    });
+
+    test('library', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/library');
+      await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
+      await settle(page);
+
+      await expect(page).toHaveScreenshot(`library-${theme}.png`, { fullPage: true });
+    });
+
+    test('settings', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/settings');
+      await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+      await settle(page);
+
+      await expect(page).toHaveScreenshot(`settings-${theme}.png`, { fullPage: true });
+    });
+
+    /*
+     * A sheet on a phone and a centred panel on a desktop, from the same
+     * component. This is the one that would catch a later change putting the
+     * dialog back behind the on-screen keyboard.
+     */
+    test('a dialog', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/settings');
+      await page.getByRole('button', { name: 'Change your password' }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await settle(page);
+
+      await expect(page).toHaveScreenshot(`dialog-${theme}.png`);
+    });
+  });
+}
+
+test('the interface in Russian', async ({ page }) => {
+  await usePreferences(page, { theme: 'dark', locale: 'ru' });
+  await useFixtures(page);
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Настройки' })).toBeVisible();
+  await settle(page);
+
+  await expect(page).toHaveScreenshot('settings-ru.png', { fullPage: true });
+});
+
+test('glass turned off', async ({ page }) => {
+  await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'off' });
+  await useFixtures(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
+  await settle(page);
+
+  await expect(page).toHaveScreenshot('today-glass-off.png', { fullPage: true });
+});

@@ -1,83 +1,417 @@
 /*
- * Design tokens.
+ * Design tokens, in two layers.
  *
- * Every colour, spacing step, radius and duration used by the interface is
- * defined here. Components read these variables and never write a raw value.
+ * Layer 1 is raw values: numbered neutrals, one accent ramp, one signal hue,
+ * the spacing steps, the type scale, the durations. It is a palette, and it
+ * has no opinion about where anything is used.
  *
- * Dark is the default theme. The light theme is applied by setting
- * data-theme="light" on the html element.
+ * Layer 2 is semantic: `--surface-card`, `--text-secondary`, `--fill-accent`.
+ * Every name says what the value is for. Components read layer 2 and nothing
+ * else, which is why the light theme is a thirty line override rather than a
+ * second stylesheet, and why `scripts/check-design-tokens.mjs` fails a build
+ * that names a raw token in a component.
+ *
+ * Dark is the default. The theme is an attribute on the html element, put
+ * there by a plain script in index.html before this file is parsed, so no load
+ * paints the wrong colours.
+ *
+ * This file is the only place in the repository where a colour value may be
+ * written.
  */
 
 :root {
-  color-scheme: dark;
+  /* ---------------------------------------------------------------- raw */
 
-  /* Surfaces and text */
-  --bg: #0b0b0c;
-  --surface: #131316;
-  --surface-2: #1a1a1e;
-  --border: #26262b;
-  --text: #ececee;
-  --text-dim: #8b8b93;
+  /* Neutrals, cool and near monochrome. The dark side of the system. */
+  --n-1000: #08090b;
+  --n-950: #0e1013;
+  --n-900: #14171a;
+  --n-850: #191d21;
+  --n-800: #1e2226;
+  --n-700: #262b31;
+  --n-600: #343a41;
+  --n-500: #4a5157;
+  --n-400: #6b7279;
+  --n-300: #888f97;
+  --n-200: #a2a9b0;
+  --n-100: #c9ced3;
+  --n-50: #e8eaec;
+  --n-0: #f7f8f9;
 
-  /* The single accent. Primary action and focus rings only. */
-  --accent: #4d7fe8;
+  /* Paper, warm and near monochrome. The light side. */
+  --p-0: #ffffff;
+  --p-50: #fafaf8;
+  --p-100: #f4f4f2;
+  --p-150: #ededea;
+  --p-200: #e8e8e5;
+  --p-300: #dcdcd8;
+  --p-400: #c9c9c4;
+  --p-500: #a8adb2;
+  --p-600: #6e747a;
+  --p-700: #54585e;
+  --p-800: #3a3e42;
+  --p-900: #1b1d1f;
 
   /*
-   * What is legible on top of the accent, which is not the same answer in both
-   * themes. White on the dark theme's accent measures 3.8 to 1 and fails AA for
-   * body text, while the page background measures 5.2 to 1 and passes. The
-   * light theme's accent is darker, and there the answer is the other way
-   * round. Both are checked in packages/config/contrast.test.ts.
+   * The accent: one hue near oklch 252, chroma under 0.09, at three
+   * lightnesses. A component references exactly one of them. Mixing two in one
+   * place is what makes an interface look like it has two different blues.
    */
-  --accent-text: #0b0b0c;
+  --a-tint: #c3d3ea;
+  --a-text: #86aade;
+  --a-fill: #2f5c9e;
+  --a-fill-hi: #37699f;
+  --a-text-lt: #265495;
+  --a-fill-lt: #265495;
+  --a-fill-lt-hi: #1f4c8c;
 
-  /* Status colours. Shared by both themes. */
-  --success: #3f9e6b;
-  --warn: #c08a2e;
-  --danger: #c25450;
+  /* The signal hue. Error text, and nothing else. Never a large area. */
+  --sig-300: #de8a7e;
+  --sig-700: #9e3d2e;
 
-  /* Spacing scale. No other values. */
-  --space-4: 4px;
-  --space-8: 8px;
-  --space-12: 12px;
-  --space-16: 16px;
-  --space-24: 24px;
-  --space-32: 32px;
-  --space-48: 48px;
+  /*
+   * White, held as a raw token because two things genuinely need it in both
+   * themes: the disc on a switch and a slider, which is white furniture on
+   * every platform, and a QR code, which a camera cannot read unless it is
+   * dark on white.
+   */
+  --raw-white: #ffffff;
 
-  /* Radius scale. No other values. */
-  --radius-6: 6px;
-  --radius-10: 10px;
-  --radius-14: 14px;
+  /* Spacing, 4px base. */
+  --u-1: 4px;
+  --u-2: 8px;
+  --u-3: 12px;
+  --u-4: 16px;
+  --u-5: 20px;
+  --u-6: 24px;
+  --u-7: 32px;
+  --u-8: 40px;
+  --u-9: 56px;
+  --u-10: 72px;
+  --u-11: 96px;
 
-  /* Motion. Two durations, one curve. */
-  --duration-fast: 120ms;
-  --duration-slow: 180ms;
-  --ease: cubic-bezier(0.2, 0, 0, 1);
+  /* Radius. */
+  --rad-1: 8px;
+  --rad-2: 12px;
+  --rad-3: 18px;
+  --rad-4: 24px;
+  --rad-5: 34px;
+  --rad-full: 999px;
+
+  /* Type scale, 1.18 rising to 1.32, tuned by hand. */
+  --t-1: 12px;
+  --t-2: 13px;
+  --t-3: 14px;
+  --t-4: 15px;
+  --t-5: 17px;
+  --t-6: 20px;
+  --t-7: 24px;
+  --t-8: 32px;
+  --t-9: 44px;
+  --t-10: 56px;
+
+  --lh-tight: 1.16;
+  --lh-snug: 1.32;
+  --lh-body: 1.5;
+  --lh-read: 1.62;
+
+  --tr-tight: -0.02em;
+  --tr-snug: -0.01em;
+  --tr-flat: 0em;
+  --tr-wide: 0.06em;
+
+  /* Two weights. There is no third. */
+  --w-normal: 400;
+  --w-strong: 600;
+
+  /* Motion. */
+  --dur-1: 90ms; /* a control changing state */
+  --dur-2: 160ms; /* a reveal, a toast arriving */
+  --dur-3: 240ms; /* a screen change, a scrim */
+  --dur-4: 340ms; /* a sheet rising */
+
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 0.9, 0.35);
+  --ease-inout: cubic-bezier(0.5, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.32, 1.28, 0.5, 1);
+
+  /*
+   * Glass parameters. Set here at the full level and overridden per level
+   * further down.
+   *
+   * Two densities, because contrast decides. `--g-alpha` is for bars that
+   * carry text, where secondary text needs at least 0.78 over a smoked tint.
+   * `--g-alpha-sheer` is for layers over a scrim, where the backdrop has
+   * already been dimmed and the transparency is bought back.
+   */
+  --g-blur: 34px;
+  --g-sat: 1.9;
+  --g-alpha: 0.78;
+  --g-alpha-sheer: 0.54;
+
+  /* Edge lensing, not a wash: rim hairline, perimeter gather, bottom shade. */
+  --g-edge: 0.12;
+  --g-rim: 0.138;
+  --g-depth: 0.45;
+
+  /*
+   * Fonts. The platform's own interface face, everywhere.
+   *
+   * Option A from the mockup, and the one that was chosen. SF Pro on an iPhone
+   * and a Mac, Segoe UI Variable on Windows, Roboto on Android. Optical sizing,
+   * hinting and Cyrillic are already tuned for reading on a phone, it costs
+   * zero bytes, and it is the reason system apps feel settled rather than
+   * designed.
+   *
+   * Nothing is downloaded, so there is no `font-display`, no swap, and no
+   * reflow when a face arrives late. That is stronger than matching a fallback
+   * face's metrics: there is no second face to match.
+   *
+   * Numbers keep their own family. A mono face is the only way a count going
+   * from 9 to 10 does not move the row it sits in.
+   */
+  --font-system:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', Roboto,
+    system-ui, sans-serif;
+  --font-mono-raw: ui-monospace, 'SF Mono', 'IBM Plex Mono', Menlo, 'Cascadia Mono', monospace;
+
+  color-scheme: dark;
 }
+
+/* ------------------------------------------------------- semantic, dark */
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-canvas: var(--n-1000);
+  --surface-sunken: var(--n-950);
+  --surface-base: var(--n-950);
+  --surface-card: var(--n-900);
+  --surface-raised: var(--n-850);
+  --surface-input: #101316;
+  --surface-selected: #1c2128;
+  --surface-nested: rgba(28, 32, 38, 0.94);
+
+  /*
+   * Smoked, not milky. The tint sits darker than the canvas, so light enters
+   * the layer only at its edge. That is worth six points of transparency:
+   * secondary text passes AA at 0.78 where a lighter tint needed 0.84.
+   */
+  --surface-floating: rgba(10, 12, 15, var(--g-alpha));
+  --surface-floating-solid: #12151a;
+
+  --text-primary: var(--n-50);
+  --text-secondary: var(--n-200);
+  --text-tertiary: var(--n-300);
+  --text-disabled: var(--n-500);
+  --text-accent: var(--a-text);
+  --text-on-accent: #ffffff;
+  --text-error: var(--sig-300);
+
+  --border-subtle: var(--n-800);
+  --border-default: var(--n-700);
+  --border-strong: var(--n-600);
+  --border-glass: rgba(255, 255, 255, calc(0.05 + var(--g-rim) * 0.34));
+  --border-accent: var(--a-text);
+
+  --fill-accent: var(--a-fill);
+  --fill-accent-hover: var(--a-fill-hi);
+  --fill-accent-quiet: rgba(134, 170, 222, 0.14);
+  --fill-switch-off: #3a3a3c;
+  --fill-seg-thumb: #2e343b;
+  --fill-neutral: #1a1e23;
+  --fill-neutral-hover: #22272e;
+  --fill-error-quiet: rgba(222, 138, 126, 0.13);
+  --track-rail: #33373c;
+
+  --focus-ring: var(--a-text);
+  --focus-halo: rgba(134, 170, 222, 0.24);
+
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, calc(var(--g-rim) * 0.9));
+  --glass-depth:
+    inset 0 -1px 1px rgba(0, 0, 0, calc(var(--g-depth) * 0.5)),
+    inset 0 0 0 1px rgba(255, 255, 255, calc(var(--g-rim) * 0.18));
+
+  /*
+   * The edge, and only the edge: a hairline where light lands, light gathering
+   * in the perimeter the way a pane thickens at its rim, and the shaded
+   * underside. Nothing paints across the middle of the surface. That fill is
+   * what reads as a cheap white glow.
+   */
+  --glass-edge:
+    inset 0 1px 0 rgba(255, 255, 255, var(--g-rim)),
+    inset 0 0 14px rgba(255, 255, 255, calc(var(--g-edge) * 0.55)),
+    inset 0 -1px 0 rgba(0, 0, 0, calc(var(--g-depth) * 0.5));
+
+  /* The specular streak that travels as content scrolls under a bar. */
+  --glass-sheen: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, calc(0.28 + var(--g-edge))),
+    rgba(255, 255, 255, 0)
+  );
+
+  --surface-sheet: rgba(10, 12, 15, var(--g-alpha-sheer));
+
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --elev-2: 0 3px 10px -3px rgba(0, 0, 0, 0.6);
+  --elev-3: 0 10px 28px -10px rgba(0, 0, 0, 0.72), 0 2px 6px -2px rgba(0, 0, 0, 0.5);
+  --elev-4: 0 24px 56px -16px rgba(0, 0, 0, 0.8), 0 4px 12px -4px rgba(0, 0, 0, 0.55);
+
+  --knob-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 3px 8px rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.16);
+
+  --skeleton: #171b1f;
+  --skeleton-sheen: rgba(255, 255, 255, 0.045);
+  --scrim: rgba(4, 5, 6, 0.56);
+}
+
+/* ------------------------------------------------------ semantic, light */
 
 [data-theme='light'] {
   color-scheme: light;
 
-  --bg: #fbfbfc;
-  --surface: #ffffff;
-  --surface-2: #f4f4f6;
-  --border: #e4e4e8;
-  --text: #17171a;
-  --text-dim: #6e6e76;
+  --g-sat: 1.6;
+  --g-alpha: 0.8;
+  --g-alpha-sheer: 0.78;
 
-  --accent: #3565ce;
-  --accent-text: #ffffff;
+  --bg-canvas: var(--p-50);
+  --surface-sunken: var(--p-100);
+  --surface-base: var(--p-0);
+  --surface-card: var(--p-0);
+  --surface-raised: var(--p-0);
+  --surface-input: var(--p-0);
+  --surface-selected: var(--p-150);
+  --surface-nested: rgba(255, 255, 255, 0.96);
+  --surface-floating: rgba(255, 255, 255, var(--g-alpha));
+  --surface-floating-solid: #ffffff;
+
+  --text-primary: var(--p-900);
+  --text-secondary: var(--p-700);
+  --text-tertiary: var(--p-600);
+  --text-disabled: var(--p-500);
+  --text-accent: var(--a-text-lt);
+  --text-on-accent: #ffffff;
+  --text-error: var(--sig-700);
+
+  --border-subtle: var(--p-200);
+  --border-default: var(--p-300);
+  --border-strong: var(--p-400);
+  --border-glass: rgba(27, 29, 31, calc(0.05 + var(--g-rim) * 0.16));
+  --border-accent: var(--a-text-lt);
+
+  --fill-accent: var(--a-fill-lt);
+  --fill-accent-hover: var(--a-fill-lt-hi);
+  --fill-accent-quiet: rgba(38, 84, 149, 0.09);
+  --fill-switch-off: #e4e4e6;
+  --fill-seg-thumb: #ffffff;
+  --fill-neutral: var(--p-100);
+  --fill-neutral-hover: var(--p-150);
+  --fill-error-quiet: rgba(158, 61, 46, 0.08);
+  --track-rail: #d9d9d5;
+
+  --focus-ring: var(--a-text-lt);
+  --focus-halo: rgba(38, 84, 149, 0.2);
+
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, calc(0.4 + var(--g-rim) * 1.6));
+  --glass-depth:
+    inset 0 -1px 1px rgba(27, 29, 31, calc(var(--g-depth) * 0.1)),
+    inset 0 0 0 1px rgba(255, 255, 255, calc(var(--g-rim) * 0.5));
+
+  --glass-edge:
+    inset 0 1px 0 rgba(255, 255, 255, calc(var(--g-rim) * 3)),
+    inset 0 0 14px rgba(255, 255, 255, calc(var(--g-edge) * 0.55)),
+    inset 0 -1px 0 rgba(27, 29, 31, calc(var(--g-depth) * 0.12));
+
+  --glass-sheen: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, calc(0.4 + var(--g-edge))),
+    rgba(255, 255, 255, 0)
+  );
+
+  --surface-sheet: rgba(255, 255, 255, var(--g-alpha-sheer));
+
+  --elev-1: 0 1px 2px rgba(24, 26, 28, 0.07);
+  --elev-2: 0 3px 10px -3px rgba(24, 26, 28, 0.1);
+  --elev-3: 0 10px 28px -10px rgba(24, 26, 28, 0.16), 0 2px 6px -2px rgba(24, 26, 28, 0.06);
+  --elev-4: 0 24px 56px -16px rgba(24, 26, 28, 0.2), 0 4px 12px -4px rgba(24, 26, 28, 0.08);
+
+  --knob-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 3px 8px rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.14);
+
+  --skeleton: var(--p-150);
+  --skeleton-sheen: rgba(27, 29, 31, 0.035);
+  --scrim: rgba(30, 32, 34, 0.28);
+}
+
+/* ------------------------------------------------------- glass, by level */
+
+/*
+ * Three levels, blur and saturation only. A brightness lift is what turns a
+ * dark glass layer into milk, so there is none.
+ *
+ * These come after the theme blocks on purpose. Both are single attribute
+ * selectors on the same element, so source order decides, and a level has to
+ * win over the theme's own defaults.
+ */
+[data-glass='full'] {
+  --g-blur: 34px;
+  --g-sat: 1.9;
+  --g-alpha: 0.78;
+  --g-alpha-sheer: 0.54;
+  --g-edge: 0.12;
+  --g-rim: 0.138;
+}
+
+[data-theme='light'][data-glass='full'] {
+  --g-sat: 1.6;
+  --g-alpha: 0.8;
+  --g-alpha-sheer: 0.78;
+}
+
+/* For phones that stutter: the same four ingredients, at a cheaper radius. */
+[data-glass='subtle'] {
+  --g-blur: 14px;
+  --g-sat: 1.4;
+  --g-alpha: 0.9;
+  --g-alpha-sheer: 0.66;
+  --g-edge: 0.08;
+  --g-rim: 0.092;
+}
+
+[data-theme='light'][data-glass='subtle'] {
+  --g-sat: 1.2;
+  --g-alpha: 0.92;
+  --g-alpha-sheer: 0.9;
 }
 
 /*
- * Reduced motion is a system level request, not a preference to negotiate.
- * Transitions still run so that state changes stay traceable, but they finish
- * immediately.
+ * Off is not a failure state. It is the same surface without the blur, which
+ * is exactly what a browser with no `backdrop-filter` already gets.
  */
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --duration-fast: 1ms;
-    --duration-slow: 1ms;
-  }
+[data-glass='off'] {
+  --g-blur: 0px;
+  --g-sat: 1;
+  --g-alpha: 1;
+  --g-alpha-sheer: 1;
+  --g-edge: 0;
+  --g-rim: 0;
+}
+
+/* --------------------------------------------------------------- fonts */
+
+/*
+ * The roles a component may name.
+ *
+ * All three resolve to the same family today, which is the point of naming the
+ * role rather than the family: the mockup's second option sets the words in a
+ * reading serif, and switching to it is two lines here and nothing anywhere
+ * else.
+ */
+:root {
+  --font-ui: var(--font-system);
+  --font-display: var(--font-system);
+  --font-reading: var(--font-system);
+  --font-mono: var(--font-mono-raw);
 }

@@ -37,8 +37,8 @@ export function NotFound() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[520px] flex-col items-center justify-center gap-24 px-16">
-      <p className="text-center text-16 text-text">{t('error.not_found')}</p>
-      <Link to="/" className="min-h-44 text-16 text-accent underline underline-offset-4">
+      <p className="text-center text-15 text-primary">{t('error.not_found')}</p>
+      <Link to="/" className="min-h-44 text-15 text-accent underline underline-offset-4">
         {t('today.title')}
       </Link>
     </div>

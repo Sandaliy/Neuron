@@ -1,4 +1,3 @@
-import { ChevronRight } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import type { DeckNode } from '@neuron/shared';
@@ -7,14 +6,19 @@ import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
 import { useDeckTree } from '../../lib/decks';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
+import { Chip } from '../../ui/chip';
+import { TreeChildren, TreeRow } from '../../ui/row';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 
 /**
  * The library, read only.
  *
  * One request draws the whole thing: the tree arrives with the counts already
- * rolled up over each subtree, so a folder shows what is waiting inside it
+ * rolled up over each subtree, so a deck shows what is waiting inside it
  * without asking about a single one of its children.
+ *
+ * Nesting is indentation and a hairline. A deck can contain decks, so the
+ * interface never says folder, and there is no second noun to learn.
  *
  * Making, renaming and moving decks belong to phase 6. What this proves is the
  * chain: database, repository, api, client, screen.
@@ -39,8 +43,8 @@ export function LibraryScreen() {
   }, []);
 
   return (
-    <section className="flex flex-col gap-16 py-16">
-      <h1 className="text-24 font-semibold text-text">{t('library.title')}</h1>
+    <section className="flex flex-col gap-20">
+      <h1 className="font-display text-24 tracking-tight text-primary">{t('library.title')}</h1>
 
       {decks.isPending ? <SkeletonRows rows={5} /> : undefined}
 
@@ -63,27 +67,25 @@ export function LibraryScreen() {
 
       {decks.data && decks.data.length > 0 ? (
         <>
-          <ul className="flex flex-col gap-4">
+          <div className="flex flex-col gap-8">
             {decks.data.map((deck) => (
-              <DeckRow key={deck.id} deck={deck} depth={0} open={open} onToggle={toggle} />
+              <Deck key={deck.id} deck={deck} open={open} onToggle={toggle} />
             ))}
-          </ul>
+          </div>
 
-          <p className="text-14 text-text-dim">{t('library.readOnly')}</p>
+          <p className="text-13 text-tertiary">{t('library.readOnly')}</p>
         </>
       ) : undefined}
     </section>
   );
 }
 
-function DeckRow({
+function Deck({
   deck,
-  depth,
   open,
   onToggle,
 }: {
   readonly deck: DeckNode;
-  readonly depth: number;
   readonly open: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
 }) {
@@ -92,76 +94,50 @@ function DeckRow({
   const expanded = open.has(deck.id);
 
   return (
-    <li>
-      <div
-        className="flex min-h-44 items-center gap-8 rounded-10 px-8 hover:bg-surface"
-        // The indent is a padding rather than a margin so the whole row, all
-        // the way to the left edge, stays part of the same hover target.
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
-      >
-        {hasChildren ? (
-          <button
-            type="button"
-            onClick={() => onToggle(deck.id)}
-            aria-expanded={expanded}
-            aria-label={expanded ? t('library.collapse') : t('library.expand')}
-            className="flex size-44 shrink-0 items-center justify-center text-text-dim hover:text-text"
-          >
-            <ChevronRight
-              size={16}
-              strokeWidth={1.5}
-              aria-hidden="true"
-              className={expanded ? 'rotate-90 transition-transform' : 'transition-transform'}
-            />
-          </button>
-        ) : (
-          <span className="size-44 shrink-0" aria-hidden="true" />
-        )}
-
-        <span className="min-w-0 grow truncate text-16 text-text">{deck.name}</span>
-
-        {/*
+    <div className="flex flex-col gap-8">
+      <TreeRow
+        title={deck.name}
+        /*
+          Nothing waiting is said by the row carrying no second line, not by a
+          line of zeroes. A count of nothing is the one number worth not
+          printing.
+        */
+        {...(deck.due > 0 || deck.fresh > 0
+          ? { subtitle: t('today.deckCounts', { due: deck.due, fresh: deck.fresh }) }
+          : {})}
+        expandable={hasChildren}
+        expanded={expanded}
+        {...(hasChildren ? { onClick: () => onToggle(deck.id) } : {})}
+        /*
           Two numbers, not two words. On a 375 px screen "12 cards waiting"
-          next to a deck name called Lesson 1 does not fit, so the words are in
-          the label a screen reader reads and in the legend below the tree.
-        */}
-        {deck.due > 0 ? (
-          <span
-            className="shrink-0 rounded-full bg-accent px-8 py-4 text-12 font-semibold text-accent-text tabular-nums"
-            aria-label={`${t('library.dueLabel')}: ${deck.due}`}
-          >
-            {deck.due}
-          </span>
-        ) : undefined}
-
-        {deck.fresh > 0 ? (
-          <span
-            className="shrink-0 rounded-full border border-border px-8 py-4 text-12 text-text-dim tabular-nums"
-            aria-label={`${t('library.newLabel')}: ${deck.fresh}`}
-          >
-            {deck.fresh}
-          </span>
-        ) : undefined}
-      </div>
+          next to a deck name does not fit, so the words are in the label a
+          screen reader reads and in the line under the name.
+        */
+        trailing={
+          deck.due > 0 ? (
+            <span aria-label={`${t('library.dueLabel')}: ${deck.due}`}>
+              <Chip tone="due">{deck.due}</Chip>
+            </span>
+          ) : deck.fresh > 0 ? (
+            <span aria-label={`${t('library.newLabel')}: ${deck.fresh}`}>
+              <Chip tone="new">{deck.fresh}</Chip>
+            </span>
+          ) : undefined
+        }
+      />
 
       {hasChildren && expanded ? (
-        <ul className="flex flex-col gap-4">
+        <TreeChildren>
           {deck.children.map((child) => (
-            <DeckRow
-              key={child.id}
-              deck={child}
-              depth={depth + 1}
-              open={open}
-              onToggle={onToggle}
-            />
+            <Deck key={child.id} deck={child} open={open} onToggle={onToggle} />
           ))}
-        </ul>
+        </TreeChildren>
       ) : undefined}
-    </li>
+    </div>
   );
 }
 
-/** Which folders were open last time. */
+/** Which decks were open last time. */
 function readOpen(): ReadonlySet<string> {
   const raw = read(STORAGE_KEYS.openDecks);
 

@@ -1,129 +1,190 @@
 @import 'tailwindcss';
 
-/*
- * Inter, from the package rather than from a CDN, so the app is one origin for
- * fonts too and works on a machine with no route to Google.
- *
- * The whole stylesheet for each weight, not the four per subset files. Those
- * carry no `unicode-range`, so the browser cannot tell which file covers which
- * characters and downloads all four on every load, in both languages. These
- * declare the range for each subset, so an English session fetches the Latin
- * file and nothing else, and a Russian one fetches two.
- */
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/600.css';
-
 /* Every colour, space, radius and duration in the product. */
 @import '@neuron/config/tokens.css';
 
 /*
  * The design system, expressed as the only utilities that exist.
  *
- * `inline` matters: the generated utilities carry `var(--surface)` rather than
- * the colour `--surface` held at the moment the stylesheet was built, so
- * switching `data-theme` on the html element repaints without a reload.
+ * `inline` matters twice over. The generated utilities carry `var(--card)`
+ * rather than the colour that variable held when the stylesheet was built, so
+ * switching `data-theme` or `data-glass` on the html element repaints without a
+ * reload. And Tailwind never defines these names itself, so a theme token and a
+ * utility can share a name without referring to each other in a circle.
  *
- * The scales are cut down to the ones CLAUDE.md allows, and the number in the
- * utility is the pixel value: `p-12` is twelve pixels, `rounded-10` is a ten
- * pixel radius. Tailwind's own scale would have offered `p-5` and `p-7`, which
- * are not on the scale, and `p-3` meaning twelve, which nobody can read.
+ * The utility prefix supplies the role, so the token's own prefix is dropped:
+ * `--surface-card` is `bg-card`, `--text-secondary` is `text-secondary`,
+ * `--border-subtle` is `border-subtle`. The number in a size utility is the
+ * pixel value: `p-16` is sixteen pixels, `rounded-12` is a twelve pixel radius.
  */
 @theme inline {
   --spacing: initial;
   --spacing-0: 0px;
-  --spacing-4: 4px;
-  --spacing-8: 8px;
-  --spacing-12: 12px;
-  --spacing-16: 16px;
-  --spacing-24: 24px;
-  --spacing-32: 32px;
-  --spacing-48: 48px;
+  --spacing-4: var(--u-1);
+  --spacing-8: var(--u-2);
+  --spacing-12: var(--u-3);
+  --spacing-16: var(--u-4);
+  --spacing-20: var(--u-5);
+  --spacing-24: var(--u-6);
+  --spacing-32: var(--u-7);
+  --spacing-40: var(--u-8);
+  --spacing-56: var(--u-9);
+  --spacing-72: var(--u-10);
+  --spacing-96: var(--u-11);
   /*
    * Not a step on the spacing scale. The one size on this list that is a rule
    * rather than a rhythm: nothing tappable is allowed to be smaller than this.
    */
   --spacing-44: 44px;
+  /* The height a screen's own action is drawn at, for the same reason. */
+  --spacing-48: 48px;
+  /* And the height of a dense note row, which the spec fixes at two lines. */
+  --spacing-52: 52px;
 
   --radius-*: initial;
-  --radius-6: 6px;
-  --radius-10: 10px;
-  --radius-14: 14px;
-  --radius-full: 9999px;
+  --radius-8: var(--rad-1);
+  --radius-12: var(--rad-2);
+  --radius-18: var(--rad-3);
+  --radius-24: var(--rad-4);
+  --radius-34: var(--rad-5);
+  --radius-full: var(--rad-full);
 
   --color-*: initial;
   --color-transparent: transparent;
   --color-current: currentColor;
+
+  /* Surfaces, in the order of the depth ladder. */
+  --color-canvas: var(--bg-canvas);
+  --color-sunken: var(--surface-sunken);
+  --color-base: var(--surface-base);
+  --color-card: var(--surface-card);
+  --color-raised: var(--surface-raised);
+  --color-input: var(--surface-input);
+  --color-selected: var(--surface-selected);
+  --color-nested: var(--surface-nested);
+  --color-floating: var(--surface-floating);
+  --color-floating-solid: var(--surface-floating-solid);
+  --color-sheet: var(--surface-sheet);
+  --color-skeleton: var(--skeleton);
+  --color-scrim: var(--scrim);
+
+  /* Text. */
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-disabled: var(--text-disabled);
+  --color-accent: var(--text-accent);
+  --color-on-accent: var(--text-on-accent);
+  --color-error: var(--text-error);
+
+  /* Borders. `--border-accent` and `--text-accent` are the same value. */
+  --color-subtle: var(--border-subtle);
+  --color-default: var(--border-default);
+  --color-strong: var(--border-strong);
+  --color-glass: var(--border-glass);
+
+  /* Fills, which are backgrounds a control paints rather than a surface. */
+  --color-fill-accent: var(--fill-accent);
+  --color-fill-accent-hover: var(--fill-accent-hover);
+  --color-fill-accent-quiet: var(--fill-accent-quiet);
+  --color-fill-neutral: var(--fill-neutral);
+  --color-fill-neutral-hover: var(--fill-neutral-hover);
+  --color-fill-error-quiet: var(--fill-error-quiet);
+  --color-switch-off: var(--fill-switch-off);
+  --color-seg-thumb: var(--fill-seg-thumb);
+  --color-rail: var(--track-rail);
+
   /*
-   * The one colour that is not a token and cannot be.
-   *
-   * A QR code has to be dark on white to be read by a camera, in both themes.
-   * Painting it in surface colours makes it beautiful and unscannable.
+   * The one colour that is not a semantic token and cannot be. A QR code has to
+   * be dark on white to be read by a camera, in both themes, and the disc on a
+   * switch is white furniture on every platform.
    */
-  --color-white: #ffffff;
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-border: var(--border);
-  --color-text: var(--text);
-  --color-text-dim: var(--text-dim);
-  --color-accent: var(--accent);
-  --color-accent-text: var(--accent-text);
-  --color-success: var(--success);
-  --color-warn: var(--warn);
-  --color-danger: var(--danger);
+  --color-white: var(--raw-white);
 
   --text-*: initial;
-  --text-12: 12px;
-  --text-12--line-height: 16px;
-  --text-14: 14px;
-  --text-14--line-height: 20px;
-  --text-16: 16px;
-  --text-16--line-height: 24px;
-  --text-20: 20px;
-  --text-20--line-height: 28px;
-  --text-24: 24px;
-  --text-24--line-height: 32px;
-  --text-32: 32px;
-  --text-32--line-height: 40px;
+  --text-12: var(--t-1);
+  --text-12--line-height: var(--lh-body);
+  --text-13: var(--t-2);
+  --text-13--line-height: var(--lh-body);
+  --text-14: var(--t-3);
+  --text-14--line-height: var(--lh-body);
+  --text-15: var(--t-4);
+  --text-15--line-height: var(--lh-body);
+  --text-17: var(--t-5);
+  --text-17--line-height: var(--lh-snug);
+  --text-20: var(--t-6);
+  --text-20--line-height: var(--lh-snug);
+  --text-24: var(--t-7);
+  --text-24--line-height: var(--lh-tight);
+  --text-32: var(--t-8);
+  --text-32--line-height: var(--lh-tight);
+  --text-44: var(--t-9);
+  --text-44--line-height: var(--lh-tight);
+  --text-56: var(--t-10);
+  --text-56--line-height: var(--lh-tight);
+
+  --leading-*: initial;
+  --leading-tight: var(--lh-tight);
+  --leading-snug: var(--lh-snug);
+  --leading-body: var(--lh-body);
+  --leading-read: var(--lh-read);
+
+  --tracking-*: initial;
+  --tracking-tight: var(--tr-tight);
+  --tracking-snug: var(--tr-snug);
+  --tracking-flat: var(--tr-flat);
+  --tracking-wide: var(--tr-wide);
 
   --font-weight-*: initial;
-  --font-weight-normal: 400;
-  --font-weight-semibold: 600;
+  --font-weight-normal: var(--w-normal);
+  --font-weight-semibold: var(--w-strong);
 
-  --font-sans: 'Inter', 'Inter fallback', system-ui, sans-serif;
+  --font-*: initial;
+  --font-ui: var(--font-ui);
+  --font-display: var(--font-display);
+  --font-reading: var(--font-reading);
+  --font-mono: var(--font-mono);
 
-  --default-transition-duration: var(--duration-fast);
-  --default-transition-timing-function: var(--ease);
+  --ease-*: initial;
+  --ease-enter: var(--ease-enter);
+  --ease-exit: var(--ease-exit);
+  --ease-inout: var(--ease-inout);
+  --ease-spring: var(--ease-spring);
 
-  --ease-out: var(--ease);
+  --shadow-*: initial;
+  --shadow-1: var(--elev-1);
+  --shadow-2: var(--elev-2);
+  --shadow-3: var(--elev-3);
+  --shadow-4: var(--elev-4);
+
+  --animate-*: initial;
+
+  --default-transition-duration: var(--dur-1);
+  --default-transition-timing-function: var(--ease-inout);
 }
 
 /*
- * The font that stands in while Inter is still arriving, resized to match it.
+ * The four durations, as utilities.
  *
- * Inter sets this interface's own text 6.7% wider than Arial and about 9%
- * wider than system-ui, measured, and its line box is taller. With
- * `font-display: swap` that means every line reflows the moment the font
- * lands, on every cold load.
- *
- * These four descriptors squash Arial into Inter's metrics: the same advance
- * width, the same ascent and descent, so the stand-in occupies the space Inter
- * will occupy and the swap moves nothing. All four numbers were measured
- * against the loaded font rather than copied: size-adjust is how much wider
- * Inter sets the interface's own text, in both languages, than Arial does, and
- * the overrides are Inter's ascent and descent divided by that. Inter's line
- * gap is zero, measured the same way.
- *
- * A platform with no Arial drops this face and falls through to system-ui,
- * which is the behaviour there was before.
+ * Tailwind has no theme namespace for `duration-*`, so `duration-240` would be
+ * a raw number written in a component. These four are the whole vocabulary, and
+ * `scripts/check-design-tokens.mjs` fails a build that writes a duration any
+ * other way.
  */
-@font-face {
-  font-family: 'Inter fallback';
-  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
-  size-adjust: 106.66%;
-  ascent-override: 90.85%;
-  descent-override: 22.59%;
-  line-gap-override: 0%;
+@utility dur-control {
+  transition-duration: var(--dur-1);
+}
+
+@utility dur-reveal {
+  transition-duration: var(--dur-2);
+}
+
+@utility dur-screen {
+  transition-duration: var(--dur-3);
+}
+
+@utility dur-sheet {
+  transition-duration: var(--dur-4);
 }
 
 @layer base {
@@ -137,11 +198,12 @@
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 
     /*
-     * How tall the navigation bar is: a 44 px target with 8 px above and below
-     * it. Screens reserve this much at the foot of the page so the bar never
+     * How tall the floating tab bar is, and how far it sits off the bottom
+     * edge. Screens reserve both at the foot of the page so the bar never
      * covers the last row of anything.
      */
     --bar-height: 60px;
+    --bar-gap: var(--u-5);
 
     /*
      * How much of the page the on-screen keyboard is covering, and how tall the
@@ -152,30 +214,37 @@
     --keyboard-inset: 0px;
     --visual-viewport-height: 100svh;
 
+    background-color: var(--bg-canvas);
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    background-color: var(--bg);
-    color: var(--text);
-    font-family: var(--font-sans);
-    font-size: 16px;
-    line-height: 24px;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: var(--t-4);
+    line-height: var(--lh-body);
     /* Nothing on any screen may push the page sideways. */
     overflow-x: hidden;
   }
 
   /*
-   * One focus ring, in the accent, everywhere.
+   * One focus ring, in the accent, everywhere: two pixels of outline at two
+   * pixels of offset, over a five pixel halo.
    *
-   * `:focus-visible` rather than `:focus`, so a mouse click on a button does
-   * not leave a ring behind, and a keyboard user never loses their place.
+   * The ring itself is instant, because focus must never lag. The halo behind
+   * it fades in over the shortest duration in the system.
    */
+  :focus {
+    outline: none;
+  }
+
   :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
-    border-radius: 2px;
+    box-shadow: 0 0 0 5px var(--focus-halo);
+    transition: box-shadow var(--dur-1) var(--ease-enter);
   }
 
   /*
@@ -186,10 +255,13 @@
    */
   input,
   textarea,
-  select,
-  button {
+  select {
     font: inherit;
     font-size: max(16px, 1em);
+  }
+
+  button {
+    font: inherit;
   }
 
   /* A heading should not be able to widen the page on a narrow phone. */
@@ -201,15 +273,632 @@
   li {
     overflow-wrap: break-word;
   }
+
+  ::selection {
+    background: var(--fill-accent);
+    color: var(--text-on-accent);
+  }
+
+  /* Counts and dates never shift the layout as they change. */
+  [data-numeric] {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * Everything below sits in the components layer, so a utility written on a
+ * component still wins. Unlayered css beats every layer, which would mean
+ * `[data-g] { position: relative }` quietly overriding the `fixed` on the tab
+ * bar and the `absolute` on anything else that carries the glass.
+ */
+@layer components {
+  /*
+   * ============================================================ GLASS
+   *
+   * One implementation, four ingredients: a translucent tint, a backdrop blur, a
+   * hairline border, and light gathering at the edge. Glass says one thing, that
+   * this surface is above the content, so only floating layers carry it. Nothing
+   * in the content flow is ever glass.
+   *
+   * The fallback is the declared background, so a browser without
+   * `backdrop-filter`, or a person who turned the effect off, gets the same
+   * surface without the blur rather than a failure state.
+   */
+  [data-g] {
+    position: relative;
+    background: var(--surface-floating-solid);
+    border: 1px solid var(--border-glass);
+    box-shadow: var(--elev-3), var(--glass-rim), var(--glass-depth);
+  }
+
+  @supports ((-webkit-backdrop-filter: blur(2px)) or (backdrop-filter: blur(2px))) {
+    [data-g] {
+      background: var(--surface-floating);
+      -webkit-backdrop-filter: blur(var(--g-blur)) saturate(var(--g-sat));
+      backdrop-filter: blur(var(--g-blur)) saturate(var(--g-sat));
+    }
+  }
+
+  /*
+   * The edge, and only the edge. A real pane is thickest at its rim, so light
+   * gathers there: a hairline on the top edge, a soft gather around the
+   * perimeter, one shade on the underside. Nothing paints across the middle of
+   * the surface, which is what reads as a cheap white glow.
+   */
+  [data-g]::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: var(--glass-edge);
+  }
+
+  /* Content sits above the rim gather. The sheen is part of the layer itself. */
+  [data-g] > *:not([data-sheen]):not([data-slot='tab-pill']) {
+    position: relative;
+    z-index: 1;
+  }
+
+  /*
+   * A sheet or a panel sits over a scrim, which has already dimmed the backdrop,
+   * so it can be genuinely see through where a bar cannot.
+   */
+  [data-g='sheet'],
+  [data-g='panel'] {
+    background: var(--surface-sheet);
+    box-shadow: var(--elev-4), var(--glass-rim), var(--glass-depth);
+  }
+
+  /*
+   * Never stack two blurred layers. A glass element inside glass drops its blur
+   * and takes an opaque nested tint. The rule is enforced here rather than left
+   * to discipline.
+   */
+  [data-g] [data-g] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface-nested);
+    box-shadow: var(--elev-1), var(--glass-rim);
+  }
+
+  [data-g] [data-g]::after {
+    display: none;
+  }
+
+  /*
+   * Tertiary text is banned on glass in both themes: over the worst backdrop it
+   * measures 3.1 to 1. The blurred layers redefine the token itself rather than
+   * discouraging it, so a caption that moves onto glass is corrected to the
+   * secondary tone instead of failing quietly.
+   */
+  [data-g] {
+    --text-tertiary: var(--text-secondary);
+  }
+
+  /* With the effect off there is no edge to draw and no tint to see through. */
+  [data-glass='off'] [data-g] {
+    background: var(--surface-floating-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  [data-glass='off'] [data-g]::after {
+    display: none;
+  }
+
+  [data-glass='off'] [data-sheen] {
+    display: none;
+  }
+
+  /*
+   * The specular: a short streak on the top rim that travels as content scrolls
+   * underneath. It is the only part of the effect that responds to context, it
+   * moves by transform alone, and it is what separates glass from a translucent
+   * rectangle.
+   */
+  [data-sheen] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    height: 1px;
+    width: 38%;
+    border-radius: 1px;
+    pointer-events: none;
+    background: var(--glass-sheen);
+    will-change: transform;
+  }
+
+  /*
+   * ============================================================ CONTROL CRAFT
+   *
+   * Native range chrome cannot be styled from a class, which is the only reason
+   * these live in a stylesheet. Every value still comes from a token.
+   *
+   * A slider is a rail, a filled portion, and one white disc. Nothing else.
+   */
+  input[type='range'] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 28px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  input[type='range']::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--track, var(--track-rail));
+  }
+
+  input[type='range']::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--track, var(--track-rail));
+  }
+
+  input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 26px;
+    height: 26px;
+    margin-top: -10px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--raw-white);
+    box-shadow: var(--knob-shadow);
+    transition: transform var(--dur-1) var(--ease-inout);
+  }
+
+  input[type='range']::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--raw-white);
+    box-shadow: var(--knob-shadow);
+  }
+
+  input[type='range']:active::-webkit-slider-thumb {
+    transform: scale(1.06);
+  }
+
+  input[type='range']:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  input[type='range']:focus-visible::-webkit-slider-thumb {
+    box-shadow:
+      var(--knob-shadow),
+      0 0 0 5px var(--focus-halo);
+  }
+
+  /*
+   * A switch knob: white, with a real shadow, travelling on transform. The
+   * spring curve is used here and nowhere else.
+   */
+  [data-slot='switch-knob'] {
+    box-shadow: var(--knob-shadow);
+    transition: transform var(--dur-2) var(--ease-spring);
+  }
+
+  /*
+   * A checked box is the accent fill framed by an inset ring, not a tick glyph.
+   * The ring is three pixels, which is craft rather than a step on the scale.
+   */
+  [data-slot='checkbox'][data-state='checked'] {
+    box-shadow: inset 0 0 0 3px var(--text-on-accent);
+  }
+
+  /*
+   * A segmented group: the selection is a thumb that slides, as on a phone. The
+   * cells are equal width, so the travel is one cell width per index and needs no
+   * measuring.
+   */
+  [data-slot='segmented'] {
+    position: relative;
+  }
+
+  [data-slot='segmented-thumb'] {
+    position: absolute;
+    top: var(--u-1);
+    left: var(--u-1);
+    height: calc(100% - 2 * var(--u-1));
+    width: calc((100% - 2 * var(--u-1)) / var(--seg-count));
+    border-radius: var(--rad-1);
+    background: var(--fill-seg-thumb);
+    box-shadow: var(--elev-1);
+    transform: translate3d(calc(var(--seg-index) * 100%), 0, 0);
+    transition: transform var(--dur-2) var(--ease-spring);
+    z-index: 0;
+  }
+
+  /*
+   * A press answers everywhere, not only where a component remembered to say so.
+   * Tabs and segmented cells have their own, larger answer.
+   */
+  button {
+    transition: transform var(--dur-1) var(--ease-inout);
+  }
+
+  button:active:not([aria-disabled='true']):not(:disabled):not([data-tab]):not([data-cell]) {
+    transform: scale(0.985);
+  }
+
+  [data-tab]:active,
+  [data-cell]:active {
+    transform: scale(0.96);
+  }
+
+  /*
+   * The tab bar's pill. The same idea as the segmented thumb, sitting inside a
+   * larger inset because the bar is padded more than a control is.
+   */
+  [data-slot='tab-pill'] {
+    position: absolute;
+    top: var(--u-2);
+    left: var(--u-2);
+    height: calc(100% - 2 * var(--u-2));
+    width: calc((100% - 2 * var(--u-2)) / var(--seg-count));
+    border-radius: var(--rad-2);
+    background: var(--surface-selected);
+    box-shadow: var(--elev-1);
+    transform: translate3d(calc(var(--seg-index) * 100%), 0, 0);
+    transition: transform var(--dur-3) var(--ease-spring);
+    z-index: 0;
+  }
+
+  /*
+   * A row's focus ring is inset. At the usual offset, a ring on a row inside a
+   * group is clipped by the group's own overflow and half of it disappears.
+   */
+  [data-row]:focus-visible {
+    outline-offset: -2px;
+    box-shadow: none;
+  }
+
+  /* A bar gains its edge only once content has passed under it. */
+  [data-g='bar']:not([data-scrolled]) {
+    border-bottom-color: transparent;
+  }
+
+  [data-g='bar'] {
+    transition: border-color var(--dur-2) var(--ease-inout);
+  }
+
+  /* Separators start at the text, not at the card edge. */
+  [data-rows] > * {
+    position: relative;
+  }
+
+  [data-rows] > *::after {
+    content: '';
+    position: absolute;
+    left: var(--u-4);
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--border-subtle);
+  }
+
+  [data-rows] > *:last-child::after {
+    display: none;
+  }
+}
+
+/*
+ * ============================================================ MOTION
+ *
+ * Transform and opacity only. Never height, width, top, left, or filter, and
+ * never the blur radius: a layer arrives by moving and fading with its radius
+ * already fixed.
+ */
+@keyframes neu-in-forward {
+  from {
+    opacity: 0;
+    transform: translate3d(14px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes neu-in-back {
+  from {
+    opacity: 0;
+    transform: translate3d(-14px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes neu-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes neu-sheet-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes neu-sheet-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 100%, 0);
+  }
+}
+
+@keyframes neu-panel-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes neu-panel-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.99);
+  }
+}
+
+@keyframes neu-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes neu-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 9px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes neu-toast-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes neu-toast-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+}
+
+@keyframes neu-tick {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 7px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes neu-shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: translate3d(-4px, 0, 0);
+  }
+  45% {
+    transform: translate3d(3px, 0, 0);
+  }
+  70% {
+    transform: translate3d(-2px, 0, 0);
+  }
+}
+
+@keyframes neu-shimmer {
+  from {
+    transform: translate3d(-100%, 0, 0);
+  }
+  to {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+
+@keyframes neu-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * The named movements.
+ *
+ * Declared as utilities rather than plain classes so a variant can reach them:
+ * a sheet is `data-[state=open]:neu-sheet-in`, and the duration and the curve
+ * are decided here rather than at every call site.
+ */
+@utility neu-enter-forward {
+  animation: neu-in-forward var(--dur-3) var(--ease-enter) both;
+}
+
+@utility neu-enter-back {
+  animation: neu-in-back var(--dur-3) var(--ease-enter) both;
+}
+
+@utility neu-fade-in {
+  animation: neu-fade var(--dur-2) var(--ease-inout) both;
+}
+
+@utility neu-scrim-in {
+  animation: neu-fade var(--dur-3) var(--ease-inout) both;
+}
+
+@utility neu-sheet-in {
+  animation: neu-sheet-in var(--dur-4) var(--ease-enter) both;
+}
+
+@utility neu-sheet-out {
+  animation: neu-sheet-out var(--dur-3) var(--ease-exit) both;
+}
+
+@utility neu-panel-in {
+  animation: neu-panel-in var(--dur-3) var(--ease-enter) both;
+}
+
+@utility neu-panel-out {
+  animation: neu-panel-out var(--dur-2) var(--ease-exit) both;
+}
+
+@utility neu-reveal {
+  animation: neu-reveal var(--dur-2) var(--ease-enter) both;
+}
+
+@utility neu-toast-in {
+  animation: neu-toast-in var(--dur-2) var(--ease-enter) both;
+}
+
+@utility neu-toast-out {
+  animation: neu-toast-out var(--dur-2) var(--ease-exit) both;
+}
+
+@utility neu-tick {
+  animation: neu-tick var(--dur-2) var(--ease-enter) both;
+}
+
+/* The only expressive motion in the system, and it happens once. */
+@utility neu-shake {
+  animation: neu-shake 320ms var(--ease-inout) both;
+}
+
+@utility neu-spin {
+  animation: neu-spin 700ms linear infinite;
+}
+
+/*
+ * Content rises as a screen arrives: four rows, 26ms apart, then it stops. A
+ * stagger that runs down a whole screen turns a transition into a performance.
+ */
+@utility neu-rise {
+  animation: neu-rise var(--dur-3) var(--ease-enter) both;
+
+  &:nth-child(1) {
+    animation-delay: 0ms;
+  }
+
+  &:nth-child(2) {
+    animation-delay: 26ms;
+  }
+
+  &:nth-child(3) {
+    animation-delay: 52ms;
+  }
+
+  &:nth-child(n + 4) {
+    animation-delay: 78ms;
+  }
+}
+
+/* The skeleton sheen, which stops the moment content arrives. */
+@utility neu-sheen {
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, var(--skeleton-sheen), transparent);
+    animation: neu-shimmer 1400ms var(--ease-inout) infinite;
+  }
+}
+
+/*
+ * A sheet pushes the screen behind it back, with the top edge as the origin.
+ * Only on a phone: above the breakpoint the dialog is a centred panel and there
+ * is nothing to push.
+ */
+@layer components {
+  #root {
+    transition: transform var(--dur-3) var(--ease-enter);
+  }
+
+  @media (max-width: 639px) {
+    [data-sheet='open'] #root {
+      transform: scale(0.945);
+      transform-origin: top center;
+    }
+  }
+}
+
+/*
+ * Reduced motion collapses every duration. States still change, nothing
+ * travels. The switch in Appearance sets the attribute by hand and does exactly
+ * what the system request does.
+ */
+[data-motion='reduce'] *,
+[data-motion='reduce'] *::before,
+[data-motion='reduce'] *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
 }

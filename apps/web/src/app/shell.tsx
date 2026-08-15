@@ -1,67 +1,90 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
-import { CalendarCheck, Library, Settings } from 'lucide-react';
 
 import type { MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../i18n/locale';
+import { Sheen } from '../ui/sheen';
 
-import type { LucideIcon } from 'lucide-react';
+import type { CSSProperties } from 'react';
 
 /**
  * The frame every signed in screen sits in.
  *
- * Navigation is a bar along the bottom, not a menu at the top, because the
- * phone is the primary target and the bottom third of a phone is the part a
- * thumb reaches without the hand moving. The same bar on a wide screen would
- * be strange, so above the phone breakpoint it moves to the top.
+ * Navigation is a bar floating over the content near the bottom edge, not a
+ * menu at the top, because the phone is the primary target and the bottom third
+ * of a phone is the part a thumb reaches without the hand moving. It is a
+ * floating layer, so it is glass, and content passes underneath it.
+ *
+ * The current tab is a filled slab that travels, not a colour. The tabs are
+ * equal width, so where the slab belongs is the index of the current tab and
+ * nothing has to be measured: it is in the right place on the first frame, and
+ * it moves by `transform` alone.
+ *
+ * Above the phone breakpoint the same bar sits at the top of the column, where
+ * a bar belongs on a screen nobody holds.
  */
-const TABS: readonly { to: string; icon: LucideIcon; label: MessageKey }[] = [
-  { to: '/', icon: CalendarCheck, label: 'nav.today' },
-  { to: '/library', icon: Library, label: 'nav.library' },
-  { to: '/settings', icon: Settings, label: 'nav.settings' },
+const TABS: readonly { to: string; label: MessageKey }[] = [
+  { to: '/', label: 'nav.today' },
+  { to: '/library', label: 'nav.library' },
+  { to: '/settings', label: 'nav.settings' },
 ];
 
 export function Shell() {
   const t = useTranslate();
   const path = useRouterState({ select: (state) => state.location.pathname });
 
+  const current = TABS.findIndex((tab) =>
+    tab.to === '/' ? path === '/' : path.startsWith(tab.to),
+  );
+
   return (
-    <div className="flex min-h-dvh flex-col sm:flex-col-reverse sm:justify-end">
-      <main className="mx-auto w-full max-w-[720px] grow px-16 pt-[calc(var(--safe-top)+16px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+24px)] sm:pb-32">
+    <div className="flex min-h-dvh flex-col">
+      <main className="mx-auto w-full max-w-[720px] grow px-20 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+var(--bar-gap)+24px)] sm:pt-24 sm:pb-32">
         <Outlet />
       </main>
 
       <nav
+        data-g="tabbar"
         aria-label={t('app.name')}
         className={[
-          'fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface',
-          'pb-[var(--safe-bottom)]',
-          'sm:static sm:border-t-0 sm:border-b sm:pb-0',
+          'fixed inset-x-16 bottom-[calc(var(--safe-bottom)+var(--bar-gap))] z-30',
+          'flex gap-4 rounded-24 p-8',
+          'sm:top-24 sm:bottom-auto sm:mx-auto sm:w-full sm:max-w-[420px]',
         ].join(' ')}
+        style={
+          {
+            '--seg-count': TABS.length,
+            '--seg-index': current < 0 ? 0 : current,
+          } as CSSProperties
+        }
       >
-        <ul className="mx-auto flex w-full max-w-[720px]">
-          {TABS.map((tab) => {
-            const active = tab.to === '/' ? path === '/' : path.startsWith(tab.to);
-            const Icon = tab.icon;
+        <span
+          data-slot="tab-pill"
+          aria-hidden="true"
+          className={current < 0 ? 'opacity-0' : undefined}
+        />
 
-            return (
-              <li key={tab.to} className="flex-1">
-                <Link
-                  to={tab.to}
-                  aria-current={active ? 'page' : undefined}
-                  className={[
-                    'flex min-h-44 flex-col items-center justify-center gap-4 px-8 py-8',
-                    'text-12 transition-colors sm:flex-row sm:gap-8 sm:text-14',
-                    active ? 'text-accent' : 'text-text-dim hover:text-text',
-                  ].join(' ')}
-                >
-                  <Icon size={20} strokeWidth={1.5} aria-hidden="true" />
-                  {t(tab.label)}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        {TABS.map((tab, index) => {
+          const active = index === current;
+
+          return (
+            <Link
+              key={tab.to}
+              to={tab.to}
+              data-tab=""
+              aria-current={active ? 'page' : undefined}
+              className={[
+                'relative z-10 flex min-h-44 flex-1 items-center justify-center rounded-12 px-8',
+                'text-13 transition-colors',
+                active ? 'font-semibold text-primary' : 'text-secondary hover:text-primary',
+              ].join(' ')}
+            >
+              {t(tab.label)}
+            </Link>
+          );
+        })}
+
+        <Sheen />
       </nav>
     </div>
   );

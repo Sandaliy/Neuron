@@ -14,6 +14,7 @@ import { NewPasswordScreen, RecoveryScreen } from './features/auth/recovery';
 import { SignInScreen } from './features/auth/sign-in';
 import { SignUpScreen } from './features/auth/sign-up';
 import { TwoFactorScreen } from './features/auth/two-factor';
+import { GalleryScreen } from './features/dev/gallery';
 import { LibraryScreen } from './features/library/library';
 import { SettingsScreen } from './features/settings/settings';
 import { TodayScreen } from './features/today/today';
@@ -106,6 +107,25 @@ const settingsRoute = createRoute({
   component: SettingsScreen,
 });
 
+/**
+ * The component gallery, and only outside production.
+ *
+ * `__DEV_ROUTES__` is set by `vite.config.ts` from the deployment environment:
+ * on while developing and on a branch preview, off on the production build. The
+ * gallery is where a new screen is composed from and where a regression shows
+ * up in one place, and neither of those is a reason to put it in front of
+ * somebody using the app.
+ */
+const devRoutes = __DEV_ROUTES__
+  ? [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: '/dev/components',
+        component: GalleryScreen,
+      }),
+    ]
+  : [];
+
 const routeTree = rootRoute.addChildren([
   signInRoute,
   signUpRoute,
@@ -113,6 +133,7 @@ const routeTree = rootRoute.addChildren([
   newPasswordRoute,
   twoFactorRoute,
   appRoute.addChildren([todayRoute, libraryRoute, settingsRoute]),
+  ...devRoutes,
 ]);
 
 export const router = createRouter({

@@ -152,7 +152,7 @@ export function SignUpScreen() {
         />
 
         {error ? (
-          <p role="alert" className="text-14 text-danger">
+          <p role="alert" className="text-14 text-error">
             {t(error.key, error.values)}
           </p>
         ) : undefined}

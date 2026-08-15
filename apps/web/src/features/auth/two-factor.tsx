@@ -89,7 +89,7 @@ export function TwoFactorScreen() {
       title={t('auth.twoFactor.title')}
       subtitle={usingBackup ? t('auth.twoFactor.recoveryCodes.title') : t('auth.twoFactor.scan')}
       footer={
-        <Link to="/sign-in" className="text-text-dim underline underline-offset-4">
+        <Link to="/sign-in" className="text-tertiary underline underline-offset-4">
           {t('auth.signIn.title')}
         </Link>
       }
@@ -118,7 +118,7 @@ export function TwoFactorScreen() {
           </FormField>
 
           {error ? (
-            <p role="alert" className="text-14 text-danger">
+            <p role="alert" className="text-14 text-error">
               {t(error.key, error.values)}
             </p>
           ) : undefined}
@@ -145,7 +145,7 @@ export function TwoFactorScreen() {
           />
 
           {error ? (
-            <p role="alert" className="text-14 text-danger">
+            <p role="alert" className="text-14 text-error">
               {t(error.key, error.values)}
             </p>
           ) : undefined}

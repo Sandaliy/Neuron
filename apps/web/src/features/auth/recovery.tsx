@@ -68,7 +68,7 @@ export function RecoveryScreen() {
       title={t('auth.recovery.title')}
       subtitle={t('auth.recovery.hint')}
       footer={
-        <Link to="/sign-in" className="text-text-dim underline underline-offset-4">
+        <Link to="/sign-in" className="text-tertiary underline underline-offset-4">
           {t('auth.signIn.title')}
         </Link>
       }
@@ -111,7 +111,7 @@ export function RecoveryScreen() {
         </FormField>
 
         {error ? (
-          <p role="alert" className="text-14 text-danger">
+          <p role="alert" className="text-14 text-error">
             {t(error.key, error.values)}
           </p>
         ) : undefined}
@@ -177,7 +177,7 @@ export function NewPasswordScreen({ remaining }: { readonly remaining?: number }
       subtitle={t('auth.recovery.setPasswordHint')}
     >
       {remaining !== undefined ? (
-        <p className={low ? 'text-14 text-warn' : 'text-14 text-text-dim'}>
+        <p className={low ? 'text-14 text-warn' : 'text-14 text-tertiary'}>
           {low
             ? t('auth.recoveryCodes.low', { count: remaining })
             : t('auth.recoveryCodes.remaining', { count: remaining })}
@@ -200,7 +200,7 @@ export function NewPasswordScreen({ remaining }: { readonly remaining?: number }
         />
 
         {error ? (
-          <p role="alert" className="text-14 text-danger">
+          <p role="alert" className="text-14 text-error">
             {t(error.key, error.values)}
           </p>
         ) : undefined}
@@ -210,7 +210,7 @@ export function NewPasswordScreen({ remaining }: { readonly remaining?: number }
         </Button>
       </form>
 
-      <p className="text-14 text-text-dim">{t('auth.recovery.signedOutElsewhere')}</p>
+      <p className="text-14 text-tertiary">{t('auth.recovery.signedOutElsewhere')}</p>
     </AuthLayout>
   );
 }

@@ -126,6 +126,10 @@ export const ru: Messages = {
   'settings.deleteAccountAction': 'Удалить этот аккаунт и всё, что в нём',
 
   'today.title': 'Сегодня',
+  'today.waitingIn': 'Ждёт в наборах',
+  'today.waitingLabel': 'карточки на повтор',
+  'today.newLabel': 'новых',
+  'today.deckCounts': '{due} на повтор · {fresh} новых',
   'today.waiting': 'Карточек к повторению: {count}',
   'today.newAvailable': 'Новых карточек готово: {count}',
   'today.newAvailableHint':
@@ -151,10 +155,25 @@ export const ru: Messages = {
   'settings.title': 'Настройки',
   'settings.appearance': 'Внешний вид',
   'settings.theme': 'Тема',
-  'settings.theme.system': 'Как в системе',
+  'settings.theme.system': 'Системная',
   'settings.theme.light': 'Светлая',
   'settings.theme.dark': 'Тёмная',
   'settings.language': 'Язык',
+  'settings.glass': 'Жидкое стекло',
+  'settings.glass.off': 'Выключить',
+  'settings.glass.subtle': 'Умеренно',
+  'settings.glass.full': 'Максимум',
+  'settings.glassHint': 'Убавь, если прокрутка на телефоне дёргается.',
+  'settings.glassCapped.motion':
+    'Система просит меньше движения, поэтому панели идут на «Умеренно».',
+  'settings.glassCapped.memory':
+    'Устройство сообщает о малом объёме памяти, поэтому панели идут на «Умеренно».',
+  'settings.glassCapped.frames':
+    'Прокрутка здесь упала ниже 55 кадров в секунду, и панели убавились сами. Перезагрузи страницу, чтобы снова попробовать максимум.',
+  'settings.motion': 'Меньше движения',
+  'settings.motion.system': 'Как в системе',
+  'settings.motion.reduce': 'Выключить',
+  'settings.motionHint': 'Ничего не выезжает и не проявляется. Состояния меняются, просто сразу.',
   'settings.security': 'Безопасность',
   'settings.changePassword': 'Сменить пароль',
   'settings.currentPassword': 'Текущий пароль',

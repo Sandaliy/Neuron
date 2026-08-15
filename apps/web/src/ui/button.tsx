@@ -1,24 +1,56 @@
-import { Spinner } from './spinner';
-
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /**
- * The one button.
+ * The one action.
  *
- * Three variants and nothing else. `primary` is the single action a screen
- * wants; there is never more than one on a screen. `secondary` is everything
- * that is a real choice but not the point. `danger` is for the two things that
- * cannot be undone: leaving, and turning off the second factor.
+ * Four variants, and the rule that goes with them: one primary action per
+ * screen. Two accent fills on one screen is a bug, so everything that is a real
+ * choice but not the point is `quiet`, and everything smaller than that is
+ * `text`. `destructive` is text as well, never a red slab: a filled red button
+ * is a large area of the signal hue, and the signal hue exists for error text.
  *
- * Forty four pixels tall at the smallest, because it has to be hittable with a
- * thumb on a phone held one handed.
+ * Forty four pixels tall at the smallest, forty eight when it fills the width
+ * of a phone form, because it has to be hittable with a thumb one handed.
+ *
+ * Seven states, all of them drawn: default, hover, active, focus, disabled,
+ * loading, and the destructive tone. The gallery at /dev/components renders
+ * every one of them side by side.
  */
-export type ButtonVariant = 'primary' | 'secondary' | 'danger';
+export type ButtonVariant = 'primary' | 'quiet' | 'text' | 'destructive';
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-accent text-accent-text hover:opacity-90 disabled:hover:opacity-100',
-  secondary: 'bg-surface-2 text-text border border-border hover:border-text-dim',
-  danger: 'bg-transparent text-danger border border-danger hover:bg-danger/10',
+  primary: [
+    'bg-fill-accent text-on-accent shadow-1',
+    'hover:not-disabled:bg-fill-accent-hover hover:not-disabled:shadow-2',
+    'active:not-disabled:shadow-none',
+    // Never the accent when it cannot be pressed. A dimmed accent still reads
+    // as the thing to press.
+    'disabled:bg-fill-neutral disabled:text-disabled disabled:shadow-none',
+  ].join(' '),
+  quiet: [
+    'border border-default bg-fill-neutral text-secondary',
+    'hover:not-disabled:border-strong hover:not-disabled:bg-fill-neutral-hover',
+    'hover:not-disabled:text-primary',
+    'disabled:bg-transparent disabled:text-disabled',
+  ].join(' '),
+  text: [
+    'text-accent',
+    'hover:not-disabled:text-primary hover:not-disabled:underline hover:not-disabled:underline-offset-4',
+    'disabled:text-disabled',
+  ].join(' '),
+  destructive: [
+    'text-error',
+    'hover:not-disabled:underline hover:not-disabled:underline-offset-4',
+    'disabled:text-disabled',
+  ].join(' '),
+};
+
+/** `text` and `destructive` are words in a sentence, not slabs. */
+const PADDED: Record<ButtonVariant, boolean> = {
+  primary: true,
+  quiet: true,
+  text: false,
+  destructive: false,
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -30,8 +62,20 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly children: ReactNode;
 }
 
+function shape(variant: ButtonVariant, full: boolean): string {
+  if (!PADDED[variant]) {
+    // Still forty eight tall and the width of the form when it is a screen's
+    // own action. A text action is not a slab, but it is still a target.
+    return full ? 'min-h-48 w-full text-15' : 'min-h-44 text-14';
+  }
+
+  return full
+    ? 'min-h-48 w-full rounded-12 p-16 text-15'
+    : 'min-h-44 rounded-12 px-16 py-12 text-14';
+}
+
 export function Button({
-  variant = 'secondary',
+  variant = 'quiet',
   full = false,
   busy = false,
   disabled,
@@ -47,10 +91,10 @@ export function Button({
       // the press was taken and something is happening.
       aria-busy={busy}
       className={[
-        'inline-flex min-h-44 items-center justify-center gap-8 rounded-10 px-16 py-12',
-        'text-16 font-semibold transition-[opacity,border-color,background-color]',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-        full ? 'w-full' : '',
+        'relative inline-flex items-center justify-center gap-8 font-semibold',
+        'transition-[background-color,border-color,color,box-shadow,transform]',
+        'disabled:cursor-not-allowed',
+        shape(variant, full),
         VARIANTS[variant],
         className,
       ]
@@ -58,8 +102,17 @@ export function Button({
         .join(' ')}
       {...rest}
     >
-      {busy ? <Spinner /> : undefined}
-      {children}
+      {/*
+        The label stays where it is and turns transparent, so a button that
+        starts waiting does not change width and move everything under it.
+      */}
+      <span className={busy ? 'invisible' : undefined}>{children}</span>
+
+      {busy ? (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="neu-spin block size-16 rounded-full border-2 border-current border-t-transparent opacity-60" />
+        </span>
+      ) : undefined}
     </button>
   );
 }

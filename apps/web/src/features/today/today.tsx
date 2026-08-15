@@ -7,6 +7,9 @@ import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
 import { totals, useDeckTree } from '../../lib/decks';
 import { Button } from '../../ui/button';
+import { Card, GroupLabel } from '../../ui/card';
+import { Chip } from '../../ui/chip';
+import { Row } from '../../ui/row';
 import { EmptyState, ErrorState, Skeleton } from '../../ui/states';
 
 /**
@@ -40,14 +43,14 @@ export function TodayScreen() {
   const decks = useDeckTree();
 
   return (
-    <section className="flex flex-col gap-24 py-16">
-      <h1 className="text-24 font-semibold text-text">{t('today.title')}</h1>
+    <section className="flex flex-col gap-24">
+      <h1 className="font-display text-24 tracking-tight text-primary">{t('today.title')}</h1>
 
       {decks.isPending ? (
         <div className="flex flex-col gap-12" role="status" aria-label={t('common.loading')}>
-          <Skeleton className="h-32 w-[60%]" />
-          <Skeleton className="h-24 w-[40%]" />
-          <Skeleton className="h-44 w-full" />
+          <Skeleton className="h-56 w-[60%]" />
+          <Skeleton className="h-20 w-[40%]" />
+          <Skeleton className="h-48 w-full" />
         </div>
       ) : undefined}
 
@@ -85,59 +88,87 @@ function Waiting({ decks }: { readonly decks: readonly DeckNode[] }) {
     return <EmptyState title={t('today.emptyTitle')} description={t('today.emptyBody')} />;
   }
 
+  const waiting = decks.filter((deck) => deck.due > 0 || deck.fresh > 0);
+
   return (
     <div className="flex flex-col gap-24">
-      <div className="flex flex-col gap-8 rounded-14 border border-border bg-surface p-24">
-        <p className="text-32 font-semibold text-text tabular-nums">{due}</p>
-        <p className="text-16 text-text-dim">{t('today.waiting', { count: due })}</p>
+      <Card className="flex flex-col gap-20">
+        <div className="flex items-baseline gap-12">
+          <span
+            data-numeric=""
+            className="font-display text-56 leading-none tracking-tight text-primary"
+          >
+            {due}
+          </span>
 
-        {due > 0 ? (
-          <>
-            <p className="text-16 text-text">
-              {t('today.estimate', { minutes: estimateMinutes(due) })}
-            </p>
-            <p className="text-14 text-text-dim">{t('today.estimateHint')}</p>
-          </>
-        ) : undefined}
+          <div className="flex flex-col gap-4 pb-4">
+            <span className="text-15 leading-snug text-primary">{t('today.waitingLabel')}</span>
+            {due > 0 ? (
+              <span className="text-13 text-tertiary">
+                {t('today.estimate', { minutes: estimateMinutes(due) })}
+              </span>
+            ) : undefined}
+          </div>
+        </div>
 
         {fresh > 0 ? (
-          <>
-            <p className="mt-8 text-16 text-text">{t('today.newAvailable', { count: fresh })}</p>
-            <p className="text-14 text-text-dim">{t('today.newAvailableHint')}</p>
-          </>
-        ) : undefined}
-      </div>
-
-      {/*
-        The button is disabled and says why.
-
-        A disabled button fires no pointer events, so the tooltip cannot hang
-        off it. The span is what the tooltip is attached to, and it takes focus
-        so the reason reaches a keyboard as well as a mouse.
-      */}
-      <Tooltip.Provider delayDuration={200}>
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <span tabIndex={0} className="inline-block w-full rounded-10">
-              <Button variant="primary" full disabled>
-                {t('today.study')}
-              </Button>
+          <div className="flex flex-col gap-4">
+            <span data-numeric="" className="text-15 text-accent">
+              {fresh}
             </span>
-          </Tooltip.Trigger>
+            <span className="text-12 text-tertiary">{t('today.newLabel')}</span>
+          </div>
+        ) : undefined}
 
-          <Tooltip.Portal>
-            <Tooltip.Content
-              sideOffset={8}
-              className="max-w-[280px] rounded-10 border border-border bg-surface px-12 py-8 text-14 text-text"
-            >
-              {t('today.studyLater')}
-            </Tooltip.Content>
-          </Tooltip.Portal>
-        </Tooltip.Root>
-      </Tooltip.Provider>
+        {/*
+          The button is disabled and says why.
+
+          A disabled button fires no pointer events, so the tooltip cannot hang
+          off it. The span is what the tooltip is attached to, and it takes
+          focus so the reason reaches a keyboard as well as a mouse.
+        */}
+        <Tooltip.Provider delayDuration={200}>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <span tabIndex={0} className="inline-block w-full rounded-12">
+                <Button variant="primary" full disabled>
+                  {t('today.study')}
+                </Button>
+              </span>
+            </Tooltip.Trigger>
+
+            <Tooltip.Portal>
+              <Tooltip.Content
+                data-g="panel"
+                sideOffset={8}
+                className="max-w-[280px] rounded-12 px-12 py-8 text-13 text-primary"
+              >
+                {t('today.studyLater')}
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
+        </Tooltip.Provider>
+      </Card>
+
+      {waiting.length > 0 ? (
+        <div className="flex flex-col gap-12">
+          <GroupLabel>{t('today.waitingIn')}</GroupLabel>
+
+          <div className="flex flex-col gap-8">
+            {waiting.map((deck) => (
+              <Row
+                key={deck.id}
+                title={deck.name}
+                subtitle={t('today.deckCounts', { due: deck.due, fresh: deck.fresh })}
+                trailing={deck.due > 0 ? <Chip tone="due">{deck.due}</Chip> : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      ) : undefined}
 
       {/* In text as well, because a tooltip never appears on a phone. */}
-      <p className="text-14 text-text-dim">{t('today.studyLater')}</p>
+      <p className="text-13 leading-body text-tertiary">{t('today.studyLater')}</p>
     </div>
   );
 }

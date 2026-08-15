@@ -101,21 +101,21 @@ export function RecoveryCodes({
   return (
     <div className="flex flex-col gap-24">
       <div>
-        <h2 className="text-20 font-semibold text-text">{title}</h2>
-        <p className="mt-8 text-16 text-text-dim">{t('auth.recoveryCodes.subtitle')}</p>
+        <h2 className="text-20 font-semibold text-primary">{title}</h2>
+        <p className="mt-8 text-15 text-tertiary">{t('auth.recoveryCodes.subtitle')}</p>
       </div>
 
       {/*
         The warning, in the loudest place on the screen rather than under the
         codes where a phone would cut it off.
       */}
-      <p className="rounded-10 border border-warn bg-warn/10 px-16 py-12 text-16 text-text">
+      <p className="rounded-12 border border-warn bg-warn/10 px-16 py-12 text-15 text-primary">
         {t(warningKey)}
       </p>
 
-      <ul className="grid grid-cols-2 gap-8 rounded-10 border border-border bg-surface-2 p-16">
+      <ul className="grid grid-cols-2 gap-8 rounded-12 border border-subtle bg-raised p-16">
         {codes.map((code) => (
-          <li key={code} className="font-mono text-16 tracking-wide text-text tabular-nums">
+          <li key={code} className="font-mono text-15 tracking-wide text-primary tabular-nums">
             {formatRecoveryCode(code)}
           </li>
         ))}
