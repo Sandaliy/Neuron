@@ -29,7 +29,11 @@ export const API_BASE = '/api';
  * predicted need three different things done about them, and the person on
  * screen is the one who has to do it.
  */
-export const CLIENT_ERROR_CODES = ['network_unreachable', 'untrusted_origin', 'unexpected'] as const;
+export const CLIENT_ERROR_CODES = [
+  'network_unreachable',
+  'untrusted_origin',
+  'unexpected',
+] as const;
 
 export type ClientErrorCode = (typeof CLIENT_ERROR_CODES)[number];
 

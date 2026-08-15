@@ -110,6 +110,14 @@
   --text-14--line-height: var(--lh-body);
   --text-15: var(--t-4);
   --text-15--line-height: var(--lh-body);
+  /*
+   * Not a step on the type scale. The size below which iOS Safari zooms the
+   * page the moment a field is focused, and never zooms back out, which leaves
+   * the person scrolled sideways inside a form at 110%. Every field is set in
+   * it, and nothing else is.
+   */
+  --text-16: 16px;
+  --text-16--line-height: var(--lh-body);
   --text-17: var(--t-5);
   --text-17--line-height: var(--lh-snug);
   --text-20: var(--t-6);
@@ -198,12 +206,18 @@
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 
     /*
-     * How tall the floating tab bar is, and how far it sits off the bottom
-     * edge. Screens reserve both at the foot of the page so the bar never
-     * covers the last row of anything.
+     * How tall the floating tab bar is, and how far its bottom edge sits from
+     * the bottom of what is on screen. Screens reserve both at the foot of the
+     * page so the bar never covers the last row of anything.
+     *
+     * The inset is the safe area less twelve, not the safe area plus a gap. A
+     * phone's home indicator occupies 34 pixels and a floating bar is meant to
+     * sit close to it, the way the platform's own do; adding a gap on top of it
+     * left the bar hovering 54 pixels up, which reads as a bar that has come
+     * loose.
      */
     --bar-height: 60px;
-    --bar-gap: var(--u-5);
+    --bar-inset: max(calc(var(--safe-bottom) - 12px), 8px);
 
     /*
      * How much of the page the on-screen keyboard is covering, and how tall the
@@ -213,6 +227,19 @@
      */
     --keyboard-inset: 0px;
     --visual-viewport-height: 100svh;
+
+    /*
+     * How much of the layout viewport the browser's own furniture is covering
+     * at the bottom. `src/lib/viewport.ts` keeps it up to date, and it is zero
+     * when the thing covering the page is a keyboard instead.
+     *
+     * A `position: fixed` element is placed against the layout viewport, and on
+     * iOS that viewport extends underneath Safari's toolbar. Anything meant to
+     * sit at the bottom of what a person can actually see has to be lifted by
+     * this much, or it hides behind the toolbar when the toolbar is out and
+     * floats far too high when it is not.
+     */
+    --chrome-inset: 0px;
 
     background-color: var(--bg-canvas);
     -webkit-text-size-adjust: 100%;
@@ -373,8 +400,58 @@
    * discouraging it, so a caption that moves onto glass is corrected to the
    * secondary tone instead of failing quietly.
    */
-  [data-g] {
+  [data-g='bar'],
+  [data-g='tabbar'],
+  [data-g='sheet'],
+  [data-g='toast'],
+  [data-g='panel'],
+  [data-gscope='all'] [data-g='card'],
+  [data-gscope='all'] [data-g='row'] {
     --text-tertiary: var(--text-secondary);
+  }
+
+  /*
+   * Glass scope: which layers the effect reaches.
+   *
+   * `floating` is the default and the rule the system is designed around:
+   * nothing in the content flow is glass, so cards and rows are opaque and cost
+   * nothing per frame. `all` carries it onto them as well, which is the setting
+   * a person can turn on to see the difference and, on a long list, to feel the
+   * cost of it. The frame rate watchdog is what catches the second case.
+   */
+  [data-gscope='floating'] [data-g='card'],
+  [data-gscope='floating'] [data-g='row'] {
+    background: var(--surface-card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: var(--border-subtle);
+    box-shadow: var(--elev-1);
+  }
+
+  [data-gscope='floating'] [data-g='card']::after,
+  [data-gscope='floating'] [data-g='row']::after {
+    display: none;
+  }
+
+  /* On glass, a row keeps the hairline of light but not the chrome's shadow. */
+  [data-gscope='all'] [data-g='row'] {
+    box-shadow: var(--elev-1), var(--glass-rim);
+  }
+
+  /*
+   * A well is a hole in a surface rather than a layer above it, so it never
+   * joins the effect and never takes the nested tint.
+   */
+  [data-g] [data-g='panel-well'] {
+    background: var(--surface-sunken);
+    border: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  [data-g] [data-g='panel-well']::after {
+    display: none;
   }
 
   /* With the effect off there is no edge to draw and no tint to see through. */
@@ -512,8 +589,21 @@
     background: var(--fill-seg-thumb);
     box-shadow: var(--elev-1);
     transform: translate3d(calc(var(--seg-index) * 100%), 0, 0);
-    transition: transform var(--dur-2) var(--ease-spring);
+    /*
+     * The screen change duration, not the control one. A thumb that arrives in
+     * ninety milliseconds has not travelled as far as the eye is concerned; it
+     * has teleported. The platform's own segmented controls take about this
+     * long, and the spring is what makes the arrival read as a settle rather
+     * than a stop.
+     */
+    transition: transform var(--dur-3) var(--ease-spring);
     z-index: 0;
+  }
+
+  /* Pressed anywhere in the group, the thumb gives a little. */
+  [data-slot='segmented']:active [data-slot='segmented-thumb'],
+  [data-g='tabbar']:active [data-slot='tab-pill'] {
+    transform: translate3d(calc(var(--seg-index) * 100%), 0, 0) scale(0.97);
   }
 
   /*
@@ -531,6 +621,14 @@
   [data-tab]:active,
   [data-cell]:active {
     transform: scale(0.96);
+  }
+
+  /*
+   * A card or a row answers a press too, and by less than a control does. It is
+   * a larger thing, and a large thing moving the same distance reads as loose.
+   */
+  [data-row]:active:not(:disabled) {
+    transform: scale(0.99);
   }
 
   /*
@@ -558,6 +656,35 @@
   [data-row]:focus-visible {
     outline-offset: -2px;
     box-shadow: none;
+  }
+
+  /*
+   * The space a form is holding open gives way to the keyboard.
+   *
+   * Collapsed rather than transitioned: growing is a layout property, and the
+   * keyboard is already animating over the top of it.
+   */
+  [data-keyboard='open'] [data-gap] {
+    flex-grow: 0;
+  }
+
+  /*
+   * The tab bar goes away while the keyboard is up.
+   *
+   * It belongs to the bottom of the screen and the keyboard has taken that. It
+   * leaves downward, by transform, which is also the direction it will come
+   * back from.
+   */
+  [data-g='tabbar'] {
+    transition:
+      transform var(--dur-3) var(--ease-exit),
+      opacity var(--dur-2) var(--ease-exit);
+  }
+
+  [data-keyboard='open'] [data-g='tabbar'] {
+    transform: translate3d(0, 140%, 0);
+    opacity: 0;
+    pointer-events: none;
   }
 
   /* A bar gains its edge only once content has passed under it. */
@@ -715,6 +842,30 @@
   }
 }
 
+/* Something arriving in place rather than from somewhere: a chip, a bar. */
+@keyframes neu-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A screen arriving. Shorter than a push, because nothing travelled. */
+@keyframes neu-screen-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes neu-tick {
   from {
     opacity: 0;
@@ -763,58 +914,74 @@
  * Declared as utilities rather than plain classes so a variant can reach them:
  * a sheet is `data-[state=open]:neu-sheet-in`, and the duration and the curve
  * are decided here rather than at every call site.
+ *
+ * Every entrance fills `backwards` and never `both`. `both` holds the last
+ * keyframe on the element for as long as it lives, and a held transform, even
+ * `none`, keeps that element on a composited layer of its own for ever. On the
+ * library that made the container holding five hundred rows one 38,000 pixel
+ * layer, and the scroll fell from 60 frames a second to 8.7. Exits fill
+ * `forwards`, because something on its way out has to stay where it ended until
+ * it is unmounted.
  */
 @utility neu-enter-forward {
-  animation: neu-in-forward var(--dur-3) var(--ease-enter) both;
+  animation: neu-in-forward var(--dur-3) var(--ease-enter) backwards;
 }
 
 @utility neu-enter-back {
-  animation: neu-in-back var(--dur-3) var(--ease-enter) both;
+  animation: neu-in-back var(--dur-3) var(--ease-enter) backwards;
 }
 
 @utility neu-fade-in {
-  animation: neu-fade var(--dur-2) var(--ease-inout) both;
+  animation: neu-fade var(--dur-2) var(--ease-inout) backwards;
 }
 
 @utility neu-scrim-in {
-  animation: neu-fade var(--dur-3) var(--ease-inout) both;
+  animation: neu-fade var(--dur-3) var(--ease-inout) backwards;
 }
 
 @utility neu-sheet-in {
-  animation: neu-sheet-in var(--dur-4) var(--ease-enter) both;
+  animation: neu-sheet-in var(--dur-4) var(--ease-enter) backwards;
 }
 
 @utility neu-sheet-out {
-  animation: neu-sheet-out var(--dur-3) var(--ease-exit) both;
+  animation: neu-sheet-out var(--dur-3) var(--ease-exit) forwards;
 }
 
 @utility neu-panel-in {
-  animation: neu-panel-in var(--dur-3) var(--ease-enter) both;
+  animation: neu-panel-in var(--dur-3) var(--ease-enter) backwards;
 }
 
 @utility neu-panel-out {
-  animation: neu-panel-out var(--dur-2) var(--ease-exit) both;
+  animation: neu-panel-out var(--dur-2) var(--ease-exit) forwards;
 }
 
 @utility neu-reveal {
-  animation: neu-reveal var(--dur-2) var(--ease-enter) both;
+  animation: neu-reveal var(--dur-2) var(--ease-enter) backwards;
 }
 
 @utility neu-toast-in {
-  animation: neu-toast-in var(--dur-2) var(--ease-enter) both;
+  animation: neu-toast-in var(--dur-2) var(--ease-enter) backwards;
 }
 
 @utility neu-toast-out {
-  animation: neu-toast-out var(--dur-2) var(--ease-exit) both;
+  animation: neu-toast-out var(--dur-2) var(--ease-exit) forwards;
 }
 
 @utility neu-tick {
-  animation: neu-tick var(--dur-2) var(--ease-enter) both;
+  animation: neu-tick var(--dur-2) var(--ease-enter) backwards;
+}
+
+@utility neu-pop {
+  animation: neu-pop var(--dur-2) var(--ease-spring) backwards;
+}
+
+@utility neu-screen-in {
+  animation: neu-screen-in var(--dur-3) var(--ease-enter) backwards;
 }
 
 /* The only expressive motion in the system, and it happens once. */
 @utility neu-shake {
-  animation: neu-shake 320ms var(--ease-inout) both;
+  animation: neu-shake 320ms var(--ease-inout);
 }
 
 @utility neu-spin {
@@ -826,7 +993,7 @@
  * stagger that runs down a whole screen turns a transition into a performance.
  */
 @utility neu-rise {
-  animation: neu-rise var(--dur-3) var(--ease-enter) both;
+  animation: neu-rise var(--dur-3) var(--ease-enter) backwards;
 
   &:nth-child(1) {
     animation-delay: 0ms;
@@ -853,6 +1020,43 @@
     inset: 0;
     background: linear-gradient(90deg, transparent, var(--skeleton-sheen), transparent);
     animation: neu-shimmer 1400ms var(--ease-inout) infinite;
+  }
+}
+
+/*
+ * A screen arrives, and its first four blocks arrive a beat behind it.
+ *
+ * Written here rather than as a class on every screen, so a screen added later
+ * gets it by being a screen. Four and then it stops: a stagger that runs down a
+ * whole page turns a transition into a performance.
+ */
+@layer components {
+  [data-screen] > * {
+    animation: neu-rise var(--dur-3) var(--ease-enter) backwards;
+  }
+
+  [data-screen] > *:nth-child(1) {
+    animation-delay: 20ms;
+  }
+
+  [data-screen] > *:nth-child(2) {
+    animation-delay: 46ms;
+  }
+
+  [data-screen] > *:nth-child(3) {
+    animation-delay: 72ms;
+  }
+
+  [data-screen] > *:nth-child(n + 4) {
+    animation-delay: 98ms;
+  }
+
+  /*
+   * What hangs under an open deck arrives rather than appearing. The disclosure
+   * has already turned by then, so this is the answer to it.
+   */
+  [data-reveal] {
+    animation: neu-reveal var(--dur-2) var(--ease-enter) backwards;
   }
 }
 

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark" data-glass="full">
+<html lang="en" data-theme="dark" data-glass="full" data-gscope="floating">
   <head>
     <meta charset="utf-8" />
     <!--
@@ -78,6 +78,10 @@
 
           root.dataset.glass = glass;
           root.dataset.glassChoice = localStorage.getItem('neuron.glass') || 'full';
+
+          var scope = localStorage.getItem('neuron.glass-scope');
+
+          root.dataset.gscope = scope === 'all' ? 'all' : 'floating';
 
           if (localStorage.getItem('neuron.motion') === 'reduce') {
             root.dataset.motion = 'reduce';

@@ -9,12 +9,12 @@ import { useLocale, useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { authClient, changePassword, describeAuthError, signOut } from '../../lib/auth-client';
-import { GLASS_LEVELS, useGlass } from '../../preferences/glass';
+import { GLASS_LEVELS, GLASS_SCOPES, useGlass } from '../../preferences/glass';
 import { useMotion } from '../../preferences/motion';
 import { useTheme } from '../../theme/use-theme';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel, RowGroup } from '../../ui/card';
-import { Dialog } from '../../ui/dialog';
+import { DIALOG_FORM, Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
 import { Row, RowChevron } from '../../ui/row';
@@ -27,7 +27,7 @@ import { RecoveryCodes } from '../auth/recovery-codes';
 
 import { TotpEnrollment, TotpRemoval } from './totp';
 
-import type { GlassLevel } from '../../preferences/glass';
+import type { GlassLevel, GlassScope } from '../../preferences/glass';
 import type { ReactNode } from 'react';
 
 /**
@@ -42,7 +42,7 @@ export function SettingsScreen() {
   const account = useAccount();
 
   return (
-    <section className="flex flex-col gap-32">
+    <section data-screen="" className="flex flex-col gap-32">
       <h1 className="font-display text-24 tracking-tight text-primary">{t('settings.title')}</h1>
 
       {account.isPending ? <SkeletonRows rows={6} /> : undefined}
@@ -102,7 +102,7 @@ function Appearance() {
   const t = useTranslate();
   const { theme, setTheme } = useTheme();
   const { locale, setLocale } = useLocale();
-  const { glass, capReason, setGlass } = useGlass();
+  const { glass, effective, capReason, scope, setGlass, setGlassScope } = useGlass();
   const { motion, setMotion } = useMotion();
 
   const themeLabels: Record<Theme, string> = {
@@ -116,6 +116,16 @@ function Appearance() {
     subtle: t('settings.glass.subtle'),
     full: t('settings.glass.full'),
   };
+
+  const scopeLabels: Record<GlassScope, string> = {
+    floating: t('settings.glassScope.floating'),
+    all: t('settings.glassScope.all'),
+  };
+
+  // With the effect off the scope choice has nothing to act on. The group says
+  // so and dims rather than disappearing: a control that vanishes teaches
+  // nobody why it went.
+  const scopeIdle = effective === 'off';
 
   // The name of a language is written in that language. A Russian speaker
   // hunting for their language should not have to read the word "Russian".
@@ -149,6 +159,19 @@ function Appearance() {
             value={glass}
             onChange={setGlass}
             options={GLASS_LEVELS.map((value) => ({ value, label: glassLabels[value] }))}
+          />
+        </Setting>
+
+        <Setting
+          label={t('settings.glassScope')}
+          hint={scopeIdle ? t('settings.glassScopeOff') : t('settings.glassScopeHint')}
+        >
+          <Segmented
+            label={t('settings.glassScope')}
+            value={scope}
+            onChange={setGlassScope}
+            disabled={scopeIdle}
+            options={GLASS_SCOPES.map((value) => ({ value, label: scopeLabels[value] }))}
           />
         </Setting>
 
@@ -311,42 +334,46 @@ function ChangePassword({ onDone }: { readonly onDone: () => void }) {
 
   return (
     <form
-      className="flex flex-col gap-16"
+      className={DIALOG_FORM}
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
       }}
     >
-      <PasswordField
-        label={t('settings.currentPassword')}
-        value={current}
-        onChange={setCurrent}
-        autoComplete="current-password"
-      />
+      <DialogBody>
+        <PasswordField
+          label={t('settings.currentPassword')}
+          value={current}
+          onChange={setCurrent}
+          autoComplete="current-password"
+        />
 
-      <PasswordField
-        label={t('settings.newPassword')}
-        value={next}
-        onChange={setNext}
-        autoComplete="new-password"
-        checkStrength
-      />
+        <PasswordField
+          label={t('settings.newPassword')}
+          value={next}
+          onChange={setNext}
+          autoComplete="new-password"
+          checkStrength
+        />
 
-      {error ? (
-        <p role="alert" className="text-13 text-error">
-          {t(error.key, error.values)}
-        </p>
-      ) : undefined}
+        {error ? (
+          <p role="alert" className="text-13 text-error">
+            {t(error.key, error.values)}
+          </p>
+        ) : undefined}
+      </DialogBody>
 
-      <Button
-        type="submit"
-        variant="primary"
-        full
-        busy={busy}
-        disabled={current.length === 0 || !isAcceptablePassword(next)}
-      >
-        {t('common.save')}
-      </Button>
+      <DialogFooter>
+        <Button
+          type="submit"
+          variant="primary"
+          full
+          busy={busy}
+          disabled={current.length === 0 || !isAcceptablePassword(next)}
+        >
+          {t('common.save')}
+        </Button>
+      </DialogFooter>
     </form>
   );
 }
@@ -384,28 +411,32 @@ function RegenerateCodes({ onIssued }: { readonly onIssued: (codes: readonly str
 
   return (
     <form
-      className="flex flex-col gap-16"
+      className={DIALOG_FORM}
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
       }}
     >
-      <PasswordField
-        label={t('auth.twoFactor.password')}
-        value={password}
-        onChange={setPassword}
-        autoComplete="current-password"
-      />
+      <DialogBody>
+        <PasswordField
+          label={t('auth.twoFactor.password')}
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+        />
 
-      {error ? (
-        <p role="alert" className="text-13 text-error">
-          {t(error.key, error.values)}
-        </p>
-      ) : undefined}
+        {error ? (
+          <p role="alert" className="text-13 text-error">
+            {t(error.key, error.values)}
+          </p>
+        ) : undefined}
+      </DialogBody>
 
-      <Button type="submit" variant="primary" full busy={busy} disabled={password.length === 0}>
-        {t('auth.recoveryCodes.regenerate')}
-      </Button>
+      <DialogFooter>
+        <Button type="submit" variant="primary" full busy={busy} disabled={password.length === 0}>
+          {t('auth.recoveryCodes.regenerate')}
+        </Button>
+      </DialogFooter>
     </form>
   );
 }
@@ -498,34 +529,38 @@ function DeleteAccount() {
 
   return (
     <form
-      className="flex flex-col gap-16"
+      className={DIALOG_FORM}
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
       }}
     >
-      <FormField label={t('settings.deleteAccountConfirm')} hint={phrase}>
-        {(props) => (
-          <Input
-            {...props}
-            value={typed}
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            onChange={(event) => setTyped(event.target.value)}
-          />
-        )}
-      </FormField>
+      <DialogBody>
+        <FormField label={t('settings.deleteAccountConfirm')} hint={phrase}>
+          {(props) => (
+            <Input
+              {...props}
+              value={typed}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              onChange={(event) => setTyped(event.target.value)}
+            />
+          )}
+        </FormField>
 
-      {error ? (
-        <p role="alert" className="text-13 text-error">
-          {t(error.key, error.values)}
-        </p>
-      ) : undefined}
+        {error ? (
+          <p role="alert" className="text-13 text-error">
+            {t(error.key, error.values)}
+          </p>
+        ) : undefined}
+      </DialogBody>
 
-      <Button type="submit" variant="destructive" full busy={busy} disabled={typed !== phrase}>
-        {t('settings.deleteAccount')}
-      </Button>
+      <DialogFooter>
+        <Button type="submit" variant="destructive" full busy={busy} disabled={typed !== phrase}>
+          {t('settings.deleteAccount')}
+        </Button>
+      </DialogFooter>
     </form>
   );
 }

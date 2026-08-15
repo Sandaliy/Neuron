@@ -120,6 +120,34 @@ describe('motion', () => {
     }
   });
 
+  /**
+   * No entrance holds its last keyframe.
+   *
+   * `animation-fill-mode: both` leaves the final keyframe applied to the element
+   * for as long as it lives, and a held transform, even `none`, keeps that
+   * element on a composited layer of its own for ever. The screen stagger did
+   * that to the container holding five hundred rows, and the library scroll fell
+   * from 60 frames a second to 8.7 until the fill mode was changed to
+   * `backwards`.
+   */
+  it('never leaves an entrance holding its last keyframe', () => {
+    const held = [...stylesheet.matchAll(/animation:\s*(neu-[\w-]+)[^;]*\bboth\b/g)].map(
+      ([, name]) => name as string,
+    );
+
+    expect(held).toEqual([]);
+  });
+
+  it('lets an exit hold where it ended', () => {
+    // Something on its way out has to stay where it finished until whatever is
+    // unmounting it gets around to it.
+    for (const name of ['neu-sheet-out', 'neu-panel-out', 'neu-toast-out']) {
+      const rule = new RegExp(String.raw`animation:\s*${name}[^;]*forwards`);
+
+      expect(rule.test(stylesheet), name).toBe(true);
+    }
+  });
+
   it('collapses every duration when less movement is asked for', () => {
     expect(stylesheet).toContain('@media (prefers-reduced-motion: reduce)');
     expect(stylesheet).toContain("[data-motion='reduce'] *");

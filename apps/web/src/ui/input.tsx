@@ -21,7 +21,7 @@ export function Input({ invalid = false, busy = false, className = '', ...rest }
       aria-invalid={invalid || undefined}
       aria-busy={busy || undefined}
       className={[
-        'min-h-44 w-full rounded-12 border bg-input px-16 py-12 text-15 text-primary',
+        'min-h-44 w-full rounded-12 border bg-input px-16 py-12 text-16 text-primary',
         'transition-[border-color,background-color] placeholder:text-tertiary',
         'disabled:cursor-not-allowed disabled:border-subtle disabled:bg-sunken disabled:text-disabled',
         invalid ? 'border-error' : 'border-default hover:border-strong',

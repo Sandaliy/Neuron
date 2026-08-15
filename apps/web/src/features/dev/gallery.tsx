@@ -68,6 +68,27 @@ export function GalleryScreen() {
             )),
           )}
         </div>
+
+        <GroupLabel>Where it applies</GroupLabel>
+
+        <p className="max-w-[64ch] text-14 leading-read text-secondary">
+          Panels only is the default and the rule the system is designed around. Panels and cards
+          carries the effect into the content flow, which is one blurred layer per card on every
+          scrolled frame.
+        </p>
+
+        <div className="grid gap-20 sm:grid-cols-2">
+          {(['floating', 'all'] as const).map((scope) => (
+            <div key={scope} data-gscope={scope} className="flex flex-col gap-8">
+              <State>{scope === 'floating' ? 'panels only' : 'panels and cards'}</State>
+              <Card className="flex flex-col gap-8">
+                <span className="text-15 text-primary">Deutsch</span>
+                <span className="text-13 text-tertiary">1 240 notes · 30 to review</span>
+              </Card>
+              <Row title="Verben mit Dativ" subtitle="500 notes · 4 new" />
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   );

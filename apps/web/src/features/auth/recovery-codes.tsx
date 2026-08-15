@@ -5,7 +5,9 @@ import type { MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { Button } from '../../ui/button';
+import { Panel } from '../../ui/card';
 import { Checkbox } from '../../ui/checkbox';
+import { DIALOG_FORM, DialogBody, DialogFooter } from '../../ui/dialog';
 import { useToast } from '../../ui/toast';
 
 /**
@@ -99,73 +101,83 @@ export function RecoveryCodes({
   const text = codes.map(formatRecoveryCode).join('\n');
 
   return (
-    <div className="flex flex-col gap-24">
-      <div>
-        <h2 className="text-20 font-semibold text-primary">{title}</h2>
-        <p className="mt-8 text-15 text-tertiary">{t('auth.recoveryCodes.subtitle')}</p>
-      </div>
+    <div className={DIALOG_FORM}>
+      <DialogBody>
+        <div>
+          <h2 className="font-display text-20 tracking-snug text-primary">{title}</h2>
+          <p className="mt-8 text-14 leading-body text-secondary">
+            {t('auth.recoveryCodes.subtitle')}
+          </p>
+        </div>
 
-      {/*
-        The warning, in the loudest place on the screen rather than under the
-        codes where a phone would cut it off.
-      */}
-      <p className="rounded-12 border border-warn bg-warn/10 px-16 py-12 text-15 text-primary">
-        {t(warningKey)}
-      </p>
+        {/*
+          The warning, in the loudest place on the screen rather than under the
+          codes where a phone would cut it off. A well rather than a coloured
+          panel: the signal hue is for error text and never for an area this
+          size, and a block of its own is loud enough.
+        */}
+        <Panel>
+          <p className="text-14 leading-body text-primary">{t(warningKey)}</p>
+        </Panel>
 
-      <ul className="grid grid-cols-2 gap-8 rounded-12 border border-subtle bg-raised p-16">
-        {codes.map((code) => (
-          <li key={code} className="font-mono text-15 tracking-wide text-primary tabular-nums">
-            {formatRecoveryCode(code)}
-          </li>
-        ))}
-      </ul>
+        <Panel>
+          <ul className="grid grid-cols-2 gap-8">
+            {codes.map((code) => (
+              <li key={code} className="font-mono text-15 tracking-wide text-primary tabular-nums">
+                {formatRecoveryCode(code)}
+              </li>
+            ))}
+          </ul>
+        </Panel>
 
-      <div className="flex flex-col gap-12 sm:flex-row">
+        <div className="flex flex-col gap-12 sm:flex-row">
+          <Button
+            full
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(text)
+                .then(() => toast.show(t('auth.recoveryCodes.copied')));
+            }}
+          >
+            {t('auth.recoveryCodes.copy')}
+          </Button>
+
+          <Button
+            full
+            onClick={() => {
+              const blob = new Blob([`${text}\n`], { type: 'text/plain' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+
+              link.href = url;
+              link.download = t('auth.recoveryCodes.fileName');
+              link.click();
+
+              URL.revokeObjectURL(url);
+            }}
+          >
+            {t('auth.recoveryCodes.download')}
+          </Button>
+        </div>
+
+        <Checkbox checked={saved} onChange={setSaved}>
+          {t('auth.recoveryCodes.confirm')}
+        </Checkbox>
+      </DialogBody>
+
+      <DialogFooter>
         <Button
+          variant="primary"
           full
+          disabled={!saved}
           onClick={() => {
-            void navigator.clipboard
-              .writeText(text)
-              .then(() => toast.show(t('auth.recoveryCodes.copied')));
+            releaseCodes();
+            onConfirmed();
           }}
         >
-          {t('auth.recoveryCodes.copy')}
+          {t('common.continue')}
         </Button>
-
-        <Button
-          full
-          onClick={() => {
-            const blob = new Blob([`${text}\n`], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-
-            link.href = url;
-            link.download = t('auth.recoveryCodes.fileName');
-            link.click();
-
-            URL.revokeObjectURL(url);
-          }}
-        >
-          {t('auth.recoveryCodes.download')}
-        </Button>
-      </div>
-
-      <Checkbox checked={saved} onChange={setSaved}>
-        {t('auth.recoveryCodes.confirm')}
-      </Checkbox>
-
-      <Button
-        variant="primary"
-        full
-        disabled={!saved}
-        onClick={() => {
-          releaseCodes();
-          onConfirmed();
-        }}
-      >
-        {t('common.continue')}
-      </Button>
+      </DialogFooter>
     </div>
   );
 }

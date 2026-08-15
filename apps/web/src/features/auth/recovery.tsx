@@ -177,7 +177,7 @@ export function NewPasswordScreen({ remaining }: { readonly remaining?: number }
       subtitle={t('auth.recovery.setPasswordHint')}
     >
       {remaining !== undefined ? (
-        <p className={low ? 'text-14 text-warn' : 'text-14 text-tertiary'}>
+        <p className={low ? 'text-14 text-error' : 'text-14 text-tertiary'}>
           {low
             ? t('auth.recoveryCodes.low', { count: remaining })
             : t('auth.recoveryCodes.remaining', { count: remaining })}

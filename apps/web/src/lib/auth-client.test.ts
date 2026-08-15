@@ -14,7 +14,7 @@ describe('describing an authentication failure', () => {
     );
   });
 
-  it('speaks Neuron\'s own codes without translating them twice', () => {
+  it("speaks Neuron's own codes without translating them twice", () => {
     expect(describeAuthError({ code: 'registration_closed', status: 403 }).key).toBe(
       'error.registration_closed',
     );

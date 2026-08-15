@@ -36,6 +36,20 @@ export type GlassLevel = (typeof GLASS_LEVELS)[number];
 /** What the mockup recommends, and what a device with no complaints gets. */
 export const DEFAULT_GLASS: GlassLevel = 'full';
 
+/**
+ * Which layers the effect reaches.
+ *
+ * `floating` is the rule the system is designed around: nothing in the content
+ * flow is glass. `all` carries it onto cards and rows as well, which is a
+ * setting rather than a default because it is the person's phone that pays for
+ * it, one blurred layer per card per frame.
+ */
+export const GLASS_SCOPES = ['floating', 'all'] as const;
+
+export type GlassScope = (typeof GLASS_SCOPES)[number];
+
+export const DEFAULT_GLASS_SCOPE: GlassScope = 'floating';
+
 /** Why the level on screen is below the one that was chosen. */
 export type GlassCapReason = 'motion' | 'memory' | 'frames';
 
@@ -105,6 +119,19 @@ function paint(): void {
   paintWith(preference.get());
 }
 
+const scopePreference = createDevicePreference<GlassScope>({
+  key: STORAGE_KEYS.glassScope,
+  fallback: () => DEFAULT_GLASS_SCOPE,
+  parse: (raw) =>
+    (GLASS_SCOPES as readonly string[]).includes(raw) ? (raw as GlassScope) : undefined,
+  serialise: (value) => value,
+  apply: (value) => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset['gscope'] = value;
+    }
+  },
+});
+
 const preference = createDevicePreference<GlassLevel>({
   key: STORAGE_KEYS.glass,
   fallback: () => DEFAULT_GLASS,
@@ -150,13 +177,20 @@ export function setGlass(level: GlassLevel): void {
   announce();
 }
 
+export function setGlassScope(scope: GlassScope): void {
+  scopePreference.set(scope);
+  announce();
+}
+
 function subscribe(listener: () => void): () => void {
   const drop = preference.subscribe(listener);
+  const dropScope = scopePreference.subscribe(listener);
 
   listeners.add(listener);
 
   return () => {
     drop();
+    dropScope();
     listeners.delete(listener);
   };
 }
@@ -168,13 +202,17 @@ export interface GlassValue {
   readonly effective: GlassLevel;
   /** Set when the two differ. */
   readonly capReason: GlassCapReason | undefined;
+  /** Which layers the effect reaches. */
+  readonly scope: GlassScope;
   readonly setGlass: (level: GlassLevel) => void;
+  readonly setGlassScope: (scope: GlassScope) => void;
 }
 
 export function useGlass(): GlassValue {
   const glass = useSyncExternalStore(subscribe, preference.get, preference.get);
   const effective = useSyncExternalStore(subscribe, effectiveGlass, () => DEFAULT_GLASS);
   const capReason = useSyncExternalStore(subscribe, glassCapReason, () => undefined);
+  const scope = useSyncExternalStore(subscribe, scopePreference.get, () => DEFAULT_GLASS_SCOPE);
 
-  return { glass, effective, capReason, setGlass };
+  return { glass, effective, capReason, scope, setGlass, setGlassScope };
 }

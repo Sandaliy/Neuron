@@ -83,8 +83,9 @@ const NUMERIC_SPACING = new RegExp(
 const ALLOWED_IN_BRACKETS = [
   '--safe-',
   '--bar-height',
-  '--bar-gap',
+  '--bar-inset',
   '--keyboard-inset',
+  '--chrome-inset',
   '--visual-viewport-height',
 ];
 

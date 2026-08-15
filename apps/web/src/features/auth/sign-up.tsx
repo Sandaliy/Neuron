@@ -37,8 +37,13 @@ export function SignUpScreen() {
   const [codes, setCodes] = useState<readonly string[] | undefined>(() => heldCodes());
 
   if (codes) {
+    /*
+     * A column as tall as the screen, so the codes scroll inside it and the
+     * button that finishes setting up stays where a thumb is. The same shape
+     * the sheet gives it in settings.
+     */
     return (
-      <div className="mx-auto w-full max-w-[520px] px-16 pt-[calc(var(--safe-top)+32px)] pb-[calc(var(--safe-bottom)+24px)]">
+      <div className="mx-auto flex h-dvh w-full max-w-[520px] flex-col px-20 pt-[calc(var(--safe-top)+32px)] pb-[calc(var(--safe-bottom)+20px+var(--keyboard-inset))]">
         <RecoveryCodes
           codes={codes}
           title={t('auth.recoveryCodes.title')}

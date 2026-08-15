@@ -12,6 +12,7 @@ export const STORAGE_KEYS = {
   theme: 'neuron.theme',
   locale: 'neuron.locale',
   glass: 'neuron.glass',
+  glassScope: 'neuron.glass-scope',
   motion: 'neuron.motion',
   openDecks: 'neuron.library.open',
 } as const;

@@ -24,7 +24,7 @@ export function Select({ invalid = false, className = '', children, ...rest }: S
         aria-invalid={invalid || undefined}
         className={[
           'min-h-44 w-full appearance-none rounded-12 border bg-input py-12 pr-40 pl-16',
-          'text-15 text-primary transition-[border-color]',
+          'text-16 text-primary transition-[border-color]',
           'disabled:cursor-not-allowed disabled:border-subtle disabled:bg-sunken disabled:text-disabled',
           invalid ? 'border-error' : 'border-default hover:border-strong',
           className,

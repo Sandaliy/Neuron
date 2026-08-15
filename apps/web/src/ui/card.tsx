@@ -50,8 +50,9 @@ export function RowGroup({
 }) {
   return (
     <div
+      data-g="card"
       data-rows=""
-      className={`overflow-hidden rounded-24 border border-subtle bg-card shadow-1 ${className}`.trimEnd()}
+      className={`overflow-hidden rounded-24 border ${className}`.trimEnd()}
     >
       {children}
     </div>

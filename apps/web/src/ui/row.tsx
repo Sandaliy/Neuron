@@ -52,7 +52,7 @@ export function Row(props: RowShape) {
   const shell = [
     'flex w-full min-h-44 items-center gap-12 px-16 py-12 text-left',
     'transition-[background-color,transform,border-color]',
-    standalone ? 'rounded-12 border border-subtle bg-card shadow-1' : '',
+    standalone ? 'rounded-12 border' : '',
     onClick && !disabled ? 'hover:bg-raised' : '',
     disabled ? 'opacity-45' : '',
     className,
@@ -61,13 +61,18 @@ export function Row(props: RowShape) {
     .join(' ');
 
   if (!onClick) {
-    return <div className={shell}>{body(props)}</div>;
+    return (
+      <div {...(standalone ? { 'data-g': 'row' } : {})} className={shell}>
+        {body(props)}
+      </div>
+    );
   }
 
   return (
     <button
       type="button"
       data-row=""
+      {...(standalone ? { 'data-g': 'row' } : {})}
       disabled={disabled}
       aria-expanded={expanded}
       onClick={onClick}
@@ -114,7 +119,11 @@ export function TreeRow({
 
 /** What hangs under an open deck: one indent, one hairline, per level. */
 export function TreeChildren({ children }: { readonly children: ReactNode }) {
-  return <div className="ml-20 flex flex-col gap-8 border-l border-subtle pl-16">{children}</div>;
+  return (
+    <div data-reveal="" className="ml-20 flex flex-col gap-8 border-l border-subtle pl-16">
+      {children}
+    </div>
+  );
 }
 
 /**

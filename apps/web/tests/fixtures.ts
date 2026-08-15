@@ -135,12 +135,22 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
  */
 export async function usePreferences(
   page: Page,
-  preferences: { theme?: string; locale?: string; glass?: string; motion?: string },
+  preferences: {
+    theme?: string;
+    locale?: string;
+    glass?: string;
+    glassScope?: string;
+    motion?: string;
+  },
 ): Promise<void> {
   await page.addInitScript(
     (values: Record<string, string>) => {
       for (const [key, value] of Object.entries(values)) {
-        window.localStorage.setItem(`neuron.${key}`, value);
+        // `glassScope` is stored as `neuron.glass-scope`, which is the one key
+        // whose name is not the property's name.
+        const suffix = key === 'glassScope' ? 'glass-scope' : key;
+
+        window.localStorage.setItem(`neuron.${suffix}`, value);
       }
     },
     preferences as Record<string, string>,

@@ -114,6 +114,11 @@ Components name a role rather than a family: `font-ui`, `font-display`, `font-re
 All four resolve to the same stack today. The mockup's second option sets the words in a reading serif,
 and switching to it is two lines in `tokens.css` and nothing anywhere else.
 
+**Every field is 16px**, which is not a step on the scale. Below sixteen, iOS Safari zooms the page the
+moment a field is focused and never zooms back out, and the whole app is left at about 110% and
+scrolled sideways. It is a platform rule rather than a design decision, `--text-16` says so where it is
+defined, and `tests/keyboard.spec.ts` fails if any field drops below it.
+
 ---
 
 ## Component inventory
@@ -180,6 +185,24 @@ The second tint number is for a sheet, which sits over a scrim that has already 
 can therefore be sheerer. Off is not a failure state: it is what a browser without `backdrop-filter`
 already gets, and what the declared fallback background paints first in every case.
 
+### Where it applies
+
+A second setting, and the reason the first rule exists.
+
+| Scope      | What carries the effect                        |
+| ---------- | ---------------------------------------------- |
+| `floating` | Bars, the tab bar, sheets, toasts. The default |
+| `all`      | Those, plus every card and every list row      |
+
+`floating` is the rule the system is designed around. `all` is offered because it is the person's
+phone that pays for it and they can hear the difference: on the five hundred row library the same
+scroll goes from **60.0 fps with no blurred rows** to **56.5 fps with five hundred of them**, and on a
+device half as fast again it falls apart. Both numbers come from `tests/performance.spec.ts`, which
+measures each scope on every run.
+
+With the effect off the scope has nothing to act on, so the group dims to 40% and its cells report
+`aria-disabled` rather than disappearing. A control that vanishes teaches nobody why it went.
+
 ### The setting, and the ceiling
 
 Settings › Appearance carries the choice, and it is a device preference: applied before React exists,
@@ -205,9 +228,16 @@ again.
 in a 375 by 812 viewport at two device pixels per css pixel, with the processor throttled to a quarter
 speed through the debugger. The budget is 55 frames a second.
 
-Measured: **60.0 fps, worst frame 16.8 ms**. That is the display cap with no frame dropped. The same
-harness reports 58.4 fps at ten times throttling and 21.0 fps at twenty, so the number is a measurement
-and not a ceiling the test cannot see past.
+Measured, at the default and with the effect carried onto every row:
+
+| Scope            | Frames a second | Worst frame | Blurred rows |
+| ---------------- | --------------- | ----------- | ------------ |
+| Panels only      | **60.0**        | 16.8 ms     | 0            |
+| Panels and cards | 56.5            | 33.4 ms     | 500          |
+
+Sixty is the display cap with no frame dropped. The same harness reports 58.7 fps at ten times
+throttling for the default and 23.4 for panels and cards, so the number is a measurement and not a
+ceiling the test cannot see past.
 
 ---
 
@@ -215,6 +245,18 @@ and not a ceiling the test cannot see past.
 
 Transform and opacity only. Never height, width, top, left, or filter.
 
+**Every entrance fills `backwards`, never `both`.** `both` holds the last keyframe on the element for
+as long as it lives, and a held transform, even `none`, keeps that element on a composited layer of its
+own for ever. The screen stagger did exactly that to the container holding five hundred rows, and the
+library scroll fell from 60 frames a second to 8.7 with nothing on screen looking any different. Exits
+fill `forwards`, because something on its way out has to stay where it ended until it is unmounted.
+`src/styles/motion.test.ts` fails the build on `both`.
+
+- A screen arrives: 6px up and a fade over `--dur-3`, replayed whenever the route changes. The tabs are
+  siblings, so nothing travels sideways between them, and what says the screen changed is that it
+  arrives rather than appears.
+- Its first four blocks arrive a beat behind it, 26ms apart, then it stops. Written once against
+  `[data-screen] > *`, so a screen added later gets it by being a screen.
 - Forward navigation enters from the right at 14px, backward from the left. The direction is a spatial
   claim and has to match the hierarchy.
 - Sheets rise from the bottom edge over `--dur-4` with `ease-enter` and leave over `--dur-3` with
@@ -224,6 +266,17 @@ Transform and opacity only. Never height, width, top, left, or filter.
 - The card reveal moves 10px and scales .99 to 1 over `--dur-2`. It says the answer was already there.
 - A pushed screen brings its content a beat behind itself: four rows, 26ms apart, then it stops.
 - The focus ring is instant. The halo behind it fades over `--dur-1`.
+- What hangs under an open deck arrives with the reveal. The disclosure has already turned by then, so
+  the movement is the answer to it.
+- Something appearing in place rather than from somewhere pops: a chip, a strength bar, `--dur-2` on
+  the spring, from 0.92.
+- A press answers everywhere, and by less the larger the thing is: a control gives 0.985, a card or a
+  row 0.99, a tab or a segmented cell 0.96. A large thing moving as far as a small one reads as loose.
+- The segmented thumb and the tab pill travel over `--dur-3` on the spring, and give a little when the
+  group is pressed. At `--dur-1` a thumb has not travelled as far as the eye is concerned, it has
+  teleported; the platform's own controls take about this long, and the spring is what makes the
+  arrival read as a settle rather than a stop.
+- The tab bar leaves downward when the keyboard arrives, and comes back the same way.
 - Errors shake once, 320ms, 4px. That is the only expressive motion in the system.
 - No loops except the spinner and the skeleton sheen, and both stop when content arrives.
 - `prefers-reduced-motion` collapses every duration to 1ms. States still change, nothing travels. The
@@ -233,6 +286,46 @@ Checked three ways: `src/styles/motion.test.ts` reads every keyframe in the styl
 no screen uses yet; `tests/motion.spec.ts` reads computed durations out of a real browser with the media
 feature emulated and with the switch set; and the screenshot tests run with animations disabled so a
 movement cannot hide a layout change.
+
+---
+
+## The keyboard, and where the bottom of the screen is
+
+The two hardest things about a phone browser, and the two the interface was worst at.
+
+**A `position: fixed` element is placed against the layout viewport**, and on iOS that viewport runs on
+underneath Safari's toolbar. A bar at `bottom: 0` therefore hides behind the toolbar while the toolbar
+is out, and floats far too high once it retracts. `src/lib/viewport.ts` measures the difference between
+the layout viewport and the visual one and publishes it as two variables, because two different things
+need two different answers:
+
+| Variable                   | Is                                                        | Used by                                 |
+| -------------------------- | --------------------------------------------------------- | --------------------------------------- |
+| `--keyboard-inset`         | The gap when it is a keyboard, and zero otherwise         | Sheets, and the padding a form reserves |
+| `--chrome-inset`           | The gap when it is the browser's own furniture, else zero | The tab bar                             |
+| `--visual-viewport-height` | How tall the part on screen actually is                   | A sheet's maximum height                |
+| `data-keyboard` on `html`  | `open` or `closed`                                        | Anything that hides for the keys        |
+
+The tab bar's own offset is `max(safe-area-inset-bottom - 12px, 8px)`, not the safe area plus a gap. A
+phone's home indicator occupies 34 pixels and a floating bar is meant to sit close to it, the way the
+platform's own do; a gap on top of that left the bar hovering 54 pixels up, which reads as a bar that
+has come loose.
+
+**A sheet is three parts, not one scrolling block.** A heading that stays, a body that scrolls, and a
+footer that stays. That is what keeps the action reachable with the keyboard up: the sheet's height is
+bound to `--visual-viewport-height`, the body takes whatever is left, and the action never moves.
+Compose one with `DialogBody`, `DialogFooter` and, when there is a form involved, `DIALOG_FORM` on the
+form itself so the form is the column rather than the sheet.
+
+**A full page form gives its space back instead.** The gap holding the heading apart from the fields
+collapses when the keyboard opens, and the padding underneath grows by the keyboard's height so there
+is somewhere to scroll to. Before that the page was exactly as tall as the screen, there was nowhere to
+scroll, and the button sat behind the keys.
+
+**The tab bar leaves.** It belongs to the bottom of the screen and the keyboard has taken that.
+
+All six of these are checked in `tests/keyboard.spec.ts`, which stages a 336 pixel keyboard by setting
+the three variables the tracker sets and then measures where things actually are.
 
 ---
 
@@ -347,7 +440,9 @@ The full string list, with what is wrong with each, is in `docs/copy-audit.md`, 
 6. Check both themes and glass off. Anything that only works in one of them is not built yet.
 7. Measure any new colour pairing and write the ratio next to it. AA is the floor.
 8. Add it to the gallery at `/dev/components`, and add a screenshot test.
-9. Scroll it on a phone. Below 55 frames a second the screen changes, not the phone.
+9. If it has a field, open it with the keyboard up and check the action is still reachable. A sheet
+   uses `DialogBody` and `DialogFooter`; a full page form reserves `--keyboard-inset` underneath.
+10. Scroll it on a phone. Below 55 frames a second the screen changes, not the phone.
 
 ---
 

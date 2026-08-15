@@ -164,6 +164,12 @@ export const ru: Messages = {
   'settings.glass.subtle': 'Умеренно',
   'settings.glass.full': 'Максимум',
   'settings.glassHint': 'Убавь, если прокрутка на телефоне дёргается.',
+  'settings.glassScope': 'Где применять',
+  'settings.glassScope.floating': 'Только панели',
+  'settings.glassScope.all': 'Панели и карточки',
+  'settings.glassScopeHint':
+    'Карточки и строки — это содержимое, и стекло на каждой из них оплачивается на каждом кадре прокрутки.',
+  'settings.glassScopeOff': 'Пока стекло выключено, применять нечего.',
   'settings.glassCapped.motion':
     'Система просит меньше движения, поэтому панели идут на «Умеренно».',
   'settings.glassCapped.memory':

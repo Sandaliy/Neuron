@@ -41,6 +41,7 @@ function variables() {
 
   return {
     inset: style.getPropertyValue('--keyboard-inset'),
+    chrome: style.getPropertyValue('--chrome-inset'),
     height: style.getPropertyValue('--visual-viewport-height'),
   };
 }
@@ -51,7 +52,7 @@ describe('tracking the visual viewport', () => {
 
     stop = trackViewport();
 
-    expect(variables()).toEqual({ inset: '0px', height: '812px' });
+    expect(variables()).toEqual({ inset: '0px', chrome: '0px', height: '812px' });
   });
 
   it('measures what the keyboard covers when the layout viewport does not move', async () => {
@@ -63,7 +64,7 @@ describe('tracking the visual viewport', () => {
     visual.dispatchEvent(new Event('resize'));
 
     // 812 laid out, 476 visible: the keyboard has 336 of it.
-    expect(variables()).toEqual({ inset: '336px', height: '476px' });
+    expect(variables()).toEqual({ inset: '336px', chrome: '0px', height: '476px' });
   });
 
   it('reports no keyboard when the layout viewport shrank with it', async () => {
@@ -125,8 +126,29 @@ describe('tracking the visual viewport', () => {
     visual.height = 762;
     visual.dispatchEvent(new Event('resize'));
 
-    expect(variables().inset).toBe('50px');
+    /*
+     * Fifty pixels is a toolbar, not a keyboard. The sheet must not lift itself
+     * by it, and the tab bar must, so the two variables answer differently.
+     */
+    expect(variables().inset).toBe('0px');
+    expect(variables().chrome).toBe('50px');
     expect(reveal).not.toHaveBeenCalled();
+  });
+
+  it('says on the document whether the keyboard is up', async () => {
+    const { trackViewport } = await import('./viewport');
+
+    stop = trackViewport();
+
+    visual.height = 476;
+    visual.dispatchEvent(new Event('resize'));
+
+    expect(document.documentElement.dataset['keyboard']).toBe('open');
+
+    visual.height = 812;
+    visual.dispatchEvent(new Event('resize'));
+
+    expect(document.documentElement.dataset['keyboard']).toBe('closed');
   });
 
   it('follows focus moving between fields while the keyboard is already up', async () => {

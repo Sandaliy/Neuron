@@ -20,6 +20,19 @@
 const KEYBOARD_INSET = '--keyboard-inset';
 const VIEWPORT_HEIGHT = '--visual-viewport-height';
 
+/**
+ * The same gap, when it is the browser's own furniture rather than a keyboard.
+ *
+ * Safari's toolbar sits in exactly the place a keyboard does, and the layout
+ * viewport runs on underneath it, so anything meant to sit at the bottom of
+ * what a person can see has to be lifted by this much.
+ *
+ * The two are separate on purpose. A sheet lifts for the keyboard and ignores
+ * the toolbar; the tab bar lifts for the toolbar and gets out of the way
+ * entirely for the keyboard. One number could not tell them apart.
+ */
+const CHROME_INSET = '--chrome-inset';
+
 /** Below this, a shrunken viewport is a browser bar rather than a keyboard. */
 const KEYBOARD_THRESHOLD_PX = 120;
 
@@ -35,13 +48,26 @@ function apply(): void {
   const covered = Math.max(0, window.innerHeight - visual.height - visual.offsetTop);
   const root = document.documentElement;
 
-  root.style.setProperty(KEYBOARD_INSET, `${Math.round(covered)}px`);
-  root.style.setProperty(VIEWPORT_HEIGHT, `${Math.round(visual.height)}px`);
-
   const keyboardOpen = covered > KEYBOARD_THRESHOLD_PX;
+
+  /*
+   * The keyboard inset is zero unless it really is a keyboard. A sheet that
+   * lifted itself by the height of Safari's toolbar would sit halfway up the
+   * screen for no reason.
+   */
+  root.style.setProperty(KEYBOARD_INSET, `${keyboardOpen ? Math.round(covered) : 0}px`);
+  root.style.setProperty(CHROME_INSET, `${keyboardOpen ? 0 : Math.round(covered)}px`);
+  root.style.setProperty(VIEWPORT_HEIGHT, `${Math.round(visual.height)}px`);
 
   if (keyboardOpen !== keyboardWasOpen) {
     keyboardWasOpen = keyboardOpen;
+
+    /*
+     * The tab bar goes away while the keyboard is up. It belongs to the bottom
+     * of the screen and the keyboard has taken that, and a bar riding on top of
+     * the keys is what a web page does rather than what an app does.
+     */
+    root.dataset['keyboard'] = keyboardOpen ? 'open' : 'closed';
 
     if (keyboardOpen) {
       revealFocused();
@@ -115,7 +141,9 @@ export function trackViewport(): () => void {
     document.removeEventListener('focusin', onFocusIn);
 
     document.documentElement.style.removeProperty(KEYBOARD_INSET);
+    document.documentElement.style.removeProperty(CHROME_INSET);
     document.documentElement.style.removeProperty(VIEWPORT_HEIGHT);
+    delete document.documentElement.dataset['keyboard'];
 
     keyboardWasOpen = false;
     watching = false;

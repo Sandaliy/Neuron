@@ -43,7 +43,7 @@ export function TodayScreen() {
   const decks = useDeckTree();
 
   return (
-    <section className="flex flex-col gap-24">
+    <section data-screen="" className="flex flex-col gap-24">
       <h1 className="font-display text-24 tracking-tight text-primary">{t('today.title')}</h1>
 
       {decks.isPending ? (

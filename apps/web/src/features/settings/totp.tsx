@@ -7,6 +7,7 @@ import type { MessageKey } from '@neuron/shared';
 import { useTranslate } from '../../i18n/locale';
 import { describeAuthError, twoFactor } from '../../lib/auth-client';
 import { Button } from '../../ui/button';
+import { DIALOG_FORM, DialogBody, DialogFooter } from '../../ui/dialog';
 import { useToast } from '../../ui/toast';
 import { CodeInput } from '../auth/code-input';
 import { PasswordField } from '../auth/password-field';
@@ -101,83 +102,89 @@ export function TotpEnrollment({
 
   if (step === 'confirm') {
     return (
-      <div className="flex flex-col gap-16">
-        <p className="text-15 text-tertiary">{t('auth.twoFactor.scan')}</p>
+      <div className={DIALOG_FORM}>
+        <DialogBody>
+          <p className="text-15 text-tertiary">{t('auth.twoFactor.scan')}</p>
 
-        {/*
+          {/*
           Drawn from the otpauth uri the server issued. White behind it always,
           in both themes: a camera reading a dark on dark code is a camera that
           reads nothing.
         */}
-        <div className="mx-auto rounded-12 bg-white p-16">
-          <QRCodeSVG value={uri} size={180} level="M" />
-        </div>
+          <div className="mx-auto rounded-12 bg-white p-16">
+            <QRCodeSVG value={uri} size={180} level="M" />
+          </div>
 
-        <ManualKey uri={uri} />
+          <ManualKey uri={uri} />
 
-        <p className="text-14 text-tertiary">{t('auth.twoFactor.confirmHint')}</p>
+          <p className="text-14 text-tertiary">{t('auth.twoFactor.confirmHint')}</p>
 
-        <CodeInput
-          label={t('auth.twoFactor.codeLabel')}
-          value={code}
-          onChange={setCode}
-          onComplete={(value) => void confirm(value)}
-          invalid={error !== undefined}
-          autoFocus
-        />
+          <CodeInput
+            label={t('auth.twoFactor.codeLabel')}
+            value={code}
+            onChange={setCode}
+            onComplete={(value) => void confirm(value)}
+            invalid={error !== undefined}
+            autoFocus
+          />
 
-        {error ? (
-          <p role="alert" className="text-14 text-error">
-            {t(error.key, error.values)}
-          </p>
-        ) : undefined}
+          {error ? (
+            <p role="alert" className="text-14 text-error">
+              {t(error.key, error.values)}
+            </p>
+          ) : undefined}
+        </DialogBody>
 
-        <Button
-          variant="primary"
-          full
-          busy={busy}
-          disabled={code.length !== 6}
-          onClick={() => void confirm(code)}
-        >
-          {t('auth.twoFactor.enable')}
-        </Button>
+        <DialogFooter>
+          <Button
+            variant="primary"
+            full
+            busy={busy}
+            disabled={code.length !== 6}
+            onClick={() => void confirm(code)}
+          >
+            {t('auth.twoFactor.enable')}
+          </Button>
+        </DialogFooter>
       </div>
     );
   }
 
   return (
     <form
-      className="flex flex-col gap-16"
+      className={DIALOG_FORM}
       onSubmit={(event) => {
         event.preventDefault();
         void start();
       }}
     >
-      <p className="text-15 text-tertiary">{t('auth.twoFactor.subtitle')}</p>
+      <DialogBody>
+        <p className="text-15 text-tertiary">{t('auth.twoFactor.subtitle')}</p>
 
-      <PasswordField
-        label={t('auth.twoFactor.password')}
-        value={password}
-        onChange={setPassword}
-        autoComplete="current-password"
-      />
+        <PasswordField
+          label={t('auth.twoFactor.password')}
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+        />
 
-      <p className="text-14 text-tertiary">{t('auth.twoFactor.passwordHint')}</p>
+        <p className="text-14 text-tertiary">{t('auth.twoFactor.passwordHint')}</p>
 
-      {error ? (
-        <p role="alert" className="text-14 text-error">
-          {t(error.key, error.values)}
-        </p>
-      ) : undefined}
+        {error ? (
+          <p role="alert" className="text-14 text-error">
+            {t(error.key, error.values)}
+          </p>
+        ) : undefined}
+      </DialogBody>
 
-      <div className="flex flex-col gap-12 sm:flex-row">
-        <Button full onClick={onCancel}>
-          {t('common.cancel')}
-        </Button>
+      <DialogFooter>
         <Button type="submit" variant="primary" full busy={busy} disabled={password.length === 0}>
           {t('common.continue')}
         </Button>
-      </div>
+        <Button variant="text" full onClick={onCancel}>
+          {t('common.cancel')}
+        </Button>
+      </DialogFooter>
     </form>
   );
 }
@@ -279,28 +286,38 @@ export function TotpRemoval({ onDone }: { readonly onDone: () => void }) {
 
   return (
     <form
-      className="flex flex-col gap-16"
+      className={DIALOG_FORM}
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
       }}
     >
-      <PasswordField
-        label={t('auth.twoFactor.password')}
-        value={password}
-        onChange={setPassword}
-        autoComplete="current-password"
-      />
+      <DialogBody>
+        <PasswordField
+          label={t('auth.twoFactor.password')}
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+        />
 
-      {error ? (
-        <p role="alert" className="text-14 text-error">
-          {t(error.key, error.values)}
-        </p>
-      ) : undefined}
+        {error ? (
+          <p role="alert" className="text-14 text-error">
+            {t(error.key, error.values)}
+          </p>
+        ) : undefined}
+      </DialogBody>
 
-      <Button type="submit" variant="destructive" full busy={busy} disabled={password.length === 0}>
-        {t('auth.twoFactor.disable')}
-      </Button>
+      <DialogFooter>
+        <Button
+          type="submit"
+          variant="destructive"
+          full
+          busy={busy}
+          disabled={password.length === 0}
+        >
+          {t('auth.twoFactor.disable')}
+        </Button>
+      </DialogFooter>
     </form>
   );
 }

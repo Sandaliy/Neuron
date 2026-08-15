@@ -169,6 +169,12 @@ export const en = {
   'settings.glass.subtle': 'Medium',
   'settings.glass.full': 'Max',
   'settings.glassHint': 'Turn this down if scrolling stutters on your phone.',
+  'settings.glassScope': 'Where it applies',
+  'settings.glassScope.floating': 'Panels only',
+  'settings.glassScope.all': 'Panels and cards',
+  'settings.glassScopeHint':
+    'Cards and rows are content, and glass on every one of them is paid for on every scrolled frame.',
+  'settings.glassScopeOff': 'Nothing to apply it to while the glass is off.',
   'settings.glassCapped.motion':
     'Your system asks for less movement, so the panels are running at Medium.',
   'settings.glassCapped.memory':

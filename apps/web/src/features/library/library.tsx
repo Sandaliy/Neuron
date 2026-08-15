@@ -43,7 +43,7 @@ export function LibraryScreen() {
   }, []);
 
   return (
-    <section className="flex flex-col gap-20">
+    <section data-screen="" className="flex flex-col gap-20">
       <h1 className="font-display text-24 tracking-tight text-primary">{t('library.title')}</h1>
 
       {decks.isPending ? <SkeletonRows rows={5} /> : undefined}
