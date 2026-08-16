@@ -8,16 +8,15 @@ import {
   parseNoteFields,
   updateNoteSchema,
 } from '@neuron/shared';
-import type { NoteFields } from '@neuron/shared';
+import type { NoteTypeName } from '@neuron/shared';
 
 import { repositoriesOf } from '../context.js';
 import { ApiError } from '../errors.js';
-import { openingDirections, settingsForDeck } from '../note-cards.js';
+import { applyCardChange, createOpeningCards, planCardChange } from '../note-cards.js';
 import { serialiseCard, serialiseNote } from '../serialise.js';
 import { readBody, readParams, readQuery } from '../validation.js';
 
 import type { RequestBindings } from '../context.js';
-import type { Repositories } from '../db/repositories/index.js';
 
 /**
  * Notes: the facts, and the cards that follow from them.
@@ -119,28 +118,62 @@ export function noteRoutes(): Hono<RequestBindings> {
     });
   });
 
+  /**
+   * Editing a note, which must not cost it its schedule.
+   *
+   * Changing the translation of a word answered forty times keeps the forty.
+   * The only edits that can remove a card are the ones that make the card
+   * impossible: changing the type, or taking a gap out of a cloze sentence. In
+   * that case the api refuses unless the caller says it knows, so the
+   * confirmation is a rule rather than the habit of one screen.
+   */
   routes.patch('/:id', async (context) => {
     const { id } = readParams(context, idParamSchema);
     const body = await readBody(context, updateNoteSchema);
     const repositories = repositoriesOf(context);
 
-    const note = await repositories.transaction(async (inner) => {
-      let row = await inner.notes.byId(id);
+    const written = await repositories.transaction(async (inner) => {
+      const existing = await inner.notes.byId(id);
 
-      if (!row) {
+      if (!existing) {
         return undefined;
       }
 
-      if (body.fields !== undefined) {
-        row = await inner.notes.updateFields(id, body.fields as NoteFields);
+      const typeNames = await inner.noteTypes.namesById();
+      const currentType = (typeNames.get(existing.noteTypeId) ?? 'basic') as NoteTypeName;
+      const noteType = body.noteType ?? currentType;
+      // The old fields are re-checked against the new type on purpose. A type
+      // change with no fields to go with it leaves a row nothing can read back,
+      // and this is where that is caught, by name, before anything is written.
+      const fields = parseFields(noteType, body.fields ?? existing.fields);
+
+      const change = await planCardChange(inner, id, existing.deckId, noteType, fields);
+
+      if (change.reviewsLost > 0 && body.discardCards !== true) {
+        throw new ApiError('cards_would_be_lost', {
+          details: { cards: change.remove.length, reviews: change.reviewsLost },
+        });
+      }
+
+      let row =
+        noteType === currentType
+          ? body.fields === undefined
+            ? existing
+            : await inner.notes.updateFields(id, fields)
+          : await inner.notes.changeType(id, noteType, fields);
+
+      await applyCardChange(inner, id, change);
+
+      if (body.tags !== undefined) {
+        row = await inner.notes.setTags(id, body.tags);
       }
 
       if (body.status !== undefined) {
         row = await inner.notes.setStatus(id, body.status);
       }
 
-      // Last, because moving a note moves its cards with it and the cards have
-      // to exist by then.
+      // Last, because moving a note moves its cards with it and the cards this
+      // edit created have to exist by then.
       if (body.deckId !== undefined) {
         row = await inner.notes.moveToDeck(id, body.deckId);
       }
@@ -148,13 +181,19 @@ export function noteRoutes(): Hono<RequestBindings> {
       return row;
     });
 
-    if (!note) {
+    if (!written) {
       throw new ApiError('not_found');
     }
 
-    const typeNames = await repositories.noteTypes.namesById();
+    const [cards, typeNames] = await Promise.all([
+      repositories.cards.forNote(id),
+      repositories.noteTypes.namesById(),
+    ]);
 
-    return context.json({ note: serialiseNote(note, typeNames) });
+    return context.json({
+      note: serialiseNote(written, typeNames),
+      cards: cards.map(serialiseCard),
+    });
   });
 
   routes.delete('/:id', async (context) => {
@@ -213,30 +252,4 @@ function fieldsFromZod(error: unknown): { path: string; code: string }[] {
     path: (issue.path ?? []).map(String).join('.') || '(fields)',
     code: String(issue.code ?? 'invalid'),
   }));
-}
-
-/**
- * Creates the cards a new note starts with.
- *
- * @param repositories the repositories, already inside the transaction
- * @param noteId the note just written
- * @param deckId where it landed, for reading the ladder
- * @param noteType which type it is
- * @param fields its fields, which decide which directions are possible
- * @returns the cards written
- */
-export async function createOpeningCards(
-  repositories: Repositories,
-  noteId: string,
-  deckId: string,
-  noteType: Parameters<typeof parseNoteFields>[0],
-  fields: NoteFields,
-) {
-  const settings = await settingsForDeck(repositories, deckId);
-  const directions = openingDirections(noteType, fields, settings.ladder);
-  const now = new Date();
-
-  return repositories.cards.createMany(
-    directions.map((direction) => ({ noteId, direction, due: now, unlockedAt: now })),
-  );
 }

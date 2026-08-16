@@ -20,6 +20,8 @@ export interface CreateCard {
   readonly id?: string;
   readonly noteId: string;
   readonly direction: CardDirection;
+  /** Which gap this card hides, on a cloze note. Zero everywhere else. */
+  readonly slot?: number;
   /** When the card should first come up. Usually now. */
   readonly due: Date;
   /** When this direction opened, for the ladder. */
@@ -76,6 +78,13 @@ export interface CardRepository {
    */
   reset: (id: string, now: Date) => Promise<CardRow | undefined>;
   softDelete: (id: string) => Promise<boolean>;
+  /**
+   * Removes several cards at once, for a note whose type changed.
+   *
+   * One version number for the lot, because they went together and a sync that
+   * saw half of them gone would rebuild a note that can no longer produce them.
+   */
+  softDeleteMany: (ids: readonly string[]) => Promise<number>;
   restore: (id: string) => Promise<boolean>;
 }
 
@@ -127,6 +136,7 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
       noteId: input.noteId,
       deckId,
       direction: input.direction,
+      slot: input.slot ?? 0,
       ...scheduling,
       placedDue: scheduling.state === 'new' ? null : scheduling.due,
       unlockedAt: input.unlockedAt ?? null,
@@ -206,7 +216,7 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
           .select()
           .from(cards)
           .where(and(eq(cards.userId, userId), eq(cards.noteId, noteId), isNull(cards.deletedAt)))
-          .orderBy(asc(cards.direction)),
+          .orderBy(asc(cards.direction), asc(cards.slot)),
       );
     },
 
@@ -354,6 +364,31 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
           .returning({ id: cards.id });
 
         return marked.length > 0;
+      });
+    },
+
+    async softDeleteMany(ids) {
+      if (ids.length === 0) {
+        return 0;
+      }
+
+      return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
+        const now = new Date();
+
+        const marked = await tx
+          .update(cards)
+          .set({ deletedAt: now, updatedAt: now, rev })
+          .where(
+            and(
+              eq(cards.userId, userId),
+              inArray(cards.id, [...new Set(ids)]),
+              isNull(cards.deletedAt),
+            ),
+          )
+          .returning({ id: cards.id });
+
+        return marked.length;
       });
     },
 

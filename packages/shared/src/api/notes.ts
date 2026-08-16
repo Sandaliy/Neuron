@@ -63,6 +63,21 @@ export const updateNoteSchema = z
     tags: z.array(tagSchema).max(50).optional(),
     status: noteStatusSchema.optional(),
     deckId: idSchema.optional(),
+    /**
+     * Changing the type, which is the one edit that can destroy a card.
+     *
+     * A word turned into a cloze sentence can no longer be asked the way it was
+     * being asked, so its cards go and their schedules go with them. Everything
+     * else about an edit keeps every card it had.
+     */
+    noteType: noteTypeSchema.optional(),
+    /**
+     * Permission to remove cards that have been answered.
+     *
+     * Without it the api refuses an edit that would throw away review history,
+     * which makes the confirmation a rule rather than a habit of one screen.
+     */
+    discardCards: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'needs something to change');
 

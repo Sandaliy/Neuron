@@ -67,6 +67,8 @@ export const API_ERROR_CODES = [
   'invalid_token',
   /** A card cannot take another direction, or the direction is already there. */
   'direction_unavailable',
+  /** The edit would remove cards that have been answered, and nobody agreed. */
+  'cards_would_be_lost',
   /** A sync batch was rejected as a whole. */
   'sync_rejected',
   /** The database did not answer. */
@@ -91,6 +93,9 @@ export const apiErrorDetailsSchema = z.object({
   fields: z.array(z.strictObject({ path: z.string(), code: z.string() })).optional(),
   /** How long to wait, for a rate limited request. */
   retryAfterSeconds: z.number().int().min(0).optional(),
+  /** How many cards an edit would remove, and how many answers with them. */
+  cards: z.number().int().min(0).optional(),
+  reviews: z.number().int().min(0).optional(),
 });
 
 export const apiErrorSchema = z.object({
@@ -132,6 +137,7 @@ export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
   two_factor_unavailable: 409,
   invalid_token: 400,
   direction_unavailable: 409,
+  cards_would_be_lost: 409,
   sync_rejected: 409,
   service_unavailable: 503,
   internal_error: 500,

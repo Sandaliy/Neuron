@@ -67,7 +67,16 @@ export interface NoteRepository {
   /** Every note in a deck and, when asked, in the decks under it. */
   inDeck: (deckId: string, options?: { readonly includeSubtree?: boolean }) => Promise<NoteRow[]>;
   updateFields: (id: string, fields: NoteFields) => Promise<NoteRow | undefined>;
+  /**
+   * Turns a note into another type, fields and all.
+   *
+   * The two move together because they have to: `vocab` fields are not valid
+   * `basic` fields, so a type written without its fields leaves a row that
+   * nothing can read back.
+   */
+  changeType: (id: string, noteType: NoteTypeName, fields: NoteFields) => Promise<NoteRow | undefined>;
   setStatus: (id: string, status: NoteStatus) => Promise<NoteRow | undefined>;
+  setTags: (id: string, tags: readonly string[]) => Promise<NoteRow | undefined>;
   /**
    * The same change across many notes, in one statement and one version.
    *
@@ -319,6 +328,26 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       });
     },
 
+    async changeType(id, noteType, fields) {
+      return run(async (tx) => {
+        const typeId = await noteTypeId(tx, noteType);
+        const rev = await nextRev(tx, userId);
+
+        const [row] = await tx
+          .update(notes)
+          .set({
+            noteTypeId: typeId,
+            fields: parseNoteFields(noteType, fields),
+            updatedAt: new Date(),
+            rev,
+          })
+          .where(and(eq(notes.userId, userId), eq(notes.id, id), isNull(notes.deletedAt)))
+          .returning();
+
+        return row;
+      });
+    },
+
     async setStatus(id, status) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
@@ -326,6 +355,22 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
         const [row] = await tx
           .update(notes)
           .set({ status, updatedAt: new Date(), rev })
+          .where(and(eq(notes.userId, userId), eq(notes.id, id), isNull(notes.deletedAt)))
+          .returning();
+
+        return row;
+      });
+    },
+
+    async setTags(id, tags) {
+      return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
+
+        const [row] = await tx
+          .update(notes)
+          // Deduplicated and ordered, so two notes tagged with the same three
+          // words in a different order read the same in a list.
+          .set({ tags: [...new Set(tags)].sort(), updatedAt: new Date(), rev })
           .where(and(eq(notes.userId, userId), eq(notes.id, id), isNull(notes.deletedAt)))
           .returning();
 

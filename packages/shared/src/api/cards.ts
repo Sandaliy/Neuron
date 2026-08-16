@@ -29,6 +29,8 @@ export const cardSchema = z.object({
   noteId: idSchema,
   deckId: idSchema,
   direction: cardDirectionSchema,
+  /** Which gap this card hides, on a cloze note. Zero everywhere else. */
+  slot: z.number().int().min(0),
   state: cardStateSchema,
   stability: z.number().nullable(),
   difficulty: z.number().nullable(),

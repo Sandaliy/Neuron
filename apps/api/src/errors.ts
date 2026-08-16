@@ -27,6 +27,9 @@ import type { Context } from 'hono';
 export interface ApiErrorDetails {
   readonly fields?: readonly { readonly path: string; readonly code: string }[];
   readonly retryAfterSeconds?: number;
+  /** How many cards an edit would remove, and how many answers with them. */
+  readonly cards?: number;
+  readonly reviews?: number;
 }
 
 export class ApiError extends Error {

@@ -70,6 +70,7 @@ export function serialiseCard(row: CardRow): Card {
     noteId: row.noteId,
     deckId: row.deckId,
     direction: row.direction as Card['direction'],
+    slot: row.slot,
     state: row.state as Card['state'],
     stability: row.stability,
     difficulty: row.difficulty,

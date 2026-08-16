@@ -9,10 +9,12 @@ import {
 
 import { repositoriesOf } from '../context.js';
 import { ApiError } from '../errors.js';
+import { createOpeningCards } from '../note-cards.js';
 import { serialiseImportBatch, serialisePreset } from '../serialise.js';
 import { readBody, readParams } from '../validation.js';
 
-import { createOpeningCards, parseFields } from './notes.js';
+
+import { parseFields } from './notes.js';
 
 import type { RequestBindings } from '../context.js';
 
