@@ -122,6 +122,40 @@ happened to be there.
 way round, the second factor is one row named for the thing with On or Off underneath, and deleting an
 account is called that with the explanation inside.
 
+### What the second dialog pass changed
+
+Six more, reported from the phone once the first pass was live.
+
+**The dialog flew off the top of the screen when the keyboard opened.** The band centred it with flex
+alignment, which overflows equally in both directions, so anything taller than the band lost its top
+edge and could not be scrolled back to. `margin: auto` centres what fits and resolves to zero when
+nothing does, and the band scrolls now, so a browser reporting a visible height smaller than the truth
+cannot strand a dialog. The band also sits at `--visual-viewport-top` rather than at zero, because on
+iOS the visual viewport scrolls independently of the layout one while the keyboard is up.
+
+**Closing the second factor dialog at the QR left an account stuck.** The lost phone codes were held
+in `sessionStorage` the moment the server issued them, so the next open resumed on the screen that
+shows them, and that screen cannot be dismissed. The second factor was not even on. Nothing is held
+until the code from the app has come back, an abandoned set is discarded when the account says the
+second factor is off, and the two flows that issue ten codes no longer share one storage key: the set
+held by the second factor was being picked up by the registration screen.
+
+**The dialog drew a focus ring around itself** on any step with no field in it, because it takes the
+focus on open so the trap has somewhere to start. The trap still holds and the first Tab still reaches
+the first control.
+
+**The focus ring on the last field was clipped along the bottom**, which reads as the button
+underneath sitting on top of it. The scrolling part of a dialog has room for a ring on all four sides
+now, not two.
+
+**Changing a password signed the person out on the device they changed it on.** The after hook took
+every session, including the one that had just asked, and the client was also sending
+`revokeOtherSessions`, which made Better Auth mint a replacement session that the hook then deleted as
+well. Every session except the one that asked, and the flag is gone from the client.
+
+**The codes a new account gets are a centred card**, the same as every other signed out screen. The
+tagline and the sentence about there being no email recovery are gone from registration.
+
 ## Done
 
 | Phase | What it produced                                                                                          | Doc                            |
@@ -256,6 +290,9 @@ end to end by tests that run with it on, reading the token out of the log mailer
 - **The dialog pass is not committed.** Fifty odd files in the working tree, every gate green. The
   mockup at `Design systems/neuron-visual-system new.html` is updated with it and is not in git, so it
   cannot be recovered from a branch if it is lost.
+- **Registering is stubbed in the browser tests.** `tests/fixtures.ts` answers `/sign-up/email` with a
+  fixed set of ten codes so the screen that follows it can be photographed. The real endpoint is
+  covered by `apps/api/src/auth/registration.test.ts`.
 - **`auth.recoveryCodes.subtitle` was shortened to make the codes fit a phone.** It said the codes work
   once and are the only way back in; it now says both in one line. If the warning above it is ever
   softened, this is the sentence that was carrying the rest.

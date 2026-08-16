@@ -346,6 +346,7 @@ need two different answers:
 | `--keyboard-inset`         | The gap when it is a keyboard, and zero otherwise         | The padding a full page form reserves     |
 | `--chrome-inset`           | The gap when it is the browser's own furniture, else zero | The tab bar                               |
 | `--visual-viewport-height` | How tall the part on screen actually is                   | The band a dialog is centred in           |
+| `--visual-viewport-top`    | Where the part on screen starts                           | The top edge of that band                 |
 | `data-keyboard` on `html`  | `open` or `closed`                                        | Anything that hides or tightens for a key |
 
 The tab bar's own offset is `max(safe-area-inset-bottom - 12px, 8px)`, not the safe area plus a gap. A
@@ -358,6 +359,14 @@ band as tall as `--visual-viewport-height`, and the dialog is centred inside it,
 takes the bottom 336 pixels the band becomes 476 tall and the dialog moves up with it. The band carries
 the `z-index`, not the dialog: a fixed element creates a stacking context of its own, so a number on
 the dialog inside counts for nothing against the scrim outside it.
+
+The band centres its dialog with `margin: auto` and scrolls, and neither is
+decoration. Flex alignment centres by overflowing equally in both directions, so a dialog taller than
+the band loses its top edge off the top of the screen with no way to scroll back to it, and one
+Android browser reports a visible height smaller than the truth while its keyboard animates. An
+automatic margin centres what fits and resolves to zero when nothing does; the scroll is what makes a
+dialog reachable even when the measurement is wrong. `tests/keyboard.spec.ts` sets the band to 200
+pixels and checks the top edge is still on screen.
 
 A dialog used to be a sheet against the bottom edge on a phone. That is the wrong shape for anything
 with more than a field in it. A sheet grows upward from the bottom, so its heading is at the top of a
