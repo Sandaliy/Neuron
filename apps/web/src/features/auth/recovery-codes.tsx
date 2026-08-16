@@ -36,7 +36,10 @@ import { useToast } from '../../ui/toast';
 export type CodeScope = 'account' | 'two-factor';
 
 const HELD: Record<CodeScope, string> = {
-  account: 'neuron.recovery-codes.pending',
+  // Not the name the shared key had. Anything a browser is still holding under
+  // that one belongs to the version where the second factor could strand a set
+  // there, and nothing reads it now, so it is orphaned rather than restored.
+  account: 'neuron.account-codes.pending',
   'two-factor': 'neuron.two-factor-codes.pending',
 };
 

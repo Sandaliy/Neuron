@@ -145,7 +145,7 @@ describe('surviving a reload', () => {
   });
 
   it('ignores anything in storage that is not a set of codes', () => {
-    sessionStorage.setItem('neuron.recovery-codes.pending', '{"not":"an array"}');
+    sessionStorage.setItem('neuron.account-codes.pending', '{"not":"an array"}');
 
     expect(heldCodes()).toBeUndefined();
   });
