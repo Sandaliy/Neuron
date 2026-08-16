@@ -15,13 +15,25 @@ import { request } from './api';
  */
 export const ACCOUNT_KEY = ['account'] as const;
 
-export function useAccount() {
-  return useQuery({
+/**
+ * The query itself, apart from the hook that reads it.
+ *
+ * Written out so it can be started before anything renders. The gate is the
+ * first thing on screen and every signed in screen is behind it, so this
+ * request is on the critical path of the whole app and it should not wait for
+ * React to decide that it wants it.
+ */
+export function accountQuery() {
+  return {
     queryKey: ACCOUNT_KEY,
     queryFn: () => request<Me>('/account'),
     // A failure here is a signed out person or a server that is down. Both are
     // handled by the gate above the screens, and neither is helped by retrying.
     retry: false,
     staleTime: 30_000,
-  });
+  } as const;
+}
+
+export function useAccount() {
+  return useQuery(accountQuery());
 }
