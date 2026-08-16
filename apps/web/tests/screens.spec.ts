@@ -108,6 +108,24 @@ for (const theme of THEMES) {
     });
 
     /*
+     * What registering ends on. The same centred card as every other signed out
+     * screen: it was the last one still pinned to the top of the page.
+     */
+    test('the codes a new account gets', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page, { signedIn: false });
+      await page.goto('/sign-up');
+      await page.getByLabel('Email').fill('anna@fastmail.com');
+      await page.getByLabel('Password', { exact: true }).fill('correct horse battery');
+      await page.getByLabel('Type the password again').fill('correct horse battery');
+      await page.getByRole('button', { name: 'Create account' }).click();
+      await expect(page.getByText('4KQPX-2M7JW-DRTKM')).toBeVisible();
+      await settle(page);
+
+      await expect(page).toHaveScreenshot(`sign-up-codes-${theme}.png`);
+    });
+
+    /*
      * The ten codes: the tallest thing this app puts in a dialog, and the one
      * where the action used to sit on top of the field above it.
      */

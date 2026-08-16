@@ -23,6 +23,16 @@ const KEYBOARD_INSET = '--keyboard-inset';
 const VIEWPORT_HEIGHT = '--visual-viewport-height';
 
 /**
+ * Where the visible part of the page starts, measured from the layout viewport.
+ *
+ * Zero almost always, and not zero on iOS with a keyboard up: the visual
+ * viewport scrolls there independently of the layout one, and anything
+ * positioned against the layout viewport is then off the top of the screen by
+ * this much.
+ */
+const VIEWPORT_TOP = '--visual-viewport-top';
+
+/**
  * The same gap, when it is the browser's own furniture rather than a keyboard.
  *
  * Safari's toolbar sits in exactly the place a keyboard does, and the layout
@@ -56,7 +66,7 @@ let keyboardWasOpen = false;
  * root element invalidates style for the whole tree, so the ones that have not
  * changed are not written at all.
  */
-let published = { keyboard: -1, chrome: -1, height: -1 };
+let published = { keyboard: -1, chrome: -1, height: -1, top: -1 };
 
 let pending = 0;
 
@@ -90,6 +100,7 @@ function measure(): void {
   const keyboard = keyboardOpen ? covered : 0;
   const chrome = settle(keyboardOpen ? 0 : covered, published.chrome);
   const height = settle(Math.round(visual.height), published.height);
+  const top = settle(Math.max(0, Math.round(visual.offsetTop)), published.top);
 
   if (keyboard !== published.keyboard) {
     published.keyboard = keyboard;
@@ -104,6 +115,11 @@ function measure(): void {
   if (height !== published.height) {
     published.height = height;
     root.style.setProperty(VIEWPORT_HEIGHT, `${height}px`);
+  }
+
+  if (top !== published.top) {
+    published.top = top;
+    root.style.setProperty(VIEWPORT_TOP, `${top}px`);
   }
 
   if (keyboardOpen !== keyboardWasOpen) {
@@ -291,9 +307,10 @@ export function trackViewport(): () => void {
     document.documentElement.style.removeProperty(KEYBOARD_INSET);
     document.documentElement.style.removeProperty(CHROME_INSET);
     document.documentElement.style.removeProperty(VIEWPORT_HEIGHT);
+    document.documentElement.style.removeProperty(VIEWPORT_TOP);
     delete document.documentElement.dataset['keyboard'];
 
-    published = { keyboard: -1, chrome: -1, height: -1 };
+    published = { keyboard: -1, chrome: -1, height: -1, top: -1 };
     keyboardWasOpen = false;
     watching = false;
   };

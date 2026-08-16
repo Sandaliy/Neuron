@@ -142,6 +142,21 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
         return;
       }
 
+      // Registering, so the screen that follows it can be drawn. It answers with
+      // the ten codes exactly once, and does not navigate away from them.
+      if (path.endsWith('/sign-up/email')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            user: { id: ACCOUNT.id, email: ACCOUNT.email, name: ACCOUNT.email },
+            recoveryCodes: ENROLLMENT.backupCodes,
+          }),
+        });
+
+        return;
+      }
+
       // A fresh set of account recovery codes, which is the tallest dialog in
       // the app and the one most likely to stop fitting.
       if (path.endsWith('/recovery/regenerate')) {

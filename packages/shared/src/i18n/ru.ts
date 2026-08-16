@@ -16,7 +16,7 @@ export const ru: Messages = {
   'auth.password.tooShort': 'Нужно не меньше 10 символов.',
   'auth.password.tooLong': 'Это длиннее 200 символов.',
   'auth.password.tooCommon': 'Такой пароль подбирают первым. Выбери другой.',
-  'auth.password.hint': 'Не меньше 10 символов. Длина важнее спецсимволов.',
+  'auth.password.hint': 'Не меньше 10 символов.',
   'auth.password.show': 'Показать пароль',
   'auth.password.hide': 'Скрыть пароль',
 
@@ -27,8 +27,6 @@ export const ru: Messages = {
   'auth.password.confirmLabel': 'Введи пароль ещё раз',
   'auth.password.confirmMatch': 'Оба поля совпадают.',
   'auth.password.confirmMismatch': 'Пароли не совпадают.',
-  'auth.password.confirmHint':
-    'Восстановления по почте здесь нет, поэтому дважды опечатанный пароль уже не отменить.',
 
   'auth.signIn.title': 'Вход',
   'auth.signIn.submit': 'Войти',

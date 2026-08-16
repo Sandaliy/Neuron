@@ -227,6 +227,7 @@
      */
     --keyboard-inset: 0px;
     --visual-viewport-height: 100svh;
+    --visual-viewport-top: 0px;
 
     /*
      * How much of the layout viewport the browser's own furniture is covering
@@ -765,7 +766,12 @@
    */
   [data-dialog-band] {
     position: fixed;
-    top: 0;
+    /*
+     * Where the visible part of the page starts. On iOS the visual viewport
+     * scrolls independently of the layout viewport while the keyboard is up, so
+     * `top: 0` is a point above the screen and a dialog placed there is gone.
+     */
+    top: var(--visual-viewport-top);
     left: 0;
     right: 0;
     /*
@@ -778,11 +784,28 @@
     z-index: 50;
     height: var(--visual-viewport-height);
     display: flex;
-    align-items: center;
-    justify-content: center;
+    /*
+     * Two things, and both are about what happens when the measurement is
+     * wrong or the dialog is taller than the room.
+     *
+     * `margin: auto` on the child rather than `align-items: center`. Flex
+     * alignment centres by overflowing equally in both directions, so a dialog
+     * taller than the band loses its top edge off the top of the screen, and
+     * there is no scrolling back to it. An automatic margin centres what fits
+     * and resolves to zero when nothing does.
+     *
+     * And the band scrolls. If a browser ever reports a visible height shorter
+     * than the truth, the dialog is still reachable by dragging instead of
+     * being stranded half off the screen.
+     */
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: var(--u-4);
     padding-top: calc(var(--safe-top) + var(--u-4));
-    pointer-events: none;
+  }
+
+  [data-dialog-band] > * {
+    margin: auto;
   }
 
   /*

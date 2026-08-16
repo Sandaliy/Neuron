@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { LOCALES, THEMES, isAcceptablePassword } from '@neuron/shared';
 import type { Locale, MessageKey, Theme } from '@neuron/shared';
@@ -22,7 +22,7 @@ import { Switch } from '../../ui/switch';
 import { useToast } from '../../ui/toast';
 import { CodeInput } from '../auth/code-input';
 import { PasswordField } from '../auth/password-field';
-import { RecoveryCodes } from '../auth/recovery-codes';
+import { RecoveryCodes, heldCodes, releaseCodes } from '../auth/recovery-codes';
 
 import { TotpEnrollment, TotpRemoval } from './totp';
 
@@ -214,6 +214,17 @@ function Security() {
   const account = useAccount();
   const [panel, setPanel] = useState<'password' | 'codes' | 'totp-on' | 'totp-off' | undefined>();
   const [issued, setIssued] = useState<readonly string[]>();
+  /*
+   * The lost phone codes a previous page load was showing.
+   *
+   * Read once, on mount. They are only ever put aside after the second factor
+   * is really on, so if the account says it is off they belong to an enrollment
+   * that was abandoned and they are thrown away. Without that, closing the
+   * dialog at the QR left a set of codes that reopened an undismissable screen
+   * on every load, for a second factor that had never been turned on.
+   */
+  const [pendingCodes] = useState<readonly string[] | undefined>(() => heldCodes('two-factor'));
+  const [pendingSeen, setPendingSeen] = useState(false);
 
   /*
    * Which of the two second factor controls is offered.
@@ -225,6 +236,14 @@ function Security() {
    * changes in front of the person who changed it.
    */
   const twoFactorOn = account.data?.twoFactorEnabled === true;
+
+  // Thrown away rather than shown. The dialog below never opens for them, since
+  // it asks for the second factor to be on, so this only tidies the storage.
+  useEffect(() => {
+    if (pendingCodes && account.data && !twoFactorOn) {
+      releaseCodes('two-factor');
+    }
+  }, [pendingCodes, account.data, twoFactorOn]);
 
   const forgetAccount = () => {
     void queries.invalidateQueries({ queryKey: ACCOUNT_KEY });
@@ -290,6 +309,7 @@ function Security() {
         {issued ? (
           <RecoveryCodes
             codes={issued}
+            scope="account"
             warningKey="auth.recoveryCodes.warning"
             onConfirmed={() => {
               setIssued(undefined);
@@ -313,6 +333,26 @@ function Security() {
           }}
           onCancel={() => setPanel(undefined)}
         />
+      </Dialog>
+
+      {/*
+        The codes an enrollment showed before the page was reloaded. Shown again
+        rather than lost: they are the only way back in from a lost phone, and
+        they cannot be reissued without turning the second factor off first.
+      */}
+      <Dialog
+        open={pendingCodes !== undefined && twoFactorOn && !pendingSeen}
+        dismissable={false}
+        title={t('auth.twoFactor.recoveryCodes.title')}
+      >
+        {pendingCodes ? (
+          <RecoveryCodes
+            codes={pendingCodes}
+            scope="two-factor"
+            warningKey="auth.twoFactor.recoveryCodes.warning"
+            onConfirmed={() => setPendingSeen(true)}
+          />
+        ) : undefined}
       </Dialog>
 
       <Dialog
@@ -345,13 +385,15 @@ function ChangePassword({ onDone }: { readonly onDone: () => void }) {
     setError(undefined);
     setBusy(true);
 
-    const answer = await changePassword({
-      currentPassword: current,
-      newPassword: next,
-      // Every other session goes. A password is usually changed because
-      // somebody suspects one of those sessions is not theirs.
-      revokeOtherSessions: true,
-    });
+    /*
+     * No `revokeOtherSessions`. The server closes every other session on this
+     * path anyway, from a hook, so it does not depend on a client remembering
+     * to ask. Sending the flag as well meant Better Auth deleted every session
+     * including this one and minted a replacement, and then the hook deleted
+     * the replacement too: the person who had just chosen a password was signed
+     * out on the device they chose it on.
+     */
+    const answer = await changePassword({ currentPassword: current, newPassword: next });
 
     setBusy(false);
 

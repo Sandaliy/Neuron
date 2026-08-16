@@ -139,6 +139,45 @@ test.describe('the keyboard', () => {
     expect(Math.abs(above - below)).toBeLessThanOrEqual(32);
   });
 
+  /**
+   * A dialog taller than the room never loses its top edge.
+   *
+   * Flex centring overflows equally in both directions, so a dialog taller than
+   * the band was cut off above the top of the screen with no way to scroll back
+   * to it. That is what a reported viewport height smaller than the truth looks
+   * like, and one Android browser does report that while its keyboard animates.
+   * An automatic margin centres what fits and resolves to zero when nothing
+   * does, and the band scrolls, so the dialog is always reachable.
+   */
+  test('never puts a dialog above the top of the screen', async ({ page }) => {
+    await usePreferences(page, { theme: 'dark', locale: 'en' });
+    await useFixtures(page);
+    await page.goto('/settings');
+
+    await page.getByRole('button', { name: 'Change your password' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    // Far shorter than the dialog, which is the failure being guarded against.
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty('--visual-viewport-height', '200px');
+      document.documentElement.style.setProperty('--keyboard-inset', '612px');
+      document.documentElement.dataset['keyboard'] = 'open';
+    });
+    await settled(page);
+
+    const dialog = await page.locator('[data-g="panel"]').boundingBox();
+
+    expect(dialog).not.toBeNull();
+    expect(dialog!.y, 'the top edge is on screen').toBeGreaterThanOrEqual(0);
+
+    // And what does not fit can be reached, rather than being stranded.
+    const reachable = await page
+      .locator('[data-dialog-band]')
+      .evaluate((band) => band.scrollHeight <= band.clientHeight || band.scrollHeight > 0);
+
+    expect(reachable).toBe(true);
+  });
+
   test('takes the tab bar out of the way', async ({ page }) => {
     await usePreferences(page, { theme: 'dark', locale: 'en' });
     await useFixtures(page);

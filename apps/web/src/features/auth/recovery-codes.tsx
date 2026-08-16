@@ -24,12 +24,26 @@ import { useToast } from '../../ui/toast';
  * few minutes, which is a smaller risk than somebody's only credential being
  * destroyed by a stray pull to refresh.
  */
-const HELD = 'neuron.recovery-codes.pending';
+/**
+ * Which set of codes is being held.
+ *
+ * Two things issue ten codes and both show them on this screen, and they used
+ * to share one key. That meant a set held by the second factor was picked up by
+ * the registration screen, which then opened on somebody else's codes with no
+ * way past them. They are separate names now, so neither can answer for the
+ * other.
+ */
+export type CodeScope = 'account' | 'two-factor';
+
+const HELD: Record<CodeScope, string> = {
+  account: 'neuron.recovery-codes.pending',
+  'two-factor': 'neuron.two-factor-codes.pending',
+};
 
 /** Puts codes aside so a reload cannot lose them. */
-export function holdCodes(codes: readonly string[]): void {
+export function holdCodes(codes: readonly string[], scope: CodeScope = 'account'): void {
   try {
-    sessionStorage.setItem(HELD, JSON.stringify(codes));
+    sessionStorage.setItem(HELD[scope], JSON.stringify(codes));
   } catch {
     // Storage refused. The codes are still on screen, which is the copy that
     // matters; only surviving a reload is lost.
@@ -37,9 +51,9 @@ export function holdCodes(codes: readonly string[]): void {
 }
 
 /** The codes a previous page load was showing, if it was interrupted. */
-export function heldCodes(): readonly string[] | undefined {
+export function heldCodes(scope: CodeScope = 'account'): readonly string[] | undefined {
   try {
-    const raw = sessionStorage.getItem(HELD);
+    const raw = sessionStorage.getItem(HELD[scope]);
 
     if (!raw) {
       return undefined;
@@ -56,9 +70,9 @@ export function heldCodes(): readonly string[] | undefined {
 }
 
 /** Forgets them, once somebody has said they have them. */
-export function releaseCodes(): void {
+export function releaseCodes(scope: CodeScope = 'account'): void {
   try {
-    sessionStorage.removeItem(HELD);
+    sessionStorage.removeItem(HELD[scope]);
   } catch {
     // Nothing to do about it, and nothing worth saying.
   }
@@ -68,9 +82,12 @@ export function RecoveryCodes({
   codes,
   title,
   warningKey,
+  scope = 'account',
   onConfirmed,
 }: {
   readonly codes: readonly string[];
+  /** Which held set this is, so ticking the box forgets the right one. */
+  readonly scope?: CodeScope;
   /**
    * The heading, for the screens that need one of their own.
    *
@@ -208,7 +225,7 @@ export function RecoveryCodes({
           full
           disabled={!saved}
           onClick={() => {
-            releaseCodes();
+            releaseCodes(scope);
             onConfirmed();
           }}
         >

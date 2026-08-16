@@ -134,7 +134,14 @@ export function Dialog({
               }
             }}
             className={[
-              'pointer-events-auto relative z-50 flex w-full flex-col',
+              /*
+               * No focus ring on the box itself. Radix gives it `tabindex="-1"`
+               * and this component moves focus to it on open, so on a step with
+               * no field to type in the whole dialog was drawn with the accent
+               * ring around it, as though the panel were the control. The trap
+               * still holds and the first Tab still reaches the first control.
+               */
+              'relative z-50 flex w-full flex-col focus:outline-none',
               'max-h-full max-w-[420px]',
               'rounded-24 p-20 sm:p-24',
               'data-[state=open]:neu-panel-in data-[state=closed]:neu-panel-out',
@@ -182,8 +189,9 @@ export function Dialog({
  * The part of a dialog that scrolls, when there is more than fits.
  *
  * Everything that is not the action goes in here. The negative margin and the
- * matching padding are so a focus ring on the first or last control is not
- * clipped by the scroll box it sits in.
+ * matching padding are so a focus ring is not clipped by the scroll box it sits
+ * in. On all four sides, not two: the ring on the last field was cut off along
+ * the bottom edge, which reads as the button underneath sitting on top of it.
  */
 export function DialogBody({
   children,
@@ -204,7 +212,7 @@ export function DialogBody({
   return (
     <div
       data-dialog-body=""
-      className={`-mx-4 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 ${gap} ${className}`
+      className={`-m-4 flex min-h-0 flex-1 flex-col overflow-y-auto p-4 ${gap} ${className}`
         .replace(/\s+/g, ' ')
         .trim()}
     >

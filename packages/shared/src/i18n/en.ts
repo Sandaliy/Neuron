@@ -13,7 +13,7 @@ export const en = {
   'auth.password.tooLong': 'That is longer than 200 characters.',
   'auth.password.tooCommon':
     'That is one of the first passwords an attacker tries. Pick something else.',
-  'auth.password.hint': 'At least 10 characters. Length matters more than symbols.',
+  'auth.password.hint': 'At least 10 characters.',
   'auth.password.show': 'Show the password',
   'auth.password.hide': 'Hide the password',
 
@@ -24,8 +24,6 @@ export const en = {
   'auth.password.confirmLabel': 'Type the password again',
   'auth.password.confirmMatch': 'Both fields match.',
   'auth.password.confirmMismatch': 'The two passwords are different.',
-  'auth.password.confirmHint':
-    'There is no email recovery here, so a password typed wrong twice cannot be undone.',
 
   'auth.signIn.title': 'Sign in',
   'auth.signIn.submit': 'Sign in',

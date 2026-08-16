@@ -2,7 +2,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { createAuthMiddleware } from 'better-auth/api';
 import { twoFactor } from 'better-auth/plugins';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { hashSecret, verifySecret } from './auth/hashing.js';
 import { neuronAuth } from './auth/plugin.js';
@@ -47,12 +47,18 @@ const ONE_HOUR_IN_SECONDS = 60 * 60;
 const LINK_LIFETIME_IN_SECONDS = ONE_HOUR_IN_SECONDS;
 
 /**
- * The endpoints after which every other session has to go.
+ * The endpoints after which every OTHER session has to go.
  *
  * Changing a password is how someone reacts to thinking their account has been
  * reached. If the sessions opened with the old password survive it, the action
  * did nothing about the thing they were worried about. Better Auth leaves this
  * to a flag the client may or may not send, so it is decided here instead.
+ *
+ * Every other one, and not this one. It used to take them all, on the theory
+ * that signing in again with the new password is the honest ending. In practice
+ * the person who had just typed their new password twice was thrown back to the
+ * sign in screen on the device they were holding, which reads as the change
+ * having failed. They have proved the account is theirs twice over by then.
  *
  * `/recovery/complete` is deliberately not on this list. The sessions were
  * already all closed when the recovery code was spent, and the one left is the
@@ -242,16 +248,17 @@ export function createAuth({ env, db, mailer, addressOf }: CreateAuthOptions) {
           return;
         }
 
-        const userId = context.context.session?.session.userId;
+        const current = context.context.session?.session;
 
-        if (!userId) {
+        if (!current) {
           return;
         }
 
-        // Every session, including the one that made the request. The person
-        // signs in again with the password they just chose, which is the
-        // behaviour that matches what they were trying to achieve.
-        await db.delete(sessionTable).where(eq(sessionTable.userId, userId));
+        // Every session except the one that asked. The devices that were signed
+        // in with the old password are out; the one in the person's hand stays.
+        await db
+          .delete(sessionTable)
+          .where(and(eq(sessionTable.userId, current.userId), ne(sessionTable.id, current.id)));
       }),
     },
 

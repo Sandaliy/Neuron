@@ -11,7 +11,7 @@ import { DIALOG_FORM, DialogBody, DialogFooter } from '../../ui/dialog';
 import { useToast } from '../../ui/toast';
 import { CodeInput } from '../auth/code-input';
 import { PasswordField } from '../auth/password-field';
-import { RecoveryCodes, heldCodes, holdCodes } from '../auth/recovery-codes';
+import { RecoveryCodes, holdCodes, releaseCodes } from '../auth/recovery-codes';
 
 /**
  * Turning the second factor on, in four steps that cannot be skipped.
@@ -49,11 +49,11 @@ export function TotpEnrollment({
 }) {
   const t = useTranslate();
   const toast = useToast();
-  const [step, setStep] = useState<Step>(() => (heldCodes() ? 'codes' : 'password'));
+  const [step, setStep] = useState<Step>('password');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [uri, setUri] = useState('');
-  const [codes, setCodes] = useState<readonly string[]>(() => heldCodes() ?? []);
+  const [codes, setCodes] = useState<readonly string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{
     key: MessageKey;
@@ -75,9 +75,16 @@ export function TotpEnrollment({
     }
 
     setUri(answer.data.totpURI);
-    // Held now rather than when they are shown, so a reload between the QR and
-    // the confirmation does not take the lost phone codes with it.
-    holdCodes(answer.data.backupCodes);
+    /*
+     * Kept in state and not put aside yet.
+     *
+     * They used to be held the moment the server issued them, so a reload could
+     * come back to them. What that actually did was strand anybody who closed
+     * the dialog at the QR: the codes were held, the next open resumed at the
+     * screen that shows them, and that screen cannot be dismissed. The second
+     * factor was not even on. Nothing is held until the code from the app has
+     * come back and the second factor is really enabled.
+     */
     setCodes(answer.data.backupCodes);
     setStep('scan');
   };
@@ -97,6 +104,8 @@ export function TotpEnrollment({
       return;
     }
 
+    // On now, so the codes matter and a reload must come back to them.
+    holdCodes(codes, 'two-factor');
     toast.show(t('auth.twoFactor.enabled'));
     setStep('codes');
   };
@@ -106,6 +115,7 @@ export function TotpEnrollment({
       <RecoveryCodes
         codes={codes}
         title={t('auth.twoFactor.recoveryCodes.title')}
+        scope="two-factor"
         warningKey="auth.twoFactor.recoveryCodes.warning"
         onConfirmed={onDone}
       />
@@ -210,7 +220,14 @@ export function TotpEnrollment({
         <Button type="submit" variant="primary" full busy={busy} disabled={password.length === 0}>
           {t('common.continue')}
         </Button>
-        <Button variant="text" full onClick={onCancel}>
+        <Button
+          variant="text"
+          full
+          onClick={() => {
+            releaseCodes('two-factor');
+            onCancel();
+          }}
+        >
           {t('common.cancel')}
         </Button>
       </DialogFooter>
