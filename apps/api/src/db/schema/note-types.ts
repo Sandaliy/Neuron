@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
-import type { CardTemplate, NoteFieldDefinition } from '@neuron/shared';
+import type { CardTemplate, NoteFieldSummary } from '@neuron/shared';
 
 import { user } from './auth.js';
 import { id, instant, withoutNulls } from './columns.js';
@@ -31,7 +31,7 @@ export const noteTypes = pgTable(
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     isSystem: boolean('is_system').notNull().default(false),
-    fieldSchema: jsonb('field_schema').$type<readonly NoteFieldDefinition[]>().notNull(),
+    fieldSchema: jsonb('field_schema').$type<readonly NoteFieldSummary[]>().notNull(),
     cardTemplates: jsonb('card_templates').$type<readonly CardTemplate[]>().notNull(),
     createdAt: instant('created_at').notNull().defaultNow(),
     updatedAt: instant('updated_at').notNull().defaultNow(),

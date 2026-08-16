@@ -7,11 +7,15 @@ export type { UuidV7Sources } from './uuid.js';
 export {
   NOTE_STATUSES,
   NOTE_TYPES,
-  NOTE_TYPE_FIELDS,
   NOTE_TYPE_TEMPLATES,
+  PARTS_OF_SPEECH,
+  clozeGaps,
+  hasClozeGap,
+  noteFieldSummary,
   noteFieldsSchemas,
   noteStatusSchema,
   noteTypeSchema,
+  partOfSpeechSchema,
   parseNoteFields,
   templatesFor,
 } from './note-types.js';
@@ -19,12 +23,50 @@ export type {
   BasicFields,
   CardTemplate,
   ClozeFields,
-  NoteFieldDefinition,
+  ClozeGap,
   NoteFields,
+  NoteFieldSummary,
+  NoteGrammar,
   NoteStatus,
   NoteTypeName,
+  PartOfSpeech,
   VocabFields,
 } from './note-types.js';
+
+export { directionsOf, openingCards, possibleCards, reconcileCards } from './card-plan.js';
+export type {
+  CardFace,
+  CardReconciliation,
+  ExistingCard,
+  LadderStep,
+  PlannedCard,
+} from './card-plan.js';
+
+export { editorFields, filledPaths, readField, writeField } from './note-fields.js';
+export type {
+  EditorField,
+  EditorSection,
+  FieldContext,
+  FieldKind,
+  FieldOption,
+} from './note-fields.js';
+
+export {
+  CEFR_LEVELS,
+  LANGUAGE_CODES,
+  LANGUAGE_NAMES,
+  cefrLevelSchema,
+  languageCodeSchema,
+} from './languages.js';
+export type { CefrLevel, LanguageCode } from './languages.js';
+
+export {
+  TERM_KEY_LENGTH,
+  exampleContainsTerm,
+  normaliseTerm,
+  noteTermKey,
+  termOf,
+} from './text.js';
 
 export { DEFAULT_DECK_SETTINGS, deckSettingsSchema, resolveDeckSettings } from './deck-settings.js';
 export type { DeckSettings, ResolvedDeckSettings } from './deck-settings.js';

@@ -197,6 +197,71 @@ export const en = {
     'Two-factor authentication is on, so a code from the app is needed too.',
   'settings.deleted': 'The account is closed.',
 
+  /**
+   * The fields of a note.
+   *
+   * Named for what a learner calls them, not for what the schema calls them.
+   * The grammar labels stay in the language being learned, because that is what
+   * a grammar book and a dictionary call them and translating them would mean
+   * learning a second name for the same thing.
+   */
+  'note.field.term': 'Word',
+  'note.field.reading': 'Reading',
+  'note.field.translation': 'Translation',
+  'note.field.definition': 'Definition',
+  'note.field.example': 'Example',
+  'note.field.exampleTranslation': 'Example, translated',
+  'note.field.partOfSpeech': 'Part of speech',
+  'note.field.mnemonic': 'Memory hook',
+  'note.field.note': 'Note',
+  'note.field.image': 'Image',
+  'note.field.audio': 'Audio',
+  'note.field.front': 'Front',
+  'note.field.back': 'Back',
+  'note.field.text': 'Text',
+  'note.field.article': 'Article',
+  'note.field.plural': 'Plural',
+  'note.field.gender': 'Gender',
+  'note.field.praeteritum': 'Präteritum',
+  'note.field.partizip2': 'Partizip II',
+  'note.field.auxiliary': 'Auxiliary',
+  'note.field.separable': 'Separable',
+  'note.field.case': 'Takes the case',
+  'note.field.reflexive': 'Reflexive',
+  'note.field.comparative': 'Comparative',
+  'note.field.superlative': 'Superlative',
+  'note.field.variant': 'Variant',
+  'note.field.irregular': 'Irregular forms',
+  'note.field.uncountable': 'Uncountable',
+
+  'note.hint.reading': 'How it sounds, if that is not obvious from the spelling.',
+  'note.hint.readingIpa': 'IPA, as /əˈbæn.dən/.',
+  'note.hint.example': 'A sentence using the word. It has to contain the word itself.',
+  'note.hint.mnemonic': 'Only if there is a real hook. A forced one is worse than none.',
+  'note.hint.image': 'A web address. Uploading a file arrives later.',
+  'note.hint.cloze': 'Wrap what should be hidden in double braces: Ich {{stehe}} früh auf.',
+  'note.hint.case': 'Only when it is not the plain accusative.',
+  'note.hint.comparison': 'Only when the comparison is irregular.',
+  'note.hint.irregular': 'Past and past participle, as "went / gone".',
+
+  'note.section.grammar': 'Grammar',
+  'note.section.extra': 'Extra',
+
+  'note.pos.noun': 'Noun',
+  'note.pos.verb': 'Verb',
+  'note.pos.adjective': 'Adjective',
+  'note.pos.adverb': 'Adverb',
+  'note.pos.phrase': 'Phrase',
+  'note.pos.other': 'Other',
+
+  'note.gender.m': 'Masculine',
+  'note.gender.f': 'Feminine',
+  'note.gender.n': 'Neuter',
+
+  'note.case.accusative': 'Accusative',
+  'note.case.dative': 'Dative',
+  'note.case.genitive': 'Genitive',
+
   'error.not_authenticated': 'Sign in to continue.',
   'error.not_allowed': 'That action was refused. Reload the page and try again.',
   'error.not_found': 'That is not here.',
@@ -221,6 +286,8 @@ export const en = {
   'error.two_factor_unavailable': '2FA is not set up on this account.',
   'error.invalid_token': 'That link is not valid any more. Ask for a new one.',
   'error.direction_unavailable': 'That card direction is not available.',
+  'error.cards_would_be_lost':
+    'That change would delete cards you have already reviewed. Confirm it on the note first.',
   'error.sync_rejected': 'Those changes could not be saved. They are still on this device.',
   'error.service_unavailable': 'The server is not answering. Your work is saved on this device.',
   'error.network_unreachable':
