@@ -6,6 +6,14 @@ added in phase 5.
 The gallery at `/dev/components` is the drawn version of this file. Read them together: this one says
 why, the gallery says what it looks like, and the screenshot tests say whether either has changed.
 
+**The system is written down in three places, and all three move together.** This file, the mockup at
+`Design systems/neuron-visual-system new.html`, and the code. The mockup is the reference the visual
+design was approved from, and it is what a later change is judged against, so a change that lands in
+the code and not in the mockup makes the reference wrong. At the end of any piece of work that changes
+how something looks, update all three: the component, this file and `docs/copy-audit.md` if the words
+moved, and the mockup. `Design systems/neuron-visual-system current.html` is the version that was
+approved before the phone passes and is kept as history; it is not edited again.
+
 Direction: restrained technical minimalism, dark by default, mobile first. One accent, one signal hue,
 two font weights, and depth that comes from the layer a thing sits on rather than from shading every
 control.
@@ -127,9 +135,14 @@ Everything the interface is built from. A new component needs a written reason a
 before it ships.
 
 **Action** (`ui/button.tsx`). `primary`, `quiet`, `text`, `destructive`. One primary per screen; two
-accent fills on one screen is a bug. Destructive is text, never a red slab. States: default, hover,
-active, focus, disabled, loading, and the destructive tone. Forty four tall at the smallest, forty
-eight when it fills the width of a form.
+accent fills on one screen is a bug. Destructive is a slab shaped like `quiet` with the label in the
+signal hue: it is never a filled red button, because a filled red button is a large area of the signal
+hue and the hue exists for error text, but it was a word in a sentence and the two places it appears
+are the last action in a dialog about deleting an account and the last action in a dialog about turning
+off the second factor. Both read as a line of red text that happened to be there rather than as the
+button that finishes, and one of them is irreversible. States: default, hover, active, focus, disabled,
+loading, and the destructive tone. Forty four tall at the smallest, forty eight when it fills the width
+of a form.
 
 **Field** (`ui/input.tsx`, `ui/textarea.tsx`, `ui/select.tsx`, `ui/range.tsx`, `ui/form-field.tsx`).
 Text, textarea, select, range, and the code field, which is one field and not six boxes. `FormField`
@@ -150,8 +163,8 @@ icon. A pressable row is a button, and its focus ring is inset so a group's over
 starting at the text), `GroupLabel`.
 
 **Floating** (`ui/dialog.tsx`, `ui/toast.tsx`, `ui/sheen.tsx`, and the tab bar in `app/shell.tsx`).
-Maximum two floating layers on screen. A dialog is a bottom sheet on a phone and a centred panel above
-the breakpoint. A toast is one line with no action and leaves by itself.
+Maximum two floating layers on screen. A dialog is a centred panel, at every width, and everything it
+holds fits without scrolling. A toast is one line with no action and leaves by itself.
 
 **Status** (`ui/chip.tsx`, `ui/progress.tsx`, `ui/spinner.tsx`, `ui/states.tsx`). Four chip tones and
 no others: due, new, slipping, scheduled. The spinner appears only inside a control that was pressed; a
@@ -175,15 +188,44 @@ fixed. `src/styles/motion.test.ts` and a Playwright test both check it.
 
 ### The three levels
 
-| Level    | Blur | Tint      | Saturation | Where                                       |
-| -------- | ---- | --------- | ---------- | ------------------------------------------- |
-| `full`   | 34px | .78 / .54 | 1.9        | The default, and what the mockup recommends |
-| `subtle` | 14px | .90 / .66 | 1.4        | Phones that stutter                         |
-| `off`    | none | opaque    | none       | The same surfaces without the blur          |
+| Level    | Blur | Tint, by layer  | Saturation | Where                                       |
+| -------- | ---- | --------------- | ---------- | ------------------------------------------- |
+| `full`   | 34px | .78 / .58 / .54 | 1.9        | The default, and what the mockup recommends |
+| `subtle` | 14px | .90 / .72 / .66 | 1.4        | Phones that stutter                         |
+| `off`    | none | opaque          | none       | The same surfaces without the blur          |
 
-The second tint number is for a sheet, which sits over a scrim that has already dimmed the backdrop and
-can therefore be sheerer. Off is not a failure state: it is what a browser without `backdrop-filter`
-already gets, and what the declared fallback background paints first in every case.
+Three tints, because the three kinds of layer carry different text and the floor is always the quietest
+text on the layer.
+
+- `--g-alpha` is a toast, and a card or a row once the effect reaches them. They carry secondary text,
+  which needs .78 over the worst backdrop.
+- `--g-alpha-bar` is the floating bars. Every label on a bar is primary, so the floor is primary and the
+  tint can be .58.
+- `--g-alpha-sheer` is a dialog, which sits over a scrim that has already dimmed the backdrop and can
+  therefore be sheerer still.
+
+Off is not a failure state: it is what a browser without `backdrop-filter` already gets, and what the
+declared fallback background paints first in every case.
+
+**Transparency and contrast are one dial, not two.** The share of the backdrop that shows through a
+tint is exactly one minus its alpha, so "more see through" and "less contrast" are the same request.
+There is no third option: `backdrop-filter: brightness()` lowers the worst case and the visible
+variation by the same factor and buys nothing.
+
+What buys something is taking the quiet text off the layer. A bar's current tab is marked by the pill
+travelling under it, not by the tone of the words, so every label on a bar can be primary, and that
+moves the floor from secondary to primary. Measured over the worst backdrop a bar can have, which is
+the theme's own primary text scrolling underneath it:
+
+| On a bar at .58 | Dark            | Light           |
+| --------------- | --------------- | --------------- |
+| Primary         | **4.55**        | **6.46**        |
+| Secondary       | 2.31, banned    | 2.74, banned    |
+
+Both quieter tones are redefined to the primary one on a bar in `global.css`, the same way tertiary is
+redefined to secondary on every other glass layer, so a label that moves onto a bar is corrected rather
+than left to fail quietly. `src/styles/contrast.test.ts` reads the alphas out of the token file and
+prints every ratio on each run.
 
 ### Where it applies
 
@@ -299,33 +341,63 @@ is out, and floats far too high once it retracts. `src/lib/viewport.ts` measures
 the layout viewport and the visual one and publishes it as two variables, because two different things
 need two different answers:
 
-| Variable                   | Is                                                        | Used by                                 |
-| -------------------------- | --------------------------------------------------------- | --------------------------------------- |
-| `--keyboard-inset`         | The gap when it is a keyboard, and zero otherwise         | Sheets, and the padding a form reserves |
-| `--chrome-inset`           | The gap when it is the browser's own furniture, else zero | The tab bar                             |
-| `--visual-viewport-height` | How tall the part on screen actually is                   | A sheet's maximum height                |
-| `data-keyboard` on `html`  | `open` or `closed`                                        | Anything that hides for the keys        |
+| Variable                   | Is                                                        | Used by                                   |
+| -------------------------- | --------------------------------------------------------- | ----------------------------------------- |
+| `--keyboard-inset`         | The gap when it is a keyboard, and zero otherwise         | The padding a full page form reserves     |
+| `--chrome-inset`           | The gap when it is the browser's own furniture, else zero | The tab bar                               |
+| `--visual-viewport-height` | How tall the part on screen actually is                   | The band a dialog is centred in           |
+| `--visual-viewport-top`    | Where the part on screen starts                           | The top edge of that band                 |
+| `data-keyboard` on `html`  | `open` or `closed`                                        | Anything that hides or tightens for a key |
 
 The tab bar's own offset is `max(safe-area-inset-bottom - 12px, 8px)`, not the safe area plus a gap. A
 phone's home indicator occupies 34 pixels and a floating bar is meant to sit close to it, the way the
 platform's own do; a gap on top of that left the bar hovering 54 pixels up, which reads as a bar that
 has come loose.
 
-**A sheet is three parts, not one scrolling block.** A heading that stays, a body that scrolls, and a
-footer that stays. That is what keeps the action reachable with the keyboard up: the sheet's height is
-bound to `--visual-viewport-height`, the body takes whatever is left, and the action never moves.
-Compose one with `DialogBody`, `DialogFooter` and, when there is a form involved, `DIALOG_FORM` on the
-form itself so the form is the column rather than the sheet.
+**A dialog is centred in the part of the page a person can see.** `[data-dialog-band]` is a full width
+band as tall as `--visual-viewport-height`, and the dialog is centred inside it, so when the keyboard
+takes the bottom 336 pixels the band becomes 476 tall and the dialog moves up with it. The band carries
+the `z-index`, not the dialog: a fixed element creates a stacking context of its own, so a number on
+the dialog inside counts for nothing against the scrim outside it.
 
-**A full page form gives its space back instead.** The gap holding the heading apart from the fields
-collapses when the keyboard opens, and the padding underneath grows by the keyboard's height so there
-is somewhere to scroll to. Before that the page was exactly as tall as the screen, there was nowhere to
-scroll, and the button sat behind the keys.
+The band centres its dialog with `margin: auto` and scrolls, and neither is
+decoration. Flex alignment centres by overflowing equally in both directions, so a dialog taller than
+the band loses its top edge off the top of the screen with no way to scroll back to it, and one
+Android browser reports a visible height smaller than the truth while its keyboard animates. An
+automatic margin centres what fits and resolves to zero when nothing does; the scroll is what makes a
+dialog reachable even when the measurement is wrong. `tests/keyboard.spec.ts` sets the band to 200
+pixels and checks the top edge is still on screen.
+
+A dialog used to be a sheet against the bottom edge on a phone. That is the wrong shape for anything
+with more than a field in it. A sheet grows upward from the bottom, so its heading is at the top of a
+tall box and its content is at the foot of the screen; setting up the second factor put the QR code,
+the setup key, the field for the code and the button in that order below the fold, and every one of
+them needs the keyboard. Centred, the same content is measured against the middle of the screen and
+both edges give way at once.
+
+**Everything a dialog holds fits without scrolling, at 375 by 812, in both languages.** That is a rule
+and it is measured: `tests/dialogs.spec.ts` opens every dialog in the app and fails if the scrolling
+part holds more than it can show. Anything that does not fit is a screen that wants splitting into
+steps, and setting up the second factor is now four of them rather than three.
+
+**A dialog is still three parts, not one scrolling block.** A heading that stays, a body that scrolls
+if it has to, and a footer that stays. Compose one with `DialogBody`, `DialogFooter` and, when there is
+a form involved, `DIALOG_FORM` on the form itself so the form is the column rather than the dialog.
+Anything that has to be answered before the action goes in the footer with it: the box confirming the
+recovery codes have been saved is there, because at the foot of a scrolling column it was below the
+fold while the button it unlocks was above it.
+
+**A full page form is a card in the middle too.** The signed out screens used to pin the heading to the
+top and push the form against the bottom edge, which produced "Sign in" alone at the top of an empty
+screen and the fields 500 pixels below it. The card is centred with `m-auto` rather than
+`justify-center`, because flex alignment clips the top of anything taller than the screen and there is
+no scrolling back to it; the room inside contracts while the keyboard is up, and the page reserves the
+keyboard's height underneath so the foot of the form can be scrolled to.
 
 **The tab bar leaves.** It belongs to the bottom of the screen and the keyboard has taken that.
 
-All six of these are checked in `tests/keyboard.spec.ts`, which stages a 336 pixel keyboard by setting
-the three variables the tracker sets and then measures where things actually are.
+These are checked in `tests/keyboard.spec.ts`, which stages a 336 pixel keyboard by setting the three
+variables the tracker sets and then measures where things actually are.
 
 ---
 
@@ -337,8 +409,9 @@ the three variables the tracker sets and then measures where things actually are
 - One primary action per screen. Everything else is quiet or text.
 - Depth ladder in order: canvas, card, raised, floating. Never skip a rung, never nest a card in a card.
 - Vertical rhythm from the scale only: 8 inside a group, 20 between groups, 24 between blocks.
-- A sheet is for a decision belonging to the screen behind it. Anything with its own title and its own
+- A dialog is for a decision belonging to the screen behind it. Anything with its own title and its own
   back is a screen.
+- A dialog fits a phone whole. If it does not, it is more than one step.
 - No screen is mostly empty. If content is thin, the screen carries the next action and the reason for
   it. None of the three states is a centred icon in a void.
 - Numbers are mono and tabular. Counts and dates never shift the layout as they change.
@@ -440,9 +513,12 @@ The full string list, with what is wrong with each, is in `docs/copy-audit.md`, 
 6. Check both themes and glass off. Anything that only works in one of them is not built yet.
 7. Measure any new colour pairing and write the ratio next to it. AA is the floor.
 8. Add it to the gallery at `/dev/components`, and add a screenshot test.
-9. If it has a field, open it with the keyboard up and check the action is still reachable. A sheet
+9. If it has a field, open it with the keyboard up and check the action is still reachable. A dialog
    uses `DialogBody` and `DialogFooter`; a full page form reserves `--keyboard-inset` underneath.
-10. Scroll it on a phone. Below 55 frames a second the screen changes, not the phone.
+10. If it is a dialog, check it fits 375 by 812 whole, in both languages, with nothing below the fold.
+11. Scroll it on a phone. Below 55 frames a second the screen changes, not the phone.
+12. Draw the change in the mockup as well. `Design systems/neuron-visual-system new.html` is the
+    reference the system is judged against, and a change that is only in the code makes it wrong.
 
 ---
 

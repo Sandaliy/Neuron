@@ -60,8 +60,8 @@ describe('motion', () => {
     for (const name of [
       'neu-in-forward',
       'neu-in-back',
-      'neu-sheet-in',
-      'neu-sheet-out',
+      'neu-panel-in',
+      'neu-panel-out',
       'neu-reveal',
       'neu-rise',
       'neu-toast-in',
@@ -141,7 +141,7 @@ describe('motion', () => {
   it('lets an exit hold where it ended', () => {
     // Something on its way out has to stay where it finished until whatever is
     // unmounting it gets around to it.
-    for (const name of ['neu-sheet-out', 'neu-panel-out', 'neu-toast-out']) {
+    for (const name of ['neu-panel-out', 'neu-toast-out']) {
       const rule = new RegExp(String.raw`animation:\s*${name}[^;]*forwards`);
 
       expect(rule.test(stylesheet), name).toBe(true);

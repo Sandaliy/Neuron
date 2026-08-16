@@ -3,9 +3,11 @@
 Where the project stands right now. This file replaces reading `neuron-plan.md` and `phase-*.md`.
 Update it with `/handoff` at the end of a working session.
 
-Last updated: 2026-08-16, on `fix/phone-feel`. Phase 5.5, the design pass, is merged and live.
-`e44748d` made it behave on a phone, and `81b0315` is the second pass over that same ground: the bar,
-the glass setting, the keyboard, and how a press answers.
+Last updated: 2026-08-16, on `docs/second-phone-pass`, newest commit `a69cb17`. Phase 5.5, the design
+pass, is merged and live. `e44748d` made it behave on a phone, `d9f75a8` was the second pass over the
+same ground, and the working tree now holds a third: dialogs are centred panels, the signed out
+screens are centred cards, the bar is nearly twice as transparent, and turning off the second factor
+or deleting an account costs a code from the app.
 
 ## Now
 
@@ -14,9 +16,8 @@ the glass setting, the keyboard, and how a press answers.
 design system. Sign up, sign in, the ten codes, recovery by code, the second factor, settings, the read
 only library tree and Today. Two themes, two languages, three glass levels.
 
-`pnpm typecheck`, `pnpm lint` and `pnpm test` all pass: 699 tests, none skipped. The Playwright suite,
-`pnpm --filter @neuron/web test:screens`, passes its 58 checks, and the production deploy after the
-merge went green.
+`pnpm typecheck`, `pnpm lint` and `pnpm test` all pass: 708 tests, none skipped. The Playwright suite,
+`pnpm --filter @neuron/web test:screens`, passes its 80 checks. The third pass is not committed yet.
 
 **`docs/design-system.md` is the reference now, and `/dev/components` is the drawn version of it.**
 Read both before changing anything visual. `docs/design-principles.md` is a pointer to it; every value
@@ -24,200 +25,136 @@ that used to be in that file is wrong.
 
 ### What the design pass changed
 
-**Tokens are two layers.** A raw palette, then a semantic layer that is the only vocabulary a
-component speaks. `scripts/check-design-tokens.mjs` fails the build on a colour literal, a spacing
-value off the scale, a raw duration, or a raw token named in a component, so the second layer is a
-rule rather than a habit.
+Tokens are two layers, raw then semantic, and `scripts/check-design-tokens.mjs` fails the build on a
+colour literal, a spacing value off the scale, a raw duration, or a raw token named in a component.
 
-**Glass is a setting, not a look.** Three levels, off, medium and max, device local, applied before
-React exists and never synced. The level painted is the chosen one capped by what the device can
-afford: reduced motion, four gigabytes of memory or less, or a scroll measured under 55 frames a
-second. When the ceiling comes down the panel says so instead of quietly disagreeing with the control.
-Nothing in the content flow is glass, two blurred layers never stack, and the blur radius is never
-animated.
+Glass is a setting, not a look: three levels, device local, applied before React exists, and the level
+painted is the chosen one capped by what the device can afford. Nothing in the content flow is glass,
+two blurred layers never stack, the blur radius is never animated.
 
-**The frame rate is measured, not asserted.** Five hundred rows in the library, the default level, a
-375 by 812 viewport at two device pixels per css pixel, the processor throttled to a quarter speed:
-**60.0 fps, worst frame 16.8 ms**, which is the display cap with nothing dropped. The same harness
-reports 58.4 fps at ten times throttling and 21.0 at twenty, so it can see past the cap.
-
-**Contrast is measured again, against the new tokens.** Forty ratios printed on every test run.
-Secondary text on dark bar glass over its worst backdrop is 4.60 to 1 and 4.72 on light; tertiary
-lands at 3.34 and 3.12, which is why it is banned there and the blurred layers redefine
-`--text-tertiary` to the secondary tone rather than leaving it to discipline.
-
-**Type is the platform's own face**, option A from the mockup. Nothing is downloaded, so there is no
-swap and nothing reflows when a face lands late. The role tokens stay, so the mockup's reading serif
-is two lines in `tokens.css` away.
+The frame rate is measured, not asserted: 500 rows, the default level, a quarter speed processor, 375
+by 812, **60.0 fps with a worst frame of 16.8 ms**. Contrast is measured too, forty ratios printed on
+every test run. Type is the platform's own face, so nothing is downloaded and nothing reflows.
 
 ### What the phone pass changed
 
-Six things reported from a real iPhone, all fixed and all now tested.
+Six things reported from a real iPhone. Fields were fifteen pixels, and iOS Safari zooms the page the
+moment a field under sixteen is focused and never zooms back; sixteen is a size in the theme now.
+Dialogs became three parts instead of one scrolling block. The tab bar sits against the bottom of what
+is on screen, which takes measuring, because a fixed element is placed against the layout viewport and
+that runs on underneath Safari's toolbar. Where the glass applies became a real setting.
 
-**The zoom nobody could undo was the fields.** They were fifteen pixels, and iOS Safari zooms the page
-the moment a field under sixteen is focused and never zooms back, so every screen opened at about 110%
-and scrolled sideways. Sixteen is a size in the theme now, with the reason next to it.
-
-**Sheets are three parts instead of one scrolling block**: a heading that stays, a body that scrolls,
-and a footer that stays. Setting up 2FA needed the keyboard dismissed before Continue could be pressed.
-A full page form gives its space back the same way, by collapsing the gap it was holding open and
-reserving the keyboard's height underneath so there is somewhere to scroll to.
-
-**The tab bar sits at the bottom on every size, against the bottom of what is on screen.** A fixed
-element is placed against the layout viewport, which on iOS runs on underneath Safari's toolbar, so the
-bar hid behind the toolbar while it was out and floated far too high once it retracted. The tracker
-publishes the browser's own inset separately from the keyboard's, because the bar lifts for one and
-leaves entirely for the other, and its offset is the safe area less twelve rather than plus a gap.
-
-**Where it applies is a real setting**, panels only or panels and cards.
-
-**Motion was specified and barely used.** Screens arrive, their first four blocks arrive a beat behind
-them, deck children reveal, chips pop, presses answer by less the larger the thing is, and the
-segmented thumb takes the screen duration rather than the control one.
-
-**Measuring that found a real bug.** Every entrance filled `both`, which holds the last keyframe on the
-element for ever, and a held transform keeps it on a composited layer of its own: the container holding
-five hundred rows became one 38,000 pixel layer and the library scroll fell from 60 frames a second to
-**8.7**, with nothing on screen looking any different. Entrances fill backwards now, exits fill
-forwards, and `motion.test.ts` fails the build on `both`.
-
-| 500 rows, 4x cpu | Frames a second | Worst frame | Blurred rows |
-| ---------------- | --------------- | ----------- | ------------ |
-| Panels only      | 60.0            | 16.8 ms     | 0            |
-| Panels and cards | 56.5            | 33.4 ms     | 500          |
-
-**Nobody can quietly degrade the interface now.** `/dev/components` draws every component in every
-state, both themes, all three glass levels, and it is registered only outside production. The
-Playwright suite photographs it and the five screens at 375 and 1440 in both themes, reads computed
-durations back with reduced motion on, and measures the scroll.
-
-Checked against the live deployment, not only locally: registering sets the session cookie on the web
-host with `__Secure-` and `HttpOnly`, and a second request carrying only that cookie is accepted. The
-account used for the check was deleted afterwards.
+Measuring the motion found a real bug: every entrance filled `both`, which holds the last keyframe for
+ever, and a held transform keeps the element on a composited layer. The container holding five hundred
+rows became one 38,000 pixel layer and the library scroll fell to **8.7 fps** with nothing on screen
+looking different. Entrances fill backwards now and `motion.test.ts` fails the build on `both`.
 
 ### What the behaviour pass changed
 
-**The flicker was the app writing the server's answer back over the person's choice.** Not a stale
-refetch: `staleTime` was already 30 seconds, `refetchOnWindowFocus` was already off, and a trace of
-one theme switch contains exactly one request, a `PATCH`, and no refetch at all. What happened was
-that `PreferencesSync` copied the account's theme and language down whenever they changed, and
-`useUpdatePreferences` wrote the mutation's response into the query the session gate reads.
+The flicker was the app writing the server's answer back over the person's choice. Theme and language
+are device preferences now: read while their module is evaluated, applied before React exists, written
+synchronously in the click handler, told to the server afterwards with the answer discarded. One theme
+switch went from 63 component renders across 3 commits, 52 of them arriving after the network at 872
+ms, to 9 renders in 1 commit with nothing waiting on a request.
 
-Three faults came out of that, all measured:
-
-- On load the account overwrote the device. The page painted `light` from local storage at 105 ms,
-  correctly, and `/account` answered at 886 ms and made it `dark`, in local storage too.
-- Every switch re-rendered the whole signed in tree when the request came back, roughly a second
-  later. 52 of the 63 component renders in a theme switch arrived after the network.
-- Two switches inside one round trip finished out of order and the older answer won, leaving the
-  device on the theme nobody picked, permanently.
-
-Theme and language are device preferences now: read while their module is evaluated, applied before
-React exists, written synchronously in the click handler, told to the server afterwards one request
-at a time with the answer discarded. The account is read once, on a device that has never chosen.
-
-| One theme switch                        | Before        | After  |
-| --------------------------------------- | ------------- | ------ |
-| Click to the DOM carrying the change    | 2.9 ms        | 2.5 ms |
-| React commits                           | 3             | 1      |
-| Component renders                       | 63            | 9      |
-| Renders arriving after the network      | 52, at 872 ms | 0      |
-| With the network refusing every request | works         | works  |
-
-The language switch went from 174 renders across two commits, the second at 1761 ms, to 47 in two
-commits both inside 1.1 ms. Its 47 are the text genuinely changing.
-
-**Dialogs sit above the on-screen keyboard.** A sheet is positioned against the layout viewport and
-iOS does not shrink that for a keyboard, so the keyboard was drawn over the field being typed into.
-`interactive-widget=resizes-content` handles Android; for the rest `src/lib/viewport.ts` measures the
-gap between the two viewports and publishes it as `--keyboard-inset`. At 375 px with a 336 px
-keyboard the change password sheet's bottom edge moves from 812 to 476, and every field stays above
-it.
-
-**Inter does load, and the Cyrillic subset is there**, checked against the fetched files. Two things
-around it were wrong: the per subset imports carry no `unicode-range`, so all four files were fetched
-whatever language was on, and nothing stood in for Inter while it arrived. Text now shifts 0.24%
-instead of 7.80% on the swap, and the line box does not move at all.
-
-**Sign up asks for the password twice**, with live match feedback and a show and hide toggle on both
-fields. There is no email recovery in this project, so a password typed wrong is an account nobody
-can open.
-
-**153 interface strings are listed in `docs/copy-audit.md`**, generated by `pnpm copy-audit`. The
-parts that were not judgement calls are applied and now checked by a test: the second factor is
-called two-factor authentication and 2FA, and Russian says ты in all thirty strings that said вы.
+Dialogs learned to sit above the on-screen keyboard, `src/lib/viewport.ts` was written to measure where
+it is, Inter's subsets got their `unicode-range`, sign up started asking for the password twice, and
+`docs/copy-audit.md` listed 153 interface strings with what looks wrong with each.
 
 ### What the second phone pass changed
 
-Five things reported from the iPhone, and three found while measuring them.
+The tab bar jumped because its offset was written into `bottom` and part of that offset changes on
+every change of scroll direction. The lift is a `translate` now. Panels and cards only moved a quarter
+of the interface, because `Card` painted its own surface in a utility and a utility beats the
+components layer. The keyboard had four more faults, all of them about a sheet moving in layout while
+it was also animating. A press answers in ninety milliseconds each way, from the stylesheet rather than
+from each control. "Turn off 2FA" existed on accounts with no second factor, because `GET /account`
+never reported the state; it does now.
 
-**The tab bar jumped when the page was scrolled up.** Its offset was written into `bottom`, and part
-of that offset is `--chrome-inset`, which changes every time Safari's toolbar slides in or out, which
-is every change of scroll direction. That is a layout pass per reported step, and iOS reports the
-move in two or three coarse steps, so the bar arrived in jumps. The lift is a `translate` now, with
-the screen duration under it, so the same three steps read as one glide. The tracker also batches
-into one frame and writes only what changed: it used to set three custom properties on the root
-element per event, several times a frame, and each of those recalculates style for every element in
-the document.
+Three things were found while measuring: every toast was drawn behind the tab bar because its padding
+named a variable nothing defines, the specular streak forced a synchronous layout on every scrolled
+frame, and the first screen asked its two opening questions one after the other.
 
-**Panels and cards only moved a quarter of the interface.** `Card` painted its own surface with
-`bg-card`, and a utility beats the components layer, so the setting reached `RowGroup` and nothing
-else. In Settings that is Security and Account changing and Appearance and Language not. The card
-names no surface of its own now and the stylesheet paints it in both scopes, and the scope rules
-moved after the level rules so a card outside the scope keeps its own surface when the glass is off.
-Settings at that scope has a screenshot, which is what was missing when this shipped looking like it
-worked.
+### What the dialog pass changed
 
-**The keyboard, again.** Four separate faults:
+Eight things reported from the iPhone, and the shape of the dialog was behind most of them.
 
-- A sheet lifted itself in `bottom`, which is layout, on the frames it was also animating in on.
-  That lift is a `translate` now and composes with the entrance rather than fighting it.
-- Radix focused the first field on open, so iOS raised the keyboard across the sheet's entrance. Two
-  system animations crossing, and the keyboard's curve is not one this app can time against. The
-  sheet takes the focus instead, and the keyboard comes with the tap on a field, which is also the
-  gesture that makes iOS willing to raise it at all.
-- Revealing a focused field centred the input, so the sentence underneath went below the fold. That
-  is why "At least 10 characters" was half visible. The whole field group is revealed now, and
-  inside the sheet's own scroller rather than by `scrollIntoView`, which walks every scrollable
-  ancestor including the page: a fixed sheet does not reliably stay put while the page under it is
-  scrolled with the keyboard up, and that is the likeliest way Save ended up behind the keys.
-- A full page form gives back its head room and its gaps as well as its middle, and the keyboard
-  opening scrolls it to its foot, where the fields and the button both are. At 375 by 812 a keyboard
-  leaves 476 pixels, and sign in now fits inside them.
+**A dialog is a centred panel now, at every width.** It was a sheet against the bottom edge on a phone,
+which is the wrong shape for anything with more than a field in it: a sheet grows upward, so its
+heading is at the top of a tall box and its content is at the foot of the screen. Setting up the second
+factor put the QR code, the setup key, the field for the code and the button in that order below the
+fold, and every one of them needs the keyboard. `[data-dialog-band]` is a band as tall as
+`--visual-viewport-height`, and the dialog is centred in it, so the keyboard shortens the band and the
+dialog moves up with it. The band carries the `z-index`: a fixed element makes a stacking context of
+its own, so the number that was on the dialog counted for nothing against the scrim, and the scrim was
+painted over the dialog and swallowed every press aimed at it.
 
-**A press answered in ninety milliseconds each way, on one curve.** Down is immediate and back is the
-screen duration on the spring. That asymmetry is most of what separates a control that feels like a
-phone's from one that feels like a web page's, and it had to move into the stylesheet: a
-`transition-*` utility on a component wins over the components layer, so every control was deciding
-its own timing again. A word in a sentence dims rather than shrinking. The pill under the current tab
-answers a press on that tab and no longer flinches when a different one is hit.
+**Everything a dialog holds fits a 375 by 812 phone, in both languages, and that is measured.**
+`tests/dialogs.spec.ts` opens every dialog and fails if the scrolling part holds more than it can show.
+Enrolling in the second factor is four steps instead of three, the QR and the code no longer share one.
+The ten recovery codes fit by putting the confirmation box in the footer with the button it unlocks,
+by dropping the heading the dialog title already carried, and by sitting the codes at thirteen pixels
+in a tighter well.
 
-**The curves and the arrival.** `--ease-enter` was an exponential ease out, which spends its travel
-in the first fifth of the duration and crawls after it; that is what reads as a swoosh followed by a
-slow settle. `--ease-spring` overshot by 28 per cent, which on a segmented thumb is a bounce rather
-than a settle. A screen change was a fade on the screen element over a stagger reaching 98 ms, one
-fade multiplied by the other, so a tab whose content was already cached took a third of a second to
-become legible and read as loading. The screen element no longer fades and the stagger ends at 62 ms.
+**The signed out screens are centred cards.** Heading pinned to the top and fields against the bottom
+edge produced "Sign in" alone above 500 pixels of nothing. Centred with `m-auto`, not `justify-center`,
+which clips the top of anything taller than the screen.
 
-**Glass: the tint is pinned, the edge is not.** Both rims carry light now rather than the top one
-alone, which is what a pane with thickness does. The density is a different matter, and the
-arithmetic is worth writing down. For a fixed worst case contrast, how much of the backdrop shows
-through is exactly one minus the tint alpha, so a more see through layer is a lower contrast ratio
-and nothing else. Dimming the backdrop with `backdrop-filter: brightness()` does not buy anything,
-because it lowers the worst case and the visible variation by the same coefficient. Dark bar glass
-measures 4.60 to 1 for secondary text and light measures 4.72, against AA's 4.5, so there is nothing
-left to spend. More transparency means accepting a measured drop below AA over the worst backdrop,
-which is a decision rather than a tweak.
+**The bar is nearly twice as transparent, and the arithmetic is the reason it can be.** For a fixed
+worst case the share of the backdrop showing through is one minus the alpha, so transparency and
+contrast are one dial and the floor is the quietest text on the layer. Taking the quiet tone off a bar
+moves the floor from secondary to primary, so `--g-alpha-bar` is .58 where `--g-alpha` is .78: measured
+4.55 to 1 in dark and 6.46 in light, against AA's 4.5. Secondary and tertiary are redefined to primary
+on a bar in the stylesheet, so a label that moves onto one is corrected rather than left to fail.
 
-**Three things found while measuring.** Every toast was drawn behind the tab bar: its padding named
-`--bar-gap`, which nothing defines, and an undefined variable inside `calc` makes the whole
-declaration invalid. The specular streak read `offsetWidth` and `scrollHeight` inside its scroll
-handler, which forces a synchronous layout of the document on every frame of every scroll, paid for a
-highlight one pixel tall. And the first screen asked its two questions one after the other: the
-session gate does not render the screens until the account has answered, so the deck tree was only
-requested after it. Both start from the entry point now, before React is evaluated. Measured against
-the live api from here, warm is 350 ms and cold is 3.9 s, and the api runs in `iad1` while requests
-enter at `fra1`, so the Atlantic is crossed twice per request and was being crossed twice in a row.
+**Turning off the second factor costs a code from the app as well as the password.** The thing being
+removed is the protection against somebody who already has the password. The check is a guard on
+`/two-factor/disable` in `apps/api/src/auth/plugin.ts`, the password is checked first so a mistyped one
+does not burn a code, and the code is spent through the same replay claim the verification path uses.
+**Deleting an account costs the same two things**, in `apps/api/src/routes/account.ts`, replacing the
+phrase that had to be typed: copying a phrase off the screen above the box proves nothing.
+
+**Destructive is a slab now**, shaped like `quiet` with the label in the signal hue. It was a word in a
+sentence, and the last action in a dialog about deleting an account read as a line of red text that
+happened to be there.
+
+**Settings says less.** Three captions gone, "Less movement" is "Animations" with the switch the right
+way round, the second factor is one row named for the thing with On or Off underneath, and deleting an
+account is called that with the explanation inside.
+
+### What the second dialog pass changed
+
+Six more, reported from the phone once the first pass was live.
+
+**The dialog flew off the top of the screen when the keyboard opened.** The band centred it with flex
+alignment, which overflows equally in both directions, so anything taller than the band lost its top
+edge and could not be scrolled back to. `margin: auto` centres what fits and resolves to zero when
+nothing does, and the band scrolls now, so a browser reporting a visible height smaller than the truth
+cannot strand a dialog. The band also sits at `--visual-viewport-top` rather than at zero, because on
+iOS the visual viewport scrolls independently of the layout one while the keyboard is up.
+
+**Closing the second factor dialog at the QR left an account stuck.** The lost phone codes were held
+in `sessionStorage` the moment the server issued them, so the next open resumed on the screen that
+shows them, and that screen cannot be dismissed. The second factor was not even on. Nothing is held
+until the code from the app has come back, an abandoned set is discarded when the account says the
+second factor is off, and the two flows that issue ten codes no longer share one storage key: the set
+held by the second factor was being picked up by the registration screen.
+
+**The dialog drew a focus ring around itself** on any step with no field in it, because it takes the
+focus on open so the trap has somewhere to start. The trap still holds and the first Tab still reaches
+the first control.
+
+**The focus ring on the last field was clipped along the bottom**, which reads as the button
+underneath sitting on top of it. The scrolling part of a dialog has room for a ring on all four sides
+now, not two.
+
+**Changing a password signed the person out on the device they changed it on.** The after hook took
+every session, including the one that had just asked, and the client was also sending
+`revokeOtherSessions`, which made Better Auth mint a replacement session that the hook then deleted as
+well. Every session except the one that asked, and the flag is gone from the client.
+
+**The codes a new account gets are a centred card**, the same as every other signed out screen. The
+tagline and the sentence about there being no email recovery are gone from registration.
 
 ## Done
 
@@ -283,20 +220,21 @@ end to end by tests that run with it on, reading the token out of the log mailer
 
 ## Next
 
-1. **Look at the app on a real phone**, in both themes, and try the three glass levels. Everything
-   below 55 frames a second is a bug this project wants to hear about; the setting is in
-   Settings, Appearance.
-2. **Check the keyboard on a real phone.** The sheet was verified at 375 px against a simulated
-   336 px keyboard, which proves the arithmetic and the CSS but not iOS Safari's own behaviour. The
-   second pass fixed four faults there, and not one of them can be confirmed from a desktop.
-3. **Decide where the api runs.** It answers from `iad1` and requests enter at `fra1`, which is about
+1. **Commit the dialog pass and push the branch.** The working tree holds it, all three gates pass, and
+   nothing is verified on a real phone until a preview builds it.
+2. **Check the new dialogs on a real phone**, in both themes and both languages. The enrollment steps,
+   the ten codes, deleting an account, and turning the second factor off. All of it was measured
+   against a staged 336 pixel keyboard, which proves the arithmetic and not iOS Safari.
+3. **Look at the bar at .58 on a real screen.** The ratio clears AA over the worst backdrop this app
+   can produce. Whether it reads as thin rather than washed out is a judgement nobody can make from a
+   contrast number.
+4. **Decide where the api runs.** It answers from `iad1` and requests enter at `fra1`, which is about
    350 ms a request from Europe and 3.9 s on a cold start. Moving it to `fra1` is one line, but the
-   database has to move with it: moving one and not the other is worse than moving neither.
-4. **Walk through the checks** in `phase-5.md`, in order. The first one, that the session survives a
-   reload, has been done from here against the live address; the rest need a real phone and a real
+   database has to move with it.
+5. **Walk through the checks** in `phase-5.md`, in order. Most need a real phone and a real
    authenticator app.
-5. **Apply the copy** from the design pass when it arrives, over the list in `docs/copy-audit.md`.
-6. **Phase 6**, the cards themselves: the note editor, the three note types, import from JSON and CSV
+6. **Apply the copy** over the list in `docs/copy-audit.md`, and regenerate it with `pnpm copy-audit`.
+7. **Phase 6**, the cards themselves: the note editor, the three note types, import from JSON and CSV
    with a preview, duplicate detection, and taking an import back whole.
 
 ## Open threads
@@ -313,11 +251,13 @@ end to end by tests that run with it on, reading the token out of the log mailer
   preview deployments are trusted as a pattern rather than one hostname at a time. `BETTER_AUTH_URL`
   is gone: it held the same address and could disagree with it, and when it did every sign in and
   every sign up was refused with a 403 nobody could read. Moving to a real domain is this one entry.
-- **Preview deployments sign in against the production api and the production database.** The rewrite
-  in `apps/web/vercel.json` names the api's stable alias, and a preview of the web app uses it like
-  any other build. That is what makes an auth change testable before it reaches `main`, and it also
-  means an account made on a preview is a real account. The api's own preview deployments have never
-  had `DATABASE_URL`, so they do not boot; nothing points at them.
+- **Preview deployments sign in against the production api and the production database, but only at
+  the branch address.** `APP_ORIGIN` trusts `https://neuron-web-git-*-parkour-clan.vercel.app`, which
+  is the branch alias. Vercel also gives every build a deployment alias, `neuron-<hash>-parkour-clan`,
+  and that one matches no pattern in the list: opening it ends in "The server does not recognise this
+  web address" on the first request. Use the branch alias when handing a preview to somebody, or add
+  the deployment form to `APP_ORIGIN`. The api's own preview deployments have never had
+  `DATABASE_URL`, so they do not boot; nothing points at them.
 - **The two registration guards are temporary.** Both exist only because there is no email verification.
   Remove them in phase 11 rather than leaving them to rot.
 - **The password policy is a length floor and about forty entries.** `packages/shared/src/password.ts`.
@@ -345,8 +285,21 @@ end to end by tests that run with it on, reading the token out of the log mailer
   profile, and it falls apart on a slower one. That is the person's choice to make, and the frame rate
   watchdog is what catches it when they make it on a phone that cannot afford it.
 - **The keyboard behaviour is tested against a staged keyboard, not a real one.** `keyboard.spec.ts`
-  sets the three variables `viewport.ts` publishes and measures where things land. The arithmetic and
-  the CSS are proved; iOS Safari's own behaviour still wants checking by hand.
+  and `dialogs.spec.ts` set the three variables `viewport.ts` publishes and measure where things land.
+  The arithmetic and the CSS are proved; iOS Safari's own behaviour still wants checking by hand.
+- **The dialog pass is not committed.** Fifty odd files in the working tree, every gate green. The
+  mockup at `Design systems/neuron-visual-system new.html` is updated with it and is not in git, so it
+  cannot be recovered from a branch if it is lost.
+- **Registering is stubbed in the browser tests.** `tests/fixtures.ts` answers `/sign-up/email` with a
+  fixed set of ten codes so the screen that follows it can be photographed. The real endpoint is
+  covered by `apps/api/src/auth/registration.test.ts`.
+- **`auth.recoveryCodes.subtitle` was shortened to make the codes fit a phone.** It said the codes work
+  once and are the only way back in; it now says both in one line. If the warning above it is ever
+  softened, this is the sentence that was carrying the rest.
+- **Enrolling in the second factor is a fixture, not a round trip, in the browser tests.**
+  `tests/fixtures.ts` answers `/two-factor/enable` and `/recovery/regenerate` with fixed values so the
+  screenshots are stable. The real flow is covered by `apps/api/src/auth/totp.test.ts` against a real
+  database, and the two have never been run end to end together.
 - **The copy from the design pass is not applied.** The glossary is in `docs/design-system.md` and the
   strings the new controls needed were written in both languages, but the rest of the interface still
   says what `docs/copy-audit.md` lists. The library is called Library, not Decks, for one.
@@ -398,6 +351,11 @@ Why things are the way they are. Do not relitigate these without a reason.
 | 2026-08-15 | The glass level a device paints is the chosen one capped by what it can afford         | A phone that stutters cannot be identified from a user agent string. Reduced motion and reported memory are read before the first paint, and a scroll measured under 55 fps steps the ceiling down for the session                                                                                   |
 | 2026-08-15 | The interface is set in the platform's own face                                        | Option A of the two in the mockup. It costs zero bytes, its Cyrillic and hinting are already tuned for a phone, and with nothing downloaded there is no swap and nothing reflows. The role tokens stay, so the reading serif is two lines away                                                       |
 | 2026-08-15 | The gallery at `/dev/components` exists, and only outside production                   | A new screen is composed from what is drawn there rather than improvised, and a regression is visible in one place. `VERCEL_ENV` decides, and the production bundle does not contain it                                                                                                              |
+| 2026-08-16 | A dialog is a centred panel at every width, and everything it holds fits a phone            | A sheet grows from the bottom, so its content ends up at the foot of the screen, and the keyboard takes 336 pixels of that. Centred, both edges give way at once. Anything that still does not fit is more than one step, and `dialogs.spec.ts` is what says so                                    |
+| 2026-08-16 | Every label on a floating bar is primary, so the bar's tint can be .58 instead of .78      | Transparency and contrast are one dial: the share of the backdrop showing through is one minus the alpha, and the floor is the quietest text on the layer. `backdrop-filter: brightness()` buys nothing, it lowers the worst case and the variation by the same factor. The pill marks the tab    |
+| 2026-08-16 | Turning off the second factor, and deleting an account, cost a code as well as a password  | Both are reachable from a session that is already open, which is what a borrowed unlocked laptop hands to somebody else. One removes the protection against somebody who has the password, the other cannot be undone. The typed phrase they replaced proves only that somebody can read and copy |
+| 2026-08-16 | Destructive is a quiet slab with the label in the signal hue, not a word in a sentence     | A filled red button is still banned: the hue exists for error text. But the last action in a dialog about deleting an account has to read as the button that finishes, and as red text it did not                                                                                                 |
+| 2026-08-16 | The mockup, the design docs and the code move together                                     | The mockup is what the visual design was approved from and what a later change is judged against. A change that lands only in the code makes the reference wrong, and then nobody can tell which of the two is the mistake                                                                        |
 | 2026-08-15 | The Playwright suite runs on one worker                                                | One of its tests measures a frame rate with the processor throttled to a quarter speed. A second worker competes for exactly the resource being measured                                                                                                                                             |
 
 ## Verification commands

@@ -38,21 +38,32 @@ export function SignUpScreen() {
 
   if (codes) {
     /*
-     * A column as tall as the screen, so the codes scroll inside it and the
-     * button that finishes setting up stays where a thumb is. The same shape
-     * the sheet gives it in settings.
+     * The same centred card every other signed out screen is, rather than a
+     * column pinned to the top of the page. It was the one screen still wearing
+     * the old shape, so the codes arrived looking like they belonged to a
+     * different application.
      */
     return (
-      <div className="mx-auto flex h-dvh w-full max-w-[520px] flex-col px-20 pt-[calc(var(--safe-top)+32px)] pb-[calc(var(--safe-bottom)+20px+var(--keyboard-inset))]">
-        <RecoveryCodes
-          codes={codes}
-          title={t('auth.recoveryCodes.title')}
-          warningKey="auth.recoveryCodes.warning"
-          onConfirmed={() => {
-            setCodes(undefined);
-            void navigate({ to: '/' });
-          }}
-        />
+      <div className="flex min-h-dvh w-full flex-col px-16 pt-[calc(var(--safe-top)+16px)] pb-[calc(var(--safe-bottom)+16px+var(--keyboard-inset))]">
+        <div
+          data-g="card"
+          className="neu-screen-in m-auto flex max-h-full w-full max-w-[420px] flex-col rounded-24 border p-20 sm:p-24"
+        >
+          <h1 className="shrink-0 font-display text-24 tracking-tight text-primary">
+            {t('auth.recoveryCodes.title')}
+          </h1>
+
+          <div className="flex min-h-0 flex-1 flex-col pt-16">
+            <RecoveryCodes
+              codes={codes}
+              warningKey="auth.recoveryCodes.warning"
+              onConfirmed={() => {
+                setCodes(undefined);
+                void navigate({ to: '/' });
+              }}
+            />
+          </div>
+        </div>
       </div>
     );
   }
@@ -102,7 +113,6 @@ export function SignUpScreen() {
   return (
     <AuthLayout
       title={t('auth.register.title')}
-      subtitle={t('app.tagline')}
       footer={
         <Link to="/sign-in" className="text-accent underline underline-offset-4">
           {t('auth.register.haveAccount')}
@@ -142,13 +152,14 @@ export function SignUpScreen() {
           submit. There is no email recovery in this project, so a password
           mistyped the same way twice is an account nobody can open, and a
           password mistyped once is a sign in that fails with no explanation.
+          That reason is a comment and not a caption: the screen says whether
+          the two match, which is the part somebody acts on.
         */}
         <PasswordField
           label={t('auth.password.confirmLabel')}
           value={confirmation}
           onChange={setConfirmation}
           autoComplete="new-password"
-          hint={t('auth.password.confirmHint')}
           {...(confirmation.length === 0
             ? {}
             : matches

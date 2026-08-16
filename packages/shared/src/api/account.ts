@@ -44,12 +44,19 @@ export const updatePreferencesSchema = z
 /**
  * Leaving.
  *
- * Confirming with the word rather than a boolean, because a boolean is what a
- * mistyped request body accidentally sends. This is the one action here that
- * cannot be undone from inside the app.
+ * The password, and a code from the authenticator app when the account has one.
+ * It was a phrase typed into a box, which proves only that somebody can read
+ * and copy. This is the one action here that cannot be undone from inside the
+ * app, and the session it is reached from is exactly what a borrowed unlocked
+ * laptop hands to somebody else.
  */
 export const deleteAccountSchema = z.strictObject({
-  confirm: z.literal('delete my account'),
+  password: z.string().min(1).max(200),
+  /** Required when the second factor is on, refused when it is not. */
+  code: z
+    .string()
+    .regex(/^\d{6}$/)
+    .optional(),
 });
 
 export const deleteAccountResultSchema = z.object({

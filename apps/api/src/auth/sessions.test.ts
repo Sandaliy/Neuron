@@ -203,6 +203,10 @@ describe.skipIf(!database)('sessions', () => {
       // has been reached. A session opened with the old password surviving it
       // would mean the action did nothing about what they were worried about.
       expect((await harness.get('/api/account', { jar: phone })).status).toBe(401);
+
+      // Every other one, and not this one. The person who just typed their new
+      // password twice is still signed in on the device they typed it on.
+      expect((await harness.get('/api/account', { jar: laptop })).status).toBe(200);
     });
 
     it('needs the current password', async () => {

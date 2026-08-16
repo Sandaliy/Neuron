@@ -19,6 +19,7 @@ import {
 
 import { session as sessionTable, twoFactor } from '../db/schema/index.js';
 
+import { passwordMatches, spendTotpCode } from './credentials.js';
 import { wasteVerificationTime } from './hashing.js';
 import {
   countRecoveryCodes,
@@ -45,6 +46,7 @@ import type { BetterAuthPlugin } from 'better-auth';
  *   the recovery codes, which are the only way back into an account
  *   the password policy, applied everywhere a password is chosen
  *   replay rejection for authenticator codes
+ *   the authenticator code that turning the second factor off costs
  *
  * Written as a plugin rather than as middleware in front of the handler,
  * because a plugin runs inside Better Auth's request: it can read the parsed
@@ -329,6 +331,86 @@ export function neuronAuth(options: NeuronAuthOptions): BetterAuthPlugin {
                 'rate_limited',
                 'this address has created its allowance of accounts today',
               );
+            }
+          }),
+        },
+        {
+          /**
+           * Turning the second factor off costs a code as well as a password.
+           *
+           * Better Auth asks for the password alone. That is the wrong price:
+           * the thing being removed is the protection against somebody who
+           * already has the password, so a password is exactly the credential
+           * that must not be enough on its own. Whoever is taking it off is
+           * holding the phone, and proving that is one glance at the app.
+           *
+           * The code is spent rather than merely checked, through the same
+           * claim the verification path uses, so a code lifted from a request
+           * cannot be replayed here inside its window.
+           *
+           * Before the plugin, so nothing is disabled until both halves check
+           * out. `/two-factor/disable` runs behind Better Auth's own session
+           * middleware; when there is no session this returns and lets that
+           * middleware refuse the request in its own words.
+           */
+          matcher: (context) => context.path === '/two-factor/disable',
+          handler: createAuthMiddleware(async (ctx) => {
+            const session = await getSessionFromCtx(ctx as never);
+
+            if (!session) {
+              return;
+            }
+
+            const body = ctx.body as { password?: unknown; code?: unknown } | undefined;
+            const code = body?.code;
+
+            /*
+             * The password first, and it is checked here as well as in the
+             * plugin's own handler. Spending a code on a request that was going
+             * to be refused anyway would burn a code somebody then has to wait
+             * thirty seconds to replace, for a mistyped password.
+             */
+            if (
+              typeof body?.password !== 'string' ||
+              !(await passwordMatches(db, session.user.id, body.password))
+            ) {
+              throw refuse('UNAUTHORIZED', 'invalid_credentials', 'the password was wrong');
+            }
+
+            if (typeof code !== 'string' || code.length === 0) {
+              throw refuse(
+                'BAD_REQUEST',
+                'invalid_two_factor_code',
+                'no authenticator code came with the request',
+              );
+            }
+
+            const verdict = await spendTotpCode(
+              db,
+              ctx.context.secretConfig,
+              session.user.id,
+              code,
+              new Date(),
+            );
+
+            if (verdict === 'unavailable') {
+              throw refuse(
+                'BAD_REQUEST',
+                'two_factor_unavailable',
+                'this account has no second factor to turn off',
+              );
+            }
+
+            if (verdict === 'reused') {
+              throw refuse(
+                'UNAUTHORIZED',
+                'two_factor_code_reused',
+                'that authenticator code has already been used',
+              );
+            }
+
+            if (verdict !== 'ok') {
+              throw refuse('UNAUTHORIZED', 'invalid_two_factor_code', 'that code is not right');
             }
           }),
         },

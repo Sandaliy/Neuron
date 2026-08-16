@@ -4,8 +4,10 @@ import { Hono } from 'hono';
 import { deleteAccountSchema, updatePreferencesSchema } from '@neuron/shared';
 import type { DeckSettings, Locale, Theme } from '@neuron/shared';
 
+import { passwordMatches, spendTotpCode } from '../auth/credentials.js';
 import { repositoriesOf, signedIn } from '../context.js';
 import { account, session, user } from '../db/schema/index.js';
+import { ApiError } from '../errors.js';
 import { readBody } from '../validation.js';
 
 import type { RequestBindings, ServerParts } from '../context.js';
@@ -103,11 +105,50 @@ export function accountRoutes(parts: ServerParts): Hono<RequestBindings> {
     });
   });
 
+  /**
+   * Leaving, once the person has proved the account is theirs.
+   *
+   * The password, and a code from the authenticator app when the account has
+   * one. Both are checked before anything is touched, because nothing here can
+   * be undone from inside the app: the collection is soft deleted, the
+   * credentials go, and every session goes with them.
+   *
+   * The checks run over the authentication connection, which is the only one
+   * that can see a password hash or an authenticator secret, and the code is
+   * spent rather than merely read so it cannot be replayed inside its window.
+   */
   routes.delete('/', async (context) => {
-    await readBody(context, deleteAccountSchema);
+    const body = await readBody(context, deleteAccountSchema);
 
     const person = signedIn(context);
     const now = new Date();
+
+    if (!(await passwordMatches(parts.authDb, person.id, body.password))) {
+      throw new ApiError('invalid_credentials');
+    }
+
+    if (person.twoFactorEnabled) {
+      if (body.code === undefined) {
+        throw new ApiError('invalid_two_factor_code');
+      }
+
+      const { secretConfig } = await parts.auth.$context;
+      const verdict = await spendTotpCode(
+        parts.authDb,
+        secretConfig,
+        person.id,
+        body.code,
+        now,
+      );
+
+      if (verdict === 'reused') {
+        throw new ApiError('two_factor_code_reused');
+      }
+
+      if (verdict !== 'ok') {
+        throw new ApiError('invalid_two_factor_code');
+      }
+    }
 
     // The collection first, over the application connection, then the person,
     // over the authentication one. In that order, because the second one takes

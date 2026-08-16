@@ -227,6 +227,7 @@
      */
     --keyboard-inset: 0px;
     --visual-viewport-height: 100svh;
+    --visual-viewport-top: 0px;
 
     /*
      * How much of the layout viewport the browser's own furniture is covering
@@ -369,10 +370,9 @@
   }
 
   /*
-   * A sheet or a panel sits over a scrim, which has already dimmed the backdrop,
-   * so it can be genuinely see through where a bar cannot.
+   * A dialog sits over a scrim, which has already dimmed the backdrop, so it can
+   * be genuinely see through where a bar cannot.
    */
-  [data-g='sheet'],
   [data-g='panel'] {
     background: var(--surface-sheet);
     box-shadow: var(--elev-4), var(--glass-rim), var(--glass-depth);
@@ -402,12 +402,40 @@
    */
   [data-g='bar'],
   [data-g='tabbar'],
-  [data-g='sheet'],
   [data-g='toast'],
   [data-g='panel'],
   [data-gscope='all'] [data-g='card'],
   [data-gscope='all'] [data-g='row'] {
     --text-tertiary: var(--text-secondary);
+  }
+
+  /*
+   * A floating bar is thinner than every other glass layer, and the reason is
+   * what is written on it.
+   *
+   * The share of the backdrop that shows through a tint is exactly one minus
+   * its alpha, so transparency and contrast are the same dial turned in
+   * opposite directions. There is no third option: `backdrop-filter:
+   * brightness()` lowers the worst case and the visible variation by the same
+   * factor, so it buys nothing.
+   *
+   * What buys something is removing the quietest text from the layer. On a bar
+   * the current tab is marked by the pill travelling under it, not by the tone
+   * of the words, so every label can be primary. That moves the floor from
+   * secondary to primary and lets the tint drop from 0.78 to 0.58, which is
+   * nearly twice as much of the backdrop coming through: measured over the
+   * worst backdrop a bar can have, primary is 4.55 to 1 in dark and 6.46 in
+   * light, against the 4.5 AA asks for.
+   *
+   * Both quieter tones are redefined here rather than left to discipline, for
+   * the same reason tertiary is redefined above: a label that moves onto a bar
+   * is corrected instead of failing quietly.
+   */
+  [data-g='bar'],
+  [data-g='tabbar'] {
+    --text-secondary: var(--text-primary);
+    --text-tertiary: var(--text-primary);
+    background: var(--surface-bar);
   }
 
   /*
@@ -723,31 +751,61 @@
   }
 
   /*
-   * The space a form is holding open gives way to the keyboard.
+   * A dialog is centred in the part of the page a person can actually see.
    *
-   * Collapsed rather than transitioned: growing is a layout property, and the
-   * keyboard is already animating over the top of it.
+   * `--visual-viewport-height` is that part, measured by `src/lib/viewport.ts`,
+   * so the band the dialog is centred in shrinks with the keyboard and the
+   * dialog moves up with it. Height rather than `inset-0`, because a fixed
+   * element is placed against the layout viewport and iOS does not shrink that
+   * for a keyboard: centring in the layout viewport would put a dialog behind
+   * the keys.
+   *
+   * The band takes no pointer events, so a press in the margin around the
+   * dialog reaches the scrim and dismisses it the way a press on the scrim
+   * does.
    */
-  [data-keyboard='open'] [data-gap] {
-    flex-grow: 0;
+  [data-dialog-band] {
+    position: fixed;
+    /*
+     * Where the visible part of the page starts. On iOS the visual viewport
+     * scrolls independently of the layout viewport while the keyboard is up, so
+     * `top: 0` is a point above the screen and a dialog placed there is gone.
+     */
+    top: var(--visual-viewport-top);
+    left: 0;
+    right: 0;
+    /*
+     * Above the scrim, and the number has to live here rather than on the
+     * dialog inside. A fixed element creates a stacking context of its own, so
+     * a `z-50` on the dialog is scoped to this band and counts for nothing
+     * against the scrim outside it: the scrim was painted over the dialog and
+     * swallowed every press aimed at it.
+     */
+    z-index: 50;
+    height: var(--visual-viewport-height);
+    display: flex;
+    /*
+     * Two things, and both are about what happens when the measurement is
+     * wrong or the dialog is taller than the room.
+     *
+     * `margin: auto` on the child rather than `align-items: center`. Flex
+     * alignment centres by overflowing equally in both directions, so a dialog
+     * taller than the band loses its top edge off the top of the screen, and
+     * there is no scrolling back to it. An automatic margin centres what fits
+     * and resolves to zero when nothing does.
+     *
+     * And the band scrolls. If a browser ever reports a visible height shorter
+     * than the truth, the dialog is still reachable by dragging instead of
+     * being stranded half off the screen.
+     */
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--u-4);
+    padding-top: calc(var(--safe-top) + var(--u-4));
   }
 
-  /*
-   * A sheet's bottom edge is the top of the keyboard, and it gets there on the
-   * compositor.
-   *
-   * This was `bottom: var(--keyboard-inset)`, which is a layout property. The
-   * keyboard arrives while the sheet is still animating in, so the sheet was
-   * being laid out again on the frames it was moving, and it landed in one
-   * jerk. `translate` composes with the `transform` the entrance animates, so
-   * the two run at once without either one having to know about the other.
-   *
-   * The duration is the screen one rather than the sheet one, because this is
-   * following the system's keyboard rather than presenting anything.
-   */
-  [data-g='sheet'] {
-    translate: 0 calc(-1 * var(--keyboard-inset));
-    transition: translate var(--dur-3) var(--ease-enter);
+  [data-dialog-band] > * {
+    margin: auto;
   }
 
   /*
@@ -871,28 +929,6 @@
   }
   to {
     opacity: 1;
-  }
-}
-
-@keyframes neu-sheet-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 100%, 0);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes neu-sheet-out {
-  from {
-    opacity: 1;
-    transform: none;
-  }
-  to {
-    opacity: 0;
-    transform: translate3d(0, 100%, 0);
   }
 }
 
@@ -1032,7 +1068,7 @@
  * The named movements.
  *
  * Declared as utilities rather than plain classes so a variant can reach them:
- * a sheet is `data-[state=open]:neu-sheet-in`, and the duration and the curve
+ * a dialog is `data-[state=open]:neu-panel-in`, and the duration and the curve
  * are decided here rather than at every call site.
  *
  * Every entrance fills `backwards` and never `both`. `both` holds the last
@@ -1057,14 +1093,6 @@
 
 @utility neu-scrim-in {
   animation: neu-fade var(--dur-3) var(--ease-inout) backwards;
-}
-
-@utility neu-sheet-in {
-  animation: neu-sheet-in var(--dur-4) var(--ease-enter) backwards;
-}
-
-@utility neu-sheet-out {
-  animation: neu-sheet-out var(--dur-3) var(--ease-exit) forwards;
 }
 
 @utility neu-panel-in {
@@ -1187,9 +1215,9 @@
 }
 
 /*
- * A sheet pushes the screen behind it back, with the top edge as the origin.
- * Only on a phone: above the breakpoint the dialog is a centred panel and there
- * is nothing to push.
+ * A dialog pushes the screen behind it back, with the top edge as the origin.
+ * Only on a phone, where the dialog covers most of what is behind it and the
+ * push back is what says the screen is still there.
  */
 @layer components {
   #root {
@@ -1197,7 +1225,7 @@
   }
 
   @media (max-width: 639px) {
-    [data-sheet='open'] #root {
+    [data-dialog='open'] #root {
       transform: scale(0.945);
       transform-origin: top center;
     }

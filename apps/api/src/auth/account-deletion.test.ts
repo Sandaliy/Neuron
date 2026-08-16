@@ -125,6 +125,37 @@ describe.skipIf(!database)('leaving', () => {
     return result.rows[0]?.n;
   }
 
+  describe.skipIf(!hasAuthRole)('the price of leaving', () => {
+    it('refuses without the password', async () => {
+      const harness = harnessFor(testDb);
+      const person = await withOneReview(harness, 'nopassword');
+
+      const refused = await harness.request('DELETE', '/api/account', {
+        jar: person.jar,
+        body: { password: 'not the right one at all' },
+      });
+
+      expect(refused.status).toBeGreaterThanOrEqual(400);
+
+      // Nothing happened. The session still opens the account it opened before.
+      expect((await harness.get('/api/account', { jar: person.jar })).status).toBe(200);
+      expect(await countReviews(person.userId)).toBe(1);
+    });
+
+    it('refuses a body with no password in it at all', async () => {
+      const harness = harnessFor(testDb);
+      const person = await withOneReview(harness, 'nobody');
+
+      const refused = await harness.request('DELETE', '/api/account', {
+        jar: person.jar,
+        body: {},
+      });
+
+      expect(refused.status).toBe(400);
+      expect((await harness.get('/api/account', { jar: person.jar })).status).toBe(200);
+    });
+  });
+
   describe.skipIf(!hasAuthRole)('after somebody has gone', () => {
     it('keeps the review log', async () => {
       const harness = harnessFor(testDb);
@@ -137,7 +168,7 @@ describe.skipIf(!database)('leaving', () => {
 
       const left = await harness.request('DELETE', '/api/account', {
         jar,
-        body: { confirm: 'delete my account' },
+        body: { password: GOOD_PASSWORD },
       });
 
       expect(left.status).toBe(200);
@@ -154,7 +185,7 @@ describe.skipIf(!database)('leaving', () => {
 
       await harness.request('DELETE', '/api/account', {
         jar,
-        body: { confirm: 'delete my account' },
+        body: { password: GOOD_PASSWORD },
       });
 
       // The session that made the request is gone with everything else, so the
@@ -176,7 +207,7 @@ describe.skipIf(!database)('leaving', () => {
 
       await harness.request('DELETE', '/api/account', {
         jar,
-        body: { confirm: 'delete my account' },
+        body: { password: GOOD_PASSWORD },
       });
 
       // A code that still worked after the account was deleted would be a way
@@ -197,7 +228,7 @@ describe.skipIf(!database)('leaving', () => {
 
       await harness.request('DELETE', '/api/account', {
         jar,
-        body: { confirm: 'delete my account' },
+        body: { password: GOOD_PASSWORD },
       });
 
       const row = await owner.query<{ email: string; name: string; deletion_requested_at: Date }>(
@@ -217,7 +248,7 @@ describe.skipIf(!database)('leaving', () => {
 
       await harness.request('DELETE', '/api/account', {
         jar,
-        body: { confirm: 'delete my account' },
+        body: { password: GOOD_PASSWORD },
       });
 
       const again = await register(harness, person.email, { address: uniqueAddress() });

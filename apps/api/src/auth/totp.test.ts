@@ -94,7 +94,7 @@ describe.skipIf(!database)('two step sign in', () => {
   }
 
   describe.skipIf(!hasAuthRole)('turning it on', () => {
-    it('needs the current password', async () => {
+    it('needs the current password, even with a good code', async () => {
       const harness = harnessFor(testDb);
       const person = await registerFresh(harness, 'nopassword');
 
@@ -406,7 +406,10 @@ describe.skipIf(!database)('two step sign in', () => {
 
       const refused = await harness.post(
         '/api/auth/two-factor/disable',
-        { password: 'not-the-password' },
+        {
+          password: 'not-the-password',
+          code: await totpCodeFor(enrolling.enrollment.totpURI, currentStep() + 1),
+        },
         { jar: enrolling.jar },
       );
 
@@ -420,7 +423,63 @@ describe.skipIf(!database)('two step sign in', () => {
       expect(row.rows[0]?.two_factor_enabled).toBe(true);
     });
 
-    it('works with it', async () => {
+    /*
+     * The password on its own is the wrong price. What is being removed is the
+     * protection against somebody who already has the password, so the password
+     * is exactly the credential that cannot be enough here on its own.
+     */
+    it('needs a code from the app as well', async () => {
+      const harness = harnessFor(testDb);
+      const enrolling = await startEnrollment(harness, 'needcode');
+
+      await harness.post(
+        '/api/auth/two-factor/verify-totp',
+        { code: await totpCodeFor(enrolling.enrollment.totpURI) },
+        { jar: enrolling.jar },
+      );
+
+      const refused = await harness.post(
+        '/api/auth/two-factor/disable',
+        { password: GOOD_PASSWORD },
+        { jar: enrolling.jar },
+      );
+
+      expect(refused.status).toBeGreaterThanOrEqual(400);
+
+      const row = await owner.query<{ two_factor_enabled: boolean }>(
+        'select two_factor_enabled from "user" where id = $1',
+        [enrolling.userId],
+      );
+
+      expect(row.rows[0]?.two_factor_enabled).toBe(true);
+    });
+
+    it('refuses a code that has already been spent', async () => {
+      const harness = harnessFor(testDb);
+      const enrolling = await startEnrollment(harness, 'spentcode');
+      const code = await totpCodeFor(enrolling.enrollment.totpURI);
+
+      // The code that turned it on. Spending it again would let anybody who
+      // lifted one request take the second factor off with it.
+      await harness.post('/api/auth/two-factor/verify-totp', { code }, { jar: enrolling.jar });
+
+      const refused = await harness.post(
+        '/api/auth/two-factor/disable',
+        { password: GOOD_PASSWORD, code },
+        { jar: enrolling.jar },
+      );
+
+      expect(refused.status).toBeGreaterThanOrEqual(400);
+
+      const row = await owner.query<{ two_factor_enabled: boolean }>(
+        'select two_factor_enabled from "user" where id = $1',
+        [enrolling.userId],
+      );
+
+      expect(row.rows[0]?.two_factor_enabled).toBe(true);
+    });
+
+    it('works with both', async () => {
       const harness = harnessFor(testDb);
       const enrolling = await startEnrollment(harness, 'turnoff');
 
@@ -432,7 +491,12 @@ describe.skipIf(!database)('two step sign in', () => {
 
       const disabled = await harness.post(
         '/api/auth/two-factor/disable',
-        { password: GOOD_PASSWORD },
+        {
+          password: GOOD_PASSWORD,
+          // A later step than the one enrollment just spent, which is what the
+          // replay guard demands and what a person reading their app would see.
+          code: await totpCodeFor(enrolling.enrollment.totpURI, currentStep() + 1),
+        },
         { jar: enrolling.jar },
       );
 

@@ -10,6 +10,11 @@ import { Input } from '../../ui/input';
  * six characters in the first box, and a password manager cannot fill any of
  * them. One field takes a paste, takes an autofill from the one time code
  * hint, and submits itself the moment it is full.
+ *
+ * `onComplete` is optional, because submitting on the sixth digit is right only
+ * where the code is the whole answer. Where it sits next to a password, or
+ * where the action behind it deletes an account, the sixth digit is not consent
+ * and the button is.
  */
 export function CodeInput({
   value,
@@ -23,7 +28,7 @@ export function CodeInput({
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
-  readonly onComplete: (value: string) => void;
+  readonly onComplete?: ((value: string) => void) | undefined;
   readonly label: string;
   readonly invalid?: boolean;
   readonly autoFocus?: boolean;
@@ -35,7 +40,7 @@ export function CodeInput({
   useEffect(() => {
     if (value.length === 6 && completed.current !== value) {
       completed.current = value;
-      onComplete(value);
+      onComplete?.(value);
     }
 
     if (value.length < 6) {
