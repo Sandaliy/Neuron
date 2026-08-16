@@ -69,11 +69,39 @@ export function manyDecks(count: number): Record<string, unknown>[] {
   );
 }
 
+/**
+ * What enrolling in the second factor hands back.
+ *
+ * A real otpauth uri, because the setup key is pulled back out of it and the QR
+ * is drawn from it. A fixed secret, so the picture is the same on every run.
+ */
+const ENROLLMENT = {
+  totpURI:
+    'otpauth://totp/Neuron:anna@fastmail.com?secret=JBSWY3DPEHPK3PXPJBSWY3DP&issuer=Neuron&digits=6&period=30',
+  /*
+   * Fifteen characters each, out of the alphabet in `packages/shared`, because
+   * the screen puts the hyphens in itself and a code of the wrong length comes
+   * out grouped wrongly.
+   */
+  backupCodes: [
+    '4KQPX2M7JWDRT',
+    'W9DXH5TALQ2MN',
+    'H3RNB8FZQKD4V',
+    'PB6YT1CVKR7SW',
+    'T2WMJ9JXDHF5C',
+    'L7SCG4HRBNP2Z',
+    'ZQ8VD6NKTMC3R',
+    'D5FAW3PMWJT8H',
+    'RX9EK7GYHBV4Q',
+    'N6JBP2LQSDW7F',
+  ].map((code) => `${code}KM`),
+};
+
 export interface FixtureOptions {
   /** Answers `/account` with a session. Off puts the app on the sign in screen. */
   readonly signedIn?: boolean;
   readonly decks?: Record<string, unknown>[];
-  /** What the account says about the second factor. Settings draws one of two rows from it. */
+  /** What the account says about the second factor. Settings draws the state from it. */
   readonly twoFactor?: boolean;
 }
 
@@ -109,6 +137,39 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ ...ACCOUNT, twoFactorEnabled: twoFactor }),
+        });
+
+        return;
+      }
+
+      // A fresh set of account recovery codes, which is the tallest dialog in
+      // the app and the one most likely to stop fitting.
+      if (path.endsWith('/recovery/regenerate')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ recoveryCodes: ENROLLMENT.backupCodes }),
+        });
+
+        return;
+      }
+
+      // Enrolling, so the steps after the password can be drawn and measured.
+      if (path.endsWith('/two-factor/enable')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(ENROLLMENT),
+        });
+
+        return;
+      }
+
+      if (path.endsWith('/two-factor/verify-totp')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ status: true }),
         });
 
         return;

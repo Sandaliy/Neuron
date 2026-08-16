@@ -44,10 +44,10 @@ export const en = {
   'auth.recoveryCodes.warning':
     'Anyone holding one of these codes can take over your account without your password. Keep them the way you would keep the password itself: written down somewhere private, or in a password manager. We cannot show them to you again.',
   'auth.recoveryCodes.subtitle':
-    'Ten codes. Each one works once. They are the only way back into this account if you forget your password.',
-  'auth.recoveryCodes.copy': 'Copy codes',
+    'Ten codes, each good once. The only way back in if you forget your password.',
+  'auth.recoveryCodes.copy': 'Copy',
   'auth.recoveryCodes.copied': 'Copied',
-  'auth.recoveryCodes.download': 'Download codes',
+  'auth.recoveryCodes.download': 'Download',
   'auth.recoveryCodes.confirm': 'I have saved them',
   'auth.recoveryCodes.remaining': 'Recovery codes left: {count}',
   'auth.recoveryCodes.low': 'Only {count} recovery codes left. Generate a new set.',
@@ -79,8 +79,8 @@ export const en = {
   'auth.twoFactor.reused': 'That code has already been used. Wait for the app to show a new one.',
   'auth.twoFactor.unavailable': '2FA is not set up on this account.',
   /* Under the row in Settings, so the control says what it will do to a state. */
-  'auth.twoFactor.on': 'On, with a code from your phone',
-  'auth.twoFactor.off': 'Off. A password is all it takes to sign in',
+  'auth.twoFactor.on': 'On',
+  'auth.twoFactor.off': 'Off',
   'auth.twoFactor.enabled': '2FA is on.',
   'auth.twoFactor.disabled': '2FA is off.',
   /** The one that matters. Losing a phone must not mean losing the account. */
@@ -107,6 +107,7 @@ export const en = {
   'nav.settings': 'Settings',
 
   'common.cancel': 'Cancel',
+  'common.back': 'Back',
   'common.continue': 'Continue',
   'common.save': 'Save',
   'common.close': 'Close',
@@ -121,9 +122,10 @@ export const en = {
   'auth.recoveryCodes.fileName': 'neuron-recovery-codes.txt',
   'auth.twoFactor.secretLabel': 'Cannot scan it? Type this into the app instead.',
   'auth.twoFactor.password': 'Your password',
-  'auth.twoFactor.passwordHint': 'Asked for because turning this on issues new codes.',
+  'auth.twoFactor.disableHint':
+    'Turning it off needs your password and a code from the app, the same as turning it on did.',
+  'auth.twoFactor.scanDone': 'I have added it',
 
-  'auth.twoFactor.setUp': 'Set up two-factor authentication',
   'auth.twoFactor.manualTitle': 'Enter the key by hand instead',
   'auth.twoFactor.manualHint':
     'Paste this key into your authenticator app under "add account by key". It is the same account the QR code sets up, so use one or the other, not both.',
@@ -131,7 +133,7 @@ export const en = {
   'auth.twoFactor.secretCopied': 'Setup key copied',
   'settings.changePasswordAction': 'Change your password',
   'settings.regenerateAction': 'Replace your recovery codes',
-  'settings.deleteAccountAction': 'Delete this account and everything in it',
+  'settings.deleteAccountAction': 'Delete account',
 
   'today.title': 'Today',
   'today.waitingIn': 'Waiting in',
@@ -171,12 +173,9 @@ export const en = {
   'settings.glass.off': 'Off',
   'settings.glass.subtle': 'Medium',
   'settings.glass.full': 'Max',
-  'settings.glassHint': 'Turn this down if scrolling stutters on your phone.',
   'settings.glassScope': 'Where it applies',
   'settings.glassScope.floating': 'Panels only',
   'settings.glassScope.all': 'Panels and cards',
-  'settings.glassScopeHint':
-    'Cards and rows are content, and glass on every one of them is paid for on every scrolled frame.',
   'settings.glassScopeOff': 'Nothing to apply it to while the glass is off.',
   'settings.glassCapped.motion':
     'Your system asks for less movement, so the panels are running at Medium.',
@@ -184,10 +183,9 @@ export const en = {
     'This device reports little memory, so the panels are running at Medium.',
   'settings.glassCapped.frames':
     'Scrolling dropped below 55 frames a second here, so the panels stepped down. Reload to try the full setting again.',
-  'settings.motion': 'Less movement',
+  'settings.motion': 'Animations',
   'settings.motion.system': 'Follow the system',
   'settings.motion.reduce': 'Off',
-  'settings.motionHint': 'Nothing slides or fades. States still change, they just change at once.',
   'settings.security': 'Security',
   'settings.changePassword': 'Change password',
   'settings.currentPassword': 'Current password',
@@ -196,9 +194,8 @@ export const en = {
   'settings.account': 'Account',
   'settings.deleteAccount': 'Delete account',
   'settings.deleteAccountWarning':
-    'This closes the account and takes the decks, the notes and the whole review history with it. The rows are erased for good after thirty days, and nothing inside the app can stop that once it has started.',
-  'settings.deleteAccountConfirm': 'Type the words below to confirm',
-  'settings.deleteAccountPhrase': 'delete my account',
+    'Deleting the account removes all decks, cards, review history and progress for good.',
+  'settings.deleteAccountCodeHint': 'Two-factor authentication is on, so a code from the app is needed too.',
   'settings.deleted': 'The account is closed.',
 
   'error.not_authenticated': 'Sign in to continue.',

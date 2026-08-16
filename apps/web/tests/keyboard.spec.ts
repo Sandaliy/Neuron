@@ -9,7 +9,7 @@ import type { Page } from '@playwright/test';
  *
  * This is the part of a phone interface that cannot be checked by looking at a
  * screenshot, and it is where this app was worst: the action at the bottom of a
- * sheet ended up behind the keys, and the only way to press it was to dismiss
+ * dialog ended up behind the keys, and the only way to press it was to dismiss
  * the keyboard first.
  *
  * A browser on a desktop has no keyboard to raise, so the keyboard is staged.
@@ -55,10 +55,22 @@ async function raiseKeyboard(page: Page): Promise<void> {
   await settled(page);
 }
 
+async function lowerKeyboard(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const root = document.documentElement;
+
+    root.style.setProperty('--keyboard-inset', '0px');
+    root.style.setProperty('--visual-viewport-height', `${window.innerHeight}px`);
+    root.dataset['keyboard'] = 'closed';
+  });
+
+  await settled(page);
+}
+
 test.describe('the keyboard', () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test('leaves the action in a sheet reachable', async ({ page }) => {
+  test('leaves the action in a dialog reachable', async ({ page }) => {
     await usePreferences(page, { theme: 'dark', locale: 'en' });
     await useFixtures(page);
     await page.goto('/settings');
@@ -80,12 +92,12 @@ test.describe('the keyboard', () => {
     expect(box!.y).toBeGreaterThan(0);
   });
 
-  test('leaves the action in the two-factor sheet reachable', async ({ page }) => {
+  test('leaves the action in the two-factor dialog reachable', async ({ page }) => {
     await usePreferences(page, { theme: 'dark', locale: 'en' });
     await useFixtures(page);
     await page.goto('/settings');
 
-    await page.getByRole('button', { name: 'Set up two-factor authentication' }).click();
+    await page.getByRole('button', { name: 'Two-factor authentication' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     await raiseKeyboard(page);
@@ -96,7 +108,15 @@ test.describe('the keyboard', () => {
     expect(box!.y + box!.height).toBeLessThanOrEqual(812 - KEYBOARD_PX);
   });
 
-  test('lets the body of a sheet scroll instead of the sheet growing', async ({ page }) => {
+  /**
+   * A dialog is centred in what is left of the screen, not in the screen.
+   *
+   * `position: fixed` measures the layout viewport, and iOS does not shrink
+   * that for a keyboard, so centring in it puts a dialog half behind the keys.
+   * The band the dialog sits in is `--visual-viewport-height` tall, which is
+   * the part a person can actually see.
+   */
+  test('centres a dialog in what the keyboard leaves', async ({ page }) => {
     await usePreferences(page, { theme: 'dark', locale: 'en' });
     await useFixtures(page);
     await page.goto('/settings');
@@ -104,11 +124,19 @@ test.describe('the keyboard', () => {
     await page.getByRole('button', { name: 'Change your password' }).click();
     await raiseKeyboard(page);
 
-    const sheet = await page.locator('[data-g="sheet"]').boundingBox();
+    const dialog = await page.locator('[data-g="panel"]').boundingBox();
+    const visible = 812 - KEYBOARD_PX;
 
-    expect(sheet).not.toBeNull();
-    // The whole sheet fits above the keys. Anything taller scrolls inside.
-    expect(sheet!.y + sheet!.height).toBeLessThanOrEqual(812 - KEYBOARD_PX + 1);
+    expect(dialog).not.toBeNull();
+    // Whole, above the keys, and no taller than the room there is.
+    expect(dialog!.y).toBeGreaterThan(0);
+    expect(dialog!.y + dialog!.height).toBeLessThanOrEqual(visible + 1);
+
+    // And centred in it: the room above and the room below agree.
+    const above = dialog!.y;
+    const below = visible - (dialog!.y + dialog!.height);
+
+    expect(Math.abs(above - below)).toBeLessThanOrEqual(32);
   });
 
   test('takes the tab bar out of the way', async ({ page }) => {
@@ -164,23 +192,92 @@ test.describe('the keyboard', () => {
     expect(box!.y + box!.height).toBeLessThanOrEqual(812 - KEYBOARD_PX);
   });
 
-  test('gives the head room of a form back to the keyboard', async ({ page }) => {
+  /**
+   * The signed out screens are a card in the middle, and the room inside it
+   * contracts for the keyboard the same way a dialog's does.
+   */
+  test('centres the sign in form, and tightens it for the keyboard', async ({ page }) => {
     await usePreferences(page, { theme: 'dark', locale: 'en' });
     await useFixtures(page, { signedIn: false });
     await page.goto('/sign-in');
 
     const form = page.locator('[data-form]');
+    const before = await form.boundingBox();
 
-    await expect(form).toHaveCSS('padding-top', '56px');
+    expect(before).not.toBeNull();
+    // Centred: the room above the card and the room below it agree.
+    expect(Math.abs(before!.y - (812 - (before!.y + before!.height)))).toBeLessThanOrEqual(32);
+
+    await expect(form).toHaveCSS('row-gap', '24px');
 
     await raiseKeyboard(page);
 
-    await expect(form).toHaveCSS('padding-top', '12px');
+    await expect(form).toHaveCSS('row-gap', '16px');
 
     const box = await page.getByRole('button', { name: 'Sign in' }).boundingBox();
 
     expect(box).not.toBeNull();
     expect(box!.y + box!.height).toBeLessThanOrEqual(812 - KEYBOARD_PX);
+  });
+
+  /**
+   * Setting up the second factor, step by step.
+   *
+   * This is the screen the whole rework was for. It used to be one step holding
+   * the QR code, the setup key, the field for the code and the button, in a
+   * sheet against the bottom edge: at 375 by 812 with the keys out, more than
+   * half of it was below the fold, and every tap that opened or closed the
+   * keyboard resized the box it was scrolling in and threw the scroll back to
+   * the top.
+   *
+   * Three steps now, and each one fits whole in the part of the screen a person
+   * can see, with nothing scrolling inside it.
+   */
+  test('fits every step of setting up the second factor', async ({ page }) => {
+    await usePreferences(page, { theme: 'dark', locale: 'en' });
+    await useFixtures(page);
+    await page.goto('/settings');
+
+    await page.getByRole('button', { name: 'Two-factor authentication' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    const dialog = page.locator('[data-g="panel"]');
+
+    /** The dialog is whole, on screen, and nothing inside it is scrolled away. */
+    const fits = async (step: string, keyboard: boolean): Promise<void> => {
+      await settled(page);
+
+      const box = await dialog.boundingBox();
+      const visible = keyboard ? 812 - KEYBOARD_PX : 812;
+
+      expect(box, step).not.toBeNull();
+      expect(box!.y, step).toBeGreaterThan(0);
+      expect(box!.y + box!.height, step).toBeLessThanOrEqual(visible + 1);
+
+      const hidden = await page
+        .locator('[data-dialog-body]')
+        .evaluate((body) => body.scrollHeight - body.clientHeight);
+
+      expect(hidden, `${step}: nothing hidden below the fold`).toBeLessThanOrEqual(1);
+    };
+
+    // One: the password, with the keyboard up.
+    await page.getByLabel('Your password').fill('correct horse battery staple');
+    await raiseKeyboard(page);
+    await fits('the password', true);
+
+    // Two: the QR and the setup key. No field, so no keyboard.
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await lowerKeyboard(page);
+    await expect(page.getByRole('button', { name: 'I have added it' })).toBeVisible();
+    await fits('the QR code', false);
+
+    // Three: the code from the app, with the keyboard up again.
+    await page.getByRole('button', { name: 'I have added it' }).click();
+    await page.getByLabel('Six digit code').click();
+    await raiseKeyboard(page);
+    await expect(page.getByRole('button', { name: 'Turn on 2FA' })).toBeVisible();
+    await fits('the code', true);
   });
 
   /**

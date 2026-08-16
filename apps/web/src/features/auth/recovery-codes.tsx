@@ -71,7 +71,15 @@ export function RecoveryCodes({
   onConfirmed,
 }: {
   readonly codes: readonly string[];
-  readonly title: string;
+  /**
+   * The heading, for the screens that need one of their own.
+   *
+   * Left out inside a dialog whose own title already says this, which is the
+   * regenerate flow in Settings: it said "Your recovery codes" twice, one
+   * under the other, and the hundred pixels that cost were the difference
+   * between the codes fitting on a phone and having to be scrolled to.
+   */
+  readonly title?: string | undefined;
   readonly warningKey: MessageKey;
   readonly onConfirmed: () => void;
 }) {
@@ -102,12 +110,17 @@ export function RecoveryCodes({
 
   return (
     <div className={DIALOG_FORM}>
-      <DialogBody>
+      {/*
+        Tighter than the default sixteen. Ten codes, a warning that cannot be
+        shortened and two actions is the most this app ever puts in one dialog,
+        and four pixels a gap is what makes it fit a 375 pixel phone whole.
+      */}
+      <DialogBody className="gap-12">
         <div>
-          <h2 className="font-display text-20 tracking-snug text-primary">{title}</h2>
-          <p className="mt-8 text-14 leading-body text-secondary">
-            {t('auth.recoveryCodes.subtitle')}
-          </p>
+          {title ? (
+            <h2 className="mb-8 font-display text-20 tracking-snug text-primary">{title}</h2>
+          ) : undefined}
+          <p className="text-14 leading-body text-secondary">{t('auth.recoveryCodes.subtitle')}</p>
         </div>
 
         {/*
@@ -116,21 +129,37 @@ export function RecoveryCodes({
           panel: the signal hue is for error text and never for an area this
           size, and a block of its own is loud enough.
         */}
-        <Panel>
+        <Panel className="p-12 sm:p-16">
           <p className="text-14 leading-body text-primary">{t(warningKey)}</p>
         </Panel>
 
-        <Panel>
-          <ul className="grid grid-cols-2 gap-8">
+        {/*
+          Two columns that do not wrap, which is what decides the height of this
+          screen. A code is seventeen characters with its hyphens, and at fifteen
+          pixels that is wider than half a phone: every one of the ten wrapped
+          onto a second line, the block was 274 pixels instead of 130, and the
+          button underneath fell off the bottom of the dialog. Thirteen pixels
+          and a tighter well fit the whole code on one line.
+        */}
+        <Panel className="p-8 sm:p-16">
+          <ul className="grid grid-cols-2 gap-x-8 gap-y-4">
             {codes.map((code) => (
-              <li key={code} className="font-mono text-15 tracking-wide text-primary tabular-nums">
+              <li
+                key={code}
+                className="font-mono text-13 tracking-wide text-primary tabular-nums sm:text-15"
+              >
                 {formatRecoveryCode(code)}
               </li>
             ))}
           </ul>
         </Panel>
 
-        <div className="flex flex-col gap-12 sm:flex-row">
+        {/*
+          Side by side at every width. Stacked, the two of them were 108 pixels
+          of a screen that has ten codes and a warning to fit as well, and
+          neither label is long enough to need a row of its own.
+        */}
+        <div className="flex flex-row gap-12">
           <Button
             full
             onClick={() => {
@@ -160,12 +189,20 @@ export function RecoveryCodes({
           </Button>
         </div>
 
+      </DialogBody>
+
+      {/*
+        The box travels with the button it unlocks, in the part that does not
+        scroll. It is the last thing between somebody and an account nobody can
+        recover, and it was at the foot of the scrolling column: on a phone that
+        put the tick below the fold and the button that needs it above, which
+        reads as a button that is broken.
+      */}
+      <DialogFooter>
         <Checkbox checked={saved} onChange={setSaved}>
           {t('auth.recoveryCodes.confirm')}
         </Checkbox>
-      </DialogBody>
 
-      <DialogFooter>
         <Button
           variant="primary"
           full

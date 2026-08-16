@@ -88,6 +88,27 @@ function over(tint: Rgb, alpha: number, behind: Rgb): Rgb {
   return tint.map((channel, index) => channel * alpha + (behind[index] ?? 0) * (1 - alpha)) as Rgb;
 }
 
+/**
+ * A plain number written on a custom property, read out of one block.
+ *
+ * The densities used to be typed into this file as literals, which meant the
+ * measurement could go on passing while the stylesheet said something else.
+ *
+ * @param selector the block to read
+ * @param name the property, without its leading dashes
+ */
+function number(selector: string, name: string): number {
+  const start = tokens.indexOf(selector);
+  const body = tokens.slice(tokens.indexOf('{', start) + 1, tokens.indexOf('\n}', start));
+  const found = new RegExp(String.raw`--${name}:\s*([\d.]+)`).exec(body);
+
+  if (!found) {
+    throw new Error(`no --${name} in ${selector}`);
+  }
+
+  return Number(found[1]);
+}
+
 /** `--scrim`, which is written as an rgba rather than a hex. */
 function scrimOf(selector: string): { colour: Rgb; alpha: number } {
   const start = tokens.indexOf(selector);
@@ -124,21 +145,23 @@ describe('the themes', () => {
       name: 'dark',
       palette: dark,
       tint: rgb('#0a0c0f'),
-      alpha: 0.78,
-      sheer: 0.54,
+      alpha: number("[data-glass='full']", 'g-alpha'),
+      bar: number("[data-glass='full']", 'g-alpha-bar'),
+      sheer: number("[data-glass='full']", 'g-alpha-sheer'),
       scrim: scrimOf("[data-theme='dark']"),
     },
     {
       name: 'light',
       palette: light,
       tint: rgb('#ffffff'),
-      alpha: 0.8,
-      sheer: 0.78,
+      alpha: number("[data-theme='light'][data-glass='full']", 'g-alpha'),
+      bar: number("[data-theme='light'][data-glass='full']", 'g-alpha-bar'),
+      sheer: number("[data-theme='light'][data-glass='full']", 'g-alpha-sheer'),
       scrim: scrimOf("[data-theme='light']"),
     },
   ] as const;
 
-  for (const { name, palette, tint, alpha, sheer, scrim } of themes) {
+  for (const { name, palette, tint, alpha, bar, sheer, scrim } of themes) {
     describe(name, () => {
       it('has every token it needs', () => {
         for (const token of [
@@ -181,23 +204,60 @@ describe('the themes', () => {
       });
 
       /*
-       * The worst backdrop a bar can have is the brightest thing the theme can
-       * put under it, which is its own primary text. In dark that lightens the
-       * smoked tint towards the text sitting on it; in light the darkest
-       * content does the same in the other direction. Anything else underneath
-       * only helps.
+       * The worst backdrop a translucent layer can have is the brightest thing
+       * the theme can put under it, which is its own primary text. In dark that
+       * lightens the smoked tint towards the text sitting on it; in light the
+       * darkest content does the same in the other direction. Anything else
+       * underneath only helps.
+       *
+       * `--g-alpha` is the density of a toast, and of a card or a row once the
+       * effect is carried onto them. All three carry secondary text, so this is
+       * the measurement that decides how dense they have to be.
        */
-      it('meets AA on a bar over the worst backdrop', () => {
+      it('meets AA on a layer that carries secondary text', () => {
         const worst = rgb(palette['text-primary'] as string);
         const surface = over(tint, alpha, worst);
 
-        check(`${name} · primary on bar glass`, rgb(palette['text-primary'] as string), surface);
+        check(`${name} · primary on card glass`, rgb(palette['text-primary'] as string), surface);
         check(
-          `${name} · secondary on bar glass`,
+          `${name} · secondary on card glass`,
           rgb(palette['text-secondary'] as string),
           surface,
         );
-        check(`${name} · accent on bar glass`, rgb(palette['text-accent'] as string), surface);
+        check(`${name} · accent on card glass`, rgb(palette['text-accent'] as string), surface);
+      });
+
+      /*
+       * A bar is thinner, and the reason is what is written on it.
+       *
+       * The share of the backdrop that comes through a tint is exactly one
+       * minus its alpha, so transparency and contrast are one dial turned in
+       * opposite directions, and the floor is set by the quietest text on the
+       * layer. Every label on a bar is primary, because the current tab is
+       * marked by the pill travelling under it rather than by tone, so the floor
+       * is primary and the tint can be 0.58 where a layer carrying secondary
+       * text needs 0.78.
+       */
+      it('meets AA on a bar, where every label is primary', () => {
+        const worst = rgb(palette['text-primary'] as string);
+        const surface = over(tint, bar, worst);
+
+        check(`${name} · primary on bar glass`, rgb(palette['text-primary'] as string), surface);
+      });
+
+      /*
+       * And the other half of that trade, measured rather than asserted. The
+       * stylesheet redefines `--text-secondary` and `--text-tertiary` to the
+       * primary tone on a bar, so a label that moves onto one is corrected
+       * instead of failing quietly. This is what that rule rests on.
+       */
+      it('shows why nothing quieter than primary may sit on a bar', () => {
+        const worst = rgb(palette['text-primary'] as string);
+        const surface = over(tint, bar, worst);
+        const ratio = contrast(rgb(palette['text-secondary'] as string), surface);
+
+        measured.push(`${name} · secondary on bar glass: ${ratio.toFixed(2)} to 1, banned`);
+        expect(ratio).toBeLessThan(AA);
       });
 
       it('meets AA on a sheet over the scrim', () => {
@@ -220,12 +280,12 @@ describe('the themes', () => {
        * stylesheet redefines the token on a blurred layer so a caption that
        * moves onto one is corrected. This is the measurement that ban rests on.
        */
-      it('shows why tertiary is banned on glass', () => {
+      it('shows why tertiary is banned on a layer that carries text', () => {
         const worst = rgb(palette['text-primary'] as string);
         const surface = over(tint, alpha, worst);
         const ratio = contrast(rgb(palette['text-tertiary'] as string), surface);
 
-        measured.push(`${name} · tertiary on bar glass: ${ratio.toFixed(2)} to 1, banned`);
+        measured.push(`${name} · tertiary on card glass: ${ratio.toFixed(2)} to 1, banned`);
         expect(ratio).toBeLessThan(AA);
       });
 

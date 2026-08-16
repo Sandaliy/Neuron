@@ -75,9 +75,9 @@ for (const theme of THEMES) {
     });
 
     /*
-     * A sheet on a phone and a centred panel on a desktop, from the same
-     * component. This is the one that would catch a later change putting the
-     * dialog back behind the on-screen keyboard.
+     * A centred panel, at both widths, from the same component. This is the one
+     * that would catch a later change putting the dialog back behind the
+     * on-screen keyboard.
      */
     test('a dialog', async ({ page }) => {
       await usePreferences(page, { theme, locale: 'en' });
@@ -88,6 +88,55 @@ for (const theme of THEMES) {
       await settle(page);
 
       await expect(page).toHaveScreenshot(`dialog-${theme}.png`);
+    });
+
+    /*
+     * The step that did not fit. A QR code, the setup key under it and two
+     * actions, all of it in one centred panel with nothing scrolled away.
+     */
+    test('the second factor, at the QR', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/settings');
+      await page.getByRole('button', { name: 'Two-factor authentication' }).click();
+      await page.getByLabel('Your password').fill('correct horse battery staple');
+      await page.getByRole('button', { name: 'Continue' }).click();
+      await expect(page.getByRole('button', { name: 'I have added it' })).toBeVisible();
+      await settle(page);
+
+      await expect(page).toHaveScreenshot(`totp-scan-${theme}.png`);
+    });
+
+    /*
+     * The ten codes: the tallest thing this app puts in a dialog, and the one
+     * where the action used to sit on top of the field above it.
+     */
+    test('the ten codes', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/settings');
+      await page.getByRole('button', { name: 'Replace your recovery codes' }).click();
+      await page.getByLabel('Your password').fill('correct horse battery staple');
+      await page.getByRole('button', { name: 'Generate new codes' }).click();
+      await expect(page.getByText('4KQPX-2M7JW-DRTKM')).toBeVisible();
+      await settle(page);
+
+      await expect(page).toHaveScreenshot(`recovery-codes-${theme}.png`);
+    });
+
+    /*
+     * Leaving, which now costs the password rather than a phrase copied off the
+     * screen above the box it goes in.
+     */
+    test('deleting the account', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/settings');
+      await page.getByRole('button', { name: 'Delete account' }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await settle(page);
+
+      await expect(page).toHaveScreenshot(`delete-account-${theme}.png`);
     });
   });
 }
@@ -103,25 +152,29 @@ test('the interface in Russian', async ({ page }) => {
 });
 
 /**
- * One second factor control, never two.
+ * One second factor control, named for the thing and not for the verb.
  *
- * Both were drawn whatever the account said, so somebody who had never set one
- * up was offered a row for turning it off. Nothing the screen could read said
- * which state it was in, because the account did not report it.
+ * Two rows were drawn whatever the account said, so somebody who had never set
+ * one up was offered a row for turning it off. Then it was one row wearing two
+ * different labels, which made a setting read as an action. It is one row, with
+ * the state underneath it, and the account is what says which state that is.
  */
 test.describe('the second factor', () => {
   for (const on of [false, true]) {
-    test(`offers one control when it is ${on ? 'on' : 'off'}`, async ({ page }) => {
+    test(`says it is ${on ? 'on' : 'off'}, in one row`, async ({ page }) => {
       await usePreferences(page, { theme: 'dark', locale: 'en' });
       await useFixtures(page, { twoFactor: on });
       await page.goto('/settings');
       await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 
-      const setUp = page.getByRole('button', { name: /Set up two-factor/ });
-      const turnOff = page.getByRole('button', { name: /Turn off 2FA/ });
+      const control = page.getByRole('button', { name: /Two-factor authentication/ });
 
-      await expect(setUp).toHaveCount(on ? 0 : 1);
-      await expect(turnOff).toHaveCount(on ? 1 : 0);
+      await expect(control).toHaveCount(1);
+      await expect(control).toContainText(on ? 'On' : 'Off');
+
+      // The verb belongs inside, on the button that does it, not on the row.
+      await expect(page.getByRole('button', { name: /Set up two-factor/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /^Turn off 2FA$/ })).toHaveCount(0);
     });
   }
 });

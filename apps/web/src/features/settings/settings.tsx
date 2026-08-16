@@ -15,13 +15,12 @@ import { useTheme } from '../../theme/use-theme';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel, RowGroup } from '../../ui/card';
 import { DIALOG_FORM, Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
-import { FormField } from '../../ui/form-field';
-import { Input } from '../../ui/input';
 import { Row, RowChevron } from '../../ui/row';
 import { Segmented } from '../../ui/segmented';
 import { SkeletonRows } from '../../ui/states';
 import { Switch } from '../../ui/switch';
 import { useToast } from '../../ui/toast';
+import { CodeInput } from '../auth/code-input';
 import { PasswordField } from '../auth/password-field';
 import { RecoveryCodes } from '../auth/recovery-codes';
 
@@ -51,7 +50,10 @@ export function SettingsScreen() {
         <>
           <Appearance />
           <Security />
-          <Account email={account.data.email} />
+          <Account
+            email={account.data.email}
+            twoFactorOn={account.data.twoFactorEnabled === true}
+          />
         </>
       ) : undefined}
     </section>
@@ -152,7 +154,7 @@ function Appearance() {
         */}
         <Setting
           label={t('settings.glass')}
-          hint={capReason ? t(`settings.glassCapped.${capReason}`) : t('settings.glassHint')}
+          {...(capReason ? { hint: t(`settings.glassCapped.${capReason}`) } : {})}
         >
           <Segmented
             label={t('settings.glass')}
@@ -164,7 +166,7 @@ function Appearance() {
 
         <Setting
           label={t('settings.glassScope')}
-          hint={scopeIdle ? t('settings.glassScopeOff') : t('settings.glassScopeHint')}
+          {...(scopeIdle ? { hint: t('settings.glassScopeOff') } : {})}
         >
           <Segmented
             label={t('settings.glassScope')}
@@ -175,16 +177,18 @@ function Appearance() {
           />
         </Setting>
 
+        {/*
+          Named for what it turns on, not for what it takes away, so the switch
+          reads the way every other switch in the interface does: on is the
+          thing happening. It was "Less movement", where on meant off.
+        */}
         <div className="flex items-center justify-between gap-16">
-          <div className="flex flex-col gap-4">
-            <span className="text-13 font-semibold text-secondary">{t('settings.motion')}</span>
-            <span className="text-13 leading-snug text-tertiary">{t('settings.motionHint')}</span>
-          </div>
+          <span className="text-13 font-semibold text-secondary">{t('settings.motion')}</span>
 
           <Switch
             label={t('settings.motion')}
-            checked={motion === 'reduce'}
-            onChange={(on) => setMotion(on ? 'reduce' : 'system')}
+            checked={motion !== 'reduce'}
+            onChange={(on) => setMotion(on ? 'system' : 'reduce')}
           />
         </div>
       </Card>
@@ -246,23 +250,19 @@ function Security() {
           trailing={<RowChevron />}
           onClick={() => setPanel('codes')}
         />
-        {twoFactorOn ? (
-          <Row
-            standalone={false}
-            title={<span className="text-error">{t('auth.twoFactor.disable')}</span>}
-            subtitle={t('auth.twoFactor.on')}
-            trailing={<RowChevron />}
-            onClick={() => setPanel('totp-off')}
-          />
-        ) : (
-          <Row
-            standalone={false}
-            title={t('auth.twoFactor.setUp')}
-            subtitle={t('auth.twoFactor.off')}
-            trailing={<RowChevron />}
-            onClick={() => setPanel('totp-on')}
-          />
-        )}
+        {/*
+          One row, named for the thing and not for the verb, with the state
+          underneath. It was two rows, "Set up two-factor authentication" and a
+          red "Turn off 2FA", which made a setting read as an action and put the
+          answer to "is it on?" in the label rather than in the state.
+        */}
+        <Row
+          standalone={false}
+          title={t('auth.twoFactor.title')}
+          subtitle={twoFactorOn ? t('auth.twoFactor.on') : t('auth.twoFactor.off')}
+          trailing={<RowChevron />}
+          onClick={() => setPanel(twoFactorOn ? 'totp-off' : 'totp-on')}
+        />
       </RowGroup>
 
       <Dialog
@@ -290,7 +290,6 @@ function Security() {
         {issued ? (
           <RecoveryCodes
             codes={issued}
-            title={t('auth.recoveryCodes.title')}
             warningKey="auth.recoveryCodes.warning"
             onConfirmed={() => {
               setIssued(undefined);
@@ -474,7 +473,13 @@ function RegenerateCodes({ onIssued }: { readonly onIssued: (codes: readonly str
   );
 }
 
-function Account({ email }: { readonly email: string }) {
+function Account({
+  email,
+  twoFactorOn,
+}: {
+  readonly email: string;
+  readonly twoFactorOn: boolean;
+}) {
   const t = useTranslate();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -517,44 +522,51 @@ function Account({ email }: { readonly email: string }) {
         title={t('settings.deleteAccount')}
         description={t('settings.deleteAccountWarning')}
       >
-        <DeleteAccount />
+        <DeleteAccount twoFactorOn={twoFactorOn} />
       </Dialog>
     </Group>
   );
 }
 
 /**
- * Leaving, behind a phrase that has to be typed.
+ * Leaving, behind the two things that prove the account is this person's.
  *
- * The phrase is the literal string the api demands, in English in both
- * languages, because it is a value on the wire and not a sentence. It is shown
- * on screen to be copied rather than remembered.
+ * The password, and a code from the authenticator app when there is one. It was
+ * a phrase typed into a box, which proves only that somebody can read and copy,
+ * and this is the one action in the app that cannot be undone from inside it.
+ * A borrowed laptop left open is exactly the case the phrase did nothing about.
  */
-function DeleteAccount() {
+function DeleteAccount({ twoFactorOn }: { readonly twoFactorOn: boolean }) {
   const t = useTranslate();
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const phrase = t('settings.deleteAccountPhrase');
-  const [typed, setTyped] = useState('');
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{
     key: MessageKey;
     values: Record<string, string | number>;
   }>();
 
+  const ready = password.length > 0 && (!twoFactorOn || code.length === 6);
+
   const submit = async () => {
     setError(undefined);
     setBusy(true);
 
     try {
-      await request('/account', { method: 'DELETE', body: { confirm: phrase } });
+      await request('/account', {
+        method: 'DELETE',
+        body: { password, ...(twoFactorOn ? { code } : {}) },
+      });
 
       queryClient.clear();
       toast.show(t('settings.deleted'));
       await navigate({ to: '/sign-in' });
     } catch (failure) {
       setError(describe(failure));
+      setCode('');
     } finally {
       setBusy(false);
     }
@@ -569,18 +581,26 @@ function DeleteAccount() {
       }}
     >
       <DialogBody>
-        <FormField label={t('settings.deleteAccountConfirm')} hint={phrase}>
-          {(props) => (
-            <Input
-              {...props}
-              value={typed}
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              onChange={(event) => setTyped(event.target.value)}
+        <PasswordField
+          label={t('auth.password.label')}
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+        />
+
+        {twoFactorOn ? (
+          <>
+            <CodeInput
+              label={t('auth.twoFactor.codeLabel')}
+              value={code}
+              onChange={setCode}
+              invalid={error !== undefined}
             />
-          )}
-        </FormField>
+            <p className="text-13 leading-snug text-tertiary">
+              {t('settings.deleteAccountCodeHint')}
+            </p>
+          </>
+        ) : undefined}
 
         {error ? (
           <p role="alert" className="text-13 text-error">
@@ -590,7 +610,7 @@ function DeleteAccount() {
       </DialogBody>
 
       <DialogFooter>
-        <Button type="submit" variant="destructive" full busy={busy} disabled={typed !== phrase}>
+        <Button type="submit" variant="destructive" full busy={busy} disabled={!ready}>
           {t('settings.deleteAccount')}
         </Button>
       </DialogFooter>

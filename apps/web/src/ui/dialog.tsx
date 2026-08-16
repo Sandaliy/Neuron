@@ -10,21 +10,30 @@ import type { ReactNode } from 'react';
 /**
  * A dialog, optionally one that cannot be escaped.
  *
- * On a phone it is a sheet against the bottom edge, and that edge follows the
- * on-screen keyboard: `--keyboard-inset` is how much of the page the keyboard
- * covers, kept up to date by `src/lib/viewport.ts`. Above the phone breakpoint
- * it is a centred panel, where there is no keyboard to sit above.
+ * A panel in the middle of the screen, at every width. It used to be a sheet
+ * against the bottom edge on a phone, and that was wrong for the thing it had
+ * to hold. A sheet grows from the bottom, so its heading is at the top of a
+ * tall box and its content is at the foot of the screen; setting up the second
+ * factor put the QR code, the setup key, the field for the code and the button
+ * in that order below the fold, and every one of those needs the keyboard,
+ * which takes another 336 pixels away. Centred, the same content is measured
+ * against the middle of the screen and both edges give way at once.
  *
- * The sheet is three parts and not one scrolling block: a heading that stays,
- * a body that scrolls, and a footer that stays. That is what makes the action
- * reachable with the keyboard up. The whole sheet used to be one scrolling
- * column, so on a phone with the keys out the button was below the fold and the
- * only way to press it was to dismiss the keyboard first.
+ * `[data-dialog-band]` is the part that makes that work with a keyboard up. It
+ * is a full width band as tall as `--visual-viewport-height`, which is the part
+ * of the page a person can actually see, kept up to date by
+ * `src/lib/viewport.ts`. The dialog is centred inside it, so when the keyboard
+ * takes the bottom 336 pixels the band becomes 476 tall and the dialog is
+ * centred in what is left rather than in a viewport iOS never shrank.
  *
- * The sheet rises from the bottom edge and the screen behind it goes back to
- * 0.945 with its top edge as the origin. The screen is still there and still
- * theirs; the sheet is in front of it, not instead of it. The scrim is flat
- * colour and is never blurred, because that would be a second blurred layer.
+ * The dialog is three parts and not one scrolling block: a heading that stays,
+ * a body that scrolls if it has to, and a footer that stays. Anything long
+ * enough to need the scroll is a screen that should have been split into steps,
+ * and the ones in this app now are.
+ *
+ * The scrim is flat colour and is never blurred, because that would be a second
+ * blurred layer. The screen behind goes back to 0.945 with its top edge as the
+ * origin: it is still there and still theirs, the dialog is in front of it.
  *
  * `dismissable` is the point of this component. The recovery codes screen shows
  * the only copy of the only way back into an account, and a stray tap on the
@@ -54,7 +63,7 @@ export function Dialog({
   const content = useRef<HTMLDivElement>(null);
 
   /*
-   * The screen behind the sheet is not inside this component, so the push back
+   * The screen behind the dialog is not inside this component, so the push back
    * is an attribute on the document that the stylesheet acts on. Removed on
    * unmount as well as on close, or a dialog torn down while open would leave
    * the app scaled down for good.
@@ -64,10 +73,10 @@ export function Dialog({
       return;
     }
 
-    document.documentElement.dataset['sheet'] = 'open';
+    document.documentElement.dataset['dialog'] = 'open';
 
     return () => {
-      delete document.documentElement.dataset['sheet'];
+      delete document.documentElement.dataset['dialog'];
     };
   }, [open]);
 
@@ -81,118 +90,96 @@ export function Dialog({
           ].join(' ')}
         />
 
-        <RadixDialog.Content
-          ref={content}
-          data-g="sheet"
-          /*
-           * The sheet takes the focus, not the first field in it.
-           *
-           * Radix focuses the first thing that can be focused, which on every
-           * sheet in this app is a text field, which raises the keyboard while
-           * the sheet is still on its way up. Two system animations across each
-           * other is the jerk, and it is not one anything here can time against:
-           * the keyboard's curve belongs to iOS. So the sheet arrives, and the
-           * keyboard comes when a field is tapped, which is also the tap that
-           * makes iOS willing to raise it at all.
-           *
-           * Focus still enters the dialog, so the trap holds and a keyboard user
-           * reaches the first field with one Tab.
-           */
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            content.current?.focus({ preventScroll: true });
-          }}
-          onEscapeKeyDown={(event) => {
-            if (!dismissable) {
-              event.preventDefault();
-            }
-          }}
-          onPointerDownOutside={(event) => {
-            if (!dismissable) {
-              event.preventDefault();
-            }
-          }}
-          onInteractOutside={(event) => {
-            if (!dismissable) {
-              event.preventDefault();
-            }
-          }}
-          className={[
+        {/*
+          The band, and nothing else, decides where the middle of the screen is.
+          It takes no pointer events, so a press in the margin around the dialog
+          reaches the scrim and dismisses it exactly as a press on the scrim
+          does.
+        */}
+        <div data-dialog-band="">
+          <RadixDialog.Content
+            ref={content}
+            data-g="panel"
             /*
-             * Against the bottom of the page, and lifted off it by the keyboard
-             * in the stylesheet, on the compositor. Writing the lift into
-             * `bottom` here meant a layout pass on every frame the sheet was
-             * also animating, which is what made it arrive in a jerk.
-             */
-            'fixed inset-x-0 bottom-0 z-50 flex flex-col',
-            /*
-             * Never taller than the part of the screen that is visible. The
-             * variable follows the keyboard, so a sheet that was full height
-             * becomes a shorter one whose body scrolls, rather than a tall one
-             * with its lower half behind the keys.
-             */
-            'max-h-[calc(var(--visual-viewport-height)-24px)]',
-            'rounded-t-34 px-20 pt-12 pb-[calc(var(--safe-bottom)+20px)]',
-            'data-[state=open]:neu-sheet-in data-[state=closed]:neu-sheet-out',
-            /*
-             * On a wide screen it becomes a centred panel. On a phone it stays a
-             * sheet against the bottom edge, where a thumb reaches.
+             * The dialog takes the focus, not the first field in it.
              *
-             * Centred by `inset-0` and an automatic margin rather than by half a
-             * translation, because `translate` is the property the keyboard lift
-             * uses and two owners of one property is a bug waiting for the first
-             * laptop with a touch keyboard.
+             * Radix focuses the first thing that can be focused, which on every
+             * dialog in this app is a text field, which raises the keyboard
+             * while the dialog is still on its way in. Two system animations
+             * across each other is the jerk, and it is not one anything here can
+             * time against: the keyboard's curve belongs to iOS. So the dialog
+             * arrives, and the keyboard comes when a field is tapped, which is
+             * also the tap that makes iOS willing to raise it at all.
+             *
+             * Focus still enters the dialog, so the trap holds and a keyboard
+             * user reaches the first field with one Tab.
              */
-            'sm:inset-0 sm:m-auto sm:h-fit sm:w-full sm:max-w-[480px]',
-            'sm:max-h-[85dvh] sm:rounded-24 sm:p-24',
-            'sm:data-[state=open]:neu-panel-in sm:data-[state=closed]:neu-panel-out',
-          ].join(' ')}
-        >
-          {/* The grabber says which edge this came from, and which one it leaves by. */}
-          <span
-            aria-hidden="true"
-            className="mx-auto mb-12 h-4 w-40 shrink-0 rounded-full bg-strong sm:hidden"
-          />
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              content.current?.focus({ preventScroll: true });
+            }}
+            onEscapeKeyDown={(event) => {
+              if (!dismissable) {
+                event.preventDefault();
+              }
+            }}
+            onPointerDownOutside={(event) => {
+              if (!dismissable) {
+                event.preventDefault();
+              }
+            }}
+            onInteractOutside={(event) => {
+              if (!dismissable) {
+                event.preventDefault();
+              }
+            }}
+            className={[
+              'pointer-events-auto relative z-50 flex w-full flex-col',
+              'max-h-full max-w-[420px]',
+              'rounded-24 p-20 sm:p-24',
+              'data-[state=open]:neu-panel-in data-[state=closed]:neu-panel-out',
+            ].join(' ')}
+          >
+            <div className="shrink-0 pr-44">
+              <RadixDialog.Title className="font-display text-20 tracking-snug text-primary">
+                {title}
+              </RadixDialog.Title>
 
-          <div className="shrink-0 pr-44">
-            <RadixDialog.Title className="font-display text-20 tracking-snug text-primary">
-              {title}
-            </RadixDialog.Title>
+              {description ? (
+                <RadixDialog.Description className="mt-8 text-14 leading-body text-secondary">
+                  {description}
+                </RadixDialog.Description>
+              ) : (
+                <VisuallyHidden>
+                  <RadixDialog.Description>{title}</RadixDialog.Description>
+                </VisuallyHidden>
+              )}
+            </div>
 
-            {description ? (
-              <RadixDialog.Description className="mt-8 text-14 leading-body text-secondary">
-                {description}
-              </RadixDialog.Description>
-            ) : (
-              <VisuallyHidden>
-                <RadixDialog.Description>{title}</RadixDialog.Description>
-              </VisuallyHidden>
-            )}
-          </div>
+            {/*
+              `min-h-0` is what lets the body inside actually scroll. Without it
+              a flex child refuses to shrink below its content and the dialog
+              grows past the screen instead.
+            */}
+            <div className="flex min-h-0 flex-1 flex-col pt-16">{children}</div>
 
-          {/*
-            `min-h-0` is what lets the body inside actually scroll. Without it a
-            flex child refuses to shrink below its content and the sheet grows
-            past the screen instead.
-          */}
-          <div className="flex min-h-0 flex-1 flex-col pt-20">{children}</div>
-
-          {dismissable ? (
-            <RadixDialog.Close
-              className="absolute top-12 right-12 flex size-44 items-center justify-center rounded-12 text-tertiary hover:text-primary"
-              aria-label={t('common.close')}
-            >
-              <X size={20} strokeWidth={1.5} aria-hidden="true" />
-            </RadixDialog.Close>
-          ) : undefined}
-        </RadixDialog.Content>
+            {dismissable ? (
+              <RadixDialog.Close
+                className="absolute top-8 right-8 flex size-44 items-center justify-center rounded-12 text-tertiary hover:text-primary"
+                aria-label={t('common.close')}
+              >
+                <X size={20} strokeWidth={1.5} aria-hidden="true" />
+              </RadixDialog.Close>
+            ) : undefined}
+          </RadixDialog.Content>
+        </div>
       </RadixDialog.Portal>
     </RadixDialog.Root>
   );
 }
 
 /**
- * The part of a sheet that scrolls.
+ * The part of a dialog that scrolls, when there is more than fits.
  *
  * Everything that is not the action goes in here. The negative margin and the
  * matching padding are so a focus ring on the first or last control is not
@@ -205,10 +192,21 @@ export function DialogBody({
   readonly children: ReactNode;
   readonly className?: string;
 }) {
+  /*
+   * Sixteen between blocks, unless the caller says otherwise.
+   *
+   * Written as a choice rather than as a second `gap-` utility on the end,
+   * because Tailwind orders its own utilities by value and not by where they
+   * appear in the attribute: `gap-12` after `gap-16` loses, silently.
+   */
+  const gap = className.includes('gap-') ? '' : 'gap-16';
+
   return (
     <div
       data-dialog-body=""
-      className={`-mx-4 flex min-h-0 flex-1 flex-col gap-16 overflow-y-auto px-4 ${className}`.trimEnd()}
+      className={`-mx-4 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 ${gap} ${className}`
+        .replace(/\s+/g, ' ')
+        .trim()}
     >
       {children}
     </div>
@@ -216,7 +214,7 @@ export function DialogBody({
 }
 
 /**
- * The part of a sheet that does not scroll.
+ * The part of a dialog that does not scroll.
  *
  * The action lives here, so it is on screen whatever the keyboard is doing and
  * whatever the body is scrolled to.
@@ -226,9 +224,9 @@ export function DialogFooter({ children }: { readonly children: ReactNode }) {
 }
 
 /**
- * The shape a form takes inside a sheet.
+ * The shape a form takes inside a dialog.
  *
  * A form has to wrap its own fields and its own submit button, so it is the
- * form and not the sheet that carries the scrolling column.
+ * form and not the dialog that carries the scrolling column.
  */
 export const DIALOG_FORM = 'flex min-h-0 flex-1 flex-col';

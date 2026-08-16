@@ -6,8 +6,17 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
  * Four variants, and the rule that goes with them: one primary action per
  * screen. Two accent fills on one screen is a bug, so everything that is a real
  * choice but not the point is `quiet`, and everything smaller than that is
- * `text`. `destructive` is text as well, never a red slab: a filled red button
- * is a large area of the signal hue, and the signal hue exists for error text.
+ * `text`.
+ *
+ * `destructive` is a slab shaped like `quiet` with the label in the signal hue.
+ * It was a word in a sentence, and the two places it appears are the last
+ * action in a dialog about deleting an account and the last action in a dialog
+ * about turning off the second factor. Both read as a line of red text that
+ * happened to be there rather than as the button that finishes the job, and one
+ * of them is irreversible. It is still not a filled red button, because a
+ * filled red button is a large area of the signal hue and the hue exists for
+ * error text; the fill is the neutral one every quiet button uses, and only the
+ * word is red.
  *
  * Forty four pixels tall at the smallest, forty eight when it fills the width
  * of a phone form, because it has to be hittable with a thumb one handed.
@@ -39,18 +48,18 @@ const VARIANTS: Record<ButtonVariant, string> = {
     'disabled:text-disabled',
   ].join(' '),
   destructive: [
-    'text-error',
-    'hover:not-disabled:underline hover:not-disabled:underline-offset-4',
-    'disabled:text-disabled',
+    'border border-default bg-fill-neutral text-error',
+    'hover:not-disabled:border-strong hover:not-disabled:bg-fill-error-quiet',
+    'disabled:bg-transparent disabled:text-disabled',
   ].join(' '),
 };
 
-/** `text` and `destructive` are words in a sentence, not slabs. */
+/** `text` is a word in a sentence. Everything else is a slab. */
 const PADDED: Record<ButtonVariant, boolean> = {
   primary: true,
   quiet: true,
   text: false,
-  destructive: false,
+  destructive: true,
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

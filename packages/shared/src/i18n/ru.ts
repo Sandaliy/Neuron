@@ -39,10 +39,10 @@ export const ru: Messages = {
   'auth.recoveryCodes.warning':
     'Любой, у кого есть один из этих кодов, войдёт в твой аккаунт без пароля. Храни их так же, как сам пароль: на бумаге в закрытом ящике или в менеджере паролей. Показать их ещё раз мы не сможем.',
   'auth.recoveryCodes.subtitle':
-    'Десять кодов. Каждый работает один раз. Это единственный способ вернуться в аккаунт, если забудешь пароль.',
-  'auth.recoveryCodes.copy': 'Скопировать коды',
+    'Десять кодов, каждый на один раз. Единственный способ вернуться, если забудешь пароль.',
+  'auth.recoveryCodes.copy': 'Скопировать',
   'auth.recoveryCodes.copied': 'Скопировано',
-  'auth.recoveryCodes.download': 'Скачать коды',
+  'auth.recoveryCodes.download': 'Скачать',
   'auth.recoveryCodes.confirm': 'Я их сохранил',
   'auth.recoveryCodes.remaining': 'Осталось кодов восстановления: {count}',
   'auth.recoveryCodes.low': 'Осталось всего {count} кодов восстановления. Выпусти новые.',
@@ -73,8 +73,8 @@ export const ru: Messages = {
   'auth.twoFactor.invalid': 'Код неверный.',
   'auth.twoFactor.reused': 'Этот код уже использован. Дождись следующего.',
   'auth.twoFactor.unavailable': '2FA на этом аккаунте не настроена.',
-  'auth.twoFactor.on': 'Включена, с кодом с телефона',
-  'auth.twoFactor.off': 'Выключена. Для входа хватит пароля',
+  'auth.twoFactor.on': 'Включена',
+  'auth.twoFactor.off': 'Выключена',
   'auth.twoFactor.enabled': '2FA включена.',
   'auth.twoFactor.disabled': '2FA выключена.',
   'auth.twoFactor.recoveryCodes.warning':
@@ -100,6 +100,7 @@ export const ru: Messages = {
   'nav.settings': 'Настройки',
 
   'common.cancel': 'Отмена',
+  'common.back': 'Назад',
   'common.continue': 'Продолжить',
   'common.save': 'Сохранить',
   'common.close': 'Закрыть',
@@ -115,9 +116,10 @@ export const ru: Messages = {
   'auth.twoFactor.secretLabel':
     'Не получается отсканировать? Введи этот ключ в приложение вручную.',
   'auth.twoFactor.password': 'Твой пароль',
-  'auth.twoFactor.passwordHint': 'Спрашиваем потому, что при включении выдаётся новая пачка кодов.',
+  'auth.twoFactor.disableHint':
+    'Для выключения нужен пароль и код из приложения, как и для включения.',
+  'auth.twoFactor.scanDone': 'Добавил',
 
-  'auth.twoFactor.setUp': 'Настроить двухфакторную аутентификацию',
   'auth.twoFactor.manualTitle': 'Ввести ключ вручную',
   'auth.twoFactor.manualHint':
     'Вставь этот ключ в приложение-аутентификатор через "добавить аккаунт по ключу". Это тот же аккаунт, что настраивает QR-код, так что нужно что-то одно, не оба сразу.',
@@ -125,7 +127,7 @@ export const ru: Messages = {
   'auth.twoFactor.secretCopied': 'Ключ скопирован',
   'settings.changePasswordAction': 'Сменить пароль',
   'settings.regenerateAction': 'Заменить коды восстановления',
-  'settings.deleteAccountAction': 'Удалить этот аккаунт и всё, что в нём',
+  'settings.deleteAccountAction': 'Удалить аккаунт',
 
   'today.title': 'Сегодня',
   'today.waitingIn': 'Ждёт в наборах',
@@ -165,12 +167,9 @@ export const ru: Messages = {
   'settings.glass.off': 'Выключить',
   'settings.glass.subtle': 'Умеренно',
   'settings.glass.full': 'Максимум',
-  'settings.glassHint': 'Убавь, если прокрутка на телефоне дёргается.',
   'settings.glassScope': 'Где применять',
   'settings.glassScope.floating': 'Только панели',
   'settings.glassScope.all': 'Панели и карточки',
-  'settings.glassScopeHint':
-    'Карточки и строки — это содержимое, и стекло на каждой из них оплачивается на каждом кадре прокрутки.',
   'settings.glassScopeOff': 'Пока стекло выключено, применять нечего.',
   'settings.glassCapped.motion':
     'Система просит меньше движения, поэтому панели идут на «Умеренно».',
@@ -178,10 +177,9 @@ export const ru: Messages = {
     'Устройство сообщает о малом объёме памяти, поэтому панели идут на «Умеренно».',
   'settings.glassCapped.frames':
     'Прокрутка здесь упала ниже 55 кадров в секунду, и панели убавились сами. Перезагрузи страницу, чтобы снова попробовать максимум.',
-  'settings.motion': 'Меньше движения',
+  'settings.motion': 'Анимации',
   'settings.motion.system': 'Как в системе',
   'settings.motion.reduce': 'Выключить',
-  'settings.motionHint': 'Ничего не выезжает и не проявляется. Состояния меняются, просто сразу.',
   'settings.security': 'Безопасность',
   'settings.changePassword': 'Сменить пароль',
   'settings.currentPassword': 'Текущий пароль',
@@ -190,9 +188,8 @@ export const ru: Messages = {
   'settings.account': 'Аккаунт',
   'settings.deleteAccount': 'Удалить аккаунт',
   'settings.deleteAccountWarning':
-    'Аккаунт закроется, а вместе с ним уйдут колоды, заметки и вся история повторений. Через тридцать дней строки стираются окончательно, и изнутри приложения это уже не остановить.',
-  'settings.deleteAccountConfirm': 'Набери фразу ниже, чтобы подтвердить',
-  'settings.deleteAccountPhrase': 'delete my account',
+    'При удалении аккаунта все колоды, карточки, история повторений и прогресс удаляются безвозвратно.',
+  'settings.deleteAccountCodeHint': 'Двухфакторная аутентификация включена, поэтому нужен ещё код из приложения.',
   'settings.deleted': 'Аккаунт закрыт.',
 
   'error.not_authenticated': 'Войди, чтобы продолжить.',

@@ -206,11 +206,13 @@ function TextActions() {
         </Button>
         <State>text · hover, underline, no colour shift</State>
 
-        <Button variant="destructive">Delete the account and every word in it</Button>
-        <State>destructive · text only, never a red slab</State>
+        <Button variant="destructive" full>
+          Delete account
+        </Button>
+        <State>destructive · a quiet slab, the signal hue only in the word</State>
 
-        <Button variant="destructive" disabled>
-          Delete the account and every word in it
+        <Button variant="destructive" full disabled>
+          Delete account
         </Button>
         <State>destructive · disabled</State>
       </div>
@@ -407,7 +409,7 @@ function Rows() {
 }
 
 function Containers() {
-  const [sheet, setSheet] = useState(false);
+  const [dialog, setDialog] = useState(false);
 
   return (
     <Section title="Container and floating">
@@ -438,32 +440,33 @@ function Containers() {
         <span className="flex-1 rounded-12 bg-selected px-8 py-12 text-center text-13 font-semibold">
           Today
         </span>
-        <span className="flex-1 px-8 py-12 text-center text-13 text-secondary">Decks</span>
-        <span className="flex-1 px-8 py-12 text-center text-13 text-secondary">Settings</span>
+        <span className="flex-1 px-8 py-12 text-center text-13">Decks</span>
+        <span className="flex-1 px-8 py-12 text-center text-13">Settings</span>
       </div>
-      <State>tab bar · the current tab is a filled slab, not a colour</State>
+      <State>
+        tab bar · every label primary, so the tint can be 0.58 instead of 0.78
+      </State>
 
-      <div data-g="sheet" className="flex flex-col items-center gap-12 rounded-24 p-16">
-        <span className="h-4 w-40 rounded-full bg-strong" />
-        <span className="self-start text-14">Sheet, deeper shadow, grabber</span>
+      <div data-g="panel" className="flex flex-col gap-12 rounded-24 p-16">
+        <span className="text-14">Dialog, deeper shadow, thinner over a scrim</span>
         <div data-g="card" className="w-full rounded-12 p-12 text-13 text-secondary">
           Glass inside glass drops its blur automatically. One blurred layer, ever.
         </div>
       </div>
-      <State>sheet · and the never-stack rule, enforced in CSS</State>
+      <State>dialog · and the never-stack rule, enforced in CSS</State>
 
-      <Button variant="quiet" onClick={() => setSheet(true)}>
-        Open a real sheet
+      <Button variant="quiet" onClick={() => setDialog(true)}>
+        Open a real dialog
       </Button>
 
       <Dialog
-        open={sheet}
-        onOpenChange={setSheet}
-        title="A sheet"
-        description="Bottom sheet on a phone, centred panel above the breakpoint."
+        open={dialog}
+        onOpenChange={setDialog}
+        title="A dialog"
+        description="Centred in the part of the screen a person can see, at every width."
       >
         <Input placeholder="Type here to bring up the keyboard" />
-        <Button variant="primary" full onClick={() => setSheet(false)}>
+        <Button variant="primary" full onClick={() => setDialog(false)}>
           Done
         </Button>
       </Dialog>

@@ -151,14 +151,26 @@
    * Glass parameters. Set here at the full level and overridden per level
    * further down.
    *
-   * Two densities, because contrast decides. `--g-alpha` is for bars that
-   * carry text, where secondary text needs at least 0.78 over a smoked tint.
+   * Three densities, because contrast decides and the three layers carry
+   * different text.
+   *
+   * `--g-alpha` is for layers that carry secondary text: a toast, and a card or
+   * a row once the effect is carried onto them. Secondary needs 0.78 over a
+   * smoked tint to clear AA against the worst backdrop.
+   *
+   * `--g-alpha-bar` is for the floating bars, where every label is primary. The
+   * current tab is marked by the pill travelling under it, not by the tone of
+   * the words, so nothing on a bar is written in a quieter colour and the floor
+   * is set by primary instead of by secondary. That is worth twenty points of
+   * transparency: primary clears AA at 0.58 where secondary needed 0.78.
+   *
    * `--g-alpha-sheer` is for layers over a scrim, where the backdrop has
    * already been dimmed and the transparency is bought back.
    */
   --g-blur: 34px;
   --g-sat: 1.9;
   --g-alpha: 0.78;
+  --g-alpha-bar: 0.58;
   --g-alpha-sheer: 0.54;
 
   /* Edge lensing, not a wash: rim hairline, perimeter gather, bottom shade. */
@@ -211,6 +223,8 @@
    */
   --surface-floating: rgba(10, 12, 15, var(--g-alpha));
   --surface-floating-solid: #12151a;
+  /* The same smoked tint at the bar's own density. */
+  --surface-bar: rgba(10, 12, 15, var(--g-alpha-bar));
 
   --text-primary: var(--n-50);
   --text-secondary: var(--n-200);
@@ -292,6 +306,7 @@
 
   --g-sat: 1.6;
   --g-alpha: 0.8;
+  --g-alpha-bar: 0.58;
   --g-alpha-sheer: 0.78;
 
   --bg-canvas: var(--p-50);
@@ -304,6 +319,7 @@
   --surface-nested: rgba(255, 255, 255, 0.96);
   --surface-floating: rgba(255, 255, 255, var(--g-alpha));
   --surface-floating-solid: #ffffff;
+  --surface-bar: rgba(255, 255, 255, var(--g-alpha-bar));
 
   --text-primary: var(--p-900);
   --text-secondary: var(--p-700);
@@ -379,6 +395,7 @@
   --g-blur: 34px;
   --g-sat: 1.9;
   --g-alpha: 0.78;
+  --g-alpha-bar: 0.58;
   --g-alpha-sheer: 0.54;
   --g-edge: 0.12;
   --g-rim: 0.138;
@@ -387,6 +404,7 @@
 [data-theme='light'][data-glass='full'] {
   --g-sat: 1.6;
   --g-alpha: 0.8;
+  --g-alpha-bar: 0.58;
   --g-alpha-sheer: 0.78;
 }
 
@@ -395,6 +413,7 @@
   --g-blur: 14px;
   --g-sat: 1.4;
   --g-alpha: 0.9;
+  --g-alpha-bar: 0.72;
   --g-alpha-sheer: 0.66;
   --g-edge: 0.08;
   --g-rim: 0.092;
@@ -403,6 +422,7 @@
 [data-theme='light'][data-glass='subtle'] {
   --g-sat: 1.2;
   --g-alpha: 0.92;
+  --g-alpha-bar: 0.74;
   --g-alpha-sheer: 0.9;
 }
 
@@ -414,6 +434,7 @@
   --g-blur: 0px;
   --g-sat: 1;
   --g-alpha: 1;
+  --g-alpha-bar: 1;
   --g-alpha-sheer: 1;
   --g-edge: 0;
   --g-rim: 0;
