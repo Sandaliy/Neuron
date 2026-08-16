@@ -86,13 +86,21 @@ export function Button({
   return (
     <button
       type="button"
+      /*
+       * A word in a sentence dims when it is pressed; a slab shrinks. The
+       * stylesheet needs to tell the two apart, and the variant is the only
+       * thing that knows.
+       */
+      data-tone={PADDED[variant] ? 'slab' : 'text'}
       disabled={disabled === true || busy}
       // `aria-busy` rather than only a spinner, so a screen reader hears that
       // the press was taken and something is happening.
       aria-busy={busy}
       className={[
         'relative inline-flex items-center justify-center gap-8 font-semibold',
-        'transition-[background-color,border-color,color,box-shadow,transform]',
+        // How a press is answered lives in the stylesheet, for every control at
+        // once. A transition utility written here would win over it and this
+        // button would answer differently from the rest of the interface.
         'disabled:cursor-not-allowed',
         shape(variant, full),
         VARIANTS[variant],

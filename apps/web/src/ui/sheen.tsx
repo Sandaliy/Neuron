@@ -29,10 +29,26 @@ export function Sheen() {
 
     let frame = 0;
 
+    /*
+     * How wide the layer is and how far the page can scroll, measured when
+     * either of them changes rather than on every frame of a scroll.
+     *
+     * `offsetWidth` and `scrollHeight` both force the browser to lay the page
+     * out before answering. Read inside the scroll handler, as they were, that
+     * is a synchronous layout of the whole document on every frame the person
+     * is dragging, which is the most expensive thing in this file by a wide
+     * margin and it was being paid for a highlight one pixel tall.
+     */
+    let width = 0;
+    let runway = 1;
+
+    const remeasure = () => {
+      width = layer.offsetWidth;
+      runway = Math.max(1, document.body.scrollHeight - window.innerHeight);
+    };
+
     const place = () => {
       frame = 0;
-
-      const width = layer.offsetWidth;
 
       if (width === 0) {
         return;
@@ -44,9 +60,7 @@ export function Sheen() {
        * makes it read as light moving over a surface rather than as an
        * animation somebody started.
        */
-      const scrolled = window.scrollY;
-      const runway = Math.max(1, document.body.scrollHeight - window.innerHeight);
-      const share = Math.min(1, scrolled / runway);
+      const share = Math.min(1, window.scrollY / runway);
 
       node.style.transform = `translate3d(${share * width * 0.62}px, 0, 0)`;
     };
@@ -57,17 +71,33 @@ export function Sheen() {
       }
     };
 
+    const onResize = () => {
+      remeasure();
+      onScroll();
+    };
+
+    remeasure();
     place();
+
     window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
+    window.addEventListener('resize', onResize);
+
+    /*
+     * The page getting taller or shorter changes the runway without any of the
+     * events above firing: a screen changes, a list loads, a deck opens.
+     */
+    const observer = new ResizeObserver(onResize);
+
+    observer.observe(document.body);
 
     return () => {
       if (frame !== 0) {
         window.cancelAnimationFrame(frame);
       }
 
+      observer.disconnect();
       window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
+      window.removeEventListener('resize', onResize);
     };
   }, []);
 

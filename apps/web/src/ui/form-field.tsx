@@ -39,7 +39,13 @@ export function FormField({
     .join(' ');
 
   return (
-    <div className="flex flex-col gap-8">
+    /*
+     * `data-field` is what `src/lib/viewport.ts` scrolls when the keyboard
+     * arrives. The whole group has to come into view, not the control: the
+     * sentence underneath is the one that says what is expected, and revealing
+     * the input alone left it under the keys.
+     */
+    <div data-field="" className="flex flex-col gap-8">
       <Label.Root htmlFor={id} className="text-13 font-semibold text-secondary">
         {label}
       </Label.Root>

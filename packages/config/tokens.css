@@ -130,10 +130,22 @@
   --dur-3: 240ms; /* a screen change, a scrim */
   --dur-4: 340ms; /* a sheet rising */
 
-  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  /*
+   * The curves.
+   *
+   * `--ease-enter` was an exponential ease out, which spends almost all of its
+   * travel in the first fifth of the duration and then crawls. That is what
+   * reads as a swoosh: the eye sees the arrival as instant and the tail as the
+   * interface being slow to settle. This one keeps a little speed through the
+   * middle and lands, which is the shape a phone's own presentations have.
+   *
+   * `--ease-spring` overshot by 28%, which on a control the size of a segmented
+   * thumb is a bounce rather than a settle. Ten is enough to read as physical.
+   */
+  --ease-enter: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-exit: cubic-bezier(0.4, 0, 0.9, 0.35);
   --ease-inout: cubic-bezier(0.5, 0, 0.2, 1);
-  --ease-spring: cubic-bezier(0.32, 1.28, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.1, 0.42, 1);
 
   /*
    * Glass parameters. Set here at the full level and overridden per level
@@ -237,11 +249,18 @@
    * in the perimeter the way a pane thickens at its rim, and the shaded
    * underside. Nothing paints across the middle of the surface. That fill is
    * what reads as a cheap white glow.
+   *
+   * Both rims carry light, not only the top one. A pane of glass has thickness,
+   * and the underside of it catches the room as well as the top does; with the
+   * light on the top edge alone the layer reads as a rectangle with a highlight
+   * drawn on it. The shade moved under that second hairline rather than
+   * replacing it, so the depth is still there.
    */
   --glass-edge:
     inset 0 1px 0 rgba(255, 255, 255, var(--g-rim)),
+    inset 0 -1px 0 rgba(255, 255, 255, calc(var(--g-rim) * 0.42)),
     inset 0 0 14px rgba(255, 255, 255, calc(var(--g-edge) * 0.55)),
-    inset 0 -1px 0 rgba(0, 0, 0, calc(var(--g-depth) * 0.5));
+    inset 0 -7px 12px -7px rgba(0, 0, 0, calc(var(--g-depth) * 0.6));
 
   /* The specular streak that travels as content scrolls under a bar. */
   --glass-sheen: linear-gradient(
@@ -320,8 +339,9 @@
 
   --glass-edge:
     inset 0 1px 0 rgba(255, 255, 255, calc(var(--g-rim) * 3)),
+    inset 0 -1px 0 rgba(255, 255, 255, calc(var(--g-rim) * 1.4)),
     inset 0 0 14px rgba(255, 255, 255, calc(var(--g-edge) * 0.55)),
-    inset 0 -1px 0 rgba(27, 29, 31, calc(var(--g-depth) * 0.12));
+    inset 0 -7px 12px -7px rgba(27, 29, 31, calc(var(--g-depth) * 0.14));
 
   --glass-sheen: linear-gradient(
     90deg,

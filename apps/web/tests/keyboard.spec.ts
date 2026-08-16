@@ -19,9 +19,17 @@ import type { Page } from '@playwright/test';
  */
 const KEYBOARD_PX = 336;
 
-/** Waits for everything that is moving to finish moving. */
+/**
+ * Waits for everything that is moving to finish moving.
+ *
+ * A frame first, then the animations. A transition started by the style change
+ * on the line above does not exist yet when the browser is asked, so collecting
+ * them straight away returns an empty list and proves nothing.
+ */
 async function settled(page: Page): Promise<void> {
   await page.evaluate(async () => {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
     await Promise.all(
       document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
     );
@@ -131,20 +139,45 @@ test.describe('the keyboard', () => {
     await useFixtures(page, { signedIn: false });
     await page.goto('/sign-up');
 
+    await page.getByLabel('Email').click();
     await page.getByLabel('Email').fill('anna@fastmail.com');
     await raiseKeyboard(page);
 
     /*
-     * A sign up form is taller than the space a keyboard leaves, so what has to
-     * be true is that the button can be reached, not that it is already on
-     * screen. Before this the page was exactly as tall as the screen and there
-     * was nowhere to scroll to: the button sat behind the keys, and the only
-     * way to press it was to dismiss the keyboard first.
+     * Three fields, a strength meter and two hints do not fit in the 476 pixels
+     * a keyboard leaves, so what this proves is that the room is reserved and
+     * the foot of the form lands on top of the keys rather than under them.
+     *
+     * Getting there is not the person's job. A real keyboard opening scrolls
+     * the form to its foot, which is where the fields and the button both are;
+     * that is `revealFocused` in `src/lib/viewport.ts` and it is covered by
+     * `viewport.test.ts`, because a staged keyboard sets the variables without
+     * the visual viewport ever changing.
      */
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await settled(page);
 
     const box = await page.getByRole('button', { name: 'Create account' }).boundingBox();
+
+    expect(box).not.toBeNull();
+    expect(box!.y).toBeGreaterThan(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(812 - KEYBOARD_PX);
+  });
+
+  test('gives the head room of a form back to the keyboard', async ({ page }) => {
+    await usePreferences(page, { theme: 'dark', locale: 'en' });
+    await useFixtures(page, { signedIn: false });
+    await page.goto('/sign-in');
+
+    const form = page.locator('[data-form]');
+
+    await expect(form).toHaveCSS('padding-top', '56px');
+
+    await raiseKeyboard(page);
+
+    await expect(form).toHaveCSS('padding-top', '12px');
+
+    const box = await page.getByRole('button', { name: 'Sign in' }).boundingBox();
 
     expect(box).not.toBeNull();
     expect(box!.y + box!.height).toBeLessThanOrEqual(812 - KEYBOARD_PX);

@@ -102,6 +102,35 @@ test('the interface in Russian', async ({ page }) => {
   await expect(page).toHaveScreenshot('settings-ru.png', { fullPage: true });
 });
 
+/**
+ * The setting that says the effect reaches cards as well.
+ *
+ * Settings is the screen where the bug was visible: the two sections built from
+ * row groups took the glass and the two built from cards did not, because a
+ * card wrote its own surface in a utility and a utility beats the stylesheet.
+ * Nothing photographed this scope, which is how a setting that moved a quarter
+ * of the interface shipped looking like it worked.
+ */
+test('glass on the cards as well', async ({ page }) => {
+  await usePreferences(page, { theme: 'dark', locale: 'en', glassScope: 'all' });
+  await useFixtures(page);
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await settle(page);
+
+  const blurred = await page.evaluate(
+    () =>
+      [...document.querySelectorAll('[data-g="card"]')].filter(
+        (card) => getComputedStyle(card).backdropFilter !== 'none',
+      ).length,
+  );
+
+  // Every card on the screen, not the row groups alone.
+  expect(blurred).toBeGreaterThan(3);
+
+  await expect(page).toHaveScreenshot('settings-glass-cards.png', { fullPage: true });
+});
+
 test('glass turned off', async ({ page }) => {
   await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'off' });
   await useFixtures(page);

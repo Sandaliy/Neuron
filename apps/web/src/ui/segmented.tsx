@@ -85,7 +85,7 @@ export function Segmented<T extends string>({
               data-cell=""
               className={[
                 'flex min-h-44 cursor-pointer items-center justify-center rounded-8 px-8',
-                'text-center text-13 transition-colors',
+                'text-center text-13',
                 // The focus ring hangs off the label, because the input it
                 // belongs to is the thing that is not on screen.
                 'peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2',
