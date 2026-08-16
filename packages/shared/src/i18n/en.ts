@@ -156,7 +156,8 @@ export const en = {
   'library.expand': 'Show what is inside',
   'library.collapse': 'Hide what is inside',
   'library.emptyTitle': 'No decks yet',
-  'library.emptyBody': 'A deck holds words. A deck inside another one is what everybody else calls a folder.',
+  'library.emptyBody':
+    'A deck holds words. A deck inside another one is what everybody else calls a folder.',
   'library.newDeck': 'New deck',
   'library.newDeckInside': 'New deck inside',
   'library.deckActions': 'Actions for {name}',
@@ -180,7 +181,8 @@ export const en = {
   'library.moveUp': 'Move up',
   'library.moveDown': 'Move down',
   'library.settings': 'Deck settings',
-  'library.settingsSubtitle': 'What this deck is about. Everything inside it follows unless it says otherwise.',
+  'library.settingsSubtitle':
+    'What this deck is about. Everything inside it follows unless it says otherwise.',
   'library.targetLanguage': 'Language being learned',
   'library.nativeLanguage': 'Language of the explanations',
   'library.level': 'Level',
@@ -188,7 +190,8 @@ export const en = {
   'library.notSet': 'Not set',
   'library.delete': 'Delete',
   'library.deleteTitle': 'Delete {name}?',
-  'library.deleteBody': 'It stops being studied, along with everything inside it. Nothing is removed for thirty days, so this can be taken back.',
+  'library.deleteBody':
+    'It stops being studied, along with everything inside it. Nothing is removed for thirty days, so this can be taken back.',
   'library.deleteSubmit': 'Delete the deck',
   'library.deleted': '{name} deleted',
   'library.undo': 'Undo',
@@ -225,12 +228,14 @@ export const en = {
   'note.willRemove': 'Goes',
   'note.reviewsOnCard': 'Answered {count} times',
   'note.typeChangeTitle': 'Change the type?',
-  'note.typeChangeBody': 'This removes {cards} cards and the {reviews} answers on them. Everything else about the note stays.',
+  'note.typeChangeBody':
+    'This removes {cards} cards and the {reviews} answers on them. Everything else about the note stays.',
   'note.typeChangeSubmit': 'Change it anyway',
   'note.notFound': 'That note is not here. It may have been deleted.',
   'note.delete': 'Delete the note',
   'note.deleteTitle': 'Delete this note?',
-  'note.deleteBody': 'The note and its cards stop being studied. Nothing is removed for thirty days, so this can be taken back.',
+  'note.deleteBody':
+    'The note and its cards stop being studied. Nothing is removed for thirty days, so this can be taken back.',
   'note.deleted': 'Note deleted',
   'note.markKnown': 'Mark as known',
   'note.markActive': 'Study it again',
@@ -273,7 +278,8 @@ export const en = {
   'notes.bulkTags': 'Add or remove tags',
   'notes.bulkDelete': 'Delete them',
   'notes.bulkDeleteTitle': 'Delete {count} notes?',
-  'notes.bulkDeleteBody': 'They stop being studied, cards and all. Nothing is removed for thirty days, so this can be taken back.',
+  'notes.bulkDeleteBody':
+    'They stop being studied, cards and all. Nothing is removed for thirty days, so this can be taken back.',
   'notes.bulkDone': 'Notes changed: {count}',
   'notes.bulkTagsTitle': 'Tags for {count} notes',
   'notes.tagsAdd': 'Add these',
@@ -294,7 +300,8 @@ export const en = {
   'cardState.relearning': 'Forgotten',
 
   'import.title': 'Import',
-  'import.subtitle': 'Paste a list or upload a file. Nothing is written until you have seen what it will make.',
+  'import.subtitle':
+    'Paste a list or upload a file. Nothing is written until you have seen what it will make.',
   'import.deck': 'Import into',
   'import.paste': 'Paste the list here',
   'import.upload': 'Choose a file',
@@ -339,13 +346,29 @@ export const en = {
   'import.undo': 'Take this import back',
   'import.undoTitle': 'Take back {count} notes?',
   'import.undoBody': 'Everything this import added stops being studied, cards and all.',
-  'import.undoReviewed': 'These cards have been answered {count} times between them. That history goes with them.',
+  'import.undoReviewed':
+    'These cards have been answered {count} times between them. That history goes with them.',
   'import.undoConfirm': 'I understand, take it back',
   'import.undone': 'Import taken back',
   'import.triageLater': 'Sorting out which of these you already know arrives in phase 9.',
   'import.nothingToImport': 'Nothing here to import yet.',
-  'import.tooManyProblems': 'Rows missing a required field are not imported. Fix them in the file and read it again.',
+  'import.tooManyProblems':
+    'Rows missing a required field are not imported. Fix them in the file and read it again.',
   'import.copyPrompt': 'Copy the prompt',
+
+  'prompt.variant': 'What kind of cards',
+  'prompt.variant.vocabulary': 'Words',
+  'prompt.variant.theory': 'Theory, as question and answer',
+  'prompt.variant.cloze': 'Text with gaps',
+  'prompt.about.vocabulary':
+    'For a vocabulary list. Asks for a translation, a definition, an example that contains the word, and the grammar the language needs.',
+  'prompt.about.theory':
+    'For formulas, definitions and dates. One fact per card, and anything holding two facts is split.',
+  'prompt.about.cloze':
+    'For things worth remembering whole. One card per gap, plus one that hides the whole answer.',
+  'prompt.example': 'What a good answer looks like',
+  'prompt.copied': 'Copied',
+  'prompt.missing': 'Set the deck languages and level to fill the prompt in completely.',
 
   'settings.title': 'Settings',
   'settings.appearance': 'Appearance',

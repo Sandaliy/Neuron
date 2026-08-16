@@ -60,6 +60,9 @@ export {
 } from './languages.js';
 export type { CefrLevel, LanguageCode } from './languages.js';
 
+export { PROMPT_VARIANTS, fillPrompt, missingFromPrompt, readPrompts } from './prompt.js';
+export type { Prompt, PromptContext, PromptVariant } from './prompt.js';
+
 export {
   IMPORT_FIELDS,
   IMPORT_FORMATS,

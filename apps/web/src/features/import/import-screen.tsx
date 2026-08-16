@@ -39,6 +39,8 @@ import { ErrorState } from '../../ui/states';
 import { TextArea } from '../../ui/textarea';
 import { useToast } from '../../ui/toast';
 
+import { PromptDialog } from './prompt-dialog';
+
 /** What to do about a word the library already has. */
 type Resolution = 'skip' | 'merge' | 'create';
 
@@ -89,6 +91,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
   const [resolution, setResolution] = useState<Resolution>('skip');
   const [checking, setChecking] = useState(false);
   const [failure, setFailure] = useState<unknown>();
+  const [prompt, setPrompt] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState<
     { readonly notes: number; readonly reviewedCards: number } | undefined
   >();
@@ -202,6 +205,10 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
     <section data-screen="" className="flex flex-col gap-20">
       <header className="flex items-center justify-between gap-12">
         <h1 className="font-display text-24 tracking-tight text-primary">{t('import.title')}</h1>
+
+        <Button variant="quiet" onClick={() => setPrompt(true)}>
+          {t('import.copyPrompt')}
+        </Button>
       </header>
 
       {stage.kind === 'source' ? (
@@ -317,6 +324,13 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
           retryLabel={t('common.retry')}
         />
       ) : undefined}
+
+      <PromptDialog
+        open={prompt}
+        onOpenChange={setPrompt}
+        deck={deck === '' ? undefined : findDeck(tree, deck)}
+        decks={tree}
+      />
 
       {confirmUndo && stage.kind === 'done' ? (
         <Dialog
