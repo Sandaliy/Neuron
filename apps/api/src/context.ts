@@ -23,6 +23,8 @@ export interface SignedIn {
   readonly name: string;
   readonly email: string;
   readonly image: string | null;
+  /** Whether the second factor is on. The column belongs to Better Auth. */
+  readonly twoFactorEnabled: boolean;
 }
 
 export interface RequestBindings {
@@ -98,6 +100,7 @@ export function requireSession(parts: ServerParts): MiddlewareHandler<RequestBin
       name: session.user.name,
       email: session.user.email,
       image: session.user.image ?? null,
+      twoFactorEnabled: session.user.twoFactorEnabled === true,
     });
     context.set('repositories', createRepositories(parts.db, session.user.id));
 

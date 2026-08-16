@@ -13,12 +13,24 @@ import { request } from './api';
  */
 export const DECK_TREE_KEY = ['decks'] as const;
 
-export function useDeckTree() {
-  return useQuery({
+/**
+ * The query itself, apart from the hook that reads it.
+ *
+ * Both screens behind the session gate read this, and the gate does not render
+ * them until it knows who is signed in. That made two round trips in a row for
+ * the first screen anybody sees, one waiting on the other, which on a cold
+ * function is two cold starts end to end. Starting it from the entry point
+ * instead means the two questions are asked at the same time.
+ */
+export function deckTreeQuery() {
+  return {
     queryKey: DECK_TREE_KEY,
     queryFn: () => request<{ decks: DeckNode[] }>('/decks'),
-    select: (data) => data.decks,
-  });
+  } as const;
+}
+
+export function useDeckTree() {
+  return useQuery({ ...deckTreeQuery(), select: (data) => data.decks });
 }
 
 /** Everything waiting across the whole collection, roots included. */

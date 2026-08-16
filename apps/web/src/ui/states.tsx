@@ -57,7 +57,7 @@ export function EmptyState({
   readonly action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-start gap-12 rounded-24 border border-subtle bg-card p-20 shadow-1">
+    <div data-g="card" className="flex flex-col items-start gap-12 rounded-24 border p-20">
       <p className="text-17 text-primary">{title}</p>
       <p className="max-w-[38ch] text-14 leading-body text-secondary">{description}</p>
       {action}
@@ -83,7 +83,8 @@ export function ErrorState({
   return (
     <div
       role="alert"
-      className="flex flex-col items-start gap-16 rounded-24 border border-subtle bg-card p-20 shadow-1"
+      data-g="card"
+      className="flex flex-col items-start gap-16 rounded-24 border p-20"
     >
       <p className="max-w-[40ch] text-14 leading-body text-primary">{message}</p>
       {onRetry ? (

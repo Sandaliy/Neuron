@@ -78,6 +78,7 @@ export function accountRoutes(parts: ServerParts): Hono<RequestBindings> {
       dayCutoffHour: row.dayCutoffHour,
       plan: row.plan,
       settings: row.settings,
+      twoFactorEnabled: person.twoFactorEnabled,
       revision: row.currentRev,
     });
   });

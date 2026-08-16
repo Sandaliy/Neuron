@@ -24,6 +24,12 @@ import type { CSSProperties } from 'react';
  * `src/lib/viewport.ts`, and lifting the bar by that puts it just above
  * whatever the browser is showing, in every state of it.
  *
+ * That lift is a `translate` in the stylesheet, not part of this offset. The
+ * toolbar slides in and out on every change of scroll direction, iOS reports
+ * the move in two or three coarse steps, and following them in `bottom` meant a
+ * layout pass per step and a bar that jumped. On the compositor, with the
+ * screen duration under it, the same three steps read as one glide.
+ *
  * While the keyboard is up the bar goes away. It belongs to the bottom of the
  * screen, the keyboard has taken that, and a bar riding on top of the keys is
  * what a web page does rather than what an app does.
@@ -53,10 +59,16 @@ export function Shell() {
         Keyed on the path, so a tab change replays the arrival rather than
         swapping the content in place. The tabs are siblings, nothing travels
         sideways, and what says a screen changed is that it arrives.
+
+        The arrival is the blocks inside rising, and nothing on this element.
+        Fading the whole screen in as well meant every block fading twice over,
+        one fade multiplied by the other, so the content was still half
+        transparent a third of a second after the tap. A tab change that is
+        already cached should read as instant, and it did not.
       */}
       <main
         key={path}
-        className="neu-screen-in mx-auto w-full max-w-[720px] grow px-20 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+40px+var(--keyboard-inset))] sm:pt-24"
+        className="mx-auto w-full max-w-[720px] grow px-20 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+40px+var(--keyboard-inset))] sm:pt-24"
       >
         <Outlet />
       </main>
@@ -66,7 +78,14 @@ export function Shell() {
         aria-label={t('app.name')}
         className={[
           'fixed inset-x-16 z-30 flex gap-4 rounded-24 p-8',
-          'bottom-[calc(var(--chrome-inset)+var(--bar-inset))]',
+          /*
+           * Against the bottom of the page. How far the browser's own furniture
+           * is covering is a `translate` in the stylesheet rather than part of
+           * this offset: it changes on every scroll that moves Safari's toolbar,
+           * and moving `bottom` per step laid the page out again each time and
+           * arrived in visible jumps.
+           */
+          'bottom-[var(--bar-inset)]',
           'sm:mx-auto sm:w-full sm:max-w-[420px]',
         ].join(' ')}
         style={
@@ -93,7 +112,7 @@ export function Shell() {
               aria-current={active ? 'page' : undefined}
               className={[
                 'relative z-10 flex min-h-44 flex-1 items-center justify-center rounded-12 px-8',
-                'text-13 transition-colors dur-reveal',
+                'text-13',
                 active ? 'font-semibold text-primary' : 'text-secondary hover:text-primary',
               ].join(' ')}
             >

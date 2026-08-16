@@ -3,8 +3,9 @@
 Where the project stands right now. This file replaces reading `neuron-plan.md` and `phase-*.md`.
 Update it with `/handoff` at the end of a working session.
 
-Last updated: 2026-08-16, on `main`. Phase 5.5, the design pass, is merged and live; `e44748d` is the
-pass over it that made it behave on a phone.
+Last updated: 2026-08-16, on `fix/phone-feel`. Phase 5.5, the design pass, is merged and live.
+`e44748d` made it behave on a phone, and `81b0315` is the second pass over that same ground: the bar,
+the glass setting, the keyboard, and how a press answers.
 
 ## Now
 
@@ -13,8 +14,8 @@ pass over it that made it behave on a phone.
 design system. Sign up, sign in, the ten codes, recovery by code, the second factor, settings, the read
 only library tree and Today. Two themes, two languages, three glass levels.
 
-`pnpm typecheck`, `pnpm lint` and `pnpm test` all pass: 659 tests, none skipped. The Playwright suite,
-`pnpm --filter @neuron/web test:screens`, passes its 41 checks, and the production deploy after the
+`pnpm typecheck`, `pnpm lint` and `pnpm test` all pass: 699 tests, none skipped. The Playwright suite,
+`pnpm --filter @neuron/web test:screens`, passes its 58 checks, and the production deploy after the
 merge went green.
 
 **`docs/design-system.md` is the reference now, and `/dev/components` is the drawn version of it.**
@@ -146,6 +147,78 @@ can open.
 parts that were not judgement calls are applied and now checked by a test: the second factor is
 called two-factor authentication and 2FA, and Russian says ты in all thirty strings that said вы.
 
+### What the second phone pass changed
+
+Five things reported from the iPhone, and three found while measuring them.
+
+**The tab bar jumped when the page was scrolled up.** Its offset was written into `bottom`, and part
+of that offset is `--chrome-inset`, which changes every time Safari's toolbar slides in or out, which
+is every change of scroll direction. That is a layout pass per reported step, and iOS reports the
+move in two or three coarse steps, so the bar arrived in jumps. The lift is a `translate` now, with
+the screen duration under it, so the same three steps read as one glide. The tracker also batches
+into one frame and writes only what changed: it used to set three custom properties on the root
+element per event, several times a frame, and each of those recalculates style for every element in
+the document.
+
+**Panels and cards only moved a quarter of the interface.** `Card` painted its own surface with
+`bg-card`, and a utility beats the components layer, so the setting reached `RowGroup` and nothing
+else. In Settings that is Security and Account changing and Appearance and Language not. The card
+names no surface of its own now and the stylesheet paints it in both scopes, and the scope rules
+moved after the level rules so a card outside the scope keeps its own surface when the glass is off.
+Settings at that scope has a screenshot, which is what was missing when this shipped looking like it
+worked.
+
+**The keyboard, again.** Four separate faults:
+
+- A sheet lifted itself in `bottom`, which is layout, on the frames it was also animating in on.
+  That lift is a `translate` now and composes with the entrance rather than fighting it.
+- Radix focused the first field on open, so iOS raised the keyboard across the sheet's entrance. Two
+  system animations crossing, and the keyboard's curve is not one this app can time against. The
+  sheet takes the focus instead, and the keyboard comes with the tap on a field, which is also the
+  gesture that makes iOS willing to raise it at all.
+- Revealing a focused field centred the input, so the sentence underneath went below the fold. That
+  is why "At least 10 characters" was half visible. The whole field group is revealed now, and
+  inside the sheet's own scroller rather than by `scrollIntoView`, which walks every scrollable
+  ancestor including the page: a fixed sheet does not reliably stay put while the page under it is
+  scrolled with the keyboard up, and that is the likeliest way Save ended up behind the keys.
+- A full page form gives back its head room and its gaps as well as its middle, and the keyboard
+  opening scrolls it to its foot, where the fields and the button both are. At 375 by 812 a keyboard
+  leaves 476 pixels, and sign in now fits inside them.
+
+**A press answered in ninety milliseconds each way, on one curve.** Down is immediate and back is the
+screen duration on the spring. That asymmetry is most of what separates a control that feels like a
+phone's from one that feels like a web page's, and it had to move into the stylesheet: a
+`transition-*` utility on a component wins over the components layer, so every control was deciding
+its own timing again. A word in a sentence dims rather than shrinking. The pill under the current tab
+answers a press on that tab and no longer flinches when a different one is hit.
+
+**The curves and the arrival.** `--ease-enter` was an exponential ease out, which spends its travel
+in the first fifth of the duration and crawls after it; that is what reads as a swoosh followed by a
+slow settle. `--ease-spring` overshot by 28 per cent, which on a segmented thumb is a bounce rather
+than a settle. A screen change was a fade on the screen element over a stagger reaching 98 ms, one
+fade multiplied by the other, so a tab whose content was already cached took a third of a second to
+become legible and read as loading. The screen element no longer fades and the stagger ends at 62 ms.
+
+**Glass: the tint is pinned, the edge is not.** Both rims carry light now rather than the top one
+alone, which is what a pane with thickness does. The density is a different matter, and the
+arithmetic is worth writing down. For a fixed worst case contrast, how much of the backdrop shows
+through is exactly one minus the tint alpha, so a more see through layer is a lower contrast ratio
+and nothing else. Dimming the backdrop with `backdrop-filter: brightness()` does not buy anything,
+because it lowers the worst case and the visible variation by the same coefficient. Dark bar glass
+measures 4.60 to 1 for secondary text and light measures 4.72, against AA's 4.5, so there is nothing
+left to spend. More transparency means accepting a measured drop below AA over the worst backdrop,
+which is a decision rather than a tweak.
+
+**Three things found while measuring.** Every toast was drawn behind the tab bar: its padding named
+`--bar-gap`, which nothing defines, and an undefined variable inside `calc` makes the whole
+declaration invalid. The specular streak read `offsetWidth` and `scrollHeight` inside its scroll
+handler, which forces a synchronous layout of the document on every frame of every scroll, paid for a
+highlight one pixel tall. And the first screen asked its two questions one after the other: the
+session gate does not render the screens until the account has answered, so the deck tree was only
+requested after it. Both start from the entry point now, before React is evaluated. Measured against
+the live api from here, warm is 350 ms and cold is 3.9 s, and the api runs in `iad1` while requests
+enter at `fra1`, so the Atlantic is crossed twice per request and was being crossed twice in a row.
+
 ## Done
 
 | Phase | What it produced                                                                                          | Doc                            |
@@ -214,12 +287,16 @@ end to end by tests that run with it on, reading the token out of the log mailer
    below 55 frames a second is a bug this project wants to hear about; the setting is in
    Settings, Appearance.
 2. **Check the keyboard on a real phone.** The sheet was verified at 375 px against a simulated
-   336 px keyboard, which proves the arithmetic and the CSS but not iOS Safari's own behaviour.
-3. **Walk through the checks** in `phase-5.md`, in order. The first one, that the session survives a
+   336 px keyboard, which proves the arithmetic and the CSS but not iOS Safari's own behaviour. The
+   second pass fixed four faults there, and not one of them can be confirmed from a desktop.
+3. **Decide where the api runs.** It answers from `iad1` and requests enter at `fra1`, which is about
+   350 ms a request from Europe and 3.9 s on a cold start. Moving it to `fra1` is one line, but the
+   database has to move with it: moving one and not the other is worse than moving neither.
+4. **Walk through the checks** in `phase-5.md`, in order. The first one, that the session survives a
    reload, has been done from here against the live address; the rest need a real phone and a real
    authenticator app.
-4. **Apply the copy** from the design pass when it arrives, over the list in `docs/copy-audit.md`.
-5. **Phase 6**, the cards themselves: the note editor, the three note types, import from JSON and CSV
+5. **Apply the copy** from the design pass when it arrives, over the list in `docs/copy-audit.md`.
+6. **Phase 6**, the cards themselves: the note editor, the three note types, import from JSON and CSV
    with a preview, duplicate detection, and taking an import back whole.
 
 ## Open threads

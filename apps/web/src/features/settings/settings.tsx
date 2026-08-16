@@ -6,7 +6,7 @@ import { LOCALES, THEMES, isAcceptablePassword } from '@neuron/shared';
 import type { Locale, MessageKey, Theme } from '@neuron/shared';
 
 import { useLocale, useTranslate } from '../../i18n/locale';
-import { useAccount } from '../../lib/account';
+import { ACCOUNT_KEY, useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { authClient, changePassword, describeAuthError, signOut } from '../../lib/auth-client';
 import { GLASS_LEVELS, GLASS_SCOPES, useGlass } from '../../preferences/glass';
@@ -206,8 +206,25 @@ function Appearance() {
 function Security() {
   const t = useTranslate();
   const toast = useToast();
+  const queries = useQueryClient();
+  const account = useAccount();
   const [panel, setPanel] = useState<'password' | 'codes' | 'totp-on' | 'totp-off' | undefined>();
   const [issued, setIssued] = useState<readonly string[]>();
+
+  /*
+   * Which of the two second factor controls is offered.
+   *
+   * Exactly one of them, ever. Both were drawn whatever the state of the
+   * account, so somebody who had never set up a second factor was offered a row
+   * for turning it off, which is a question with no answer. The account says
+   * which one applies, and it is refetched after either one runs so the list
+   * changes in front of the person who changed it.
+   */
+  const twoFactorOn = account.data?.twoFactorEnabled === true;
+
+  const forgetAccount = () => {
+    void queries.invalidateQueries({ queryKey: ACCOUNT_KEY });
+  };
 
   return (
     <Group title={t('settings.security')}>
@@ -229,18 +246,23 @@ function Security() {
           trailing={<RowChevron />}
           onClick={() => setPanel('codes')}
         />
-        <Row
-          standalone={false}
-          title={t('auth.twoFactor.setUp')}
-          trailing={<RowChevron />}
-          onClick={() => setPanel('totp-on')}
-        />
-        <Row
-          standalone={false}
-          title={<span className="text-error">{t('auth.twoFactor.disable')}</span>}
-          trailing={<RowChevron />}
-          onClick={() => setPanel('totp-off')}
-        />
+        {twoFactorOn ? (
+          <Row
+            standalone={false}
+            title={<span className="text-error">{t('auth.twoFactor.disable')}</span>}
+            subtitle={t('auth.twoFactor.on')}
+            trailing={<RowChevron />}
+            onClick={() => setPanel('totp-off')}
+          />
+        ) : (
+          <Row
+            standalone={false}
+            title={t('auth.twoFactor.setUp')}
+            subtitle={t('auth.twoFactor.off')}
+            trailing={<RowChevron />}
+            onClick={() => setPanel('totp-on')}
+          />
+        )}
       </RowGroup>
 
       <Dialog
@@ -285,7 +307,13 @@ function Security() {
         onOpenChange={(open) => !open && setPanel(undefined)}
         title={t('auth.twoFactor.title')}
       >
-        <TotpEnrollment onDone={() => setPanel(undefined)} onCancel={() => setPanel(undefined)} />
+        <TotpEnrollment
+          onDone={() => {
+            forgetAccount();
+            setPanel(undefined);
+          }}
+          onCancel={() => setPanel(undefined)}
+        />
       </Dialog>
 
       <Dialog
@@ -293,7 +321,12 @@ function Security() {
         onOpenChange={(open) => !open && setPanel(undefined)}
         title={t('auth.twoFactor.disable')}
       >
-        <TotpRemoval onDone={() => setPanel(undefined)} />
+        <TotpRemoval
+          onDone={() => {
+            forgetAccount();
+            setPanel(undefined);
+          }}
+        />
       </Dialog>
     </Group>
   );

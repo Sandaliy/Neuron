@@ -51,7 +51,6 @@ export function Row(props: RowShape) {
 
   const shell = [
     'flex w-full min-h-44 items-center gap-12 px-16 py-12 text-left',
-    'transition-[background-color,transform,border-color]',
     standalone ? 'rounded-12 border' : '',
     onClick && !disabled ? 'hover:bg-raised' : '',
     disabled ? 'opacity-45' : '',
@@ -162,7 +161,7 @@ export function DenseRow({
       type="button"
       data-row=""
       onClick={onClick}
-      className="flex h-52 w-full items-center gap-12 px-16 transition-colors hover:bg-raised"
+      className="flex h-52 w-full items-center gap-12 px-16 hover:bg-raised"
     >
       {content}
     </button>

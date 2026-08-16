@@ -184,6 +184,41 @@ describe.skipIf(!database)('two step sign in', () => {
       expect((answer.body as { twoFactorRedirect?: boolean }).twoFactorRedirect).toBe(true);
     });
 
+    /**
+     * The account has to say which of the two states it is in.
+     *
+     * Settings offered "Set up two-factor authentication" and "Turn off 2FA" at
+     * the same time, whatever the account, because nothing it could read said
+     * which one applied.
+     */
+    it('reports on the account whether it is on', async () => {
+      const harness = harnessFor(testDb);
+      const enrolling = await startEnrollment(harness, 'reported');
+
+      const before = await harness.get<{ twoFactorEnabled: boolean }>('/api/account', {
+        jar: enrolling.jar,
+      });
+
+      expect(before.status).toBe(200);
+      // Enrolment started and not confirmed is still off. Until the code comes
+      // back the account is exactly as it was.
+      expect(before.body.twoFactorEnabled).toBe(false);
+
+      const confirmed = await harness.post(
+        '/api/auth/two-factor/verify-totp',
+        { code: await totpCodeFor(enrolling.enrollment.totpURI) },
+        { jar: enrolling.jar },
+      );
+
+      expect(confirmed.status).toBe(200);
+
+      const after = await harness.get<{ twoFactorEnabled: boolean }>('/api/account', {
+        jar: enrolling.jar,
+      });
+
+      expect(after.body.twoFactorEnabled).toBe(true);
+    });
+
     it('refuses a wrong code, and stays off', async () => {
       const harness = harnessFor(testDb);
       const enrolling = await startEnrollment(harness, 'wrongcode');

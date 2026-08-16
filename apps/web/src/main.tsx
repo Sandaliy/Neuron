@@ -3,7 +3,9 @@ import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { accountQuery } from './lib/account';
 import { ApiFailure } from './lib/api';
+import { deckTreeQuery } from './lib/decks';
 import { trackViewport } from './lib/viewport';
 import { watchFrameRate } from './preferences/frame-rate';
 import { router } from './router';
@@ -67,6 +69,34 @@ const queryClient = new QueryClient({
     mutations: { retry: false },
   },
 });
+
+/**
+ * The two questions the first screen needs, asked at once.
+ *
+ * The session gate does not render the screens until it knows who is signed in,
+ * so the deck tree used to be requested only after the account had answered:
+ * two round trips end to end for the first thing anybody looks at. On a warm
+ * function that is about seven hundred milliseconds instead of three hundred
+ * and fifty, and on a cold one it is two cold starts in a row.
+ *
+ * Started here, before React exists, so both are already in flight while the
+ * bundle is still being evaluated. Nothing waits on the result: whichever
+ * screen wants it reads the same cache a moment later.
+ *
+ * The tree is only worth asking for on a screen that shows it. On the signed
+ * out half there is no session to ask with, and the answer would be a refusal.
+ */
+function warmUp(): void {
+  void queryClient.prefetchQuery(accountQuery());
+
+  const path = window.location.pathname;
+
+  if (path === '/' || path.startsWith('/library')) {
+    void queryClient.prefetchQuery(deckTreeQuery());
+  }
+}
+
+warmUp();
 
 // Started before the first render, so a dialog opened straight away already
 // knows where the keyboard is.

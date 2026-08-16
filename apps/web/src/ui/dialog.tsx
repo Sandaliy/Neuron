@@ -1,7 +1,7 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { X } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useTranslate } from '../i18n/locale';
 
@@ -51,6 +51,7 @@ export function Dialog({
   readonly children: ReactNode;
 }) {
   const t = useTranslate();
+  const content = useRef<HTMLDivElement>(null);
 
   /*
    * The screen behind the sheet is not inside this component, so the push back
@@ -81,7 +82,26 @@ export function Dialog({
         />
 
         <RadixDialog.Content
+          ref={content}
           data-g="sheet"
+          /*
+           * The sheet takes the focus, not the first field in it.
+           *
+           * Radix focuses the first thing that can be focused, which on every
+           * sheet in this app is a text field, which raises the keyboard while
+           * the sheet is still on its way up. Two system animations across each
+           * other is the jerk, and it is not one anything here can time against:
+           * the keyboard's curve belongs to iOS. So the sheet arrives, and the
+           * keyboard comes when a field is tapped, which is also the tap that
+           * makes iOS willing to raise it at all.
+           *
+           * Focus still enters the dialog, so the trap holds and a keyboard user
+           * reaches the first field with one Tab.
+           */
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            content.current?.focus({ preventScroll: true });
+          }}
           onEscapeKeyDown={(event) => {
             if (!dismissable) {
               event.preventDefault();
@@ -98,13 +118,13 @@ export function Dialog({
             }
           }}
           className={[
-            'fixed inset-x-0 z-50 flex flex-col',
             /*
-             * The bottom edge is the top of the keyboard, not the bottom of the
-             * page. With no keyboard up the inset is zero and this is the
-             * bottom of the page, which is where a sheet belongs.
+             * Against the bottom of the page, and lifted off it by the keyboard
+             * in the stylesheet, on the compositor. Writing the lift into
+             * `bottom` here meant a layout pass on every frame the sheet was
+             * also animating, which is what made it arrive in a jerk.
              */
-            'bottom-[var(--keyboard-inset)]',
+            'fixed inset-x-0 bottom-0 z-50 flex flex-col',
             /*
              * Never taller than the part of the screen that is visible. The
              * variable follows the keyboard, so a sheet that was full height
@@ -114,10 +134,17 @@ export function Dialog({
             'max-h-[calc(var(--visual-viewport-height)-24px)]',
             'rounded-t-34 px-20 pt-12 pb-[calc(var(--safe-bottom)+20px)]',
             'data-[state=open]:neu-sheet-in data-[state=closed]:neu-sheet-out',
-            // On a wide screen it becomes a centred panel. On a phone it stays
-            // a sheet against the bottom edge, where a thumb reaches.
-            'sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-[480px]',
-            'sm:max-h-[85dvh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-24 sm:p-24',
+            /*
+             * On a wide screen it becomes a centred panel. On a phone it stays a
+             * sheet against the bottom edge, where a thumb reaches.
+             *
+             * Centred by `inset-0` and an automatic margin rather than by half a
+             * translation, because `translate` is the property the keyboard lift
+             * uses and two owners of one property is a bug waiting for the first
+             * laptop with a touch keyboard.
+             */
+            'sm:inset-0 sm:m-auto sm:h-fit sm:w-full sm:max-w-[480px]',
+            'sm:max-h-[85dvh] sm:rounded-24 sm:p-24',
             'sm:data-[state=open]:neu-panel-in sm:data-[state=closed]:neu-panel-out',
           ].join(' ')}
         >
@@ -152,7 +179,7 @@ export function Dialog({
 
           {dismissable ? (
             <RadixDialog.Close
-              className="absolute top-12 right-12 flex size-44 items-center justify-center rounded-12 text-tertiary transition-colors hover:text-primary"
+              className="absolute top-12 right-12 flex size-44 items-center justify-center rounded-12 text-tertiary hover:text-primary"
               aria-label={t('common.close')}
             >
               <X size={20} strokeWidth={1.5} aria-hidden="true" />
@@ -180,6 +207,7 @@ export function DialogBody({
 }) {
   return (
     <div
+      data-dialog-body=""
       className={`-mx-4 flex min-h-0 flex-1 flex-col gap-16 overflow-y-auto px-4 ${className}`.trimEnd()}
     >
       {children}

@@ -18,6 +18,14 @@ export const meSchema = z.object({
   dayCutoffHour: z.number().int(),
   plan: z.string(),
   settings: deckSettingsSchema,
+  /**
+   * Whether the second factor is on.
+   *
+   * Here rather than asked for separately, because every screen that offers to
+   * turn it on or off has to know first. Settings offered both at once, so an
+   * account with no second factor still had a control for turning one off.
+   */
+  twoFactorEnabled: z.boolean(),
   /** The sync cursor as it stands right now. */
   revision: z.number().int(),
 });

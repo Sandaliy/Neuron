@@ -411,29 +411,11 @@
   }
 
   /*
-   * Glass scope: which layers the effect reaches.
-   *
-   * `floating` is the default and the rule the system is designed around:
-   * nothing in the content flow is glass, so cards and rows are opaque and cost
-   * nothing per frame. `all` carries it onto them as well, which is the setting
-   * a person can turn on to see the difference and, on a long list, to feel the
-   * cost of it. The frame rate watchdog is what catches the second case.
+   * On glass, a card and a row keep the hairline of light but not the shadow a
+   * floating layer casts. They are still in the content flow: the effect is
+   * what changed, not the rung of the ladder they sit on.
    */
-  [data-gscope='floating'] [data-g='card'],
-  [data-gscope='floating'] [data-g='row'] {
-    background: var(--surface-card);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    border-color: var(--border-subtle);
-    box-shadow: var(--elev-1);
-  }
-
-  [data-gscope='floating'] [data-g='card']::after,
-  [data-gscope='floating'] [data-g='row']::after {
-    display: none;
-  }
-
-  /* On glass, a row keeps the hairline of light but not the chrome's shadow. */
+  [data-gscope='all'] [data-g='card'],
   [data-gscope='all'] [data-g='row'] {
     box-shadow: var(--elev-1), var(--glass-rim);
   }
@@ -466,6 +448,34 @@
   }
 
   [data-glass='off'] [data-sheen] {
+    display: none;
+  }
+
+  /*
+   * Glass scope: which layers the effect reaches.
+   *
+   * `floating` is the default and the rule the system is designed around:
+   * nothing in the content flow is glass, so cards and rows are opaque and cost
+   * nothing per frame. `all` carries it onto them as well, which is the setting
+   * a person can turn on to see the difference and, on a long list, to feel the
+   * cost of it. The frame rate watchdog is what catches the second case.
+   *
+   * Last in the section, after the level rules, on purpose. A card outside the
+   * scope is not a glass layer that has been switched off, it is a card, so it
+   * paints the same surface at every level rather than picking up the floating
+   * one when the effect is turned off.
+   */
+  [data-gscope='floating'] [data-g='card'],
+  [data-gscope='floating'] [data-g='row'] {
+    background: var(--surface-card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: var(--border-subtle);
+    box-shadow: var(--elev-1);
+  }
+
+  [data-gscope='floating'] [data-g='card']::after,
+  [data-gscope='floating'] [data-g='row']::after {
     display: none;
   }
 
@@ -600,27 +610,81 @@
     z-index: 0;
   }
 
-  /* Pressed anywhere in the group, the thumb gives a little. */
+  /*
+   * Pressed, the thumb gives a little.
+   *
+   * The tab bar's pill answers only a press on the tab it is already under. It
+   * used to answer a press anywhere in the bar, so pressing Library made the
+   * pill under Today flinch, which reads as the wrong thing having been hit.
+   */
   [data-slot='segmented']:active [data-slot='segmented-thumb'],
-  [data-g='tabbar']:active [data-slot='tab-pill'] {
-    transform: translate3d(calc(var(--seg-index) * 100%), 0, 0) scale(0.97);
+  [data-g='tabbar']:has([data-tab][aria-current='page']:active) [data-slot='tab-pill'] {
+    transform: translate3d(calc(var(--seg-index) * 100%), 0, 0) scale(0.94);
   }
 
   /*
    * A press answers everywhere, not only where a component remembered to say so.
    * Tabs and segmented cells have their own, larger answer.
+   *
+   * The two halves are not the same length, and that asymmetry is most of what
+   * separates a control that feels like a phone's from one that feels like a
+   * web page's. Going down is immediate, because the finger is already there
+   * and any delay reads as the app not having noticed. Coming back takes the
+   * screen duration on the spring, so the control settles rather than snapping,
+   * which is what the platform's own controls do and what makes them feel
+   * physical.
    */
-  button {
-    transition: transform var(--dur-1) var(--ease-inout);
+  /*
+   * Written here rather than as a utility on each component, and that is the
+   * only way it can work: a `transition-*` utility wins over this layer, so a
+   * button carrying one decided its own timing and the two halves came out the
+   * same length again. The colours are in the same declaration for the same
+   * reason. One place owns how a control answers being touched.
+   */
+  button,
+  [data-row],
+  [data-tab],
+  [data-cell] {
+    transition:
+      transform var(--dur-3) var(--ease-spring),
+      background-color var(--dur-1) var(--ease-inout),
+      border-color var(--dur-1) var(--ease-inout),
+      color var(--dur-1) var(--ease-inout),
+      box-shadow var(--dur-1) var(--ease-inout),
+      opacity var(--dur-2) var(--ease-inout);
+  }
+
+  button:active,
+  [data-row]:active,
+  [data-tab]:active,
+  [data-cell]:active {
+    transition-duration: var(--dur-1);
+    transition-timing-function: var(--ease-enter);
   }
 
   button:active:not([aria-disabled='true']):not(:disabled):not([data-tab]):not([data-cell]) {
-    transform: scale(0.985);
+    transform: scale(0.97);
   }
 
   [data-tab]:active,
   [data-cell]:active {
-    transform: scale(0.96);
+    transform: scale(0.94);
+  }
+
+  /*
+   * A word in a sentence has nothing to scale. It dims instead, which is what a
+   * phone does with the same control, and dimming is the one answer that reads
+   * on a target with no edges of its own.
+   */
+  button[data-tone='text']:active:not(:disabled) {
+    transform: none;
+    opacity: 0.55;
+  }
+
+  button[data-tone='text'] {
+    transition:
+      transform var(--dur-3) var(--ease-spring),
+      opacity var(--dur-2) var(--ease-inout);
   }
 
   /*
@@ -669,18 +733,74 @@
   }
 
   /*
+   * A sheet's bottom edge is the top of the keyboard, and it gets there on the
+   * compositor.
+   *
+   * This was `bottom: var(--keyboard-inset)`, which is a layout property. The
+   * keyboard arrives while the sheet is still animating in, so the sheet was
+   * being laid out again on the frames it was moving, and it landed in one
+   * jerk. `translate` composes with the `transform` the entrance animates, so
+   * the two run at once without either one having to know about the other.
+   *
+   * The duration is the screen one rather than the sheet one, because this is
+   * following the system's keyboard rather than presenting anything.
+   */
+  [data-g='sheet'] {
+    translate: 0 calc(-1 * var(--keyboard-inset));
+    transition: translate var(--dur-3) var(--ease-enter);
+  }
+
+  /*
+   * A field is a label, a control, and the sentence underneath it. That whole
+   * group is what has to be on screen, and the margin is the room left around
+   * it so the last line does not sit flush against the keyboard.
+   */
+  [data-field] {
+    scroll-margin-block: var(--u-3);
+  }
+
+  [data-dialog-body] {
+    scroll-padding-block: var(--u-2);
+  }
+
+  /*
+   * The tab bar rides above the browser's own furniture, and it does it on the
+   * compositor.
+   *
+   * `--chrome-inset` is how much of the layout viewport Safari's toolbar is
+   * covering, and it changes every time that toolbar slides in or out, which is
+   * every time the page is scrolled the other way. Written into `bottom` that
+   * was a layout change per step and the bar arrived in visible jumps. `translate`
+   * is a separate property from `transform`, so the lift composes with the
+   * keyboard exit below instead of fighting it, and both are work the compositor
+   * already does.
+   *
+   * The transition is what turns iOS reporting the change in two or three coarse
+   * steps into one glide. The bar is following a toolbar that is itself
+   * animating, so arriving a fraction behind it reads as deliberate, where
+   * teleporting to each reported value reads as a fault.
+   */
+  [data-g='tabbar'] {
+    translate: 0 calc(-1 * var(--chrome-inset));
+    transition:
+      translate var(--dur-3) var(--ease-inout),
+      transform var(--dur-3) var(--ease-exit),
+      opacity var(--dur-2) var(--ease-exit);
+  }
+
+  /* A toast sits above the bar, so it rides on the same lift. */
+  [data-toasts] {
+    translate: 0 calc(-1 * var(--chrome-inset));
+    transition: translate var(--dur-3) var(--ease-inout);
+  }
+
+  /*
    * The tab bar goes away while the keyboard is up.
    *
    * It belongs to the bottom of the screen and the keyboard has taken that. It
    * leaves downward, by transform, which is also the direction it will come
    * back from.
    */
-  [data-g='tabbar'] {
-    transition:
-      transform var(--dur-3) var(--ease-exit),
-      opacity var(--dur-2) var(--ease-exit);
-  }
-
   [data-keyboard='open'] [data-g='tabbar'] {
     transform: translate3d(0, 140%, 0);
     opacity: 0;
@@ -1000,15 +1120,15 @@
   }
 
   &:nth-child(2) {
-    animation-delay: 26ms;
+    animation-delay: 22ms;
   }
 
   &:nth-child(3) {
-    animation-delay: 52ms;
+    animation-delay: 44ms;
   }
 
   &:nth-child(n + 4) {
-    animation-delay: 78ms;
+    animation-delay: 62ms;
   }
 }
 
@@ -1024,11 +1144,17 @@
 }
 
 /*
- * A screen arrives, and its first four blocks arrive a beat behind it.
+ * A screen arrives as its first four blocks rising, one just behind the other.
  *
  * Written here rather than as a class on every screen, so a screen added later
  * gets it by being a screen. Four and then it stops: a stagger that runs down a
  * whole page turns a transition into a performance.
+ *
+ * The first block waits for nothing. The delays used to start at twenty and
+ * reach ninety eight, under a fade on the screen element above them, so a tab
+ * change whose content was already in hand took a third of a second to become
+ * fully legible and read as loading. The stagger is there to say the blocks are
+ * separate things, and sixty milliseconds of it says that as well as a hundred.
  */
 @layer components {
   [data-screen] > * {
@@ -1036,19 +1162,19 @@
   }
 
   [data-screen] > *:nth-child(1) {
-    animation-delay: 20ms;
+    animation-delay: 0ms;
   }
 
   [data-screen] > *:nth-child(2) {
-    animation-delay: 46ms;
+    animation-delay: 22ms;
   }
 
   [data-screen] > *:nth-child(3) {
-    animation-delay: 72ms;
+    animation-delay: 44ms;
   }
 
   [data-screen] > *:nth-child(n + 4) {
-    animation-delay: 98ms;
+    animation-delay: 62ms;
   }
 
   /*

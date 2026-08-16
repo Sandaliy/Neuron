@@ -8,7 +8,15 @@ import type { ReactNode } from 'react';
  * step, and it reads as a mistake even to somebody who could not say why.
  */
 
-/** A block of content on the canvas. The default container. */
+/**
+ * A block of content on the canvas. The default container.
+ *
+ * It carries `data-g="card"` and names no surface of its own, which is what
+ * makes the glass scope setting reach it. The stylesheet paints it: opaque at
+ * the default scope, blurred when the setting says panels and cards. Written
+ * with `bg-card` here instead, a utility beat the stylesheet and the setting
+ * moved everything except the cards, which is most of the interface.
+ */
 export function Card({
   children,
   className = '',
@@ -17,7 +25,7 @@ export function Card({
   readonly className?: string;
 }) {
   return (
-    <div className={`rounded-24 border border-subtle bg-card p-20 shadow-1 ${className}`.trimEnd()}>
+    <div data-g="card" className={`rounded-24 border p-20 ${className}`.trimEnd()}>
       {children}
     </div>
   );
