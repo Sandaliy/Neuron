@@ -17,6 +17,7 @@ import { TwoFactorScreen } from './features/auth/two-factor';
 import { GalleryScreen } from './features/dev/gallery';
 import { LibraryScreen } from './features/library/library';
 import { NoteEditorScreen } from './features/notes/note-editor';
+import { NoteListScreen } from './features/notes/note-list';
 import { SettingsScreen } from './features/settings/settings';
 import { TodayScreen } from './features/today/today';
 
@@ -103,11 +104,26 @@ const libraryRoute = createRoute({
 });
 
 /**
- * The notes: one being written, and one being edited.
+ * The notes: a list, one being written, and one being edited.
  *
- * Which deck a new note lands in is in the address, so the screen can be
- * reached from a deck and can be reloaded without losing it.
+ * Which deck the list is showing, and which deck a new note lands in, are both
+ * in the address, so a screen can be bookmarked and going back from a note
+ * returns to the same deck.
  */
+const noteListRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/notes',
+  validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
+    typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
+  component: NoteListRoute,
+});
+
+function NoteListRoute() {
+  const { deckId } = useSearch({ from: noteListRoute.id });
+
+  return <NoteListScreen {...(deckId === undefined ? {} : { deckId })} />;
+}
+
 const newNoteRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/notes/new',
@@ -168,6 +184,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     todayRoute,
     libraryRoute,
+    noteListRoute,
     // Before the parameter route, or a new note is read as a note whose id is
     // the word new.
     newNoteRoute,

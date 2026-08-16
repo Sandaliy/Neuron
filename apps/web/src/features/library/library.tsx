@@ -1,4 +1,14 @@
-import { ArrowDown, ArrowUp, FolderInput, Pencil, Plus, Settings2, Trash2 } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import {
+  ArrowDown,
+  ArrowUp,
+  FolderInput,
+  List,
+  Pencil,
+  Plus,
+  Settings2,
+  Trash2,
+} from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import type { DeckNode, DeckSettings } from '@neuron/shared';
@@ -38,6 +48,7 @@ import type { DragEvent } from 'react';
 export function LibraryScreen() {
   const t = useTranslate();
   const toast = useToast();
+  const navigate = useNavigate();
   const decks = useDeckTree();
   const actions = useDeckActions();
   const [open, setOpen] = useState<ReadonlySet<string>>(() => readOpen());
@@ -58,6 +69,10 @@ export function LibraryScreen() {
   }, []);
 
   const tree = decks.data ?? [];
+
+  const openNotes = (id: string) => {
+    void navigate({ to: '/notes', search: { deckId: id } });
+  };
 
   /**
    * Deleting says what happened and offers it back.
@@ -121,6 +136,7 @@ export function LibraryScreen() {
               actions={actions}
               open={open}
               onToggle={toggle}
+              onOpen={openNotes}
               onAct={setDialog}
             />
           ))}
@@ -191,6 +207,7 @@ function Deck({
   actions,
   open,
   onToggle,
+  onOpen,
   onAct,
 }: {
   readonly deck: DeckNode;
@@ -201,6 +218,8 @@ function Deck({
   readonly actions: ReturnType<typeof useDeckActions>;
   readonly open: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
+  /** Opening a deck is opening its notes. */
+  readonly onOpen: (id: string) => void;
   readonly onAct: (state: DialogState) => void;
 }) {
   const t = useTranslate();
@@ -272,7 +291,7 @@ function Deck({
             : {})}
           expandable={hasChildren}
           expanded={expanded}
-          {...(hasChildren ? { onClick: () => onToggle(deck.id) } : {})}
+          onClick={() => (hasChildren ? onToggle(deck.id) : onOpen(deck.id))}
           {...(POINTER_FINE
             ? {
                 draggable: true,
@@ -306,6 +325,12 @@ function Deck({
                   onSelect={() => onAct({ kind: 'move', deck })}
                 >
                   {t('library.move')}
+                </MenuItem>
+                <MenuItem
+                  icon={<List size={16} strokeWidth={1.5} />}
+                  onSelect={() => onOpen(deck.id)}
+                >
+                  {t('library.openNotes')}
                 </MenuItem>
                 <MenuItem
                   icon={<Plus size={16} strokeWidth={1.5} />}
@@ -365,6 +390,7 @@ function Deck({
               actions={actions}
               open={open}
               onToggle={onToggle}
+              onOpen={onOpen}
               onAct={onAct}
             />
           ))}

@@ -481,7 +481,7 @@ function Editor({
                 await actions.remove.mutateAsync(note.id);
 
                 toast.show(t('note.deleted'));
-                await navigate({ to: '/library' });
+                await navigate({ to: '/notes', search: { deckId: note.deckId } });
               }}
             >
               {t('note.delete')}
