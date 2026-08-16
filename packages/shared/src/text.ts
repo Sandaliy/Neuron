@@ -7,12 +7,23 @@
  * exactly: a normalisation that differs by a space finds nothing and lets
  * five thousand duplicates in.
  *
- * The SQL half is in the migration that adds `notes.term_key`, and
- * `normalise.test.ts` in apps/api runs both over the same words.
+ * The SQL half is on `notes.term_key`, and `normalise.test.ts` in apps/api runs
+ * both over the same words and fails if they ever disagree.
  */
 
 /** Longer than this is not a word, and the index does not need the rest. */
 export const TERM_KEY_LENGTH = 200;
+
+/**
+ * Exactly what Postgres calls whitespace, and nothing more.
+ *
+ * `\s` in JavaScript also matches a non-breaking space and a handful of other
+ * unicode separators, and `[[:space:]]` in Postgres does not. `String.trim`
+ * has the same problem against `btrim`. The two normalisations have to produce
+ * the same string or the duplicate check finds nothing, so this one is written
+ * to match the database rather than the other way round.
+ */
+const SPACE = /[ \t\n\r\f\v]+/g;
 
 /**
  * The comparable form of a term.
@@ -25,7 +36,7 @@ export const TERM_KEY_LENGTH = 200;
  * @returns the form two terms are compared by
  */
 export function normaliseTerm(term: string): string {
-  return term.replace(/\s+/g, ' ').trim().toLowerCase().slice(0, TERM_KEY_LENGTH);
+  return term.replace(SPACE, ' ').replace(/^ | $/g, '').toLowerCase().slice(0, TERM_KEY_LENGTH);
 }
 
 /**

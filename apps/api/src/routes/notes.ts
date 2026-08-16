@@ -1,7 +1,10 @@
 import { Hono } from 'hono';
 
 import {
+  bulkDeleteSchema,
+  bulkMoveSchema,
   bulkStatusSchema,
+  bulkTagsSchema,
   createNoteSchema,
   idParamSchema,
   listNotesSchema,
@@ -39,7 +42,10 @@ export function noteRoutes(): Hono<RequestBindings> {
         includeSubtree: query.subtree,
         status: query.status,
         tag: query.tag,
+        source: query.source,
+        cardState: query.cardState,
         search: query.search,
+        sort: query.sort,
         limit: query.limit,
         cursor: query.cursor,
       }),
@@ -91,11 +97,43 @@ export function noteRoutes(): Hono<RequestBindings> {
     );
   });
 
+  /**
+   * The bulk actions, which are what makes a large import usable.
+   *
+   * Marking two hundred words as known after a placement test is one action to
+   * the person doing it, and two hundred requests is how that action becomes a
+   * spinner. Each of these is capped, because an unbounded batch is a way to
+   * hold a transaction open for as long as somebody likes.
+   */
   routes.post('/status', async (context) => {
     const body = await readBody(context, bulkStatusSchema);
     const changed = await repositoriesOf(context).notes.setStatusMany(body.ids, body.status);
 
     return context.json({ changed });
+  });
+
+  routes.post('/move', async (context) => {
+    const body = await readBody(context, bulkMoveSchema);
+    const changed = await repositoriesOf(context).notes.moveMany(body.ids, body.deckId);
+
+    return context.json({ changed });
+  });
+
+  routes.post('/tags', async (context) => {
+    const body = await readBody(context, bulkTagsSchema);
+    const changed = await repositoriesOf(context).notes.tagMany(body.ids, {
+      ...(body.add === undefined ? {} : { add: body.add }),
+      ...(body.remove === undefined ? {} : { remove: body.remove }),
+    });
+
+    return context.json({ changed });
+  });
+
+  routes.post('/delete', async (context) => {
+    const body = await readBody(context, bulkDeleteSchema);
+    const deleted = await repositoriesOf(context).notes.softDeleteMany(body.ids);
+
+    return context.json({ deleted });
   });
 
   routes.get('/:id', async (context) => {

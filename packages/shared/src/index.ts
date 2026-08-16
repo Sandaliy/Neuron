@@ -134,17 +134,29 @@ export type {
 } from './api/decks.js';
 
 export {
+  BULK_LIMIT,
+  MAX_NOTE_PAGE_SIZE,
+  NOTE_SORTS,
+  bulkDeleteSchema,
+  bulkMoveSchema,
   bulkStatusSchema,
+  bulkTagsSchema,
   createNoteSchema,
   listNotesSchema,
+  noteLimitSchema,
   noteSchema,
+  noteSortSchema,
   updateNoteSchema,
 } from './api/notes.js';
 export type {
+  BulkDeleteBody,
+  BulkMoveBody,
   BulkStatusBody,
+  BulkTagsBody,
   CreateNoteBody,
   ListNotesQuery,
   Note,
+  NoteSort,
   UpdateNoteBody,
 } from './api/notes.js';
 

@@ -1,0 +1,2 @@
+ALTER TABLE "notes" ADD COLUMN "term_key" text GENERATED ALWAYS AS (left(lower(btrim(regexp_replace(coalesce(fields->>'term', fields->>'front', fields->>'text', ''), '[[:space:]]+', ' ', 'g'), ' ')), 200)) STORED;--> statement-breakpoint
+CREATE INDEX "notes_user_term_key_idx" ON "notes" USING btree ("user_id","term_key") WHERE "notes"."deleted_at" is null;

@@ -71,6 +71,13 @@
       "when": 1786895828106,
       "tag": "0009_wooden_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786896372881,
+      "tag": "0010_petite_toad",
+      "breakpoints": true
     }
   ]
 }

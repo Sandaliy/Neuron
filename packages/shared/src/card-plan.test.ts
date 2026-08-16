@@ -72,19 +72,15 @@ describe('what a note starts with', () => {
   });
 
   it('opens a listening card once there is audio to listen to', () => {
-    const cards = openingCards(
-      'vocab',
-      { ...WORD, audio: 'sorgfalt.mp3' },
-      [{ direction: 'listening', opensAtStability: 0 }],
-    );
+    const cards = openingCards('vocab', { ...WORD, audio: 'sorgfalt.mp3' }, [
+      { direction: 'listening', opensAtStability: 0 },
+    ]);
 
     expect(cards.map((card) => card.direction)).toEqual(['listening']);
   });
 
   it('does not open a direction the note cannot produce, whatever the ladder says', () => {
-    const cards = openingCards('vocab', WORD, [
-      { direction: 'listening', opensAtStability: 0 },
-    ]);
+    const cards = openingCards('vocab', WORD, [{ direction: 'listening', opensAtStability: 0 }]);
 
     expect(cards.map((card) => card.direction)).not.toContain('listening');
   });

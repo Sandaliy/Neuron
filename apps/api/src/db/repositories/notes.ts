@@ -1,7 +1,8 @@
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
-import { parseNoteFields, uuidV7 } from '@neuron/shared';
-import type { NoteFields, NoteStatus, NoteTypeName } from '@neuron/shared';
+import type { CardState } from '@neuron/core';
+import { MAX_NOTE_PAGE_SIZE, parseNoteFields, uuidV7 } from '@neuron/shared';
+import type { NoteFields, NoteSort, NoteStatus, NoteTypeName } from '@neuron/shared';
 
 import { cards, decks, noteTypes, notes } from '../schema/index.js';
 
@@ -38,7 +39,12 @@ export interface ListNotes {
   readonly includeSubtree?: boolean | undefined;
   readonly status?: NoteStatus | undefined;
   readonly tag?: string | undefined;
+  /** Where the notes came from, as it was recorded on the import. */
+  readonly source?: string | undefined;
+  /** Notes holding at least one card in this state. */
+  readonly cardState?: CardState | undefined;
   readonly search?: string | undefined;
+  readonly sort?: NoteSort | undefined;
   readonly limit?: number | undefined;
   /** The id of the last note on the previous page. */
   readonly cursor?: string | undefined;
@@ -74,9 +80,27 @@ export interface NoteRepository {
    * `basic` fields, so a type written without its fields leaves a row that
    * nothing can read back.
    */
-  changeType: (id: string, noteType: NoteTypeName, fields: NoteFields) => Promise<NoteRow | undefined>;
+  changeType: (
+    id: string,
+    noteType: NoteTypeName,
+    fields: NoteFields,
+  ) => Promise<NoteRow | undefined>;
   setStatus: (id: string, status: NoteStatus) => Promise<NoteRow | undefined>;
   setTags: (id: string, tags: readonly string[]) => Promise<NoteRow | undefined>;
+  /** Moves a selection into another deck, taking every card with them. */
+  moveMany: (ids: readonly string[], deckId: string) => Promise<number>;
+  /**
+   * Adds and removes tags across a selection, in one statement.
+   *
+   * Both directions at once, because replacing one tag with another is one
+   * action to the person doing it and two requests is how it ends up half done.
+   */
+  tagMany: (
+    ids: readonly string[],
+    change: { readonly add?: readonly string[]; readonly remove?: readonly string[] },
+  ) => Promise<number>;
+  /** Deletes a selection, cards and all. */
+  softDeleteMany: (ids: readonly string[]) => Promise<number>;
   /**
    * The same change across many notes, in one statement and one version.
    *
@@ -96,6 +120,66 @@ export interface NoteRepository {
   softDelete: (id: string) => Promise<boolean>;
   /** Takes back one delete, bringing the note's cards with it. */
   restore: (id: string) => Promise<boolean>;
+}
+
+/**
+ * The rank a note with no rank sorts as.
+ *
+ * Postgres puts nulls last on an ascending sort anyway, but a null in a row
+ * comparison makes the whole comparison null, which silently drops every page
+ * after the first. Folding it to a real number keeps the cursor working.
+ */
+const NO_RANK = 2_147_483_647;
+
+/** The columns each sort orders by, always ending in the id so it is total. */
+function order(sort: NoteSort) {
+  switch (sort) {
+    case 'alpha': {
+      return [asc(notes.termKey), asc(notes.id)];
+    }
+
+    case 'rank': {
+      return [asc(sql`coalesce(${notes.rank}, ${NO_RANK})`), asc(notes.id)];
+    }
+
+    default: {
+      // Ids are UUID version 7, so ordering by id is ordering by creation time.
+      return [asc(notes.id)];
+    }
+  }
+}
+
+/**
+ * Where the next page carries on from.
+ *
+ * The cursor is the last id seen, and the value it sorted by is read back out
+ * of that row rather than carried in the cursor. A cursor holding a two hundred
+ * character word and a uuid does not fit in a query string anybody wants to
+ * look at, and the extra index lookup is one row.
+ *
+ * @param sort which order the page is in
+ * @param cursor the last id of the previous page
+ * @returns the condition that skips everything up to and including it
+ */
+function after(sort: NoteSort, cursor: string) {
+  switch (sort) {
+    case 'alpha': {
+      return sql`(${notes.termKey}, ${notes.id}) > ((select n.term_key from notes n where n.id = ${cursor}::uuid), ${cursor}::uuid)`;
+    }
+
+    case 'rank': {
+      return sql`(coalesce(${notes.rank}, ${NO_RANK}), ${notes.id}) > ((select coalesce(n.rank, ${NO_RANK}) from notes n where n.id = ${cursor}::uuid), ${cursor}::uuid)`;
+    }
+
+    default: {
+      return sql`${notes.id} > ${cursor}::uuid`;
+    }
+  }
+}
+
+/** Makes a search term literal, so a typed `%` matches a `%`. */
+function escapeLike(value: string): string {
+  return value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
 }
 
 /** The note type named on a write does not exist, or is not readable. */
@@ -207,7 +291,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
 
     async list(query) {
       return run(async (tx) => {
-        const limit = Math.min(query.limit ?? 50, 200);
+        const limit = Math.min(query.limit ?? 50, MAX_NOTE_PAGE_SIZE);
         const conditions = [eq(notes.userId, userId), isNull(notes.deletedAt)];
 
         if (query.deckId !== undefined) {
@@ -237,17 +321,34 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
           conditions.push(sql`${notes.tags} @> array[${query.tag}]::text[]`);
         }
 
+        if (query.source !== undefined) {
+          conditions.push(eq(notes.source, query.source));
+        }
+
+        if (query.cardState !== undefined) {
+          // An exists rather than a join, so a note with three cards in that
+          // state comes back once rather than three times.
+          conditions.push(
+            sql`exists (select 1 from cards c where c.note_id = ${notes.id} and c.state = ${query.cardState} and c.deleted_at is null)`,
+          );
+        }
+
         if (query.search !== undefined) {
+          const pattern = `%${escapeLike(query.search)}%`;
+
           // Across the whole of `fields` rather than one named column, because
           // the columns differ by note type and a person searching for a word
           // does not care whether it was the term or the example it appeared
-          // in. It is a scan, and at the size a person's own collection reaches
+          // in. Tags are a column of their own, so they are asked separately.
+          // It is a scan, and at the size a person's own collection reaches
           // that is cheaper than the index it would take to avoid one.
-          conditions.push(sql`${notes.fields}::text ilike ${`%${query.search}%`}`);
+          conditions.push(
+            sql`(${notes.fields}::text ilike ${pattern} escape '\' or array_to_string(${notes.tags}, ' ') ilike ${pattern} escape '\')`,
+          );
         }
 
         if (query.cursor !== undefined) {
-          conditions.push(sql`${notes.id} > ${query.cursor}::uuid`);
+          conditions.push(after(query.sort ?? 'created', query.cursor));
         }
 
         // One more than asked for, so that "is there another page" is answered
@@ -256,7 +357,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
           .select()
           .from(notes)
           .where(and(...conditions))
-          .orderBy(asc(notes.id))
+          .orderBy(...order(query.sort ?? 'created'))
           .limit(limit + 1);
 
         const items = rows.slice(0, limit);
@@ -375,6 +476,124 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
           .returning();
 
         return row;
+      });
+    },
+
+    async moveMany(ids, deckId) {
+      if (ids.length === 0) {
+        return 0;
+      }
+
+      return run(async (tx) => {
+        const unique = [...new Set(ids)];
+        const rev = await nextRev(tx, userId);
+        const now = new Date();
+
+        const moved = await tx
+          .update(notes)
+          .set({ deckId, updatedAt: now, rev })
+          .where(and(eq(notes.userId, userId), inArray(notes.id, unique), isNull(notes.deletedAt)))
+          .returning({ id: notes.id });
+
+        // The cards carry a copy of the deck, and this is one of the two places
+        // that copy can go out of step. Both move, in the same transaction.
+        if (moved.length > 0) {
+          await tx
+            .update(cards)
+            .set({ deckId, updatedAt: now, rev })
+            .where(
+              and(
+                eq(cards.userId, userId),
+                inArray(
+                  cards.noteId,
+                  moved.map((row) => row.id),
+                ),
+                isNull(cards.deletedAt),
+              ),
+            );
+        }
+
+        return moved.length;
+      });
+    },
+
+    async tagMany(ids, change) {
+      if (ids.length === 0) {
+        return 0;
+      }
+
+      return run(async (tx) => {
+        const unique = [...new Set(ids)];
+        const add = [...new Set(change.add ?? [])];
+        const remove = new Set(change.remove ?? []);
+        const rev = await nextRev(tx, userId);
+        const now = new Date();
+
+        const rows = await tx
+          .select({ id: notes.id, tags: notes.tags })
+          .from(notes)
+          .where(and(eq(notes.userId, userId), inArray(notes.id, unique), isNull(notes.deletedAt)));
+
+        let changed = 0;
+
+        for (const row of rows) {
+          const next = [...new Set([...row.tags, ...add])].filter((tag) => !remove.has(tag)).sort();
+
+          // Nothing is written for a note that already reads that way. It keeps
+          // a bulk tag off two hundred rows that did not need it, and keeps the
+          // version number from moving for no reason.
+          if (
+            next.length === row.tags.length &&
+            next.every((tag, index) => tag === row.tags[index])
+          ) {
+            continue;
+          }
+
+          await tx
+            .update(notes)
+            .set({ tags: next, updatedAt: now, rev })
+            .where(and(eq(notes.userId, userId), eq(notes.id, row.id)));
+
+          changed += 1;
+        }
+
+        return changed;
+      });
+    },
+
+    async softDeleteMany(ids) {
+      if (ids.length === 0) {
+        return 0;
+      }
+
+      return run(async (tx) => {
+        const unique = [...new Set(ids)];
+        const rev = await nextRev(tx, userId);
+        const now = new Date();
+
+        const marked = await tx
+          .update(notes)
+          .set({ deletedAt: now, updatedAt: now, rev })
+          .where(and(eq(notes.userId, userId), inArray(notes.id, unique), isNull(notes.deletedAt)))
+          .returning({ id: notes.id });
+
+        if (marked.length > 0) {
+          await tx
+            .update(cards)
+            .set({ deletedAt: now, updatedAt: now, rev })
+            .where(
+              and(
+                eq(cards.userId, userId),
+                inArray(
+                  cards.noteId,
+                  marked.map((row) => row.id),
+                ),
+                isNull(cards.deletedAt),
+              ),
+            );
+        }
+
+        return marked.length;
       });
     },
 
