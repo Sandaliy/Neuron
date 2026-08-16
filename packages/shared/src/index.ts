@@ -170,16 +170,25 @@ export {
 export type { Card, DueCardsQuery, UnlockDirectionBody } from './api/cards.js';
 
 export {
+  IMPORT_CHUNK_SIZE,
   createImportSchema,
   createPresetSchema,
+  duplicateCheckSchema,
+  duplicateMatchSchema,
   importBatchSchema,
+  importChunkSchema,
+  importSummarySchema,
   studyPresetSchema,
   updatePresetSchema,
 } from './api/study.js';
 export type {
   CreateImportBody,
   CreatePresetBody,
+  DuplicateCheckBody,
+  DuplicateMatch,
   ImportBatch,
+  ImportChunkBody,
+  ImportSummary,
   StudyPreset,
   UpdatePresetBody,
 } from './api/study.js';

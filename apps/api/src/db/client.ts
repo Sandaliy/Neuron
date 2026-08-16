@@ -3,6 +3,8 @@ import { drizzle } from 'drizzle-orm/neon-serverless';
 
 import { authSchema, schema } from './schema/index.js';
 
+import type { Logger } from 'drizzle-orm';
+
 /**
  * Neon over WebSockets, not over HTTP.
  *
@@ -31,10 +33,21 @@ export type Database = ReturnType<typeof createDb>;
  */
 const MAX_SOCKETS = 2;
 
-export function createDb(connectionString: string) {
+/**
+ * @param connectionString DATABASE_URL, using the neuron_app role
+ * @param options a logger, which only the tests pass. Counting statements is
+ *   the only way to prove that an import of five thousand rows does not become
+ *   five thousand queries, and that is a claim worth a test rather than a
+ *   comment
+ * @returns a client that can see the collection
+ */
+export function createDb(connectionString: string, options: { logger?: Logger } = {}) {
   const pool = new Pool({ connectionString, max: MAX_SOCKETS });
 
-  return drizzle(pool, { schema });
+  return drizzle(pool, {
+    schema,
+    ...(options.logger === undefined ? {} : { logger: options.logger }),
+  });
 }
 
 export type AuthDatabase = ReturnType<typeof createAuthDb>;

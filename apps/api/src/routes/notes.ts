@@ -6,8 +6,11 @@ import {
   bulkStatusSchema,
   bulkTagsSchema,
   createNoteSchema,
+  duplicateCheckSchema,
   idParamSchema,
   listNotesSchema,
+  normaliseTerm,
+  termOf,
   parseNoteFields,
   updateNoteSchema,
 } from '@neuron/shared';
@@ -110,6 +113,30 @@ export function noteRoutes(): Hono<RequestBindings> {
     const changed = await repositoriesOf(context).notes.setStatusMany(body.ids, body.status);
 
     return context.json({ changed });
+  });
+
+  /**
+   * Which of these words the library already holds.
+   *
+   * One request for a whole chunk of an import, answered from an indexed
+   * generated column, so five thousand rows are five queries rather than five
+   * thousand. Across every deck, because a word already learned somewhere else
+   * is exactly the duplicate worth knowing about.
+   */
+  routes.post('/duplicates', async (context) => {
+    const body = await readBody(context, duplicateCheckSchema);
+    const repositories = repositoriesOf(context);
+    const keys = body.terms.map((term) => normaliseTerm(term));
+    const rows = await repositories.notes.duplicatesOf(keys);
+
+    return context.json({
+      matches: rows.map((row) => ({
+        term: row.termKey,
+        noteId: row.id,
+        deckId: row.deckId,
+        written: termOf(row.fields),
+      })),
+    });
   });
 
   routes.post('/move', async (context) => {

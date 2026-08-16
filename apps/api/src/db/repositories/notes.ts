@@ -50,6 +50,14 @@ export interface ListNotes {
   readonly cursor?: string | undefined;
 }
 
+/** A note the library already holds, for the importer to offer a choice about. */
+export interface DuplicateRow {
+  readonly id: string;
+  readonly deckId: string;
+  readonly termKey: string;
+  readonly fields: NoteFields;
+}
+
 /** One page of notes, and where the next one starts. */
 export interface NotePage {
   readonly items: NoteRow[];
@@ -58,7 +66,26 @@ export interface NotePage {
 
 export interface NoteRepository {
   create: (input: CreateNote) => Promise<NoteRow>;
-  createMany: (inputs: readonly CreateNote[]) => Promise<NoteRow[]>;
+  /**
+   * Writes many notes at once.
+   *
+   * With `skipExisting`, a note whose id is already there is left alone and is
+   * not returned. That is what makes a chunk of an import safe to send twice:
+   * the retry writes nothing and creates no second set of cards.
+   */
+  createMany: (
+    inputs: readonly CreateNote[],
+    options?: { readonly skipExisting?: boolean },
+  ) => Promise<NoteRow[]>;
+  /**
+   * Which of these words the library already holds.
+   *
+   * One query for the whole list, matched against the indexed generated column,
+   * because an import of five thousand rows cannot become five thousand
+   * queries. Across every deck, since a word already learned somewhere else is
+   * exactly the duplicate worth knowing about.
+   */
+  duplicatesOf: (termKeys: readonly string[]) => Promise<DuplicateRow[]>;
   byId: (id: string) => Promise<NoteRow | undefined>;
   /**
    * The browse screen: filtered, and one page at a time.
@@ -216,7 +243,12 @@ async function noteTypeId(tx: Tx, name: string): Promise<string> {
 }
 
 export function noteRepository(userId: string, run: Runner): NoteRepository {
-  async function insert(tx: Tx, inputs: readonly CreateNote[], rev: number): Promise<NoteRow[]> {
+  async function insert(
+    tx: Tx,
+    inputs: readonly CreateNote[],
+    rev: number,
+    skipExisting = false,
+  ): Promise<NoteRow[]> {
     const typeIds = new Map<string, string>();
 
     for (const input of inputs) {
@@ -241,7 +273,15 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       rev,
     }));
 
-    return tx.insert(notes).values(values).returning();
+    if (!skipExisting) {
+      return tx.insert(notes).values(values).returning();
+    }
+
+    // Nothing is updated on a conflict. A chunk arriving twice means the first
+    // one landed, and the rows it wrote are the truth; overwriting them with
+    // the same values would only move the version number and make sync think
+    // something changed.
+    return tx.insert(notes).values(values).onConflictDoNothing().returning();
   }
 
   return {
@@ -258,7 +298,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       });
     },
 
-    async createMany(inputs) {
+    async createMany(inputs, options) {
       if (inputs.length === 0) {
         return [];
       }
@@ -270,10 +310,45 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
         // In batches, because an import can be thousands of rows and one
         // statement carrying all of them runs into the parameter limit.
         for (let start = 0; start < inputs.length; start += 200) {
-          written.push(...(await insert(tx, inputs.slice(start, start + 200), rev)));
+          written.push(
+            ...(await insert(
+              tx,
+              inputs.slice(start, start + 200),
+              rev,
+              options?.skipExisting ?? false,
+            )),
+          );
         }
 
         return written;
+      });
+    },
+
+    async duplicatesOf(termKeys) {
+      if (termKeys.length === 0) {
+        return [];
+      }
+
+      return run(async (tx) => {
+        const wanted = [...new Set(termKeys)].filter((key) => key !== '');
+
+        if (wanted.length === 0) {
+          return [];
+        }
+
+        const rows = await tx
+          .select({
+            id: notes.id,
+            deckId: notes.deckId,
+            termKey: notes.termKey,
+            fields: notes.fields,
+          })
+          .from(notes)
+          .where(
+            and(eq(notes.userId, userId), isNull(notes.deletedAt), inArray(notes.termKey, wanted)),
+          );
+
+        return rows.map((row) => ({ ...row, termKey: row.termKey ?? '' }));
       });
     },
 
