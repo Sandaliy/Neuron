@@ -103,6 +103,30 @@ test('the interface in Russian', async ({ page }) => {
 });
 
 /**
+ * One second factor control, never two.
+ *
+ * Both were drawn whatever the account said, so somebody who had never set one
+ * up was offered a row for turning it off. Nothing the screen could read said
+ * which state it was in, because the account did not report it.
+ */
+test.describe('the second factor', () => {
+  for (const on of [false, true]) {
+    test(`offers one control when it is ${on ? 'on' : 'off'}`, async ({ page }) => {
+      await usePreferences(page, { theme: 'dark', locale: 'en' });
+      await useFixtures(page, { twoFactor: on });
+      await page.goto('/settings');
+      await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+
+      const setUp = page.getByRole('button', { name: /Set up two-factor/ });
+      const turnOff = page.getByRole('button', { name: /Turn off 2FA/ });
+
+      await expect(setUp).toHaveCount(on ? 0 : 1);
+      await expect(turnOff).toHaveCount(on ? 1 : 0);
+    });
+  }
+});
+
+/**
  * The setting that says the effect reaches cards as well.
  *
  * Settings is the screen where the bug was visible: the two sections built from

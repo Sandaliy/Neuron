@@ -73,6 +73,8 @@ export const ru: Messages = {
   'auth.twoFactor.invalid': 'Код неверный.',
   'auth.twoFactor.reused': 'Этот код уже использован. Дождись следующего.',
   'auth.twoFactor.unavailable': '2FA на этом аккаунте не настроена.',
+  'auth.twoFactor.on': 'Включена, с кодом с телефона',
+  'auth.twoFactor.off': 'Выключена. Для входа хватит пароля',
   'auth.twoFactor.enabled': '2FA включена.',
   'auth.twoFactor.disabled': '2FA выключена.',
   'auth.twoFactor.recoveryCodes.warning':

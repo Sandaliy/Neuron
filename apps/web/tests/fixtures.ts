@@ -24,6 +24,7 @@ const ACCOUNT = {
   dayCutoffHour: 4,
   plan: 'free',
   settings: {},
+  twoFactorEnabled: false,
   revision: 42,
 };
 
@@ -72,11 +73,13 @@ export interface FixtureOptions {
   /** Answers `/account` with a session. Off puts the app on the sign in screen. */
   readonly signedIn?: boolean;
   readonly decks?: Record<string, unknown>[];
+  /** What the account says about the second factor. Settings draws one of two rows from it. */
+  readonly twoFactor?: boolean;
 }
 
 /** Answers every api request this app makes, before the page loads. */
 export async function useFixtures(page: Page, options: FixtureOptions = {}): Promise<void> {
-  const { signedIn = true, decks = DECKS } = options;
+  const { signedIn = true, decks = DECKS, twoFactor = false } = options;
 
   /*
    * Matched on the path rather than with a glob. `**` matches slashes, so a
@@ -105,7 +108,7 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify(ACCOUNT),
+          body: JSON.stringify({ ...ACCOUNT, twoFactorEnabled: twoFactor }),
         });
 
         return;

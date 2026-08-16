@@ -78,6 +78,9 @@ export const en = {
   'auth.twoFactor.invalid': 'That code is not right.',
   'auth.twoFactor.reused': 'That code has already been used. Wait for the app to show a new one.',
   'auth.twoFactor.unavailable': '2FA is not set up on this account.',
+  /* Under the row in Settings, so the control says what it will do to a state. */
+  'auth.twoFactor.on': 'On, with a code from your phone',
+  'auth.twoFactor.off': 'Off. A password is all it takes to sign in',
   'auth.twoFactor.enabled': '2FA is on.',
   'auth.twoFactor.disabled': '2FA is off.',
   /** The one that matters. Losing a phone must not mean losing the account. */
