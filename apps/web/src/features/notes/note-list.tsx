@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { Plus } from 'lucide-react';
+import { Plus, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { NOTE_SORTS, NOTE_STATUSES, termOf } from '@neuron/shared';
@@ -129,6 +129,14 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-8">
+          <Button
+            variant="quiet"
+            onClick={() => void navigate({ to: '/import', search: deckSearch })}
+          >
+            <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
+            {t('notes.import')}
+          </Button>
+
           <Button
             variant="primary"
             onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}

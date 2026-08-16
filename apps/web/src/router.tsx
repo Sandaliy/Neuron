@@ -15,6 +15,7 @@ import { SignInScreen } from './features/auth/sign-in';
 import { SignUpScreen } from './features/auth/sign-up';
 import { TwoFactorScreen } from './features/auth/two-factor';
 import { GalleryScreen } from './features/dev/gallery';
+import { ImportScreen } from './features/import/import-screen';
 import { LibraryScreen } from './features/library/library';
 import { NoteEditorScreen } from './features/notes/note-editor';
 import { NoteListScreen } from './features/notes/note-list';
@@ -150,6 +151,21 @@ function NoteRoute() {
   return <NoteEditorScreen noteId={noteId} />;
 }
 
+/** Bringing a word list in. Which deck it lands in is in the address. */
+const importRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/import',
+  validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
+    typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
+  component: ImportRoute,
+});
+
+function ImportRoute() {
+  const { deckId } = useSearch({ from: importRoute.id });
+
+  return <ImportScreen {...(deckId === undefined ? {} : { deckId })} />;
+}
+
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/settings',
@@ -189,6 +205,7 @@ const routeTree = rootRoute.addChildren([
     // the word new.
     newNoteRoute,
     noteRoute,
+    importRoute,
     settingsRoute,
   ]),
   ...devRoutes,

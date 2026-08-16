@@ -61,6 +61,22 @@ export {
 export type { CefrLevel, LanguageCode } from './languages.js';
 
 export {
+  IMPORT_FIELDS,
+  IMPORT_FORMATS,
+  detectFormat,
+  parseImport,
+  rowProblems,
+  termCounts,
+} from './import-parse.js';
+export type {
+  ImportField,
+  ImportFormat,
+  ParseResult,
+  ParsedRow,
+  RowProblems,
+} from './import-parse.js';
+
+export {
   TERM_KEY_LENGTH,
   exampleContainsTerm,
   normaliseTerm,
