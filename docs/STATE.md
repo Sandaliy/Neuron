@@ -3,9 +3,10 @@
 Where the project stands right now. This file replaces reading `neuron-plan.md` and `phase-*.md`.
 Update it with `/handoff` at the end of a working session.
 
-Last updated: 2026-08-16, on `fix/phone-feel`. Phase 5.5, the design pass, is merged and live.
-`e44748d` made it behave on a phone, and `81b0315` is the second pass over that same ground: the bar,
-the glass setting, the keyboard, and how a press answers.
+Last updated: 2026-08-16, on `main`. Phase 5.5, the design pass, is merged and live. `e44748d` made
+it behave on a phone, and `d9f75a8` is the second pass over that same ground: the bar, the glass
+setting, the keyboard, how a press answers, and the second factor control that offered to turn off
+something that was already off.
 
 ## Now
 
@@ -14,8 +15,8 @@ the glass setting, the keyboard, and how a press answers.
 design system. Sign up, sign in, the ten codes, recovery by code, the second factor, settings, the read
 only library tree and Today. Two themes, two languages, three glass levels.
 
-`pnpm typecheck`, `pnpm lint` and `pnpm test` all pass: 699 tests, none skipped. The Playwright suite,
-`pnpm --filter @neuron/web test:screens`, passes its 58 checks, and the production deploy after the
+`pnpm typecheck`, `pnpm lint` and `pnpm test` all pass: 700 tests, none skipped. The Playwright suite,
+`pnpm --filter @neuron/web test:screens`, passes its 62 checks, and the production deploy after the
 merge went green.
 
 **`docs/design-system.md` is the reference now, and `/dev/components` is the drawn version of it.**
@@ -209,6 +210,11 @@ measures 4.60 to 1 for secondary text and light measures 4.72, against AA's 4.5,
 left to spend. More transparency means accepting a measured drop below AA over the worst backdrop,
 which is a decision rather than a tweak.
 
+**"Turn off 2FA" existed on accounts that had no second factor.** Settings drew both controls at
+once, because nothing on the screen could tell the two states apart: `GET /account` never reported
+it. It does now, from the column Better Auth keeps, and the row that applies is the only one drawn,
+with the state written underneath it. The account is refetched after either control runs.
+
 **Three things found while measuring.** Every toast was drawn behind the tab bar: its padding named
 `--bar-gap`, which nothing defines, and an undefined variable inside `calc` makes the whole
 declaration invalid. The specular streak read `offsetWidth` and `scrollHeight` inside its scroll
@@ -313,11 +319,13 @@ end to end by tests that run with it on, reading the token out of the log mailer
   preview deployments are trusted as a pattern rather than one hostname at a time. `BETTER_AUTH_URL`
   is gone: it held the same address and could disagree with it, and when it did every sign in and
   every sign up was refused with a 403 nobody could read. Moving to a real domain is this one entry.
-- **Preview deployments sign in against the production api and the production database.** The rewrite
-  in `apps/web/vercel.json` names the api's stable alias, and a preview of the web app uses it like
-  any other build. That is what makes an auth change testable before it reaches `main`, and it also
-  means an account made on a preview is a real account. The api's own preview deployments have never
-  had `DATABASE_URL`, so they do not boot; nothing points at them.
+- **Preview deployments sign in against the production api and the production database, but only at
+  the branch address.** `APP_ORIGIN` trusts `https://neuron-web-git-*-parkour-clan.vercel.app`, which
+  is the branch alias. Vercel also gives every build a deployment alias, `neuron-<hash>-parkour-clan`,
+  and that one matches no pattern in the list: opening it ends in "The server does not recognise this
+  web address" on the first request. Use the branch alias when handing a preview to somebody, or add
+  the deployment form to `APP_ORIGIN`. The api's own preview deployments have never had
+  `DATABASE_URL`, so they do not boot; nothing points at them.
 - **The two registration guards are temporary.** Both exist only because there is no email verification.
   Remove them in phase 11 rather than leaving them to rot.
 - **The password policy is a length floor and about forty entries.** `packages/shared/src/password.ts`.
