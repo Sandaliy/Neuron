@@ -135,9 +135,11 @@ jobs:
         run: Stop-Process -Id ${{ steps.web-server.outputs.pid }} -Force -ErrorAction SilentlyContinue
 
       - name: Keep the browser report
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v5
         with:
           name: playwright-report
-          path: apps/web/playwright-report/
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
           retention-days: 14
