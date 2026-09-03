@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { useFixtures, usePreferences } from './fixtures';
+import { hostedWindowsSnapshot, useFixtures, usePreferences } from './fixtures';
 
 /**
  * The gallery, photographed.
@@ -41,6 +41,6 @@ test.describe('component gallery', () => {
       }
     });
 
-    await expect(page).toHaveScreenshot('gallery.png', { fullPage: true });
+    await expect(page).toHaveScreenshot(hostedWindowsSnapshot('gallery.png'), { fullPage: true });
   });
 });

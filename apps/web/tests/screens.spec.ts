@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { useFixtures, usePreferences } from './fixtures';
+import { hostedWindowsSnapshot, useFixtures, usePreferences } from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -122,7 +122,7 @@ for (const theme of THEMES) {
       await expect(page.getByText('4KQPX-2M7JW-DRTKM')).toBeVisible();
       await settle(page);
 
-      await expect(page).toHaveScreenshot(`sign-up-codes-${theme}.png`);
+      await expect(page).toHaveScreenshot(hostedWindowsSnapshot(`sign-up-codes-${theme}.png`));
     });
 
     /*
@@ -139,7 +139,7 @@ for (const theme of THEMES) {
       await expect(page.getByText('4KQPX-2M7JW-DRTKM')).toBeVisible();
       await settle(page);
 
-      await expect(page).toHaveScreenshot(`recovery-codes-${theme}.png`);
+      await expect(page).toHaveScreenshot(hostedWindowsSnapshot(`recovery-codes-${theme}.png`));
     });
 
     /*
