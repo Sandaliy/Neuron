@@ -13,9 +13,27 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Scan the repository
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   verify:
-    name: Typecheck, lint, test
+    name: Typecheck, lint, test, build
     runs-on: ubuntu-latest
 
     steps:
@@ -34,6 +52,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check formatting
+        run: pnpm format:check
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -42,3 +63,76 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Check migrations
+        run: pnpm db:check
+        env:
+          DATABASE_URL_OWNER: postgresql://postgres:postgres@localhost:5432/neuron
+
+      - name: Build
+        run: pnpm build
+
+  browser:
+    name: Browser and screenshot tests
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @neuron/web test:screens:install
+
+      - name: Start web server
+        id: web-server
+        shell: pwsh
+        run: |
+          $server = Start-Process `
+            -FilePath node `
+            -ArgumentList "./node_modules/vite/bin/vite.js", "--host", "127.0.0.1" `
+            -WorkingDirectory "apps/web" `
+            -WindowStyle Hidden `
+            -PassThru
+          "pid=$($server.Id)" >> $env:GITHUB_OUTPUT
+
+          for ($attempt = 0; $attempt -lt 60; $attempt += 1) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://127.0.0.1:5173" -UseBasicParsing
+              if ($response.StatusCode -eq 200) {
+                exit 0
+              }
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+
+          throw "The web server did not start"
+
+      - name: Run browser tests
+        run: pnpm --filter @neuron/web test:screens
+
+      - name: Stop web server
+        if: ${{ always() && steps.web-server.outputs.pid != '' }}
+        shell: pwsh
+        run: Stop-Process -Id ${{ steps.web-server.outputs.pid }} -Force -ErrorAction SilentlyContinue
+
+      - name: Keep the browser report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 14

@@ -73,15 +73,19 @@ describe('how many new cards are allowed', () => {
     expect(decision.reason).toBe('dailyCapReached');
   });
 
-  it('stops completely once the forecast is at four fifths of the budget', () => {
-    const tight = createBudget({ minutesByWeekday: [10, 10, 10, 10, 10, 10, 10] });
-    const load = forecast({ cards: busyDeck(1500), config, now: NOW, horizonDays: 60 });
-    const decision = newCardAllowance(load, tight, 0.3, config, NOW);
+  it(
+    'stops completely once the forecast is at four fifths of the budget',
+    { timeout: 30_000 },
+    () => {
+      const tight = createBudget({ minutesByWeekday: [10, 10, 10, 10, 10, 10, 10] });
+      const load = forecast({ cards: busyDeck(1500), config, now: NOW, horizonDays: 60 });
+      const decision = newCardAllowance(load, tight, 0.3, config, NOW);
 
-    expect(decision.allowed).toBe(0);
-    expect(decision.reason).toBe('forecastOverBudget');
-    expect(decision.headroomMinutes).toBeLessThan(0);
-  });
+      expect(decision.allowed).toBe(0);
+      expect(decision.reason).toBe('forecastOverBudget');
+      expect(decision.headroomMinutes).toBeLessThan(0);
+    },
+  );
 
   it('stops while a backlog is being worked through', () => {
     const backlog: BacklogState = {

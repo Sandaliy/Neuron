@@ -99,7 +99,11 @@ describe.skipIf(!database)('the seed', () => {
   });
 
   it('leaves the same collection when it runs again', async () => {
-    await runSeed({ ownerUrl: database?.ownerUrl ?? '', appUrl: database?.appUrl ?? '', quiet: true });
+    await runSeed({
+      ownerUrl: database?.ownerUrl ?? '',
+      appUrl: database?.appUrl ?? '',
+      quiet: true,
+    });
 
     const second = await countRows(owner);
 

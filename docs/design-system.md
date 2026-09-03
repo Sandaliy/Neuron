@@ -217,10 +217,10 @@ travelling under it, not by the tone of the words, so every label on a bar can b
 moves the floor from secondary to primary. Measured over the worst backdrop a bar can have, which is
 the theme's own primary text scrolling underneath it:
 
-| On a bar at .58 | Dark            | Light           |
-| --------------- | --------------- | --------------- |
-| Primary         | **4.55**        | **6.46**        |
-| Secondary       | 2.31, banned    | 2.74, banned    |
+| On a bar at .58 | Dark         | Light        |
+| --------------- | ------------ | ------------ |
+| Primary         | **4.55**     | **6.46**     |
+| Secondary       | 2.31, banned | 2.74, banned |
 
 Both quieter tones are redefined to the primary one on a bar in `global.css`, the same way tertiary is
 redefined to secondary on every other glass layer, so a label that moves onto a bar is corrected rather

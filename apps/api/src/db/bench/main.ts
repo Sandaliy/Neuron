@@ -248,7 +248,9 @@ async function main(): Promise<void> {
           .join(' | ');
 
         console.log(`${item.label}`);
-        console.log(`  median ${median(item.timings).toFixed(2)} ms   runs ${item.timings.map((value) => value.toFixed(1)).join(', ')}`);
+        console.log(
+          `  median ${median(item.timings).toFixed(2)} ms   runs ${item.timings.map((value) => value.toFixed(1)).join(', ')}`,
+        );
         console.log(`  ${scans}`);
         console.log('');
       }

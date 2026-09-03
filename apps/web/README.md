@@ -22,15 +22,15 @@ a phone on the same network at `http://<this machine's address>:5173`.
 
 ## Layout
 
-| Path            | Holds                                                                      |
-| --------------- | -------------------------------------------------------------------------- |
-| `src/app/`      | The shell, the session gate, and the preference sync                        |
-| `src/features/` | One directory per screen group: auth, library, today, settings              |
-| `src/ui/`       | The design system: Radix primitives styled with the tokens                  |
-| `src/lib/`      | The api client, the Better Auth client, and the query hooks                 |
-| `src/i18n/`     | Which language is on. The catalogue itself is in `packages/shared`          |
-| `src/theme/`    | Which theme is on, and the copy of that logic `index.html` runs first       |
-| `scripts/`      | Draws the icons in `public/` from the design tokens                         |
+| Path            | Holds                                                                 |
+| --------------- | --------------------------------------------------------------------- |
+| `src/app/`      | The shell, the session gate, and the preference sync                  |
+| `src/features/` | One directory per screen group: auth, library, today, settings        |
+| `src/ui/`       | The design system: Radix primitives styled with the tokens            |
+| `src/lib/`      | The api client, the Better Auth client, and the query hooks           |
+| `src/i18n/`     | Which language is on. The catalogue itself is in `packages/shared`    |
+| `src/theme/`    | Which theme is on, and the copy of that logic `index.html` runs first |
+| `scripts/`      | Draws the icons in `public/` from the design tokens                   |
 
 ## Rules that are checked, not remembered
 

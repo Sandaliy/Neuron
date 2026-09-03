@@ -208,7 +208,6 @@ export function RecoveryCodes({
             {t('auth.recoveryCodes.download')}
           </Button>
         </div>
-
       </DialogBody>
 
       {/*

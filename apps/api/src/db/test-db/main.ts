@@ -27,7 +27,9 @@ async function main(): Promise<void> {
   const current = target.pathname.replace('/', '');
 
   if (current === TEST_DATABASE) {
-    throw new Error(`DATABASE_URL_OWNER already points at ${TEST_DATABASE}, which is the test one.`);
+    throw new Error(
+      `DATABASE_URL_OWNER already points at ${TEST_DATABASE}, which is the test one.`,
+    );
   }
 
   await withPool(ownerUrl, async (pool) => {

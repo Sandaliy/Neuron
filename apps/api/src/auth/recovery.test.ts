@@ -33,7 +33,7 @@ const database = testDatabase();
 
 describe.skipIf(!database)('recovery codes', () => {
   const testDb = database as TestDatabase;
-  const hasAuthRole = Boolean(testDb.authUrl);
+  const hasAuthRole = Boolean(database?.authUrl);
   let owner: Pool;
 
   beforeAll(() => {

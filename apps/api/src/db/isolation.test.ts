@@ -357,11 +357,10 @@ describe.skipIf(!database)('the auth tables', () => {
   it('cannot write a recovery code, so it cannot mint itself one', async () => {
     await expect(
       asUser(app, ALICE, async (connection) =>
-        connection.query('insert into recovery_codes (id, user_id, code_hash) values ($1, $2, $3)', [
-          'forged',
-          ALICE,
-          'anything',
-        ]),
+        connection.query(
+          'insert into recovery_codes (id, user_id, code_hash) values ($1, $2, $3)',
+          ['forged', ALICE, 'anything'],
+        ),
       ),
     ).rejects.toThrow(/permission denied/i);
   });

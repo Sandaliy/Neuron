@@ -443,9 +443,7 @@ function Containers() {
         <span className="flex-1 px-8 py-12 text-center text-13">Decks</span>
         <span className="flex-1 px-8 py-12 text-center text-13">Settings</span>
       </div>
-      <State>
-        tab bar · every label primary, so the tint can be 0.58 instead of 0.78
-      </State>
+      <State>tab bar · every label primary, so the tint can be 0.58 instead of 0.78</State>
 
       <div data-g="panel" className="flex flex-col gap-12 rounded-24 p-16">
         <span className="text-14">Dialog, deeper shadow, thinner over a scrim</span>
