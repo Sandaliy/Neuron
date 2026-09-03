@@ -2,7 +2,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Plus, Upload } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 
 import { NOTE_SORTS, NOTE_STATUSES, termOf } from '@neuron/shared';
 import type { MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
@@ -378,8 +378,8 @@ function VirtualNotes({
   );
 }
 
-/** One note: what it says, and what its cards are doing. */
-function NoteRow({
+/** Scroll updates move the window, but do not change the surviving notes. */
+const NoteRow = memo(function NoteRow({
   note,
   selecting,
   selected,
@@ -421,4 +421,4 @@ function NoteRow({
       }
     />
   );
-}
+});

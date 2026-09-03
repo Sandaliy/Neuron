@@ -3,13 +3,13 @@
 Where the project stands right now. This file replaces reading `neuron-plan.md` and `phase-*.md`.
 Update it with `/handoff` at the end of a working session.
 
-Last updated: 2026-09-03, after repository stabilization and preview isolation.
+Last updated: 2026-09-03, after Phase 6 note-list performance verification.
 
 ## Now
 
-Phase 6 is implemented in part on the unpublished `phase-6-notes-and-import` branch. It is nine
-commits ahead of the main commit it started from. The branch adds writable decks, note editing and
-browsing, chunked imports, and card generation planning. It is paused until this delivery work lands.
+Phase 6 is active and unpublished on `work/phase-6`. The branch contains writable decks, note editing
+and browsing, shared card planning, and chunked imports. The 5,000-note list now passes the unchanged
+55 fps budget after memoizing unchanged rows. Other Phase 6 delivery checks remain pending.
 
 Three tracked Phase 6 files and the local planning files are saved in `stash@{0}` as
 `wip: phase 6 local changes before stabilization`. Do not drop that stash.
@@ -38,19 +38,21 @@ Better Auth secret. The web deployment sends `/api` to the api preview for the s
 
 ## Next
 
-1. Resume `phase-6-notes-and-import` in a separate task and restore `stash@{0}`.
-2. Measure the note list at 375 px and remove or replace the failed containment experiment.
-3. Reach the agreed frame-rate target and add note and import browser and screenshot coverage.
-4. Check keyboard navigation and the mobile on-screen keyboard.
-5. Land Phase 6 through a pull request and verify both production applications.
-6. Update the root and API README files, then remove merged remote branches.
+1. Continue Phase 6 on `work/phase-6`, keeping `stash@{0}` as the backup.
+2. Add note and import browser and screenshot coverage.
+3. Check keyboard navigation and the mobile on-screen keyboard.
+4. Land Phase 6 through a pull request and verify both production applications.
+5. Update the root and API README files, then remove merged remote branches.
 
 ## Open threads
 
 - The long-lived Preview database is intentionally empty and shared by preview deployments. Resetting it
   or moving to one database branch per pull request remains a later automation task.
-- Phase 6 measures about 60 fps for 500 plain rows, 43.7 fps with glass, and 35.4 to 35.6 fps for
-  5,000 virtualized notes. The phase target is 55 fps. Clipping and containment did not help.
+- Five isolated 5,000-note runs measured 60.0, 59.3, 60.0, 60.0 and 60.0 fps after row memoization,
+  up from about 35.4 fps. The Chromium phone contract remains 375 by 812, device scale 2, CPU
+  throttling 4, 180 measured frames, 24 pixels per frame and a 55 fps threshold.
+- The note-list fix preserves selection across virtual mounts, refreshed row data and native keyboard
+  activation. Targeted browser checks pass in both themes at phone and desktop widths.
 - Phase 6 lacks complete browser and screenshot coverage for notes and imports. Keyboard navigation and
   the mobile on-screen keyboard still need direct checks.
 - The production API is in `iad1` while users and web requests enter through Europe. Region alignment
