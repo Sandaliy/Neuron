@@ -11,7 +11,7 @@ import { hostedWindowsSnapshot, useFixtures, usePreferences } from './fixtures';
  * a screen somebody uses.
  */
 test.describe('component gallery', () => {
-  test('every component, every state', async ({ page }) => {
+  test('every component, every state', async ({ page }, testInfo) => {
     await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'full', motion: 'system' });
     await useFixtures(page);
     await page.goto('/dev/components');
@@ -41,6 +41,9 @@ test.describe('component gallery', () => {
       }
     });
 
-    await expect(page).toHaveScreenshot(hostedWindowsSnapshot('gallery.png'), { fullPage: true });
+    await expect(page).toHaveScreenshot(
+      hostedWindowsSnapshot('gallery.png', testInfo.project.name),
+      { fullPage: true },
+    );
   });
 });

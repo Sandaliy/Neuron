@@ -13,8 +13,8 @@ import type { Page } from '@playwright/test';
  * that carried every column would be noise.
  */
 
-export function hostedWindowsSnapshot(name: string): string {
-  if (!process.env['CI']) return name;
+export function hostedWindowsSnapshot(name: string, projectName: string): string {
+  if (!process.env['CI'] || projectName !== 'phone') return name;
 
   // GitHub's Windows Server image uses different system font metrics from a
   // desktop Windows installation. Keep both references where text wrapping or
