@@ -101,6 +101,7 @@ export interface CardChange extends CardReconciliation {
  * @param deckId which deck it is in, for the ladder
  * @param noteType the type it will have
  * @param fields the fields it will have
+ * @param currentType the stored type before the edit
  * @returns what to keep, remove and create, and how much history it costs
  */
 export async function planCardChange(
@@ -109,6 +110,7 @@ export async function planCardChange(
   deckId: string,
   noteType: NoteTypeName,
   fields: NoteFields,
+  currentType: NoteTypeName,
 ): Promise<CardChange> {
   const [settings, existing] = await Promise.all([
     settingsForDeck(repositories, deckId),
@@ -124,15 +126,22 @@ export async function planCardChange(
     noteType,
     fields,
     settings.ladder,
+    currentType,
   );
 
   const doomed = new Set(reconciliation.remove.map((card) => `${card.direction}:${card.slot}`));
+  const removeIds = existing
+    .filter((card) => doomed.has(`${card.direction}:${card.slot}`))
+    .map((card) => card.id);
 
   return {
     ...reconciliation,
-    removeIds: existing
-      .filter((card) => doomed.has(`${card.direction}:${card.slot}`))
-      .map((card) => card.id),
+    removeIds,
+    // Reset cards have reps=0 but still own immutable review history.
+    reviewsLost: Math.max(
+      reconciliation.reviewsLost,
+      await repositories.reviews.countForCards(removeIds),
+    ),
   };
 }
 

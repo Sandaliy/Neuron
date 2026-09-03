@@ -229,8 +229,14 @@ export const en = {
   'note.reviewsOnCard': 'Answered {count} times',
   'note.typeChangeTitle': 'Change the type?',
   'note.typeChangeBody':
-    'This removes {cards} cards and the {reviews} answers on them. Everything else about the note stays.',
-  'note.typeChangeSubmit': 'Change it anyway',
+    'The existing cards will stop being studied. Their past reviews stay in history. New cards start with new schedules.',
+  'note.typeChangeSubmit': 'Replace cards and change type',
+  'note.conversionDraft':
+    'Fill in the new fields, then apply. Until then, the saved note stays unchanged. New cards replace the old ones.',
+  'note.conversionRequired': 'Complete required fields. Gap text needs at least one {{...}}.',
+  'note.conversionApply': 'Apply type change',
+  'note.conversionCancel': 'Cancel type change',
+  'note.conversionWait': 'Save your current edits before changing the type.',
   'note.notFound': 'That note is not here. It may have been deleted.',
   'note.delete': 'Delete the note',
   'note.deleteTitle': 'Delete this note?',

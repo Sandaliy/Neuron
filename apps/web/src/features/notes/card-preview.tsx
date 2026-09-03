@@ -35,7 +35,7 @@ export function CardPreview({ cards }: { readonly cards: readonly PreviewCard[] 
       ) : (
         <ul className="flex flex-col gap-8">
           {cards.map((card) => (
-            <li key={`${card.direction}:${card.slot}`}>
+            <li key={`${card.change}:${card.direction}:${card.slot}`}>
               <Panel className="flex flex-col gap-8">
                 <div className="flex items-center justify-between gap-8">
                   <span className="text-13 text-secondary">

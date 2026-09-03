@@ -318,6 +318,20 @@ independent of would prove nothing.
 
 ## The api
 
+### Note-type conversion
+
+`PATCH /notes/:id` converts a built-in note type only with fields valid for the target schema.
+The editor prepares an empty target draft without autosave or field mappings and requires explicit Apply.
+Unfinished same-type edits must finish saving first. Cancellation changes no stored data.
+
+The shared planner matches direction and slot only within the same note type. Cross-type conversion
+soft-deletes all old cards and creates the target's opening cards with new IDs and fresh schedules,
+even when direction and slot coincide. Same-type edits retain surviving cards and their schedules.
+Removing answered cards requires `discardCards: true`, including history before a card reset. The server
+counts immutable review rows, not only the current `reps` value. Note type/fields,
+card reconciliation and revision changes share one user-bound transaction. Unspecified note metadata
+is retained. A failed conversion leaves no partial writes; the editor retains its draft for retry.
+
 ### Import duplicate updates
 
 `PATCH /notes/:id` accepts `merge: true` with fields and the same note type, but no metadata changes.

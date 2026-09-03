@@ -103,12 +103,27 @@ describe('what a note starts with', () => {
 describe('reconciling an edited note', () => {
   const reviewed = [{ direction: 'recognition', slot: 0, reps: 40 } as const];
 
+  it.each(['vocab', 'basic'] as const)(
+    'never shares recognition or recall across %s conversion',
+    (current) => {
+      const existing = [...reviewed, { direction: 'recall', slot: 0, reps: 7 } as const];
+      const target = current === 'vocab' ? 'basic' : 'vocab';
+      const fields = target === 'basic' ? { front: 'question', back: 'answer' } : WORD;
+      const result = reconcileCards(existing, target, fields, LADDER, current);
+      expect(result.keep).toEqual([]);
+      expect(result.remove).toEqual(existing);
+      expect(result.reviewsLost).toBe(47);
+      expect(result.create).toEqual(openingCards(target, fields, LADDER));
+    },
+  );
+
   it('keeps the card when the translation changes', () => {
     const result = reconcileCards(
       reviewed,
       'vocab',
       { term: 'Sorgfalt', translation: 'thoroughness' },
       LADDER,
+      'vocab',
     );
 
     expect(result.keep).toHaveLength(1);
@@ -120,13 +135,13 @@ describe('reconciling an edited note', () => {
   it('never opens a direction that was not already there', () => {
     // Opening the next one is the ladder's decision, made from a card's
     // stability. An edit is not evidence about anything.
-    const result = reconcileCards(reviewed, 'vocab', WORD, LADDER);
+    const result = reconcileCards(reviewed, 'vocab', WORD, LADDER, 'vocab');
 
     expect(result.create).toHaveLength(0);
   });
 
   it('removes the cards a change of type makes impossible, and says what it costs', () => {
-    const result = reconcileCards(reviewed, 'cloze', { text: 'a {{b}} c' }, LADDER);
+    const result = reconcileCards(reviewed, 'cloze', { text: 'a {{b}} c' }, LADDER, 'vocab');
 
     expect(result.remove).toHaveLength(1);
     expect(result.reviewsLost).toBe(40);
@@ -135,7 +150,7 @@ describe('reconciling an edited note', () => {
 
   it('adds a card for a gap that was added, without touching the others', () => {
     const existing = [{ direction: 'cloze', slot: 1, reps: 12 } as const];
-    const result = reconcileCards(existing, 'cloze', { text: '{{a}} and {{b}}' }, LADDER);
+    const result = reconcileCards(existing, 'cloze', { text: '{{a}} and {{b}}' }, LADDER, 'cloze');
 
     expect(result.keep).toHaveLength(1);
     expect(result.create.map((card) => card.slot)).toEqual([2]);
@@ -147,14 +162,14 @@ describe('reconciling an edited note', () => {
       { direction: 'cloze', slot: 1, reps: 12 } as const,
       { direction: 'cloze', slot: 2, reps: 3 } as const,
     ];
-    const result = reconcileCards(existing, 'cloze', { text: '{{a}} and b' }, LADDER);
+    const result = reconcileCards(existing, 'cloze', { text: '{{a}} and b' }, LADDER, 'cloze');
 
     expect(result.remove.map((card) => card.slot)).toEqual([2]);
     expect(result.reviewsLost).toBe(3);
   });
 
   it('gives a note with nothing left the opening cards again', () => {
-    const result = reconcileCards([], 'vocab', WORD, LADDER);
+    const result = reconcileCards([], 'vocab', WORD, LADDER, 'vocab');
 
     expect(result.create.map((card) => card.direction)).toEqual(['recognition']);
   });

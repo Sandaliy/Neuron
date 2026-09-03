@@ -56,7 +56,7 @@ export interface CardReconciliation {
   /** Cards whose direction or gap the note no longer has. */
   readonly remove: readonly ExistingCard[];
   readonly create: readonly PlannedCard[];
-  /** Answers that would be lost with the cards being removed. */
+  /** Answers on cards that would stop being used. Review rows remain intact. */
   readonly reviewsLost: number;
 }
 
@@ -217,6 +217,7 @@ function key(card: { direction: CardDirection; slot: number }): string {
  * which is what a fourth gap in a cloze sentence is.
  *
  * @param existing the cards the note has now
+ * @param currentType the stored type before this edit
  * @param noteType the type it will be after the edit
  * @param fields the fields it will have after the edit
  * @param ladder the rungs from the deck settings
@@ -227,9 +228,11 @@ export function reconcileCards(
   noteType: NoteTypeName,
   fields: NoteFields,
   ladder: readonly LadderStep[],
+  currentType: NoteTypeName,
 ): CardReconciliation {
   const possible = possibleCards(noteType, fields);
-  const possibleKeys = new Set(possible.map(key));
+  // Direction and slot identify a semantic card only within the same note type.
+  const possibleKeys = new Set(currentType === noteType ? possible.map(key) : []);
   const keep = existing.filter((card) => possibleKeys.has(key(card)));
   const remove = existing.filter((card) => !possibleKeys.has(key(card)));
 

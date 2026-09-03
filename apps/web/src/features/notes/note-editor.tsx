@@ -1,12 +1,14 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Check, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   NOTE_TYPES,
   editorFields,
   filledPaths,
+  noteFieldsSchemas,
   openingCards,
+  possibleCards,
   readField,
   reconcileCards,
   uuidV7,
@@ -25,7 +27,7 @@ import type {
 } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
-import { describe } from '../../lib/api';
+import { ApiFailure, describe } from '../../lib/api';
 import { flatten, settingsFor, useDeckTree } from '../../lib/decks';
 import { useNote, useNoteActions } from '../../lib/notes';
 import { Button } from '../../ui/button';
@@ -134,12 +136,22 @@ function Editor({
   const actions = useNoteActions();
 
   const [deck, setDeck] = useState(note?.deckId ?? deckId ?? flatten(decks)[0]?.id ?? '');
-  const [noteType, setNoteType] = useState<NoteTypeName>(note?.noteType ?? 'vocab');
-  const [fields, setFields] = useState<Record<string, unknown>>(note?.fields ?? {});
+  const [storedType, setNoteType] = useState<NoteTypeName>(note?.noteType ?? 'vocab');
+  const [storedFields, setFields] = useState<Record<string, unknown>>(note?.fields ?? {});
   const [tags, setTags] = useState((note?.tags ?? []).join(', '));
   const [save, setSave] = useState<SaveState>('clean');
-  const [pendingType, setPendingType] = useState<NoteTypeName | undefined>();
+  const [conversion, setConversion] = useState<{
+    type: NoteTypeName;
+    fields: Record<string, unknown>;
+  }>();
+  const [confirmConversion, setConfirmConversion] = useState(false);
+  const [conversionError, setConversionError] = useState<unknown>();
+  const typeControl = useRef<HTMLDivElement>(null);
+  const conversionActions = useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const noteType = conversion?.type ?? storedType;
+  const fields = conversion?.fields ?? storedFields;
+  const validFields = noteFieldsSchemas[noteType].safeParse(fields);
 
   const settings = settingsFor(decks, deck);
   const tagList = tags
@@ -164,7 +176,8 @@ function Editor({
    * makes a card about to be removed visible before the edit is made.
    */
   const preview = ((): PreviewCard[] => {
-    const parsed = fields as NoteFields;
+    if (!validFields.success) return [];
+    const parsed = validFields.data;
 
     if (!note) {
       return openingCards(noteType, parsed, settings.ladder).map((card) => ({
@@ -178,9 +191,11 @@ function Editor({
       noteType,
       parsed,
       settings.ladder,
+      storedType,
     );
 
-    const drawn = openingCards(noteType, parsed, settings.ladder);
+    const drawn = possibleCards(noteType, parsed);
+    const oldCards = possibleCards(storedType, storedFields as NoteFields);
     const kept = new Set(change.keep.map((card) => `${card.direction}:${card.slot}`));
     const repsOf = new Map(cards.map((card) => [`${card.direction}:${card.slot}`, card.reps]));
 
@@ -196,22 +211,28 @@ function Editor({
       ...change.remove.map((card) => ({
         direction: card.direction,
         slot: card.slot,
-        front: [],
-        back: [],
+        front:
+          oldCards.find((old) => old.direction === card.direction && old.slot === card.slot)
+            ?.front ?? [],
+        back:
+          oldCards.find((old) => old.direction === card.direction && old.slot === card.slot)
+            ?.back ?? [],
         change: 'removes' as const,
         reps: card.reps,
       })),
     ];
   })();
 
-  const removal = note
-    ? reconcileCards(
-        cards.map((card) => ({ direction: card.direction, slot: card.slot, reps: card.reps })),
-        pendingType ?? noteType,
-        fields as NoteFields,
-        settings.ladder,
-      )
-    : undefined;
+  const removal =
+    note && validFields.success
+      ? reconcileCards(
+          cards.map((card) => ({ direction: card.direction, slot: card.slot, reps: card.reps })),
+          noteType,
+          validFields.data,
+          settings.ladder,
+          storedType,
+        )
+      : undefined;
 
   /**
    * An existing note saves itself, a beat after the typing stops.
@@ -227,7 +248,7 @@ function Editor({
   const update = actions.update.mutateAsync;
 
   useEffect(() => {
-    if (!note || save !== 'dirty') {
+    if (!note || conversion || save !== 'dirty') {
       return;
     }
 
@@ -236,7 +257,7 @@ function Editor({
 
       update({
         id: note.id,
-        fields,
+        fields: storedFields,
         tags: tags
           .split(',')
           .map((tag) => tag.trim())
@@ -247,9 +268,14 @@ function Editor({
     }, 700);
 
     return () => clearTimeout(timer);
-  }, [save, note, fields, tags, update]);
+  }, [save, note, storedFields, tags, update, conversion]);
 
   function edit(next: Record<string, unknown>) {
+    if (conversion) {
+      setConversion({ ...conversion, fields: next });
+      setConversionError(undefined);
+      return;
+    }
     setFields(next);
     setSave(note ? 'dirty' : 'clean');
   }
@@ -280,50 +306,65 @@ function Editor({
   }
 
   /** Changing the type, once whatever it costs has been agreed to. */
-  async function applyType(next: NoteTypeName, discard: boolean) {
-    setPendingType(undefined);
-    setNoteType(next);
-
-    if (!note) {
+  async function applyType(discard: boolean) {
+    if (!note || !conversion || !validFields.success || save === 'saving') {
       return;
     }
-
+    setConfirmConversion(false);
+    setConversionError(undefined);
     setSave('saving');
 
     try {
-      await actions.update.mutateAsync({
+      const written = await actions.update.mutateAsync({
         id: note.id,
-        noteType: next,
-        fields,
+        noteType: conversion.type,
+        fields: validFields.data,
         ...(discard ? { discardCards: true } : {}),
       });
+      setNoteType(written.note.noteType);
+      setFields(written.note.fields);
+      setConversion(undefined);
       setSave('saved');
-    } catch {
-      setSave('failed');
+      focusType();
+    } catch (error) {
+      setSave('clean');
+      setConversionError(error);
+      if (error instanceof ApiFailure && error.code === 'cards_would_be_lost') {
+        setConfirmConversion(true);
+      }
     }
   }
 
+  function focusType() {
+    requestAnimationFrame(() =>
+      typeControl.current?.querySelector<HTMLInputElement>('input:checked')?.focus(),
+    );
+  }
+
+  function cancelConversion() {
+    setConversion(undefined);
+    setConversionError(undefined);
+    setConfirmConversion(false);
+    focusType();
+  }
+
+  function closeConfirmation() {
+    setConfirmConversion(false);
+    requestAnimationFrame(() => conversionActions.current?.querySelector('button')?.focus());
+  }
+
   function chooseType(next: NoteTypeName) {
-    if (next === noteType) {
+    if (next === noteType || save === 'saving') {
       return;
     }
-
-    const cost = note
-      ? reconcileCards(
-          cards.map((card) => ({ direction: card.direction, slot: card.slot, reps: card.reps })),
-          next,
-          fields as NoteFields,
-          settings.ladder,
-        )
-      : undefined;
-
-    if (cost && cost.reviewsLost > 0) {
-      setPendingType(next);
-
+    if (note) {
+      if (next === storedType) cancelConversion();
+      else setConversion({ type: next, fields: {} });
+      setConversionError(undefined);
       return;
     }
-
-    void applyType(next, false);
+    setNoteType(next);
+    setFields({});
   }
 
   return (
@@ -334,9 +375,9 @@ function Editor({
         </h1>
 
         <div className="flex items-center gap-8">
-          <SaveIndicator state={save} onRetry={() => setSave('dirty')} />
+          {!conversion && <SaveIndicator state={save} onRetry={() => setSave('dirty')} />}
 
-          {note ? (
+          {note && !conversion ? (
             <Menu label={t('note.edit')}>
               <MenuItem
                 icon={<Check size={16} strokeWidth={1.5} />}
@@ -364,12 +405,21 @@ function Editor({
         </div>
       </header>
 
-      <div className="flex flex-col gap-20">
+      {conversion && (
+        <p role="status" className="text-14 text-secondary">
+          {t('note.conversionDraft')}
+        </p>
+      )}
+      <div ref={typeControl} className="flex flex-col gap-20">
         <FormField label={t('note.type')}>
           {() => (
             <Segmented
               label={t('note.type')}
               value={noteType}
+              disabled={
+                save === 'saving' ||
+                (!!note && !conversion && (save === 'dirty' || save === 'failed'))
+              }
               options={NOTE_TYPES.map((type) => ({
                 value: type,
                 label: t(`note.type.${type}` as MessageKey),
@@ -378,6 +428,9 @@ function Editor({
             />
           )}
         </FormField>
+        {note && !conversion && (save === 'dirty' || save === 'failed') && (
+          <p className="text-14 text-secondary">{t('note.conversionWait')}</p>
+        )}
 
         <FormField
           label={t('note.deck')}
@@ -400,7 +453,11 @@ function Editor({
         </FormField>
 
         {sections.map((section) => (
-          <div key={section.name} className="flex flex-col gap-16">
+          <fieldset
+            key={section.name}
+            disabled={!!conversion && save === 'saving'}
+            className="flex min-w-0 flex-col gap-16"
+          >
             {section.labelKey ? <GroupLabel>{t(section.labelKey)}</GroupLabel> : undefined}
 
             {section.fields.map((field) => (
@@ -411,7 +468,7 @@ function Editor({
                 onChange={(value) => edit(writeField(fields, field.path, value))}
               />
             ))}
-          </div>
+          </fieldset>
         ))}
 
         <FormField label={t('note.tags')} hint={t('note.tagsHint')}>
@@ -419,6 +476,7 @@ function Editor({
             <Input
               {...props}
               value={tags}
+              disabled={!!conversion}
               autoComplete="off"
               enterKeyHint="done"
               onChange={(event) => {
@@ -432,6 +490,35 @@ function Editor({
 
       <CardPreview cards={preview} />
 
+      {conversion && (
+        <div ref={conversionActions} className="flex flex-col gap-8">
+          {!validFields.success && (
+            <p className="text-14 text-secondary">{t('note.conversionRequired')}</p>
+          )}
+          {conversionError !== undefined && (
+            <p role="alert" className="text-14 text-error">
+              {t(describe(conversionError).key, describe(conversionError).values)}
+            </p>
+          )}
+          <Button
+            variant="primary"
+            full
+            busy={save === 'saving'}
+            disabled={!validFields.success}
+            onClick={() =>
+              removal && removal.reviewsLost > 0
+                ? setConfirmConversion(true)
+                : void applyType(false)
+            }
+          >
+            {t('note.conversionApply')}
+          </Button>
+          <Button variant="text" full disabled={save === 'saving'} onClick={cancelConversion}>
+            {t('note.conversionCancel')}
+          </Button>
+        </div>
+      )}
+
       {note ? undefined : (
         <Button
           variant="primary"
@@ -444,21 +531,18 @@ function Editor({
         </Button>
       )}
 
-      {pendingType && removal ? (
+      {confirmConversion && conversion ? (
         <Dialog
           open
-          onOpenChange={() => setPendingType(undefined)}
+          onOpenChange={closeConfirmation}
           title={t('note.typeChangeTitle')}
-          description={t('note.typeChangeBody', {
-            cards: removal.remove.length,
-            reviews: removal.reviewsLost,
-          })}
+          description={t('note.typeChangeBody')}
         >
           <DialogFooter>
-            <Button variant="destructive" full onClick={() => void applyType(pendingType, true)}>
+            <Button variant="destructive" full onClick={() => void applyType(true)}>
               {t('note.typeChangeSubmit')}
             </Button>
-            <Button variant="text" full onClick={() => setPendingType(undefined)}>
+            <Button variant="text" full onClick={closeConfirmation}>
               {t('common.cancel')}
             </Button>
           </DialogFooter>

@@ -3,7 +3,7 @@
 Where the project stands right now. This file replaces reading `neuron-plan.md` and `phase-*.md`.
 Update it with `/handoff` at the end of a working session.
 
-Last updated: 2026-09-03, after Phase 6 duplicate resolution and import retry verification.
+Last updated: 2026-09-04, after Phase 6 note-type conversion verification.
 
 ## Now
 
@@ -46,6 +46,11 @@ Better Auth secret. The web deployment sends `/api` to the api preview for the s
 
 ## Open threads
 
+- Existing-note type conversion uses a separate empty target draft, schema validation and explicit Apply.
+  Cancel leaves the saved note unchanged; same-type fields and tags still autosave. Shared reconciliation
+  replaces cross-type cards with new IDs and fresh schedules. Answered-card removal requires explicit
+  confirmation, with review rows preserved. Real database tests verify rollback of note/cards/revisions;
+  focused phone/desktop browser tests cover all target schemas, cancellation, confirmation and retry.
 - Import duplicates use a default plus row overrides in the bounded preview. Only a unique same-type
   match can merge. Ambiguous or incompatible matches inherit Skip instead of Merge, with visible reasons.
   Merge fills schema-defined blanks and grammar leaves under a write lock, preserves existing metadata,

@@ -233,7 +233,14 @@ export function noteRoutes(): Hono<RequestBindings> {
 
       const fields = body.merge ? mergeNoteFields(noteType, existing.fields, incoming) : incoming;
 
-      const change = await planCardChange(inner, id, existing.deckId, noteType, fields);
+      const change = await planCardChange(
+        inner,
+        id,
+        existing.deckId,
+        noteType,
+        fields,
+        currentType,
+      );
 
       if (body.merge && change.remove.length > 0) {
         throw new ApiError('cards_would_be_lost');
