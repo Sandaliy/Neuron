@@ -36,7 +36,7 @@ const database = testDatabase();
 
 describe.skipIf(!database)('the admin password reset', () => {
   const testDb = database as TestDatabase;
-  const hasAuthRole = Boolean(testDb.authUrl);
+  const hasAuthRole = Boolean(database?.authUrl);
   let owner: Pool;
 
   beforeAll(() => {

@@ -11,6 +11,7 @@
     "dev": "tsx watch src/dev.ts",
     "typecheck": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check",
     "db:migrate": "tsx src/db/migrate/main.ts",
     "db:studio": "drizzle-kit studio",
     "db:role": "tsx src/db/role/main.ts",

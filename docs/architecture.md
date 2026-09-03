@@ -128,10 +128,10 @@ looks like protection and is none.
 
 So there are three connection strings:
 
-| Variable | Role | Used by |
-| --- | --- | --- |
-| `DATABASE_URL` | `neuron_app` | the api, the seed, anything at run time |
-| `DATABASE_URL_AUTH` | `neuron_auth` | Better Auth, and nothing else |
+| Variable             | Role           | Used by                                                           |
+| -------------------- | -------------- | ----------------------------------------------------------------- |
+| `DATABASE_URL`       | `neuron_app`   | the api, the seed, anything at run time                           |
+| `DATABASE_URL_AUTH`  | `neuron_auth`  | Better Auth, and nothing else                                     |
 | `DATABASE_URL_OWNER` | `neondb_owner` | migrations, the seed's own setup, the benchmark, erasing accounts |
 
 `neuron_app` can read and write rows and can do nothing else: no create, no drop, no ownership, no
@@ -161,12 +161,12 @@ is a comment. What does separate them is a credential the application does not h
 Hence `neuron_auth`: the four auth tables in full, none of the collection, handed to Better Auth and to
 nothing else. And `neuron_app`, narrowed on the same tables:
 
-| Table | What `neuron_app` may do |
-| --- | --- |
-| `user` | read ten columns, write seven, on the row matching `app.user_id` |
-| `session` | nothing |
-| `account` | nothing |
-| `verification` | nothing |
+| Table          | What `neuron_app` may do                                         |
+| -------------- | ---------------------------------------------------------------- |
+| `user`         | read ten columns, write seven, on the row matching `app.user_id` |
+| `session`      | nothing                                                          |
+| `account`      | nothing                                                          |
+| `verification` | nothing                                                          |
 
 The ten readable columns are the preferences and the version counter. `email`, `name` and `image` are not
 among them, so `select *` from that role now fails outright rather than returning something it should not
@@ -227,10 +227,10 @@ to copy `deck_id` onto the card, which creates a second place where the same fac
 The choice was made by measuring, on 50000 cards across 200 decks, with
 `pnpm --filter @neuron/api db:bench`. Median of five runs after a warm up:
 
-| Query | Joined through notes | Deck on the card |
-| --- | --- | --- |
-| Cards due in a folder, limit 200 | 8.29 ms | **2.72 ms** |
-| Card counts per deck, for the library tree | 43.83 ms | **17.74 ms** |
+| Query                                      | Joined through notes | Deck on the card |
+| ------------------------------------------ | -------------------- | ---------------- |
+| Cards due in a folder, limit 200           | 8.29 ms              | **2.72 ms**      |
+| Card counts per deck, for the library tree | 43.83 ms             | **17.74 ms**     |
 
 Both run on every app open, so the copy was added. The cost is that moving a note has to move its cards.
 That happens in one place, `noteRepository.moveToDeck`, and a test moves a note with two cards and checks
@@ -238,10 +238,10 @@ both followed it.
 
 Two other queries needed no decision:
 
-| Query | Time | Plan |
-| --- | --- | --- |
+| Query                                            | Time    | Plan                               |
+| ------------------------------------------------ | ------- | ---------------------------------- |
 | Cards due across the whole collection, limit 200 | 0.31 ms | index scan on `cards_user_due_idx` |
-| Everything changed since a revision | 0.24 ms | index scan on `cards_user_rev_idx` |
+| Everything changed since a revision              | 0.24 ms | index scan on `cards_user_rev_idx` |
 
 The counts query is the slowest thing in the schema at 17.74 ms, and it is a sequential scan by nature:
 it aggregates over every card the user has. That is fine at 50000 and will not be at 500000. When it
@@ -420,5 +420,7 @@ whole. The screen that offers "this is what your other device had" belongs with 
 have to start being written now, because a conflict that was not recorded at the time cannot be recovered
 afterwards.
 
-**No browser page.** The `/spike` page from phase 0.5 is deleted, and `apps/web` is still empty. Between
-now and phase 5 the api is reachable only by a tool that can send requests.
+**The browser app is the product surface.** `apps/web` now contains the React application, its shell,
+authentication and recovery flows, read-only library, Today screen, settings, and the component
+gallery. Production rewrites `/api/*` to the Hono deployment so session cookies stay on one browser
+origin. The old `/spike` page remains deleted.

@@ -55,9 +55,7 @@ export function AuthLayout({
       >
         <header className="flex flex-col gap-8">
           <h1 className="font-display text-24 tracking-tight text-primary">{title}</h1>
-          {subtitle ? (
-            <p className="text-14 leading-body text-secondary">{subtitle}</p>
-          ) : undefined}
+          {subtitle ? <p className="text-14 leading-body text-secondary">{subtitle}</p> : undefined}
         </header>
 
         <div className="flex flex-col gap-20">{children}</div>

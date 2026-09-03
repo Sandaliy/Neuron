@@ -133,13 +133,7 @@ export function accountRoutes(parts: ServerParts): Hono<RequestBindings> {
       }
 
       const { secretConfig } = await parts.auth.$context;
-      const verdict = await spendTotpCode(
-        parts.authDb,
-        secretConfig,
-        person.id,
-        body.code,
-        now,
-      );
+      const verdict = await spendTotpCode(parts.authDb, secretConfig, person.id, body.code, now);
 
       if (verdict === 'reused') {
         throw new ApiError('two_factor_code_reused');

@@ -33,6 +33,9 @@ blob-report/
 # Assistant configuration and local project rules
 .claude/
 CLAUDE.md
+.agents/
+.codex/
+AGENTS.md
 
 # Deployment platforms
 .wrangler/
@@ -47,18 +50,7 @@ CLAUDE.md
 
 # Local planning documents, not part of the public repository
 neuron-plan.md
-phase-0.md
-phase-0.5.md
-phase-1.md
-phase-2.md
-phase-2.5.md
-phase-3.md
-phase-3-run.md
-phase-4.md
-phase-4.5.md
-phase-5.md
-phase-5.5-design.md
-card-generation-prompt.md
+phase-*.md
 
 # The design mockup the visual system was approved from. 460 KB of bundled
 # html, and what it specifies now lives in docs/design-system.md.

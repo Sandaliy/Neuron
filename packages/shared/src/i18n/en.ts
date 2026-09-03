@@ -193,7 +193,8 @@ export const en = {
   'settings.deleteAccount': 'Delete account',
   'settings.deleteAccountWarning':
     'Deleting the account removes all decks, cards, review history and progress for good.',
-  'settings.deleteAccountCodeHint': 'Two-factor authentication is on, so a code from the app is needed too.',
+  'settings.deleteAccountCodeHint':
+    'Two-factor authentication is on, so a code from the app is needed too.',
   'settings.deleted': 'The account is closed.',
 
   'error.not_authenticated': 'Sign in to continue.',

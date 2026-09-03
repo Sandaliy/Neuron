@@ -13,8 +13,8 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Baselines carry the platform in their name, which is Playwright's own
  * default, because the interface face is the platform's: the same page is set
- * in SF Pro on a Mac and Segoe UI on Windows and neither is wrong. That is also
- * why this suite is not in CI, where the runner is Linux and has neither.
+ * in SF Pro on a Mac and Segoe UI on Windows and neither is wrong. CI runs this
+ * suite on Windows so it compares against the committed win32 baselines.
  */
 export default defineConfig({
   testDir: './tests',
@@ -42,7 +42,7 @@ export default defineConfig({
   },
 
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://127.0.0.1:5173',
     trace: 'retain-on-failure',
   },
 
@@ -67,8 +67,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:5173',
+    command: 'node ./node_modules/vite/bin/vite.js --host',
+    url: 'http://127.0.0.1:5173',
     reuseExistingServer: true,
     timeout: 120_000,
   },

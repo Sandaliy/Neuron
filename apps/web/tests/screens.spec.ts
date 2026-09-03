@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { useFixtures, usePreferences } from './fixtures';
+import { hostedWindowsSnapshot, useFixtures, usePreferences } from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -111,7 +111,7 @@ for (const theme of THEMES) {
      * What registering ends on. The same centred card as every other signed out
      * screen: it was the last one still pinned to the top of the page.
      */
-    test('the codes a new account gets', async ({ page }) => {
+    test('the codes a new account gets', async ({ page }, testInfo) => {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page, { signedIn: false });
       await page.goto('/sign-up');
@@ -122,14 +122,16 @@ for (const theme of THEMES) {
       await expect(page.getByText('4KQPX-2M7JW-DRTKM')).toBeVisible();
       await settle(page);
 
-      await expect(page).toHaveScreenshot(`sign-up-codes-${theme}.png`);
+      await expect(page).toHaveScreenshot(
+        hostedWindowsSnapshot(`sign-up-codes-${theme}.png`, testInfo.project.name),
+      );
     });
 
     /*
      * The ten codes: the tallest thing this app puts in a dialog, and the one
      * where the action used to sit on top of the field above it.
      */
-    test('the ten codes', async ({ page }) => {
+    test('the ten codes', async ({ page }, testInfo) => {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);
       await page.goto('/settings');
@@ -139,7 +141,9 @@ for (const theme of THEMES) {
       await expect(page.getByText('4KQPX-2M7JW-DRTKM')).toBeVisible();
       await settle(page);
 
-      await expect(page).toHaveScreenshot(`recovery-codes-${theme}.png`);
+      await expect(page).toHaveScreenshot(
+        hostedWindowsSnapshot(`recovery-codes-${theme}.png`, testInfo.project.name),
+      );
     });
 
     /*

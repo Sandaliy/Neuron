@@ -7,7 +7,14 @@ import {
   newCard,
   review,
 } from '@neuron/core';
-import type { RandomSource, Rating, ReviewLog, SchedulerConfig, SchedulingState, CardDirection  } from '@neuron/core';
+import type {
+  RandomSource,
+  Rating,
+  ReviewLog,
+  SchedulerConfig,
+  SchedulingState,
+  CardDirection,
+} from '@neuron/core';
 
 import { createDb } from '../client.js';
 import { createRepositories } from '../repositories/index.js';
@@ -317,7 +324,11 @@ async function writeCollection(repositories: Repositories, now: Date) {
     words: readonly GermanWord[],
     keyPrefix: string,
     plan: (index: number) => readonly { direction: CardDirection; history: HistoryKind }[],
-    extra: { readonly source?: string; readonly rank?: (index: number) => number; readonly batchId?: string } = {},
+    extra: {
+      readonly source?: string;
+      readonly rank?: (index: number) => number;
+      readonly batchId?: string;
+    } = {},
   ) {
     const notes = await repositories.notes.createMany(
       words.map((word, index) => ({
@@ -394,9 +405,7 @@ async function writeCollection(repositories: Repositories, now: Date) {
       if (index < 20) {
         return [
           { direction: 'recognition' as const, history: 'settled' as const },
-          ...(index < 5
-            ? [{ direction: 'production' as const, history: 'settled' as const }]
-            : []),
+          ...(index < 5 ? [{ direction: 'production' as const, history: 'settled' as const }] : []),
         ];
       }
 

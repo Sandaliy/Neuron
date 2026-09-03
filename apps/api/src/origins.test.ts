@@ -66,7 +66,9 @@ describe('matchesOrigin', () => {
   it('lets a wildcard stand for part of a host', () => {
     const pattern = 'https://neuron-web-git-*-parkour-clan.vercel.app';
 
-    expect(matchesOrigin('https://neuron-web-git-main-parkour-clan.vercel.app', pattern)).toBe(true);
+    expect(matchesOrigin('https://neuron-web-git-main-parkour-clan.vercel.app', pattern)).toBe(
+      true,
+    );
     expect(matchesOrigin('https://neuron-web-git-fix-auth-parkour-clan.vercel.app', pattern)).toBe(
       true,
     );
@@ -82,9 +84,12 @@ describe('matchesOrigin', () => {
   });
 
   it('does not let a wildcard swallow a slash and take the host with it', () => {
-    expect(matchesOrigin('https://attacker.example/https://x-team.vercel.app', 'https://*-team.vercel.app')).toBe(
-      false,
-    );
+    expect(
+      matchesOrigin(
+        'https://attacker.example/https://x-team.vercel.app',
+        'https://*-team.vercel.app',
+      ),
+    ).toBe(false);
   });
 });
 

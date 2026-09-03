@@ -11,6 +11,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "icons": "node scripts/icons.mjs",
     "test:screens": "playwright test",
+    "test:screens:install": "playwright install chromium",
     "test:screens:update": "playwright test --update-snapshots"
   },
   "dependencies": {

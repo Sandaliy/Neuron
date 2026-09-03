@@ -47,7 +47,7 @@ interface Enrolling {
 
 describe.skipIf(!database)('two step sign in', () => {
   const testDb = database as TestDatabase;
-  const hasAuthRole = Boolean(testDb.authUrl);
+  const hasAuthRole = Boolean(database?.authUrl);
   let owner: Pool;
 
   beforeAll(() => {

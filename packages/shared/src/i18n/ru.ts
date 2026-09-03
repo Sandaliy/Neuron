@@ -187,7 +187,8 @@ export const ru: Messages = {
   'settings.deleteAccount': 'Удалить аккаунт',
   'settings.deleteAccountWarning':
     'При удалении аккаунта все колоды, карточки, история повторений и прогресс удаляются безвозвратно.',
-  'settings.deleteAccountCodeHint': 'Двухфакторная аутентификация включена, поэтому нужен ещё код из приложения.',
+  'settings.deleteAccountCodeHint':
+    'Двухфакторная аутентификация включена, поэтому нужен ещё код из приложения.',
   'settings.deleted': 'Аккаунт закрыт.',
 
   'error.not_authenticated': 'Войди, чтобы продолжить.',

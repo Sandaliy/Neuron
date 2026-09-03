@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { usePreferences } from './fixtures';
+import { hostedWindowsSnapshot, useFixtures, usePreferences } from './fixtures';
 
 /**
  * The gallery, photographed.
@@ -11,8 +11,9 @@ import { usePreferences } from './fixtures';
  * a screen somebody uses.
  */
 test.describe('component gallery', () => {
-  test('every component, every state', async ({ page }) => {
+  test('every component, every state', async ({ page }, testInfo) => {
     await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'full', motion: 'system' });
+    await useFixtures(page);
     await page.goto('/dev/components');
 
     // The reading face changes the width of every heading on the page, so the
@@ -20,6 +21,29 @@ test.describe('component gallery', () => {
     await page.evaluate(() => document.fonts.ready);
     await expect(page.getByRole('heading', { name: 'Components and every state' })).toBeVisible();
 
-    await expect(page).toHaveScreenshot('gallery.png', { fullPage: true });
+    // A full-page shot asks Chromium to lay out nearly seventeen thousand
+    // pixels. Wait until that height has held across several frames, or a
+    // retry can photograph a different layout from the first attempt.
+    await page.evaluate(async () => {
+      let previous = document.documentElement.scrollHeight;
+      let stableFrames = 0;
+
+      for (let frame = 0; frame < 120 && stableFrames < 10; frame += 1) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        const height = document.documentElement.scrollHeight;
+        stableFrames = height === previous ? stableFrames + 1 : 0;
+        previous = height;
+      }
+
+      if (stableFrames < 10) {
+        throw new Error('The component gallery did not reach a stable height');
+      }
+    });
+
+    await expect(page).toHaveScreenshot(
+      hostedWindowsSnapshot('gallery.png', testInfo.project.name),
+      { fullPage: true },
+    );
   });
 });

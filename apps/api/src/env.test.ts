@@ -141,8 +141,9 @@ describe('parseEnv', () => {
   });
 
   it('reads the registration cap as a number when the shell gives it as text', () => {
-    expect(parseEnv({ ...valid, AUTH_MAX_REGISTRATIONS_PER_DAY: '10' })
-      .AUTH_MAX_REGISTRATIONS_PER_DAY).toBe(10);
+    expect(
+      parseEnv({ ...valid, AUTH_MAX_REGISTRATIONS_PER_DAY: '10' }).AUTH_MAX_REGISTRATIONS_PER_DAY,
+    ).toBe(10);
   });
 
   it('knows nothing about Google any more', () => {
