@@ -213,9 +213,10 @@ and the two factor secrets on the authentication side of that split.
 
 ## apps/web
 
-React 19 on Vite, deployed as `neuron-web`. Every request goes to the origin the page came from:
-`vercel.json` forwards `/api` to the api deployment in production, the Vite proxy does it in
-development. An absolute url to the api anywhere here would cost the session cookie.
+React 19 on Vite, deployed as `neuron-web`. Every request goes to the origin the page came from.
+`vercel.ts` sends `/api` to production in a production deployment and to the api preview for the same
+Git branch in a preview deployment. The Vite proxy does the same in development. An absolute url to
+the api anywhere in browser code would cost the session cookie.
 
 ### The frame (`src/app/`)
 
@@ -267,24 +268,26 @@ every one of these in every state.
 
 ### The wiring (`src/lib/`, `src/i18n/`, `src/theme/`)
 
-| File                        | Holds                                                                               |
-| --------------------------- | ----------------------------------------------------------------------------------- |
-| `lib/api.ts`                | One request, the error envelope unpacked, and the code turned into a message key    |
-| `lib/auth-client.ts`        | Better Auth over the same origin, and its own codes mapped onto the shared ones     |
-| `lib/account.ts`            | Who is signed in. One query, and the session check for the whole app                |
-| `lib/decks.ts`              | The tree in one request, and adding up the roots                                    |
-| `lib/storage.ts`            | Local storage that cannot throw, because Safari's private mode does                 |
-| `lib/viewport.ts`           | Where the on-screen keyboard is, as CSS variables a sheet is positioned against     |
-| `preferences/device.ts`     | A preference that belongs to the device: read at import, applied before React       |
-| `preferences/sync.ts`       | Tells the account row, one request at a time, and discards the answer               |
-| `preferences/glass.ts`      | The three glass levels, and the ceiling the device puts on the chosen one           |
-| `preferences/motion.ts`     | Whether movement is off, by the system's request or by hand                         |
-| `preferences/frame-rate.ts` | Samples the frames during a scroll and lowers the glass when they are bad           |
-| `i18n/locale.ts`            | Which language is on. The catalogue itself is in `packages/shared`                  |
-| `theme/theme.ts`            | Which theme is on, and the copy of that rule `index.html` runs first                |
-| `theme/use-theme.ts`        | The theme as a device preference, and the hook that reads it                        |
-| `styles/global.css`         | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft |
-| `scripts/icons.mjs`         | Draws the icons in `public/` from the same tokens                                   |
+| File                           | Holds                                                                               |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| `lib/api.ts`                   | One request, the error envelope unpacked, and the code turned into a message key    |
+| `lib/auth-client.ts`           | Better Auth over the same origin, and its own codes mapped onto the shared ones     |
+| `lib/account.ts`               | Who is signed in. One query, and the session check for the whole app                |
+| `lib/decks.ts`                 | The tree in one request, and adding up the roots                                    |
+| `lib/deployment-api-origin.ts` | Maps a web deployment to the matching api environment and fails closed for previews |
+| `lib/storage.ts`               | Local storage that cannot throw, because Safari's private mode does                 |
+| `lib/viewport.ts`              | Where the on-screen keyboard is, as CSS variables a sheet is positioned against     |
+| `preferences/device.ts`        | A preference that belongs to the device: read at import, applied before React       |
+| `preferences/sync.ts`          | Tells the account row, one request at a time, and discards the answer               |
+| `preferences/glass.ts`         | The three glass levels, and the ceiling the device puts on the chosen one           |
+| `preferences/motion.ts`        | Whether movement is off, by the system's request or by hand                         |
+| `preferences/frame-rate.ts`    | Samples the frames during a scroll and lowers the glass when they are bad           |
+| `i18n/locale.ts`               | Which language is on. The catalogue itself is in `packages/shared`                  |
+| `theme/theme.ts`               | Which theme is on, and the copy of that rule `index.html` runs first                |
+| `theme/use-theme.ts`           | The theme as a device preference, and the hook that reads it                        |
+| `styles/global.css`            | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft |
+| `vercel.ts`                    | Same-origin api rewrites for production, preview branches, and local Vercel builds  |
+| `scripts/icons.mjs`            | Draws the icons in `public/` from the same tokens                                   |
 
 ### The gallery and the browser tests
 

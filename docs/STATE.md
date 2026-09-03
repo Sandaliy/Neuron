@@ -3,26 +3,28 @@
 Where the project stands right now. This file replaces reading `neuron-plan.md` and `phase-*.md`.
 Update it with `/handoff` at the end of a working session.
 
-Last updated: 2026-09-03, on `work/stabilization`, newest commit `37b4742`.
+Last updated: 2026-09-03, after repository stabilization and preview isolation.
 
 ## Now
 
 Phase 6 is implemented in part on the unpublished `phase-6-notes-and-import` branch. It is nine
-commits ahead of `main`. The branch adds writable decks, note editing and browsing, chunked imports,
-and card generation planning. It is paused while the repository and delivery workflow are stabilized.
+commits ahead of the main commit it started from. The branch adds writable decks, note editing and
+browsing, chunked imports, and card generation planning. It is paused until this delivery work lands.
 
-Three tracked Phase 6 files and the local planning files were saved in `stash@{0}` as
-`wip: phase 6 local changes before stabilization`. Do not drop that stash. The current
-`work/stabilization` branch starts at `37b4742`, the current `main` and `origin/main` commit.
+Three tracked Phase 6 files and the local planning files are saved in `stash@{0}` as
+`wip: phase 6 local changes before stabilization`. Do not drop that stash.
 
-The stabilization branch is ready for its pull request. It removes the obsolete Phase 4 runbook,
-tracks the canonical card-generation prompt, repairs database-free tests, and makes formatting,
-builds, migration checks, secret scanning, and browser screenshots required CI gates. Local
-`AGENTS.md` and `CLAUDE.md` now require pull requests and auto-merge instead of direct pushes to
-`main`.
+Pull request #1 stabilized delivery. It removed the obsolete Phase 4 runbook, tracked the canonical
+card-generation prompt, repaired database-free tests, and made formatting, builds, migration checks,
+secret scanning, and browser screenshots required CI gates. Production health passed after the merge.
 
 GitHub ruleset `22151759` protects `main`. It applies to the repository owner, requires a current pull
 request and the three CI jobs plus both Vercel checks, and blocks deletion and force pushes.
+
+Preview deployments are isolated from production data. The Neon `preview` branch contains the schema
+but no production rows, and the empty `neuron_preview` database has its own restricted application and
+authentication credentials. The api's Preview environment holds those credentials and a separate
+Better Auth secret. The web deployment sends `/api` to the api preview for the same Git branch.
 
 ## Done
 
@@ -36,18 +38,17 @@ request and the three CI jobs plus both Vercel checks, and blocks deletion and f
 
 ## Next
 
-1. Open the stabilization pull request, enable auto-merge, and verify production health after merge.
-2. Agree on a preview architecture with a separate API and database before changing Vercel settings.
-3. Verify the local Git, GitHub CLI, Vercel CLI, credential helper, and Git helper PATHs.
-4. Resume `phase-6-notes-and-import`, restore `stash@{0}`, and measure the note list at 375 px.
-5. Reach the agreed frame-rate target and add note and import browser and screenshot coverage.
-6. Land Phase 6 through a pull request and verify both production applications.
-7. Update the root and API README files, then remove merged remote branches.
+1. Resume `phase-6-notes-and-import` in a separate task and restore `stash@{0}`.
+2. Measure the note list at 375 px and remove or replace the failed containment experiment.
+3. Reach the agreed frame-rate target and add note and import browser and screenshot coverage.
+4. Check keyboard navigation and the mobile on-screen keyboard.
+5. Land Phase 6 through a pull request and verify both production applications.
+6. Update the root and API README files, then remove merged remote branches.
 
 ## Open threads
 
-- Web preview branches currently forward requests to the production API and production database through
-  `apps/web/vercel.json`. Do not implement a replacement until the preview design is approved.
+- The long-lived Preview database is intentionally empty and shared by preview deployments. Resetting it
+  or moving to one database branch per pull request remains a later automation task.
 - Phase 6 measures about 60 fps for 500 plain rows, 43.7 fps with glass, and 35.4 to 35.6 fps for
   5,000 virtualized notes. The phase target is 55 fps. Clipping and containment did not help.
 - Phase 6 lacks complete browser and screenshot coverage for notes and imports. Keyboard navigation and
@@ -56,7 +57,7 @@ request and the three CI jobs plus both Vercel checks, and blocks deletion and f
   remains deferred because the database must move with the API.
 - Mail delivery is disabled. `MAILER=log` is the only configured sender.
 - `sync_conflicts` records losing versions but the web app has no recovery screen.
-- The web bundle was about 761 KB before gzip at the last audit. Code splitting remains deferred.
+- The production web bundle is about 596 KB before gzip. Code splitting remains deferred.
 - Dependency alerts include `nanoid` 3.3.17 and the Drizzle tooling version of `esbuild`.
 
 ## Decisions
@@ -75,3 +76,5 @@ request and the three CI jobs plus both Vercel checks, and blocks deletion and f
 | 2026-09-03 | Pause Phase 6 while stabilization lands                         | Mixing product work with CI and repository policy would make review and rollback unsafe |
 | 2026-09-03 | Keep the prompt in `docs/card-generation-prompt.md`             | It defines the product contract used by all three card generation modes                 |
 | 2026-09-03 | Run screenshot CI on Windows                                    | The committed baselines use the same system fonts as the Windows runner                 |
+| 2026-09-03 | Use one empty, long-lived Neon Preview database                 | Preview work must never read or write production user data                              |
+| 2026-09-03 | Pair web and api previews by their Vercel branch URL            | A pull request tests both applications together while keeping cookies on the web origin |
