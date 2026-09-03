@@ -1,6 +1,6 @@
-import { apiOriginForDeployment } from './src/lib/deployment-api-origin';
-
 import { routes, type VercelConfig } from '@vercel/config/v1';
+
+import { apiOriginForDeployment } from './src/lib/deployment-api-origin';
 
 const apiOrigin = apiOriginForDeployment(process.env.VERCEL_ENV, process.env.VERCEL_BRANCH_URL);
 
