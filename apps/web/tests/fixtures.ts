@@ -121,6 +121,7 @@ function note(id: string, term: string, translation: string): Record<string, unk
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     rev: 1,
+    cardStates: { new: 1, learning: 0, review: 0, relearning: 0 },
   };
 }
 

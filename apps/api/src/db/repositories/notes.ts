@@ -1,8 +1,14 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { CardState } from '@neuron/core';
 import { MAX_NOTE_PAGE_SIZE, parseNoteFields, uuidV7 } from '@neuron/shared';
-import type { NoteFields, NoteSort, NoteStatus, NoteTypeName } from '@neuron/shared';
+import type {
+  CardStateCounts,
+  NoteFields,
+  NoteSort,
+  NoteStatus,
+  NoteTypeName,
+} from '@neuron/shared';
 
 import { cards, decks, noteTypes, notes, user } from '../schema/index.js';
 
@@ -61,7 +67,7 @@ export interface DuplicateRow {
 
 /** One page of notes, and where the next one starts. */
 export interface NotePage {
-  readonly items: NoteRow[];
+  readonly items: readonly (NoteRow & { readonly cardStates: CardStateCounts })[];
   readonly nextCursor: string | undefined;
 }
 
@@ -444,11 +450,37 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
           .orderBy(...order(query.sort ?? 'created'))
           .limit(limit + 1);
 
-        const items = rows.slice(0, limit);
+        const noteRows = rows.slice(0, limit);
+        const ids = noteRows.map((row) => row.id);
+        const states = new Map<string, CardStateCounts>();
+
+        if (ids.length > 0) {
+          const counts = await tx
+            .select({ noteId: cards.noteId, state: cards.state, count: count() })
+            .from(cards)
+            .where(
+              and(eq(cards.userId, userId), inArray(cards.noteId, ids), isNull(cards.deletedAt)),
+            )
+            .groupBy(cards.noteId, cards.state);
+
+          for (const row of counts) {
+            const current = states.get(row.noteId) ?? {
+              new: 0,
+              learning: 0,
+              review: 0,
+              relearning: 0,
+            };
+            current[row.state as keyof CardStateCounts] = Number(row.count);
+            states.set(row.noteId, current);
+          }
+        }
 
         return {
-          items,
-          nextCursor: rows.length > limit ? items.at(-1)?.id : undefined,
+          items: noteRows.map((note) => ({
+            ...note,
+            cardStates: states.get(note.id) ?? { new: 0, learning: 0, review: 0, relearning: 0 },
+          })),
+          nextCursor: rows.length > limit ? noteRows.at(-1)?.id : undefined,
         };
       });
     },

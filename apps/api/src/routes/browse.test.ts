@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { RATING } from '@neuron/core';
 import { normaliseTerm } from '@neuron/shared';
 import type { Deck, Note } from '@neuron/shared';
 
@@ -161,6 +162,20 @@ describe.skipIf(!database)('browsing notes', () => {
 
     expect((await list('source=Browsing%20list')).items).toHaveLength(WORDS.length);
     expect((await list('source=Somewhere%20else')).items).toHaveLength(0);
+    expect((await list('source=Browsing')).items).toHaveLength(0);
+    expect(
+      (await list('source=Browsing%20list&search=apple')).items.map((note) => note.id),
+    ).toEqual([ids['Apfel']]);
+  });
+
+  it('keeps source conditions while a cursor advances', async () => {
+    if (!database) return;
+    const first = await list('source=Browsing%20list&sort=alpha&limit=1');
+    const second = await list(
+      `source=Browsing%20list&sort=alpha&limit=1&cursor=${first.nextCursor ?? ''}`,
+    );
+    expect(terms(first.items)).toEqual(['Apfel']);
+    expect(terms(second.items)).toEqual(['Birne']);
   });
 
   it('filters by the state of a card, without repeating a note per card', async () => {
@@ -173,6 +188,34 @@ describe.skipIf(!database)('browsing notes', () => {
     expect(fresh.items).toHaveLength(WORDS.length);
     expect(new Set(fresh.items.map((note) => note.id)).size).toBe(WORDS.length);
     expect((await list('cardState=review')).items).toHaveLength(0);
+    expect(fresh.items.every((note) => note.cardStates?.new === 1)).toBe(true);
+  });
+
+  it('returns one bounded live-card summary per note, including mixed and empty notes', async () => {
+    if (!database) return;
+    const mixed = await repositories.notes.byId(ids['Apfel'] ?? '');
+    const original = (await repositories.cards.forNote(mixed?.id ?? ''))[0];
+    if (!mixed || !original) throw new Error('browse fixture missing its opening card');
+    await repositories.cards.create({ noteId: mixed.id, direction: 'recall', due: new Date() });
+    await repositories.reviews.record({
+      cardId: original.id,
+      rating: RATING.good,
+      now: new Date(),
+    });
+    const gone = await repositories.notes.byId(ids['Birne'] ?? '');
+    const goneCard = (await repositories.cards.forNote(gone?.id ?? ''))[0];
+    if (!gone || !goneCard) throw new Error('browse fixture missing its second opening card');
+    await repositories.cards.softDelete(goneCard.id);
+
+    const page = await list('sort=alpha');
+    const summaries = new Map(
+      page.items.map((note) => [String(note.fields['term']), note.cardStates]),
+    );
+    expect(summaries.get('Apfel')).toEqual({ new: 1, learning: 1, review: 0, relearning: 0 });
+    expect(summaries.get('Birne')).toEqual({ new: 0, learning: 0, review: 0, relearning: 0 });
+    expect(
+      (await list('cardState=new')).items.map((note) => String(note.fields['term'])),
+    ).not.toContain('Birne');
   });
 
   it('stores the comparable form of the term the same way the code does', async () => {

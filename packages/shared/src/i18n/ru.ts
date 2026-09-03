@@ -262,6 +262,8 @@ export const ru: Messages = {
   'notes.filterTag': 'Метка',
   'notes.filterSource': 'Источник',
   'notes.filterCardState': 'Состояние карточки',
+  'notes.cardSummaryNone': 'Нет карточек',
+  'notes.cardSummaryMixed': 'Разные · {count}',
   'notes.any': 'Любое',
   'notes.sort': 'Порядок',
   'notes.sort.created': 'По добавлению',

@@ -60,7 +60,10 @@ export function noteRoutes(): Hono<RequestBindings> {
     ]);
 
     return context.json({
-      items: page.items.map((row) => serialiseNote(row, typeNames)),
+      items: page.items.map(({ cardStates, ...note }) => ({
+        ...serialiseNote(note, typeNames),
+        cardStates,
+      })),
       ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
     });
   });

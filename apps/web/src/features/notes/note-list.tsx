@@ -5,7 +5,7 @@ import { Plus, Upload } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 
 import { NOTE_SORTS, NOTE_STATUSES, termOf } from '@neuron/shared';
-import type { MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
+import type { CardStateCounts, MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
@@ -27,6 +27,7 @@ const PAGE = 1000;
 
 /** How tall a row is. The virtualiser needs a number before it can measure. */
 const ROW_HEIGHT = 52;
+const CARD_STATE_ORDER = ['new', 'learning', 'review', 'relearning'] as const;
 
 /**
  * A deck's notes, however many there are.
@@ -52,6 +53,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const [status, setStatus] = useState<NoteStatus | ''>('');
   const [cardState, setCardState] = useState('');
   const [tag, setTag] = useState('');
+  const [source, setSource] = useState('');
+  const sourceFilter = source.trim();
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
@@ -69,6 +72,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
     ...(status === '' ? {} : { status }),
     ...(cardState === '' ? {} : { cardState }),
     ...(tag === '' ? {} : { tag }),
+    ...(sourceFilter === '' ? {} : { source: sourceFilter }),
     sort,
   };
 
@@ -89,7 +93,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const deckSearch: { deckId?: string } = deckId === undefined ? {} : { deckId };
   const rows = notes.data?.pages.flatMap((page) => page.items) ?? [];
   const deck = deckId === undefined ? undefined : findDeck(decks.data ?? [], deckId);
-  const filtered = search !== '' || status !== '' || cardState !== '' || tag !== '';
+  const filtered =
+    search !== '' || status !== '' || cardState !== '' || tag !== '' || sourceFilter !== '';
 
   /** Every tag on what has been loaded, for the filter to offer. */
   const tags = [...new Set(rows.flatMap((note) => note.tags))].sort();
@@ -100,6 +105,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
     setStatus('');
     setCardState('');
     setTag('');
+    setSource('');
   }
 
   function toggle(id: string) {
@@ -156,7 +162,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         onChange={(event) => setTyped(event.target.value)}
       />
 
-      <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-8 sm:grid-cols-5">
         <Select
           value={sort}
           aria-label={t('notes.sort')}
@@ -168,6 +174,13 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
             </option>
           ))}
         </Select>
+
+        <Input
+          value={source}
+          aria-label={t('notes.filterSource')}
+          placeholder={t('notes.filterSource')}
+          onChange={(event) => setSource(event.target.value)}
+        />
 
         <Select
           value={status}
@@ -399,11 +412,12 @@ const NoteRow = memo(function NoteRow({
       : typeof note.fields['back'] === 'string'
         ? note.fields['back']
         : note.tags.join(', ');
+  const detail = note.status === 'known' ? `${meaning} · ${t('note.status.known')}` : meaning;
 
   return (
     <DenseRow
       word={termOf(note.fields)}
-      meaning={meaning}
+      meaning={detail}
       onClick={() => (selecting ? onToggle(note.id) : onOpen(note.id))}
       trailing={
         selecting ? (
@@ -415,10 +429,36 @@ const NoteRow = memo(function NoteRow({
               selected ? 'border-accent bg-fill-accent' : 'border-default',
             ].join(' ')}
           />
-        ) : note.status === 'known' ? (
-          <Chip tone="plain">{t('note.status.known')}</Chip>
-        ) : undefined
+        ) : (
+          <CardStateSummary counts={note.cardStates} />
+        )
       }
     />
   );
 });
+
+function CardStateSummary({ counts }: { readonly counts: CardStateCounts | undefined }) {
+  const t = useTranslate();
+  const values = CARD_STATE_ORDER.map((state) => ({ state, count: counts?.[state] ?? 0 })).filter(
+    (entry) => entry.count > 0,
+  );
+  const total = values.reduce((sum, entry) => sum + entry.count, 0);
+  const description =
+    values.length === 0
+      ? t('notes.cardSummaryNone')
+      : values
+          .map(({ state, count }) => `${count} ${t(`cardState.${state}` as MessageKey)}`)
+          .join(', ');
+  const label =
+    values.length === 0
+      ? description
+      : values.length === 1
+        ? description
+        : t('notes.cardSummaryMixed', { count: total });
+
+  return (
+    <span aria-label={description} title={description} className="max-w-120 truncate">
+      <Chip tone="plain">{label}</Chip>
+    </span>
+  );
+}

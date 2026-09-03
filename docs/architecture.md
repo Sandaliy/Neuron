@@ -449,7 +449,8 @@ afterwards.
 
 **The browser app is the product surface.** `apps/web` now contains the React application, its shell,
 authentication and recovery flows, read-only library, Today screen, settings, and the component
-gallery. Vercel rewrites `/api/*` to the Hono deployment so session cookies stay on one browser origin.
+gallery. The defined note-list performance budget is verified, while full browser coverage remains incomplete.
+Vercel rewrites `/api/*` to the Hono deployment so session cookies stay on one browser origin.
 Production uses the production api. A preview derives the matching api branch URL from Vercel's
 generated web branch URL and refuses to build if that mapping is unavailable. The old `/spike` page
 remains deleted.

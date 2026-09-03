@@ -64,6 +64,8 @@ Better Auth secret. The web deployment sends `/api` to the api preview for the s
   throttling 4, 180 measured frames, 24 pixels per frame and a 55 fps threshold.
 - The note-list fix preserves selection across virtual mounts, refreshed row data and native keyboard
   activation. Targeted browser checks pass in both themes at phone and desktop widths.
+- The note list exposes exact source filtering and per-row live-card summaries from the same non-deleted
+  card universe as the card-state filter.
 - Phase 6 lacks complete browser and screenshot coverage for notes and imports. Keyboard navigation and
   the mobile on-screen keyboard still need direct checks.
 - The production API is in `iad1` while users and web requests enter through Europe. Region alignment

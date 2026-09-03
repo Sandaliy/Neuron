@@ -268,6 +268,8 @@ export const en = {
   'notes.filterTag': 'Tag',
   'notes.filterSource': 'Source',
   'notes.filterCardState': 'Card state',
+  'notes.cardSummaryNone': 'No cards',
+  'notes.cardSummaryMixed': 'Mixed · {count}',
   'notes.any': 'Any',
   'notes.sort': 'Order',
   'notes.sort.created': 'Added',

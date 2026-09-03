@@ -14,6 +14,15 @@ import { cursorSchema, idSchema, tagSchema } from './common.js';
  * object as the type name it depends on.
  */
 
+export const cardStateCountsSchema = z.object({
+  new: z.number().int().nonnegative(),
+  learning: z.number().int().nonnegative(),
+  review: z.number().int().nonnegative(),
+  relearning: z.number().int().nonnegative(),
+});
+
+export type CardStateCounts = z.infer<typeof cardStateCountsSchema>;
+
 export const noteSchema = z.object({
   id: idSchema,
   deckId: idSchema,
@@ -27,6 +36,8 @@ export const noteSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   rev: z.number().int(),
+  /** Present on bounded browse pages, never a per-row card request. */
+  cardStates: cardStateCountsSchema.optional(),
 });
 
 export type Note = z.infer<typeof noteSchema>;

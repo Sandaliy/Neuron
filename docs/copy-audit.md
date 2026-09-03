@@ -26,17 +26,17 @@ come back without failing the build.
 
 |                                                       |         |
 | ----------------------------------------------------- | ------- |
-| Strings, each in two languages                        | **435** |
-| Referenced by name somewhere in `apps/`               | 406     |
+| Strings, each in two languages                        | **437** |
+| Referenced by name somewhere in `apps/`               | 408     |
 | Reached only through a computed key (`error.${code}`) | 29      |
 | Present in one language only                          | 0       |
-| Carrying at least one flag                            | 129     |
+| Carrying at least one flag                            | 130     |
 
 ## What the flags mean
 
 | Flag              | Meaning                                                                                                                                                                                | Count |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `length`          | The two languages differ in length by more than 40%. Russian normally runs 10 to 15% longer than English, so a gap this wide usually means one side says something the other does not. | 108   |
+| `length`          | The two languages differ in length by more than 40%. Russian normally runs 10 to 15% longer than English, so a gap this wide usually means one side says something the other does not. | 109   |
 | `sentences`       | One language uses a different number of sentences from the other. Same signal as length, harder to argue with.                                                                         | 0     |
 | `placeholders`    | The two carry different placeholders. One of them will render a literal brace.                                                                                                         | 0     |
 | `form-of-address` | Russian addresses the reader as вы. This project uses ты.                                                                                                                              | 0     |
@@ -161,6 +161,7 @@ come back without failing the build.
 | `notes.any`                     | length-67%                   | Any                                                                        | Любое                                                              |
 | `notes.bulkMoveTitle`           | length-44%                   | Move {count} notes                                                         | Перенести записей: {count}                                         |
 | `notes.bulkStatus`              | length-62%                   | Mark as known                                                              | Отметить как знакомое                                              |
+| `notes.cardSummaryNone`         | length-50%                   | No cards                                                                   | Нет карточек                                                       |
 | `notes.clearSelection`          | length-73%                   | Clear the selection                                                        | Снять выбор                                                        |
 | `notes.filterCardState`         | length-80%                   | Card state                                                                 | Состояние карточки                                                 |
 | `notes.filterStatus`            | length-50%                   | Status                                                                     | Состояние                                                          |
@@ -533,6 +534,8 @@ come back without failing the build.
 | `notes.bulkTags`                       | Add or remove tags                                                                                                                                                                                                                    | Добавить или убрать метки                                                                                                                                                                               |
 | `notes.bulkTagsTitle`                  | Tags for {count} notes                                                                                                                                                                                                                | Метки для {count} записей                                                                                                                                                                               |
 | `notes.cardCount`                      | Cards: {count}                                                                                                                                                                                                                        | Карточек: {count}                                                                                                                                                                                       |
+| `notes.cardSummaryMixed`               | Mixed · {count}                                                                                                                                                                                                                       | Разные · {count}                                                                                                                                                                                        |
+| `notes.cardSummaryNone`                | No cards                                                                                                                                                                                                                              | Нет карточек                                                                                                                                                                                            |
 | `notes.clearFilters`                   | Clear the filters                                                                                                                                                                                                                     | Снять фильтры                                                                                                                                                                                           |
 | `notes.clearSelection`                 | Clear the selection                                                                                                                                                                                                                   | Снять выбор                                                                                                                                                                                             |
 | `notes.count`                          | Notes: {count}                                                                                                                                                                                                                        | Записей: {count}                                                                                                                                                                                        |
