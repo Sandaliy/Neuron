@@ -422,5 +422,14 @@ afterwards.
 
 **The browser app is the product surface.** `apps/web` now contains the React application, its shell,
 authentication and recovery flows, read-only library, Today screen, settings, and the component
-gallery. Production rewrites `/api/*` to the Hono deployment so session cookies stay on one browser
-origin. The old `/spike` page remains deleted.
+gallery. Vercel rewrites `/api/*` to the Hono deployment so session cookies stay on one browser origin.
+Production uses the production api. A preview derives the matching api branch URL from Vercel's
+generated web branch URL and refuses to build if that mapping is unavailable. The old `/spike` page
+remains deleted.
+
+**Preview data is separate and empty.** The long-lived Neon `preview` branch is schema-only, and its
+`neuron_preview` database contains no production rows. Its application role, authentication role, and
+Better Auth secret exist only in the api's Vercel Preview environment. Production credentials remain
+scoped to Production. Preview deployments share this database for now. Per-pull-request database
+branches are deferred until role provisioning and migrations can be automated without an owner
+credential in a deployed application.

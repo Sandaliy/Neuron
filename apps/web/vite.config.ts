@@ -5,11 +5,11 @@ import { defineConfig } from 'vite';
 /**
  * Where the api answers while developing.
  *
- * In production nothing proxies here: `vercel.json` rewrites `/api` to the api
- * deployment, and the browser only ever sees the web origin. Locally that job
- * falls to this proxy, for the same reason. Two origins would mean the browser
- * withholding the session cookie, and a sign in that ends in an immediate sign
- * out.
+ * In a Vercel deployment `vercel.ts` rewrites `/api` to the api deployment for
+ * the same environment, and the browser only ever sees the web origin. Locally
+ * that job falls to this proxy, for the same reason. Two origins would mean the
+ * browser withholding the session cookie, and a sign in that ends in an
+ * immediate sign out.
  */
 const API_TARGET = process.env.VITE_API_TARGET ?? 'http://localhost:8787';
 

@@ -4,8 +4,9 @@ The React application: a Vite build, deployed to Vercel as the project `neuron-w
 
 ## One origin
 
-Every request the browser makes goes to the origin the page came from. `vercel.json` rewrites `/api`
-to the api deployment in production, and the Vite proxy does the same in development.
+Every request the browser makes goes to the origin the page came from. `vercel.ts` rewrites `/api` to
+the production api in production and to the api deployment for the same Git branch in Preview. The
+Vite proxy does the same in development.
 
 This is not a convenience. A session cookie is not sent to a different site, so an app talking to the
 api on its own hostname signs in and is immediately signed out again. Nothing here may use an
