@@ -93,6 +93,8 @@ export const createNoteSchema = z.strictObject({
 export const updateNoteSchema = z
   .strictObject({
     fields: z.record(z.string(), z.unknown()).optional(),
+    /** Fill blanks on the same note type, without changing metadata or removing cards. */
+    merge: z.literal(true).optional(),
     tags: z.array(tagSchema).max(50).optional(),
     status: noteStatusSchema.optional(),
     deckId: idSchema.optional(),
@@ -112,7 +114,15 @@ export const updateNoteSchema = z
      */
     discardCards: z.boolean().optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'needs something to change');
+  .refine((value) => Object.keys(value).length > 0, 'needs something to change')
+  .refine(
+    (value) =>
+      value.merge !== true ||
+      (value.fields !== undefined &&
+        value.noteType !== undefined &&
+        Object.keys(value).every((key) => ['merge', 'fields', 'noteType'].includes(key))),
+    'merge needs fields and the same note type, without metadata changes',
+  );
 
 /**
  * Changing the status of many notes at once.

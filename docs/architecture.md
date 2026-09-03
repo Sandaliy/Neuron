@@ -318,6 +318,19 @@ independent of would prove nothing.
 
 ## The api
 
+### Import duplicate updates
+
+`PATCH /notes/:id` accepts `merge: true` with fields and the same note type, but no metadata changes.
+The server checks that the normalized term has exactly one live same-type match and that it is the
+requested note. Other note types are not targets. A merge fills only schema-defined blanks and missing
+grammar leaves. Note updates take the user's revision-counter lock before reading current fields, so
+concurrent additions cannot overwrite populated values. The normal shared card reconciliation path is
+used, with any card removal refused for merge. Identical retries do not rewrite the note.
+
+Import row IDs and decisions are retained for one in-page attempt, including Resume. Batch undo
+soft-deletes only batch-created notes and cards. Merged additions to older notes stay; reviews are
+immutable. There is no snapshot rollback or persisted reload-resume mechanism.
+
 ### One error shape
 
 Every failure leaves the api as

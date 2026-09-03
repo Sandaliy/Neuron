@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util';
+
 import { Hono } from 'hono';
 
 import {
@@ -10,6 +12,8 @@ import {
   idParamSchema,
   listNotesSchema,
   normaliseTerm,
+  noteTermKey,
+  mergeNoteFields,
   termOf,
   parseNoteFields,
   updateNoteSchema,
@@ -133,6 +137,7 @@ export function noteRoutes(): Hono<RequestBindings> {
       matches: rows.map((row) => ({
         term: row.termKey,
         noteId: row.id,
+        noteType: row.noteType,
         deckId: row.deckId,
         written: termOf(row.fields),
       })),
@@ -198,7 +203,7 @@ export function noteRoutes(): Hono<RequestBindings> {
     const repositories = repositoriesOf(context);
 
     const written = await repositories.transaction(async (inner) => {
-      const existing = await inner.notes.byId(id);
+      const existing = await inner.notes.byId(id, { forUpdate: true });
 
       if (!existing) {
         return undefined;
@@ -210,9 +215,29 @@ export function noteRoutes(): Hono<RequestBindings> {
       // The old fields are re-checked against the new type on purpose. A type
       // change with no fields to go with it leaves a row nothing can read back,
       // and this is where that is caught, by name, before anything is written.
-      const fields = parseFields(noteType, body.fields ?? existing.fields);
+      const incoming = parseFields(noteType, body.fields ?? existing.fields);
+
+      if (body.merge) {
+        if (noteType !== currentType || noteTermKey(incoming) !== noteTermKey(existing.fields)) {
+          throw new ApiError('invalid_request');
+        }
+
+        const eligible = (await inner.notes.duplicatesOf([noteTermKey(incoming)])).filter(
+          (match) => match.noteType === currentType,
+        );
+
+        if (eligible.length !== 1 || eligible[0]?.id !== id) {
+          throw new ApiError('invalid_request');
+        }
+      }
+
+      const fields = body.merge ? mergeNoteFields(noteType, existing.fields, incoming) : incoming;
 
       const change = await planCardChange(inner, id, existing.deckId, noteType, fields);
+
+      if (body.merge && change.remove.length > 0) {
+        throw new ApiError('cards_would_be_lost');
+      }
 
       if (change.reviewsLost > 0 && body.discardCards !== true) {
         throw new ApiError('cards_would_be_lost', {
@@ -222,7 +247,7 @@ export function noteRoutes(): Hono<RequestBindings> {
 
       let row =
         noteType === currentType
-          ? body.fields === undefined
+          ? body.fields === undefined || (body.merge && isDeepStrictEqual(fields, existing.fields))
             ? existing
             : await inner.notes.updateFields(id, fields)
           : await inner.notes.changeType(id, noteType, fields);

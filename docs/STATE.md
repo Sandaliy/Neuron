@@ -3,7 +3,7 @@
 Where the project stands right now. This file replaces reading `neuron-plan.md` and `phase-*.md`.
 Update it with `/handoff` at the end of a working session.
 
-Last updated: 2026-09-03, after Phase 6 note-list performance verification.
+Last updated: 2026-09-03, after Phase 6 duplicate resolution and import retry verification.
 
 ## Now
 
@@ -46,6 +46,12 @@ Better Auth secret. The web deployment sends `/api` to the api preview for the s
 
 ## Open threads
 
+- Import duplicates use a default plus row overrides in the bounded preview. Only a unique same-type
+  match can merge. Ambiguous or incompatible matches inherit Skip instead of Merge, with visible reasons.
+  Merge fills schema-defined blanks and grammar leaves under a write lock, preserves existing metadata,
+  cards and reviews, and refuses card removal. In-page Resume reuses the original row IDs and decisions.
+  Undo removes batch-created notes/cards only; merged additions stay, as stated in completion and undo copy.
+  Targeted database and browser tests cover these boundaries. Full Phase 6 acceptance remains pending.
 - The long-lived Preview database is intentionally empty and shared by preview deployments. Resetting it
   or moving to one database branch per pull request remains a later automation task.
 - Five isolated 5,000-note runs measured 60.0, 59.3, 60.0, 60.0 and 60.0 fps after row memoization,

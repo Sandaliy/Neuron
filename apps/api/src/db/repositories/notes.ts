@@ -4,7 +4,7 @@ import type { CardState } from '@neuron/core';
 import { MAX_NOTE_PAGE_SIZE, parseNoteFields, uuidV7 } from '@neuron/shared';
 import type { NoteFields, NoteSort, NoteStatus, NoteTypeName } from '@neuron/shared';
 
-import { cards, decks, noteTypes, notes } from '../schema/index.js';
+import { cards, decks, noteTypes, notes, user } from '../schema/index.js';
 
 import { nextRev } from './session.js';
 
@@ -52,6 +52,7 @@ export interface ListNotes {
 
 /** A note the library already holds, for the importer to offer a choice about. */
 export interface DuplicateRow {
+  readonly noteType: string;
   readonly id: string;
   readonly deckId: string;
   readonly termKey: string;
@@ -86,7 +87,7 @@ export interface NoteRepository {
    * exactly the duplicate worth knowing about.
    */
   duplicatesOf: (termKeys: readonly string[]) => Promise<DuplicateRow[]>;
-  byId: (id: string) => Promise<NoteRow | undefined>;
+  byId: (id: string, options?: { readonly forUpdate: boolean }) => Promise<NoteRow | undefined>;
   /**
    * The browse screen: filtered, and one page at a time.
    *
@@ -342,8 +343,10 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
             deckId: notes.deckId,
             termKey: notes.termKey,
             fields: notes.fields,
+            noteType: noteTypes.name,
           })
           .from(notes)
+          .innerJoin(noteTypes, eq(notes.noteTypeId, noteTypes.id))
           .where(
             and(eq(notes.userId, userId), isNull(notes.deletedAt), inArray(notes.termKey, wanted)),
           );
@@ -352,8 +355,14 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       });
     },
 
-    async byId(id) {
+    async byId(id, options) {
       return run(async (tx) => {
+        // Take the same lock as nextRev before reading fields for a write.
+        // Concurrent additions must see the preceding writer's populated values.
+        if (options?.forUpdate) {
+          await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update');
+        }
+
         const [row] = await tx
           .select()
           .from(notes)

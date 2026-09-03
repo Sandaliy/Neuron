@@ -11,6 +11,7 @@ export {
   PARTS_OF_SPEECH,
   clozeGaps,
   hasClozeGap,
+  mergeNoteFields,
   noteFieldSummary,
   noteFieldsSchemas,
   noteStatusSchema,

@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import {
   IMPORT_FIELDS,
@@ -12,7 +12,6 @@ import {
   rowProblems,
   termCounts,
   termOf,
-  uuidV7,
 } from '@neuron/shared';
 import type {
   DeckNode,
@@ -39,10 +38,10 @@ import { ErrorState } from '../../ui/states';
 import { TextArea } from '../../ui/textarea';
 import { useToast } from '../../ui/toast';
 
+import { createAttempt, groupMatches, planRows, resolveDuplicate } from './import-plan';
 import { PromptDialog } from './prompt-dialog';
 
-/** What to do about a word the library already has. */
-type Resolution = 'skip' | 'merge' | 'create';
+import type { ImportAttempt, Overrides, Resolution } from './import-plan';
 
 /** Where the screen is. Each step only exists once the one before it is done. */
 type Stage =
@@ -50,6 +49,7 @@ type Stage =
   | { readonly kind: 'preview'; readonly parsed: ParseResult }
   | {
       readonly kind: 'importing';
+      readonly attempt: ImportAttempt;
       readonly batchId: string;
       readonly done: number;
       readonly total: number;
@@ -66,8 +66,8 @@ type Stage =
  * Bringing a word list in.
  *
  * Four steps, and the third one is the reason the other three exist: nothing is
- * written until the whole list has been shown as rows, with what is wrong with
- * each of them. Five thousand generated cards are cheap to make and expensive
+ * written until the list has been checked and a bounded preview shown.
+ * Five thousand generated cards are cheap to make and expensive
  * to pick back out of a deck by hand.
  *
  * The upload is chunked. Five hundred rows a request, each note carrying an id
@@ -89,7 +89,9 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
   const [stage, setStage] = useState<Stage>({ kind: 'source' });
   const [duplicates, setDuplicates] = useState<readonly DuplicateMatch[]>([]);
   const [resolution, setResolution] = useState<Resolution>('skip');
+  const [overrides, setOverrides] = useState<Overrides>({});
   const [checking, setChecking] = useState(false);
+  const checkSequence = useRef(0);
   const [failure, setFailure] = useState<unknown>();
   const [prompt, setPrompt] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState<
@@ -108,6 +110,14 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       ...(columns.length > 0 ? { columns } : {}),
     });
 
+    await checkParsed(parsed);
+  }
+
+  async function checkParsed(parsed: ParseResult) {
+    const sequence = ++checkSequence.current;
+    setFailure(undefined);
+    setDuplicates([]);
+    setOverrides({});
     setStage({ kind: 'preview', parsed });
     setColumns(parsed.columns ?? []);
     setChecking(true);
@@ -115,14 +125,16 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
     try {
       const terms = parsed.rows.map((row) => termOf(row.fields)).filter((term) => term !== '');
 
-      setDuplicates(await findDuplicates(terms));
+      const found = await findDuplicates(terms);
+      if (sequence === checkSequence.current) setDuplicates(found);
     } catch (error) {
-      // The list is still worth showing. A duplicate check that did not answer
-      // means the duplicates are not marked, not that the import cannot happen.
-      setFailure(error);
-      setDuplicates([]);
+      // Keep the preview, but do not write before duplicate lookup succeeds.
+      if (sequence === checkSequence.current) {
+        setFailure(error);
+        setDuplicates([]);
+      }
     } finally {
-      setChecking(false);
+      if (sequence === checkSequence.current) setChecking(false);
     }
   }
 
@@ -131,15 +143,16 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
    *
    * @param from which chunk to start at, so a failure can be carried on from
    */
-  async function upload(parsed: ParseResult, batchId: string, from = 0) {
-    const plan = planRows(parsed, duplicates, resolution);
+  async function upload(plan: ImportAttempt, from = 0) {
+    const { batchId } = plan;
     const chunks: (typeof plan.create)[] = [];
 
     for (let start = 0; start < plan.create.length; start += IMPORT_CHUNK_SIZE) {
       chunks.push(plan.create.slice(start, start + IMPORT_CHUNK_SIZE));
     }
 
-    setStage({ kind: 'importing', batchId, done: from, total: chunks.length });
+    setFailure(undefined);
+    setStage({ kind: 'importing', attempt: plan, batchId, done: from, total: chunks.length });
 
     try {
       if (from === 0) {
@@ -147,9 +160,9 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
           method: 'POST',
           body: {
             id: batchId,
-            deckId: deck,
-            source: parsed.source ?? sourceName(parsed.format),
-            format: parsed.format,
+            deckId: plan.deckId,
+            source: plan.source,
+            format: plan.format,
           },
         });
       }
@@ -160,7 +173,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
           body: {
             notes: (chunks[index] ?? []).map((row) => ({
               id: row.id,
-              noteType: parsed.noteType,
+              noteType: plan.noteType,
               fields: row.fields,
               tags: row.tags,
               ...(row.rank === undefined ? {} : { rank: row.rank }),
@@ -168,7 +181,13 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
           },
         });
 
-        setStage({ kind: 'importing', batchId, done: index + 1, total: chunks.length });
+        setStage({
+          kind: 'importing',
+          attempt: plan,
+          batchId,
+          done: index + 1,
+          total: chunks.length,
+        });
       }
 
       // Merges are one request each, and there are usually few. They fill in
@@ -177,7 +196,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       for (const merge of plan.merge) {
         await request(`/notes/${merge.noteId}`, {
           method: 'PATCH',
-          body: { fields: merge.fields },
+          body: { fields: merge.fields, noteType: plan.noteType, merge: true },
         });
       }
 
@@ -231,18 +250,27 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
           parsed={stage.parsed}
           duplicates={duplicates}
           resolution={resolution}
+          overrides={overrides}
+          blocked={failure !== undefined}
+          onOverride={(line, value) =>
+            setOverrides((current) => {
+              const next = { ...current };
+              if (value === '') delete next[line];
+              else next[line] = value;
+              return next;
+            })
+          }
           checking={checking}
           columns={columns}
           onColumns={(next) => {
             setColumns(next);
-            setStage({
-              kind: 'preview',
-              parsed: parseImport(raw, chosenFormat, { noteType, columns: next }),
-            });
+            void checkParsed(parseImport(raw, chosenFormat, { noteType, columns: next }));
           }}
           onResolution={setResolution}
           onBack={() => setStage({ kind: 'source' })}
-          onStart={() => void upload(stage.parsed, uuidV7())}
+          onStart={() =>
+            void upload(createAttempt(stage.parsed, duplicates, resolution, overrides, deck))
+          }
         />
       ) : undefined}
 
@@ -267,9 +295,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
               <Button
                 variant="primary"
                 onClick={() => {
-                  const parsed = parseImport(raw, chosenFormat, { noteType, columns });
-
-                  void upload(parsed, stage.batchId, stage.done);
+                  void upload(stage.attempt, stage.done);
                 }}
               >
                 {t('import.resume')}
@@ -285,6 +311,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
           <p className="text-14 leading-body text-secondary" data-numeric="">
             {t('import.doneBody', { notes: stage.notes, cards: stage.cards })}
           </p>
+          <p className="text-14 leading-body text-secondary">{t('import.undoBoundary')}</p>
 
           {/* The triage sweep lands here in phase 9. */}
           <p className="text-13 text-tertiary">{t('import.triageLater')}</p>
@@ -322,6 +349,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
         <ErrorState
           message={t(describe(failure).key, describe(failure).values)}
           retryLabel={t('common.retry')}
+          {...(stage.kind === 'preview' ? { onRetry: () => void checkParsed(stage.parsed) } : {})}
         />
       ) : undefined}
 
@@ -362,84 +390,6 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       ) : undefined}
     </section>
   );
-}
-
-/** What the import will be called, when the file did not say. */
-function sourceName(format: ImportFormat): string {
-  return `Imported ${format.toUpperCase()}`;
-}
-
-/** A row on its way in, with the id it will carry. */
-interface PlannedRow extends ParsedRow {
-  readonly id: string;
-}
-
-/**
- * What actually happens to each row, once the duplicates have been decided.
- *
- * @param parsed the file as it was read
- * @param duplicates what the library already has
- * @param resolution what to do about those
- * @returns the rows to create and the notes to fill in
- */
-function planRows(
-  parsed: ParseResult,
-  duplicates: readonly DuplicateMatch[],
-  resolution: Resolution,
-): {
-  create: PlannedRow[];
-  merge: { noteId: string; fields: Record<string, unknown> }[];
-  skipped: number;
-} {
-  const known = new Map(duplicates.map((match) => [match.term, match]));
-  const counts = termCounts(parsed.rows);
-  const seen = new Set<string>();
-
-  const create: PlannedRow[] = [];
-  const merge: { noteId: string; fields: Record<string, unknown> }[] = [];
-  let skipped = 0;
-
-  for (const row of parsed.rows) {
-    const problems = rowProblems(row, parsed.noteType, counts);
-
-    // A row the type would refuse is never sent. The server would reject the
-    // whole chunk for it, which would take four hundred good rows with it.
-    if (problems.missing.length > 0) {
-      skipped += 1;
-
-      continue;
-    }
-
-    const key = noteTermKey(row.fields);
-
-    // The second copy of a word inside one file is always skipped. Importing a
-    // list that repeats itself should not put the same word in twice.
-    if (key !== '' && seen.has(key)) {
-      skipped += 1;
-
-      continue;
-    }
-
-    seen.add(key);
-
-    const match = key === '' ? undefined : known.get(key);
-
-    if (match === undefined || resolution === 'create') {
-      create.push({ ...row, id: uuidV7() });
-
-      continue;
-    }
-
-    if (resolution === 'skip') {
-      skipped += 1;
-
-      continue;
-    }
-
-    merge.push({ noteId: match.noteId, fields: row.fields });
-  }
-
-  return { create, merge, skipped };
 }
 
 function Source({
@@ -561,6 +511,9 @@ function Preview({
   parsed,
   duplicates,
   resolution,
+  overrides,
+  onOverride,
+  blocked,
   checking,
   columns,
   onColumns,
@@ -571,6 +524,9 @@ function Preview({
   readonly parsed: ParseResult;
   readonly duplicates: readonly DuplicateMatch[];
   readonly resolution: Resolution;
+  readonly overrides: Overrides;
+  readonly onOverride: (line: number, value: Resolution | '') => void;
+  readonly blocked: boolean;
   readonly checking: boolean;
   readonly columns: readonly string[];
   readonly onColumns: (columns: readonly string[]) => void;
@@ -581,8 +537,8 @@ function Preview({
   const t = useTranslate();
   const decks = useDeckTree();
   const counts = termCounts(parsed.rows);
-  const known = new Map(duplicates.map((match) => [match.term, match]));
-  const plan = planRows(parsed, duplicates, resolution);
+  const known = groupMatches(duplicates);
+  const plan = planRows(parsed, duplicates, resolution, overrides);
 
   const problems = parsed.rows.filter((row) => {
     const found = rowProblems(row, parsed.noteType, counts);
@@ -671,21 +627,66 @@ function Preview({
         <GroupLabel>{t('import.preview')}</GroupLabel>
 
         <div data-g="card" data-rows="" className="flex flex-col overflow-hidden rounded-24 border">
-          {shown.map((row) => (
-            <PreviewRow
-              key={row.line}
-              row={row}
-              noteType={parsed.noteType}
-              counts={counts}
-              {...(known.get(noteTermKey(row.fields)) === undefined
-                ? {}
-                : {
-                    duplicateIn:
-                      findDeck(decks.data ?? [], known.get(noteTermKey(row.fields))?.deckId ?? '')
-                        ?.name ?? '',
-                  })}
-            />
-          ))}
+          {shown.map((row) => {
+            const matches = known.get(noteTermKey(row.fields)) ?? [];
+            const decision = resolveDuplicate(
+              matches,
+              parsed.noteType,
+              resolution,
+              overrides[row.line],
+            );
+
+            return (
+              <div key={row.line} data-import-row="" className="flex flex-col gap-8 px-16 py-12">
+                <PreviewRow
+                  row={row}
+                  noteType={parsed.noteType}
+                  counts={counts}
+                  {...(decision.target === undefined
+                    ? {}
+                    : {
+                        duplicateIn: findDeck(decks.data ?? [], decision.target.deckId)?.name ?? '',
+                      })}
+                />
+                {matches.length > 0 ? (
+                  <FormField
+                    label={t('import.rowAction', { row: row.line })}
+                    hint={[
+                      decision.ambiguous
+                        ? t('import.ambiguous')
+                        : decision.incompatible
+                          ? t('import.incompatible')
+                          : t('import.compatible'),
+                      t('import.effectiveAction', {
+                        action: t(`import.resolve.${decision.action}`),
+                      }),
+                      overrides[row.line] === undefined ? '' : t('import.overridden'),
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    {(props) => (
+                      <Select
+                        {...props}
+                        className="scroll-my-96"
+                        value={overrides[row.line] ?? ''}
+                        onChange={(event) =>
+                          onOverride(row.line, event.target.value as Resolution | '')
+                        }
+                      >
+                        <option value="">{t('import.useDefault')}</option>
+                        <option value="skip">{t('import.resolve.skip')}</option>
+                        <option value="merge" disabled={!decision.target}>
+                          {t('import.resolve.merge')}
+                        </option>
+                        <option value="create">{t('import.resolve.create')}</option>
+                      </Select>
+                    )}
+                  </FormField>
+                ) : undefined}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -693,7 +694,7 @@ function Preview({
         <Button
           variant="primary"
           full
-          disabled={plan.create.length + plan.merge.length === 0}
+          disabled={checking || blocked || plan.create.length + plan.merge.length === 0}
           onClick={onStart}
         >
           {t('import.start', { count: plan.create.length + plan.merge.length })}
@@ -737,7 +738,7 @@ function PreviewRow({
   ].filter((note): note is string => note !== undefined);
 
   return (
-    <div className="flex min-h-52 items-center gap-12 px-16 py-8">
+    <div className="flex min-h-52 flex-wrap items-center gap-12">
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-14 text-primary">{termOf(row.fields)}</span>
         <span className="truncate text-12 text-tertiary">{meaning}</span>

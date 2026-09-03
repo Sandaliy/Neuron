@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { noteTypeSchema } from '../note-types.js';
+
 import { idSchema, nameSchema } from './common.js';
 import { createNoteSchema } from './notes.js';
 
@@ -130,6 +132,7 @@ export const duplicateMatchSchema = z.object({
   /** The comparable form, which is what the caller matches its rows against. */
   term: z.string(),
   noteId: idSchema,
+  noteType: noteTypeSchema,
   deckId: idSchema,
   /** As it is actually written on the note that is already there. */
   written: z.string(),

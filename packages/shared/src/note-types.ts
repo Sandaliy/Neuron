@@ -179,6 +179,41 @@ export type NoteGrammar = NonNullable<VocabFields['grammar']>;
 /** The fields of a note, narrowed by its type. */
 export type NoteFields = VocabFields | BasicFields | ClozeFields;
 
+/** Fill only schema-defined blanks. Grammar is the only nested field object. */
+export function mergeNoteFields(
+  noteType: NoteTypeName,
+  existing: NoteFields,
+  incoming: NoteFields,
+): NoteFields {
+  const before = existing as Record<string, unknown>;
+  const added = incoming as Record<string, unknown>;
+  const merged = { ...before };
+  const empty = (value: unknown) => value === undefined || value === null || value === '';
+
+  for (const name of Object.keys(noteFieldsSchemas[noteType].shape)) {
+    if (name === 'grammar' && noteType === 'vocab') {
+      const oldGrammar = (existing as VocabFields).grammar ?? {};
+      const newGrammar = (incoming as VocabFields).grammar;
+
+      if (newGrammar !== undefined) {
+        const grammar: Record<string, unknown> = { ...oldGrammar };
+
+        for (const leaf of Object.keys(grammarSchema.unwrap().shape)) {
+          const value = newGrammar[leaf as keyof NoteGrammar];
+
+          if (empty(grammar[leaf]) && !empty(value)) grammar[leaf] = value;
+        }
+
+        merged[name] = grammar;
+      }
+    } else if (empty(before[name]) && !empty(added[name])) {
+      merged[name] = added[name];
+    }
+  }
+
+  return parseNoteFields(noteType, merged);
+}
+
 /** One gap in a cloze text, and where it sits. */
 export interface ClozeGap {
   /** Which card hides it. Gaps sharing a number are hidden together. */
