@@ -105,6 +105,8 @@ jobs:
             -ArgumentList "./node_modules/vite/bin/vite.js", "--host", "127.0.0.1" `
             -WorkingDirectory "apps/web" `
             -WindowStyle Hidden `
+            -RedirectStandardOutput "$env:RUNNER_TEMP/neuron-vite.out.log" `
+            -RedirectStandardError "$env:RUNNER_TEMP/neuron-vite.err.log" `
             -PassThru
           "pid=$($server.Id)" >> $env:GITHUB_OUTPUT
 

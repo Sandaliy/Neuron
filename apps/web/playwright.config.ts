@@ -42,7 +42,7 @@ export default defineConfig({
   },
 
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://127.0.0.1:5173',
     trace: 'retain-on-failure',
   },
 
@@ -68,7 +68,7 @@ export default defineConfig({
 
   webServer: {
     command: 'node ./node_modules/vite/bin/vite.js --host',
-    url: 'http://localhost:5173',
+    url: 'http://127.0.0.1:5173',
     reuseExistingServer: true,
     timeout: 120_000,
   },
