@@ -52,7 +52,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
               }
             }}
             className={[
-              'rounded-18 px-16 py-12 text-14',
+              'pointer-events-auto rounded-18 px-16 py-12 text-14',
               'data-[state=open]:neu-toast-in data-[state=closed]:neu-toast-out',
               message.tone === 'danger' ? 'text-error' : 'text-primary',
             ].join(' ')}
@@ -73,7 +73,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
         */}
         <RadixToast.Viewport
           data-toasts=""
-          className="fixed inset-x-0 bottom-0 z-50 flex flex-col gap-8 p-16 pb-[calc(var(--safe-bottom)+var(--bar-height)+var(--bar-inset)+16px)]"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col gap-8 p-16 pb-[calc(var(--safe-bottom)+var(--bar-height)+var(--bar-inset)+16px)]"
         />
       </RadixToast.Provider>
     </ToastContext.Provider>

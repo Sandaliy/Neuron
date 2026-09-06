@@ -1,4 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 
 import {
@@ -25,8 +26,8 @@ import type {
 
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
-import { findDeck, flatten, useDeckTree } from '../../lib/decks';
-import { findDuplicates } from '../../lib/notes';
+import { DECK_TREE_KEY, findDeck, flatten, useDeckTree } from '../../lib/decks';
+import { findDuplicates, NOTE_KEY } from '../../lib/notes';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel, Panel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
@@ -79,6 +80,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
   const t = useTranslate();
   const toast = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const decks = useDeckTree();
 
   const [deck, setDeck] = useState(deckId ?? '');
@@ -201,6 +203,16 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       }
 
       const summary = await request<{ notes: number; cards: number }>(`/imports/${batchId}`);
+
+      // The list and tree are intentionally fresh for five minutes between
+      // collection screens. This write happened outside the normal note
+      // mutations, so mark both stale before the person returns to the deck.
+      // Otherwise the destination remounts its pre-import cached page and
+      // looks empty until a full reload or the freshness window expires.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [NOTE_KEY] }),
+        queryClient.invalidateQueries({ queryKey: DECK_TREE_KEY }),
+      ]);
 
       setStage({ kind: 'done', batchId, notes: summary.notes, cards: summary.cards });
     } catch (error) {
