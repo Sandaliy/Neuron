@@ -4,16 +4,15 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-06, after Phase 6 restore integrity verification and delivery-workflow refresh.
+Last updated: 2026-09-06, after the first meaningful Phase 6 production release.
 
 ## Now
 
-Phase 6 is active and unpublished on `work/phase-6`. The branch contains writable decks, note editing
-and browsing, shared card planning, chunked imports, and persistent Deleted/Restore UI for soft-deleted
-decks and notes. The 5,000-note list now passes the unchanged 55 fps budget after memoizing unchanged
-rows. Five isolated Chromium phone runs at 375 by 812, device scale 2 and CPU throttling 4 measured
-60.0, 59.3, 60.0, 60.0 and 60.0 fps. The first Phase 6 release candidate passed its focused
-assessment and is ready for the protected pull-request workflow.
+The first meaningful Phase 6 release slice is now in production after PR #3 was merged into `main`.
+It includes writable decks, note editing and browsing, shared card planning, chunked imports, and
+persistent Deleted/Restore UI for soft-deleted decks and notes. The 5,000-note list passes the unchanged
+55 fps budget after memoizing unchanged rows. The release candidate passed its focused assessment and
+the production API and web deployments passed health verification.
 
 The stabilized `main` branch has protected pull-request delivery, required CI and Vercel checks, and
 isolated preview data. Production health passed after the latest merged deployment work.
@@ -30,10 +29,9 @@ isolated preview data. Production health passed after the latest merged deployme
 
 ## Next
 
-1. Prepare the accumulated Phase 6 release candidate through the protected pull-request workflow.
-2. Continue the remaining Phase 6 direction-control, browser and screenshot coverage, mobile-keyboard
-   acceptance, and large-import acceptance work as separate workstreams and release slices where useful.
-3. Run the full milestone gates when closing Phase 6.
+1. Continue broader Phase 6 notes/import browser and screenshot coverage, mobile-keyboard acceptance,
+   direction controls, and large-import acceptance as separate workstreams and release slices where useful.
+2. Run the full milestone gates and complete final Phase 6 milestone closure.
 
 ## Open threads
 
@@ -41,8 +39,8 @@ isolated preview data. Production health passed after the latest merged deployme
   or moving to one database branch per pull request remains a later automation task.
 - The note-list performance fix preserves selection across virtual mounts, refreshed row data and native
   keyboard activation. Targeted browser checks pass in both themes at phone and desktop widths.
-- Phase 6 lacks complete browser and screenshot coverage for notes and imports. Keyboard navigation and
-  the mobile on-screen keyboard still need direct checks.
+- Phase 6 still needs broader notes/import browser and screenshot coverage, mobile-keyboard acceptance,
+  direction controls, and large-import acceptance. Final milestone closure remains pending.
 - Import duplicates use a default plus row overrides in the bounded preview. Only a unique same-type
   match can merge. Ambiguous or incompatible matches inherit Skip instead of Merge, with visible reasons.
   Merge fills schema-defined blanks and grammar leaves under a write lock, preserves existing metadata,
@@ -62,7 +60,8 @@ isolated preview data. Production health passed after the latest merged deployme
   and reports cards left deleted. Historical and independently deleted cards remain deleted. Sync follows
   the same dependency and provenance boundaries. Migration 0011 adds the conservative false default
   without historical attribution. Broader Phase 6 acceptance and final milestone closure remain pending.
-- `stash@{0}` remains a backup of earlier Phase 6 local work. Keep it until the phase has landed safely.
+- `stash@{0}` is a backup of earlier Phase 6 local work and is now safe to remove: its relevant changes
+  are superseded by the merged production release and production health has passed.
 - The production API is in `iad1` while users and web requests enter through Europe. Region alignment
   remains deferred because the database must move with the API.
 - Mail delivery is disabled. `MAILER=log` is the only configured sender.
