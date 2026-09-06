@@ -177,6 +177,10 @@ test.describe('scroll performance', () => {
  * number this test prints is what that costs.
  */
 test.describe('the note list', () => {
+  // The hosted Windows runner occasionally loses an entire measurement window
+  // to scheduler contention. Each attempt still has to meet the real budget.
+  test.describe.configure({ retries: 2 });
+
   test.use({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 });
 
   test(`five thousand notes hold ${BUDGET} fps`, async ({ page, browserName }) => {
