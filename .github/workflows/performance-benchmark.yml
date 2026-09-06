@@ -1,0 +1,71 @@
+name: Performance benchmark
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fps:
+    name: 5,000-note frame-rate benchmark (non-blocking)
+    continue-on-error: true
+    runs-on: windows-2022
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build browser app
+        run: pnpm --filter "@neuron/web^..." build
+
+      - name: Install Chromium
+        run: pnpm --filter @neuron/web test:screens:install
+
+      - name: Start web server
+        id: web-server
+        shell: pwsh
+        run: |
+          $server = Start-Process `
+            -FilePath node `
+            -ArgumentList "./node_modules/vite/bin/vite.js", "--host", "127.0.0.1" `
+            -WorkingDirectory "apps/web" `
+            -WindowStyle Hidden `
+            -PassThru
+          "pid=$($server.Id)" >> $env:GITHUB_OUTPUT
+
+          for ($attempt = 0; $attempt -lt 60; $attempt += 1) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://127.0.0.1:5173" -UseBasicParsing
+              if ($response.StatusCode -eq 200) { exit 0 }
+            } catch { Start-Sleep -Seconds 1 }
+          }
+
+          throw "The web server did not start"
+
+      - name: Measure 5,000-note frame rate
+        env:
+          PERFORMANCE_BENCHMARK: 'true'
+        run: pnpm --filter @neuron/web test:screens tests/00-note-list-performance.spec.ts --project=phone
+
+      - name: Stop web server
+        if: ${{ always() && steps.web-server.outputs.pid != '' }}
+        shell: pwsh
+        run: Stop-Process -Id ${{ steps.web-server.outputs.pid }} -Force -ErrorAction SilentlyContinue
