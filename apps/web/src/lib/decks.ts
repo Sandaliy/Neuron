@@ -124,8 +124,11 @@ export function moveProblem(
 /** Everything a deck row can be asked to do. */
 export function useDeckActions() {
   const client = useQueryClient();
-  const refresh = async () => {
-    await client.invalidateQueries({ queryKey: DECK_TREE_KEY });
+  // Cache reconciliation is follow-up work. A confirmed write must remain a
+  // success even when a best-effort refresh is unavailable (for example during
+  // a cold/briefly disconnected production request).
+  const refresh = () => {
+    void client.invalidateQueries({ queryKey: DECK_TREE_KEY }).catch(() => undefined);
   };
 
   const create = useMutation({

@@ -73,11 +73,11 @@ export function useNoteActions() {
    * right for the note and wrong for the counts rolled up over three levels of
    * folder above it.
    */
-  const refresh = async () => {
-    await Promise.all([
+  const refresh = () => {
+    void Promise.all([
       client.invalidateQueries({ queryKey: [NOTE_KEY] }),
       client.invalidateQueries({ queryKey: DECK_TREE_KEY }),
-    ]);
+    ]).catch(() => undefined);
   };
 
   const create = useMutation({
@@ -155,6 +155,11 @@ export function useNoteActions() {
  */
 export async function findDuplicates(terms: readonly string[]): Promise<DuplicateMatch[]> {
   const found: DuplicateMatch[] = [];
+
+  // The duplicate endpoint deliberately rejects an empty list. Imports whose
+  // identity field is not comparable yet (for example an invalid/empty row)
+  // still have a valid preview and must not enter the connection/retry state.
+  if (terms.length === 0) return found;
 
   for (let start = 0; start < terms.length; start += 1000) {
     const body = await request<{ matches: DuplicateMatch[] }>('/notes/duplicates', {

@@ -35,6 +35,8 @@ interface RowShape {
    */
   readonly draggable?: boolean;
   readonly onDragStart?: (event: DragEvent<HTMLElement>) => void;
+  /** The row contains its own interactive controls (for example a menu). */
+  readonly interactiveTrailing?: boolean;
 }
 
 function body({ title, subtitle, trailing, leading }: RowShape) {
@@ -63,6 +65,7 @@ export function Row(props: RowShape) {
     className = '',
     draggable,
     onDragStart,
+    interactiveTrailing = false,
   } = props;
 
   const shell = [
@@ -83,6 +86,31 @@ export function Row(props: RowShape) {
   if (!onClick) {
     return (
       <div {...(standalone ? { 'data-g': 'row' } : {})} {...drag} className={shell}>
+        {body(props)}
+      </div>
+    );
+  }
+
+  if (interactiveTrailing) {
+    return (
+      <div
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        data-row=""
+        {...(standalone ? { 'data-g': 'row' } : {})}
+        {...drag}
+        aria-expanded={expanded}
+        aria-disabled={disabled || undefined}
+        onClick={disabled ? undefined : onClick}
+        onKeyDown={(event) => {
+          if (disabled) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onClick();
+          }
+        }}
+        className={shell}
+      >
         {body(props)}
       </div>
     );
