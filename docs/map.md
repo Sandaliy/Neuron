@@ -307,14 +307,14 @@ every one of these in every state.
 
 ### The gallery and the browser tests
 
-| Path                           | Holds                                                                         |
-| ------------------------------ | ----------------------------------------------------------------------------- |
-| `src/features/dev/gallery.tsx` | Every component in every state, both themes, all three glass levels           |
-| `tests/gallery.spec.ts`        | One screenshot of the gallery per width                                       |
-| `tests/screens.spec.ts`        | The screens in both themes at 375 and 1440, with the api answered by fixtures |
-| `tests/motion.spec.ts`         | Computed durations under reduced motion, and what may be transitioned         |
-| `tests/performance.spec.ts`    | Library and note-list scroll budgets under a throttled phone-sized browser    |
-| `tests/fixtures.ts`            | The api answers and the device preferences the browser tests run against      |
+| Path                                                                  | Holds                                                                         |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `src/features/dev/gallery.tsx`                                        | Every component in every state, both themes, all three glass levels           |
+| `tests/gallery.spec.ts`                                               | One screenshot of the gallery per width                                       |
+| `tests/screens.spec.ts`                                               | The screens in both themes at 375 and 1440, with the api answered by fixtures |
+| `tests/motion.spec.ts`                                                | Computed durations under reduced motion, and what may be transitioned         |
+| `tests/00-note-list-performance.spec.ts`, `tests/performance.spec.ts` | Note-list and library scroll budgets under a throttled phone-sized browser    |
+| `tests/fixtures.ts`                                                   | The api answers and the device preferences the browser tests run against      |
 
 ## Documentation
 
