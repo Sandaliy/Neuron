@@ -4,19 +4,20 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-06, after Phase 6 restore integrity verification and delivery-workflow refresh.
+Last updated: 2026-09-06, after Phase 6 production recovery merged and hosted FPS measurement split from
+the blocking browser gate.
 
 ## Now
 
-Phase 6 is active and unpublished on `work/phase-6`. The branch contains writable decks, note editing
+Phase 6 production recovery is merged to `main`. The release contains writable decks, note editing
 and browsing, shared card planning, chunked imports, and persistent Deleted/Restore UI for soft-deleted
 decks and notes. The 5,000-note list now passes the unchanged 55 fps budget after memoizing unchanged
 rows. Five isolated Chromium phone runs at 375 by 812, device scale 2 and CPU throttling 4 measured
-60.0, 59.3, 60.0, 60.0 and 60.0 fps. The first Phase 6 release candidate passed its focused
-assessment and is ready for the protected pull-request workflow.
+60.0, 59.3, 60.0, 60.0 and 60.0 fps. The Phase 6 collection and recovery slice is merged and
+verified in production.
 
 The stabilized `main` branch has protected pull-request delivery, required CI and Vercel checks, and
-isolated preview data. Production health passed after the latest merged deployment work.
+isolated preview data. Production web, API `/health`, and `/db-check` passed after the recovery deployment.
 
 ## Done
 
@@ -30,7 +31,7 @@ isolated preview data. Production health passed after the latest merged deployme
 
 ## Next
 
-1. Prepare the accumulated Phase 6 release candidate through the protected pull-request workflow.
+1. Complete real-iPhone acceptance for the merged Phase 6 collection flows.
 2. Continue the remaining Phase 6 direction-control, browser and screenshot coverage, mobile-keyboard
    acceptance, and large-import acceptance work as separate workstreams and release slices where useful.
 3. Run the full milestone gates when closing Phase 6.

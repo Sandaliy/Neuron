@@ -268,9 +268,11 @@ again.
 
 ### The budget
 
-`apps/web/tests/performance.spec.ts` scrolls the library with five hundred rows, at the default level,
-in a 375 by 812 viewport at two device pixels per css pixel, with the processor throttled to a quarter
-speed through the debugger. The budget is 55 frames a second.
+The product budget is 55 frames a second. The blocking browser gate protects the structural
+virtualization invariant; the separate visible `Performance benchmark` workflow measures the
+5,000-note scenario in a 375 by 812 viewport at two device pixels per css pixel with the processor
+throttled to a quarter speed through the debugger. That benchmark reports the same 55 fps threshold
+but is non-blocking because hosted Windows runner variance is not a product failure.
 
 Measured, at the default and with the effect carried onto every row:
 
@@ -540,7 +542,9 @@ pnpm --filter @neuron/web test:screens
 ```
 
 The Playwright suite: the gallery and the main screens in both themes at 375 and 1440, the reduced
-motion checks, and the frame rate budget. It starts the dev server itself.
+motion checks, and deterministic interaction plus virtualization invariants. It starts the dev server
+itself. Actual 5,000-note frame-rate measurement runs separately in the visible, non-blocking
+`Performance benchmark` workflow.
 
 Baselines carry the platform in their name, because the interface face is the platform's own: the same
 page is set in SF Pro on a Mac and Segoe UI on Windows, and neither is wrong. The committed baselines
