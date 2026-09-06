@@ -18,8 +18,56 @@ test.describe('the note list', () => {
   test.describe.configure({ retries: 2 });
   test.use({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 });
 
+  test('five thousand notes keep a bounded mounted window', async ({ page }) => {
+    await usePreferences(page, {
+      theme: 'dark',
+      locale: 'en',
+      glass: 'full',
+      glassScope: 'floating',
+    });
+    await useFixtures(page, { notes: manyNotes(5000) });
+    await page.goto('/notes?deckId=d1');
+
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollHeight))
+      .toBeGreaterThan(250_000);
+
+    await page.evaluate(() => window.scrollTo(0, 180 * 24));
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            [...document.querySelectorAll('[data-row]')].filter((row) => {
+              const box = row.getBoundingClientRect();
+              return box.bottom > 0 && box.top < window.innerHeight;
+            }).length,
+        ),
+      )
+      .toBeGreaterThan(10);
+    const visible = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-row]')];
+      return {
+        mounted: rows.length,
+        words: rows
+          .filter((row) => {
+            const box = row.getBoundingClientRect();
+            return box.bottom > 0 && box.top < window.innerHeight;
+          })
+          .map((row) => row.textContent),
+      };
+    });
+
+    expect(visible.mounted).toBeLessThan(60);
+    expect(visible.words.length).toBeGreaterThan(10);
+    expect(visible.words.every((word) => word?.includes('Wort'))).toBe(true);
+  });
+
   test(`five thousand notes hold ${BUDGET} fps`, async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'CPU throttling needs the Chrome DevTools Protocol');
+    test.skip(
+      process.env['PERFORMANCE_BENCHMARK'] !== 'true',
+      'Frame-rate measurement runs in the separate non-blocking benchmark job',
+    );
 
     await usePreferences(page, {
       theme: 'dark',
