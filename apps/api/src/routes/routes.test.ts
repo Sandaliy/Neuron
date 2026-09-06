@@ -155,7 +155,7 @@ describe.skipIf(!database)('the routes', () => {
       expect(body.error.code).toBe('name_taken');
     });
 
-    it('takes a delete back', async () => {
+    it('restores a deleted hierarchy one deck at a time', async () => {
       const deck = await repositories.decks.create({ name: 'Regret' });
       const child = await repositories.decks.create({ name: 'Also regret', parentId: deck.id });
 
@@ -166,7 +166,10 @@ describe.skipIf(!database)('the routes', () => {
       await json(await server.request(`/api/decks/${deck.id}/restore`, { method: 'POST' }), 200);
 
       expect(await repositories.decks.byId(deck.id)).toBeDefined();
+      expect(await repositories.decks.byId(child.id)).toBeUndefined();
+      await json(await server.request(`/api/decks/${child.id}/restore`, { method: 'POST' }), 200);
       expect(await repositories.decks.byId(child.id)).toBeDefined();
+      expect((await repositories.decks.byId(child.id))?.path).toEqual(child.path);
     });
   });
 

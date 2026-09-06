@@ -228,6 +228,44 @@ export function appClient(database: TestDatabase): Database {
   return createDb(database.appUrl);
 }
 
+/**
+ * A client that counts the statements it runs.
+ *
+ * The only way to prove that an import of five thousand rows issues a bounded
+ * number of queries rather than one per row. A comment claiming it would be
+ * true on the day it was written and wrong the first time somebody moved a
+ * lookup inside a loop.
+ *
+ * @param database the test connections
+ * @returns the repositories for one user, and the running count
+ */
+export function countingRepositories(
+  database: TestDatabase,
+  userId: string,
+): {
+  readonly repositories: Repositories;
+  readonly count: () => number;
+  readonly reset: () => void;
+} {
+  let queries = 0;
+
+  const db = createDb(database.appUrl, {
+    logger: {
+      logQuery() {
+        queries += 1;
+      },
+    },
+  });
+
+  return {
+    repositories: createRepositories(db, userId),
+    count: () => queries,
+    reset: () => {
+      queries = 0;
+    },
+  };
+}
+
 /** The repositories for one user, over the restricted role. */
 export function repositoriesFor(database: TestDatabase, userId: string): Repositories {
   return createRepositories(appClient(database), userId);

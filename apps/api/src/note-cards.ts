@@ -1,21 +1,22 @@
-import type { CardDirection } from '@neuron/core';
-import { resolveDeckSettings, templatesFor } from '@neuron/shared';
-import type { DeckSettings, NoteFields, NoteTypeName } from '@neuron/shared';
+import { openingCards, reconcileCards, resolveDeckSettings } from '@neuron/shared';
+import type {
+  CardReconciliation,
+  DeckSettings,
+  NoteFields,
+  NoteTypeName,
+  PlannedCard,
+} from '@neuron/shared';
 
 import type { Repositories } from './db/repositories/index.js';
 
 /**
- * Which cards a new note starts with.
+ * Which cards a note has, applied to the database.
  *
- * Not all of them. A vocab note can produce four cards, and creating four on
- * day one triples the work of day one for a note the person has not learned
- * once yet. So directions open one at a time, on the ladder in the deck's
- * settings: recognition first, and the next only once the one before it has
- * proved it stuck.
- *
- * Everything past the first rung is opened later, by the scheduler or by hand
- * through the unlock endpoint. This decides only what exists the moment the
- * note is written.
+ * The rules themselves are in `@neuron/shared`, in card-plan.ts, and this file
+ * is the only thing in the api that reaches for them. Both ways a note can be
+ * made, the editor and the importer, come through here, so there is one answer
+ * to "what cards does this produce" and the editor's preview is drawing the
+ * same one before anything is saved.
  */
 
 /**
@@ -35,36 +36,132 @@ export async function settingsForDeck(repositories: Repositories, deckId: string
 }
 
 /**
- * The directions a note starts with.
+ * Creates the cards a new note starts with.
  *
- * @param noteType which type the note is
- * @param fields the note's fields, which decide what is possible at all
- * @param ladder the rungs from the deck's settings, in order
- * @returns the directions to create cards for, usually one
+ * @param repositories the repositories, already inside the transaction
+ * @param noteId the note just written
+ * @param deckId where it landed, for reading the ladder
+ * @param noteType which type it is
+ * @param fields its fields, which decide which directions are possible
+ * @returns the cards written
  */
-export function openingDirections(
+export async function createOpeningCards(
+  repositories: Repositories,
+  noteId: string,
+  deckId: string,
   noteType: NoteTypeName,
   fields: NoteFields,
-  ladder: readonly { readonly direction: CardDirection; readonly opensAtStability: number }[],
-): CardDirection[] {
-  const possible = new Set(templatesFor(noteType, fields).map((template) => template.direction));
-  const opening = ladder
-    .filter((rung) => rung.opensAtStability === 0 && possible.has(rung.direction))
-    .map((rung) => rung.direction);
+) {
+  const settings = await settingsForDeck(repositories, deckId);
 
-  if (opening.length > 0) {
-    return opening;
+  return writeCards(repositories, noteId, openingCards(noteType, fields, settings.ladder));
+}
+
+/**
+ * Writes a planned set of cards.
+ *
+ * @param repositories the repositories, already inside the transaction
+ * @param noteId which note they belong to
+ * @param planned what to write
+ * @returns the rows written
+ */
+export async function writeCards(
+  repositories: Repositories,
+  noteId: string,
+  planned: readonly PlannedCard[],
+) {
+  const now = new Date();
+
+  return repositories.cards.createMany(
+    planned.map((card) => ({
+      noteId,
+      direction: card.direction,
+      slot: card.slot,
+      due: now,
+      unlockedAt: now,
+    })),
+  );
+}
+
+/** What an edit would do to a note's cards, before anything is written. */
+export interface CardChange extends CardReconciliation {
+  /** The ids of the cards that would go. */
+  readonly removeIds: readonly string[];
+}
+
+/**
+ * Works out what an edit does to a note's cards.
+ *
+ * Reads the note's cards, asks the shared rules what should exist afterwards,
+ * and reports the difference. Nothing is written: the caller decides whether
+ * losing what this says would be lost is allowed.
+ *
+ * @param repositories the repositories, inside the transaction
+ * @param noteId which note
+ * @param deckId which deck it is in, for the ladder
+ * @param noteType the type it will have
+ * @param fields the fields it will have
+ * @param currentType the stored type before the edit
+ * @returns what to keep, remove and create, and how much history it costs
+ */
+export async function planCardChange(
+  repositories: Repositories,
+  noteId: string,
+  deckId: string,
+  noteType: NoteTypeName,
+  fields: NoteFields,
+  currentType: NoteTypeName,
+): Promise<CardChange> {
+  const [settings, existing] = await Promise.all([
+    settingsForDeck(repositories, deckId),
+    repositories.cards.forNote(noteId),
+  ]);
+
+  const reconciliation = reconcileCards(
+    existing.map((card) => ({
+      direction: card.direction as PlannedCard['direction'],
+      slot: card.slot,
+      reps: card.reps,
+    })),
+    noteType,
+    fields,
+    settings.ladder,
+    currentType,
+  );
+
+  const doomed = new Set(reconciliation.remove.map((card) => `${card.direction}:${card.slot}`));
+  const removeIds = existing
+    .filter((card) => doomed.has(`${card.direction}:${card.slot}`))
+    .map((card) => card.id);
+
+  return {
+    ...reconciliation,
+    removeIds,
+    // Reset cards have reps=0 but still own immutable review history.
+    reviewsLost: Math.max(
+      reconciliation.reviewsLost,
+      await repositories.reviews.countForCards(removeIds),
+    ),
+  };
+}
+
+/**
+ * Applies what `planCardChange` worked out.
+ *
+ * @param repositories the repositories, inside the transaction
+ * @param noteId which note
+ * @param change what to do
+ */
+export async function applyCardChange(
+  repositories: Repositories,
+  noteId: string,
+  change: CardChange,
+): Promise<void> {
+  if (change.removeIds.length > 0) {
+    await repositories.cards.softDeleteMany(change.removeIds);
   }
 
-  /**
-   * The ladder and the note type do not overlap.
-   *
-   * A cloze note produces one direction called `cloze`, and the default ladder
-   * talks about recognition and recall. Without this the note would be created
-   * with no cards at all, which looks exactly like the note not being created.
-   * The first thing the type can actually produce is the honest answer.
-   */
-  const first = templatesFor(noteType, fields)[0];
-
-  return first === undefined ? [] : [first.direction];
+  if (change.create.length > 0) {
+    await writeCards(repositories, noteId, change.create);
+  }
 }

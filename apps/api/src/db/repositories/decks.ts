@@ -5,6 +5,7 @@ import type { DeckSettings } from '@neuron/shared';
 
 import { decks } from '../schema/index.js';
 
+import { requireLiveDeck, softDeleteDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
 import type { Runner, Tx } from './session.js';
@@ -33,6 +34,8 @@ export interface DeckRepository {
   create: (input: CreateDeck) => Promise<DeckRow>;
   byId: (id: string) => Promise<DeckRow | undefined>;
   list: () => Promise<DeckRow[]>;
+  /** Soft-deleted decks only, for the recovery screen. */
+  listDeleted: () => Promise<DeckRow[]>;
   /** The deck itself and everything under it, at any depth. */
   subtree: (id: string) => Promise<DeckRow[]>;
   /** The deck and its ancestors, root first, for resolving settings. */
@@ -50,14 +53,7 @@ export interface DeckRepository {
   reorder: (parentId: string | null, order: readonly string[]) => Promise<DeckRow[]>;
   /** Marks the deck and everything under it. Nothing is removed. */
   softDelete: (id: string) => Promise<number>;
-  /**
-   * Takes back one delete.
-   *
-   * Only the rows that went at the same moment come back. A child deleted last
-   * week and then swept up again by deleting its parent today should stay
-   * deleted when the parent is restored, because the person deleted it on
-   * purpose and separately.
-   */
+  /** Restores one deck. Its parent must be live; descendants stay deleted. */
   restore: (id: string) => Promise<number>;
 }
 
@@ -167,6 +163,16 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
           .from(decks)
           .where(and(eq(decks.userId, userId), isNull(decks.deletedAt)))
           .orderBy(asc(decks.position), asc(decks.name)),
+      );
+    },
+
+    async listDeleted() {
+      return run(async (tx) =>
+        tx
+          .select()
+          .from(decks)
+          .where(and(eq(decks.userId, userId), sql`${decks.deletedAt} is not null`))
+          .orderBy(asc(decks.deletedAt), asc(decks.position), asc(decks.name)),
       );
     },
 
@@ -350,28 +356,15 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
     async softDelete(id) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
-        const now = new Date();
-
-        const marked = await tx
-          .update(decks)
-          .set({ deletedAt: now, updatedAt: now, rev })
-          .where(
-            and(
-              eq(decks.userId, userId),
-              isNull(decks.deletedAt),
-              sql`(${decks.id} = ${id} or ${decks.path} @> array[${id}]::uuid[])`,
-            ),
-          )
-          .returning({ id: decks.id });
-
-        return marked.length;
+        return softDeleteDeck(tx, userId, id, rev, new Date());
       });
     },
 
     async restore(id) {
       return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
         const [deck] = await tx
-          .select({ deletedAt: decks.deletedAt })
+          .select({ deletedAt: decks.deletedAt, parentId: decks.parentId })
           .from(decks)
           .where(and(eq(decks.userId, userId), eq(decks.id, id)))
           .limit(1);
@@ -384,18 +377,12 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
           return 0;
         }
 
-        const rev = await nextRev(tx, userId);
+        if (deck.parentId !== null) await requireLiveDeck(tx, userId, deck.parentId);
 
         const restored = await tx
           .update(decks)
           .set({ deletedAt: null, updatedAt: new Date(), rev })
-          .where(
-            and(
-              eq(decks.userId, userId),
-              eq(decks.deletedAt, deck.deletedAt),
-              sql`(${decks.id} = ${id} or ${decks.path} @> array[${id}]::uuid[])`,
-            ),
-          )
+          .where(and(eq(decks.userId, userId), eq(decks.id, id)))
           .returning({ id: decks.id });
 
         return restored.length;

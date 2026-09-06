@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 import { noteStatusSchema, noteTypeSchema } from '../note-types.js';
 
-import { cursorSchema, idSchema, limitSchema, tagSchema } from './common.js';
+import { cardStateSchema } from './cards.js';
+import { cursorSchema, idSchema, tagSchema } from './common.js';
 
 /**
  * Notes: the facts, and the ways of asking for them.
@@ -12,6 +13,15 @@ import { cursorSchema, idSchema, limitSchema, tagSchema } from './common.js';
  * type the note claims to be, and that check cannot be expressed in the same
  * object as the type name it depends on.
  */
+
+export const cardStateCountsSchema = z.object({
+  new: z.number().int().nonnegative(),
+  learning: z.number().int().nonnegative(),
+  review: z.number().int().nonnegative(),
+  relearning: z.number().int().nonnegative(),
+});
+
+export type CardStateCounts = z.infer<typeof cardStateCountsSchema>;
 
 export const noteSchema = z.object({
   id: idSchema,
@@ -26,9 +36,50 @@ export const noteSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   rev: z.number().int(),
+  /** Present on bounded browse pages, never a per-row card request. */
+  cardStates: cardStateCountsSchema.optional(),
 });
 
 export type Note = z.infer<typeof noteSchema>;
+
+/** A soft-deleted note with the original deck chain needed for recovery. */
+export const deletedNoteSchema = noteSchema.extend({
+  /** Original deck chain, root first and including the note's deck. */
+  deckPath: z.array(z.string()),
+  /** A note cannot return until every deck in that chain is live. */
+  deckLive: z.boolean(),
+});
+
+export type DeletedNote = z.infer<typeof deletedNoteSchema>;
+
+export const deletedNoteListSchema = z.object({ notes: z.array(deletedNoteSchema) });
+
+/**
+ * How a list of notes is ordered.
+ *
+ * `created` is the order they arrived in, which for an import is the order of
+ * the file and therefore usually the order of the lesson. `alpha` is by the
+ * word itself. `rank` is by frequency, so an unfinished list of five thousand
+ * still teaches the most useful eight hundred rather than a random eight
+ * hundred.
+ */
+export const NOTE_SORTS = ['created', 'alpha', 'rank'] as const;
+
+export const noteSortSchema = z.enum(NOTE_SORTS);
+
+export type NoteSort = z.infer<typeof noteSortSchema>;
+
+/**
+ * How many notes one page may hold.
+ *
+ * Higher than everything else in the api, and deliberately. A deck of five
+ * thousand words at two hundred a page is twenty five round trips before the
+ * list is complete, which on a cold function is most of a minute. The rows are
+ * small, so the larger page is cheaper than the latency it removes.
+ */
+export const MAX_NOTE_PAGE_SIZE = 1000;
+
+export const noteLimitSchema = z.coerce.number().int().min(1).max(MAX_NOTE_PAGE_SIZE);
 
 export const listNotesSchema = z.strictObject({
   deckId: idSchema.optional(),
@@ -39,9 +90,14 @@ export const listNotesSchema = z.strictObject({
     .transform((value) => value === 'true'),
   status: noteStatusSchema.optional(),
   tag: tagSchema.optional(),
-  /** Matches against the note's fields, case insensitively. */
+  /** Where the notes came from, as it was recorded on the import. */
+  source: z.string().trim().min(1).max(200).optional(),
+  /** Notes that have at least one card in this state. */
+  cardState: cardStateSchema.optional(),
+  /** Matches the term, the translation and the tags, case insensitively. */
   search: z.string().trim().min(1).max(100).optional(),
-  limit: limitSchema.optional(),
+  sort: noteSortSchema.default('created'),
+  limit: noteLimitSchema.optional(),
   cursor: cursorSchema.optional(),
 });
 
@@ -60,11 +116,36 @@ export const createNoteSchema = z.strictObject({
 export const updateNoteSchema = z
   .strictObject({
     fields: z.record(z.string(), z.unknown()).optional(),
+    /** Fill blanks on the same note type, without changing metadata or removing cards. */
+    merge: z.literal(true).optional(),
     tags: z.array(tagSchema).max(50).optional(),
     status: noteStatusSchema.optional(),
     deckId: idSchema.optional(),
+    /**
+     * Changing the type, which is the one edit that can destroy a card.
+     *
+     * A word turned into a cloze sentence can no longer be asked the way it was
+     * being asked, so its cards go and their schedules go with them. Everything
+     * else about an edit keeps every card it had.
+     */
+    noteType: noteTypeSchema.optional(),
+    /**
+     * Permission to remove cards that have been answered.
+     *
+     * Without it the api refuses an edit that would throw away review history,
+     * which makes the confirmation a rule rather than a habit of one screen.
+     */
+    discardCards: z.boolean().optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'needs something to change');
+  .refine((value) => Object.keys(value).length > 0, 'needs something to change')
+  .refine(
+    (value) =>
+      value.merge !== true ||
+      (value.fields !== undefined &&
+        value.noteType !== undefined &&
+        Object.keys(value).every((key) => ['merge', 'fields', 'noteType'].includes(key))),
+    'merge needs fields and the same note type, without metadata changes',
+  );
 
 /**
  * Changing the status of many notes at once.
@@ -74,12 +155,54 @@ export const updateNoteSchema = z
  * spinner. Capped, because an unbounded batch is a way to hold a transaction
  * open for as long as somebody likes.
  */
+/** How many notes one bulk request may name. */
+export const BULK_LIMIT = 500;
+
+const bulkIds = z.array(idSchema).min(1).max(BULK_LIMIT);
+
 export const bulkStatusSchema = z.strictObject({
-  ids: z.array(idSchema).min(1).max(500),
+  ids: bulkIds,
   status: noteStatusSchema,
 });
+
+/** Moving a selection into another deck, cards and all. */
+export const bulkMoveSchema = z.strictObject({
+  ids: bulkIds,
+  deckId: idSchema,
+});
+
+/**
+ * Adding and removing tags across a selection.
+ *
+ * Both at once, because "replace one tag with another" is one action to the
+ * person doing it and two requests is how it becomes half done.
+ */
+export const bulkTagsSchema = z
+  .strictObject({
+    ids: bulkIds,
+    add: z.array(tagSchema).max(20).optional(),
+    remove: z.array(tagSchema).max(20).optional(),
+  })
+  .refine(
+    (value) => (value.add?.length ?? 0) + (value.remove?.length ?? 0) > 0,
+    'needs a tag to add or remove',
+  );
+
+export const bulkDeleteSchema = z.strictObject({ ids: bulkIds });
+
+/** Deleted cards without proven parent-note deletion stay deleted. Reviews are unchanged. */
+export const restoreNoteResultSchema = z.object({
+  restored: z.boolean(),
+  cardsRestored: z.number().int().min(0),
+  cardsRemainingDeleted: z.number().int().min(0),
+});
+
+export type RestoreNoteResult = z.infer<typeof restoreNoteResultSchema>;
 
 export type CreateNoteBody = z.infer<typeof createNoteSchema>;
 export type UpdateNoteBody = z.infer<typeof updateNoteSchema>;
 export type ListNotesQuery = z.infer<typeof listNotesSchema>;
 export type BulkStatusBody = z.infer<typeof bulkStatusSchema>;
+export type BulkMoveBody = z.infer<typeof bulkMoveSchema>;
+export type BulkTagsBody = z.infer<typeof bulkTagsSchema>;
+export type BulkDeleteBody = z.infer<typeof bulkDeleteSchema>;

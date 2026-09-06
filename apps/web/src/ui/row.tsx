@@ -1,6 +1,6 @@
 import { ChevronRight } from 'lucide-react';
 
-import type { ReactNode } from 'react';
+import type { DragEvent, ReactNode } from 'react';
 
 /**
  * The rows.
@@ -27,6 +27,14 @@ interface RowShape {
   readonly disabled?: boolean;
   readonly expanded?: boolean | undefined;
   readonly className?: string;
+  /**
+   * Only on a pointer device, and never as the only way to do something.
+   *
+   * Dragging on a touch screen fights with scrolling and misfires, so what
+   * these are for is the mouse, and the menu on the row is what everybody gets.
+   */
+  readonly draggable?: boolean;
+  readonly onDragStart?: (event: DragEvent<HTMLElement>) => void;
 }
 
 function body({ title, subtitle, trailing, leading }: RowShape) {
@@ -47,7 +55,15 @@ function body({ title, subtitle, trailing, leading }: RowShape) {
 }
 
 export function Row(props: RowShape) {
-  const { standalone = true, onClick, disabled = false, expanded, className = '' } = props;
+  const {
+    standalone = true,
+    onClick,
+    disabled = false,
+    expanded,
+    className = '',
+    draggable,
+    onDragStart,
+  } = props;
 
   const shell = [
     'flex w-full min-h-44 items-center gap-12 px-16 py-12 text-left',
@@ -59,9 +75,14 @@ export function Row(props: RowShape) {
     .filter(Boolean)
     .join(' ');
 
+  const drag = {
+    ...(draggable === undefined ? {} : { draggable }),
+    ...(onDragStart === undefined ? {} : { onDragStart }),
+  };
+
   if (!onClick) {
     return (
-      <div {...(standalone ? { 'data-g': 'row' } : {})} className={shell}>
+      <div {...(standalone ? { 'data-g': 'row' } : {})} {...drag} className={shell}>
         {body(props)}
       </div>
     );
@@ -72,6 +93,7 @@ export function Row(props: RowShape) {
       type="button"
       data-row=""
       {...(standalone ? { 'data-g': 'row' } : {})}
+      {...drag}
       disabled={disabled}
       aria-expanded={expanded}
       onClick={onClick}

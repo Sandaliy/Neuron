@@ -1,7 +1,13 @@
-import { and, asc, eq, gt, isNull } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull, or, sql } from 'drizzle-orm';
 
 import { parseNoteFields, uuidV7 } from '@neuron/shared';
-import type { NoteFields, NoteStatus, NoteTypeName, SyncEntity } from '@neuron/shared';
+import type {
+  NoteFields,
+  NoteStatus,
+  NoteTypeName,
+  SyncEntity,
+  RestoreNoteResult,
+} from '@neuron/shared';
 
 import {
   cards,
@@ -15,7 +21,9 @@ import {
   user,
 } from '../schema/index.js';
 
+import { DeckCycle } from './decks.js';
 import { UnknownNoteType } from './notes.js';
+import { requireLiveDeck, restoreNote, RestoreDependency, softDeleteDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
 import type { Runner, Tx } from './session.js';
@@ -78,6 +86,7 @@ export interface PushResult {
   readonly conflicts: ConflictedChange[];
   readonly clamped: string[];
   readonly revision: number;
+  readonly noteRestorations: (RestoreNoteResult & { id: string })[];
 }
 
 export interface SyncRepository {
@@ -300,13 +309,17 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
         const applied: { entity: SyncEntity; id: string }[] = [];
         const conflicts: ConflictedChange[] = [];
         const clamped: string[] = [];
+        const noteRestorations: (RestoreNoteResult & { id: string })[] = [];
         const ceiling = new Date(now.getTime() + MAX_CLOCK_SKEW_MS);
 
-        for (const entity of APPLY_ORDER) {
+        // Explicit card removals remain independent even when their note is deleted in this batch.
+        for (const phase of ['cardDeletions', ...APPLY_ORDER] as const) {
+          const entity = phase === 'cardDeletions' ? 'cards' : phase;
           for (const change of changes) {
             if (change.entity !== entity) {
               continue;
             }
+            if (entity === 'cards' && change.deleted !== (phase === 'cardDeletions')) continue;
 
             // A clock ahead of ours is pulled back rather than believed. A
             // device a year fast would otherwise win every conflict it took
@@ -356,6 +369,38 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
               continue;
             }
 
+            if (existing?.['deletedAt'] instanceof Date) {
+              if (entity === 'cards') {
+                // A stale card edit must not resurrect a removed semantic test.
+                await recordConflict(tx, change, existing, 'deleted_remotely');
+                conflicts.push({
+                  entity,
+                  id: change.id,
+                  reason: 'deleted_remotely',
+                  keptRev: Number(existing['rev']),
+                });
+                continue;
+              }
+              if (entity === 'notes') {
+                noteRestorations.push({
+                  id: change.id,
+                  ...(await restoreNote(tx, userId, change.id, rev, updatedAt)),
+                });
+                applied.push({ entity, id: change.id });
+                continue;
+              }
+              if (entity === 'decks') {
+                const parentId = existing['parentId'] as string | null;
+                if (parentId !== null) await requireLiveDeck(tx, userId, parentId);
+                await tx
+                  .update(decks)
+                  .set({ deletedAt: null, updatedAt, rev })
+                  .where(and(eq(decks.userId, userId), eq(decks.id, change.id)));
+                applied.push({ entity, id: change.id });
+                continue;
+              }
+            }
+
             await writeRow({
               tx,
               userId,
@@ -372,7 +417,7 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
           }
         }
 
-        return { applied, conflicts, clamped, revision: rev };
+        return { applied, conflicts, clamped, revision: rev, noteRestorations };
       });
     },
   };
@@ -415,30 +460,40 @@ async function softDeleteRow(
 
   switch (entity) {
     case 'decks':
-      await tx
-        .update(decks)
-        .set(marked)
-        .where(and(eq(decks.userId, userId), eq(decks.id, id)));
+      await softDeleteDeck(tx, userId, id, rev, at);
 
       return;
 
-    case 'notes':
-      await tx
+    case 'notes': {
+      const deleted = await tx
         .update(notes)
         .set(marked)
-        .where(and(eq(notes.userId, userId), eq(notes.id, id)));
-      await tx
-        .update(cards)
-        .set(marked)
-        .where(and(eq(cards.userId, userId), eq(cards.noteId, id)));
+        .where(and(eq(notes.userId, userId), eq(notes.id, id), isNull(notes.deletedAt)))
+        .returning({ id: notes.id });
+      if (deleted.length > 0)
+        await tx
+          .update(cards)
+          .set({ ...marked, deletedWithNote: true })
+          .where(and(eq(cards.userId, userId), eq(cards.noteId, id), isNull(cards.deletedAt)));
 
       return;
+    }
 
     case 'cards':
       await tx
         .update(cards)
-        .set(marked)
-        .where(and(eq(cards.userId, userId), eq(cards.id, id)));
+        .set({
+          ...marked,
+          deletedAt: sql`coalesce(${cards.deletedAt}, ${at})`,
+          deletedWithNote: false,
+        })
+        .where(
+          and(
+            eq(cards.userId, userId),
+            eq(cards.id, id),
+            or(isNull(cards.deletedAt), eq(cards.deletedWithNote, true)),
+          ),
+        );
 
       return;
 
@@ -488,14 +543,33 @@ async function writeRow(input: WriteRow): Promise<void> {
   switch (input.entity) {
     case 'decks': {
       const payload = input.data as DeckPayload;
+      const parentId = (payload.parentId as string | null | undefined) ?? null;
+      let path: string[] = [];
+      if (parentId !== null) {
+        path = await requireLiveDeck(input.tx, userId, parentId);
+        if (parentId === id || path.includes(id) || path.length > 8) throw new DeckCycle();
+      }
       const columns = {
         name: String(payload.name ?? '').trim(),
-        parentId: (payload.parentId as string | null | undefined) ?? null,
+        parentId,
+        path,
         settings: (payload.settings as never) ?? null,
         ...(payload.position === undefined ? {} : { position: Number(payload.position) }),
       };
 
       if (exists) {
+        // Keep descendants' materialized paths consistent with a live parent's move.
+        await input.tx
+          .update(decks)
+          .set({
+            path: sql`array[${sql.join(
+              [...path, id].map((ancestor) => sql`${ancestor}`),
+              sql`, `,
+            )}]::uuid[] || ${decks.path}[(array_position(${decks.path}, ${id}::uuid) + 1):]`,
+            updatedAt,
+            rev,
+          })
+          .where(and(eq(decks.userId, userId), sql`${decks.path} @> array[${id}]::uuid[]`));
         await input.tx
           .update(decks)
           .set({ ...columns, ...base })
@@ -504,16 +578,14 @@ async function writeRow(input: WriteRow): Promise<void> {
         return;
       }
 
-      // The path is left empty and the deck sits at the root of whatever it
-      // claims as a parent until the next move rewrites it. Working it out here
-      // would mean reading the parent that may be later in the same batch.
-      await input.tx.insert(decks).values({ ...columns, id, userId, path: [], updatedAt, rev });
+      await input.tx.insert(decks).values({ ...columns, id, userId, updatedAt, rev });
 
       return;
     }
 
     case 'notes': {
       const payload = input.data as NotePayload;
+      await requireLiveDeck(input.tx, userId, payload.deckId as string);
       const type = payload.noteType as NoteTypeName;
       const columns = {
         deckId: payload.deckId as string,
@@ -546,11 +618,20 @@ async function writeRow(input: WriteRow): Promise<void> {
       // endpoint recomputes rather than believes: a client that could push a
       // stability would not need to forge a review at all.
       const suspendedAt = input.data['suspendedAt'];
+      const [parent] = await input.tx
+        .select({ deletedAt: notes.deletedAt, deckId: notes.deckId })
+        .from(cards)
+        .innerJoin(notes, and(eq(notes.id, cards.noteId), eq(notes.userId, userId)))
+        .where(and(eq(cards.userId, userId), eq(cards.id, id)))
+        .limit(1);
+      if (!parent || parent.deletedAt !== null) throw new RestoreDependency();
+      await requireLiveDeck(input.tx, userId, parent.deckId);
 
       await input.tx
         .update(cards)
         .set({
           suspendedAt: suspendedAt instanceof Date ? suspendedAt : null,
+          deletedWithNote: false,
           ...base,
         })
         .where(and(eq(cards.userId, userId), eq(cards.id, id)));

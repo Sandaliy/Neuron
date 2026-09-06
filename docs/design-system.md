@@ -3,16 +3,18 @@
 What the interface is made of, and the rules that keep a screen added in phase 9 looking like a screen
 added in phase 5.
 
-The gallery at `/dev/components` is the drawn version of this file. Read them together: this one says
-why, the gallery says what it looks like, and the screenshot tests say whether either has changed.
+The gallery at `/dev/components` is the drawn version of this file. This document defines the reusable
+visual system; the gallery and screenshot tests show and guard its implementation.
 
-**The system is written down in three places, and all three move together.** This file, the mockup at
-`Design systems/neuron-visual-system new.html`, and the code. The mockup is the reference the visual
-design was approved from, and it is what a later change is judged against, so a change that lands in
-the code and not in the mockup makes the reference wrong. At the end of any piece of work that changes
-how something looks, update all three: the component, this file and `docs/copy-audit.md` if the words
-moved, and the mockup. `Design systems/neuron-visual-system current.html` is the version that was
-approved before the phone passes and is kept as history; it is not edited again.
+The design system and approved mockup describe reusable and global visual contracts. Product code should
+follow them. When a reusable component contract or approved global visual pattern materially changes,
+update the implementation, this document, the current approved mockup, and relevant visual tests together.
+
+Ordinary screen-level composition, placement, spacing, or copy adjustments that stay within existing
+design-system rules do not require updating this document or the approved mockup. If user-visible copy
+changes, update the i18n catalogues and regenerate `docs/copy-audit.md` when required.
+
+`Design systems/neuron-visual-system current.html` remains historical and is not edited.
 
 Direction: restrained technical minimalism, dark by default, mobile first. One accent, one signal hue,
 two font weights, and depth that comes from the layer a thing sits on rather than from shading every
@@ -177,8 +179,8 @@ screen gets a skeleton.
 One implementation, four ingredients: a translucent tint, a backdrop blur, a hairline border, and light
 gathering at the edge. Glass says one thing, that this surface is above the content.
 
-**Nothing in the content flow is ever glass.** Cards, list rows, fields and the study card are opaque,
-always. Only bars, the tab bar, sheets, toasts and panels carry it.
+**Content-flow surfaces are opaque under the default `floating` scope.** Cards and list rows receive glass
+only when the user explicitly selects the `all` scope; fields and the study card remain opaque.
 
 **Never stack two blurred layers.** A glass element inside glass drops its blur and takes an opaque
 nested tint. The rule is enforced in `global.css`, not left to discipline.
@@ -542,5 +544,5 @@ motion checks, and the frame rate budget. It starts the dev server itself.
 
 Baselines carry the platform in their name, because the interface face is the platform's own: the same
 page is set in SF Pro on a Mac and Segoe UI on Windows, and neither is wrong. The committed baselines
-are `win32`. That is also why the suite is not in CI, where the runner is Linux and has neither face. A
-baseline is updated deliberately with `test:screens:update`, and the diff is the review.
+are `win32`. The browser job therefore runs on a Windows CI runner, while the other checks run on Linux.
+A baseline is updated deliberately with `test:screens:update`, and the diff is the review.

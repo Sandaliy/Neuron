@@ -4,7 +4,8 @@ Written as the parts are built.
 
 ## The data model
 
-Twelve tables. Four belong to Better Auth and are not ours to shape. The rest are the collection.
+Sixteen tables. Seven hold authentication and registration state, seven are user-owned collection
+tables, and two hold shared note types and rate-limit counters.
 
 ### A note is not a card
 
@@ -107,8 +108,8 @@ identity into the next request.
 
 ### Two, in the database
 
-Row level security is enabled and forced on `decks`, `notes`, `cards`, `reviews`, `study_presets` and
-`import_batches`. The policy is the same on each:
+Row level security is enabled and forced on `decks`, `notes`, `cards`, `reviews`, `study_presets`,
+`import_batches` and `sync_conflicts`. The policy is the same on each:
 
 ```sql
 using       (user_id = current_setting('app.user_id', true))
@@ -198,6 +199,43 @@ standing between application code and the review log, which is one barrier where
 has two. Now the flag is necessary and not sufficient: the deleting role also has to own the table.
 `neuron_app` fails that test whatever it sets and whatever grant it somehow acquires, and a test says so.
 
+## Soft deletion and restoration
+
+Deck deletion marks the selected deck and its live descendant decks. It does not delete notes or cards.
+Both repository and sync deletion follow parent links, including legacy rows with incomplete paths.
+Deck restore changes only the selected row. The original parent chain must be live, so deleted
+hierarchies are restored parent-first. Descendants stay deleted, and restore never changes parent or path.
+
+Cards carry `deleted_with_note`, a server-owned boolean that defaults to false. Normal and bulk note
+deletion, import undo and sync note deletion set it only on cards that were live when their note was
+deleted. Already-deleted cards keep every field unchanged. Independent card deletion, card reconciliation
+and type conversion leave this flag false. Account collection deletion remains a separate lifecycle.
+Migration 0011 adds the column and a constraint requiring a flagged card to be deleted. It performs no
+historical attribution: existing deleted cards retain unknown provenance through the false default.
+
+Note restore requires the original deck and its ancestors to be live. It restores the existing note and
+only cards explicitly flagged as deleted with that note. Restored cards clear the flag. Independently
+deleted and historical ambiguous cards stay deleted, even if all the note's cards are in that state.
+No replacement cards are created. Card IDs, schedules, suspension/reset boundaries and immutable reviews
+are preserved. Note/card restoration and its revision changes commit or roll back together under the
+user's write lock and RLS context.
+
+`POST /notes/:id/restore` returns `restored`, `cardsRestored` and `cardsRemainingDeleted`. The remaining
+count includes independent and unknown card deletions; it does not claim they can be safely recovered.
+Retries of an already-live note return `restored: false`, zero newly restored cards and the current
+remaining count. Dependency failures use `restore_dependency` (409).
+
+Sync restores deleted notes through the same helper and reports `noteRestorations` with those counts.
+Restore transitions preserve saved metadata and hierarchy; a client must pull before sending subsequent
+edits. Sync deck restoration is also one row at a time. Updates to tombstoned cards conflict as
+`deleted_remotely`, preventing stale edits from reviving removed semantic tests. Explicit card removals
+in a sync batch are processed before parent-note deletions, so they retain independent provenance.
+Sync checks live parents for creation and updates, maintains deck paths, and rejects invalid parent
+dependencies atomically. Clients cannot propose the provenance flag and it is omitted from sync responses.
+
+Neither `deleted_at` nor `rev` identifies a logical deletion. Independent events can share a timestamp
+or a sync batch revision. These fields remain timestamps and synchronization revisions, respectively.
+
 ## The version counter
 
 `user.current_rev` is a per user counter. Every write takes the next number and stamps it on the rows it
@@ -215,9 +253,9 @@ two of them.
 Every table that takes part in sync has an index on `(user_id, rev)`, `reviews` included since phase 4.
 
 `GET /sync?since=` is one ordered read across all of them, merged by revision. A page always ends on a
-revision boundary and never inside one, because a single transaction takes one number and can write
-several rows under it: cutting between two of those would leave a client holding half a transaction and
-believing it had all of it. A transaction larger than the page is therefore sent whole rather than split.
+revision boundary, because an operation can write several rows under one number. A revision larger than
+the page is sent whole rather than split. A sync push shares one revision across its entity changes;
+separate repository writes inside an outer transaction still allocate their own revisions.
 
 ## The index decision, measured
 
@@ -317,6 +355,33 @@ hold when the first barrier has a bug in it, and testing it through the code it 
 independent of would prove nothing.
 
 ## The api
+
+### Note-type conversion
+
+`PATCH /notes/:id` converts a built-in note type only with fields valid for the target schema.
+The editor prepares an empty target draft without autosave or field mappings and requires explicit Apply.
+Unfinished same-type edits must finish saving first. Cancellation changes no stored data.
+
+The shared planner matches direction and slot only within the same note type. Cross-type conversion
+soft-deletes all old cards and creates the target's opening cards with new IDs and fresh schedules,
+even when direction and slot coincide. Same-type edits retain surviving cards and their schedules.
+Removing answered cards requires `discardCards: true`, including history before a card reset. The server
+counts immutable review rows, not only the current `reps` value. Note type/fields,
+card reconciliation and revision changes share one user-bound transaction. Unspecified note metadata
+is retained. A failed conversion leaves no partial writes; the editor retains its draft for retry.
+
+### Import duplicate updates
+
+`PATCH /notes/:id` accepts `merge: true` with fields and the same note type, but no metadata changes.
+The server checks that the normalized term has exactly one live same-type match and that it is the
+requested note. Other note types are not targets. A merge fills only schema-defined blanks and missing
+grammar leaves. Note updates take the user's revision-counter lock before reading current fields, so
+concurrent additions cannot overwrite populated values. The normal shared card reconciliation path is
+used, with any card removal refused for merge. Identical retries do not rewrite the note.
+
+Import row IDs and decisions are retained for one in-page attempt, including Resume. Batch undo
+soft-deletes only batch-created notes and cards. Merged additions to older notes stay; reviews are
+immutable. There is no snapshot rollback or persisted reload-resume mechanism.
 
 ### One error shape
 
@@ -421,11 +486,18 @@ have to start being written now, because a conflict that was not recorded at the
 afterwards.
 
 **The browser app is the product surface.** `apps/web` now contains the React application, its shell,
-authentication and recovery flows, read-only library, Today screen, settings, and the component
-gallery. Vercel rewrites `/api/*` to the Hono deployment so session cookies stay on one browser origin.
-Production uses the production api. A preview derives the matching api branch URL from Vercel's
-generated web branch URL and refuses to build if that mapping is unavailable. The old `/spike` page
-remains deleted.
+authentication and recovery flows, writable library, note editor and browse screens, import flow, Today
+screen, settings, and the component gallery. The Phase 6 note and import screens are still unpublished.
+The defined note-list performance budget is verified, while full browser coverage remains incomplete.
+Vercel rewrites `/api/*` to the
+Hono deployment so session cookies stay on one browser origin. Production uses the production api. A
+preview derives the matching api branch URL from Vercel's generated web branch URL and refuses to build if
+that mapping is unavailable. The old `/spike` page remains deleted.
+
+**The PWA shell is not offline yet.** The web app has a manifest, install icons and standalone display
+metadata. It does not have a service worker, an IndexedDB collection, an offline mutation queue or client
+sync orchestration. The deterministic core and server sync endpoints are foundations for that later work,
+not proof that the current browser app works without a network.
 
 **Preview data is separate and empty.** The long-lived Neon `preview` branch is schema-only, and its
 `neuron_preview` database contains no production rows. Its application role, authentication role, and

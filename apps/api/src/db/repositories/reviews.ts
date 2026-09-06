@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull } from 'drizzle-orm';
+import { and, asc, count, eq, gte, inArray, isNull } from 'drizzle-orm';
 
 import { createSchedulerConfig, createSeededRandom, replay, review } from '@neuron/core';
 import type {
@@ -73,6 +73,8 @@ export interface ReviewRepository {
   record: (input: RecordReview) => Promise<RecordedReview>;
   /** Every answer for one card that still counts, oldest first. */
   forCard: (cardId: string) => Promise<ReviewLog[]>;
+  /** All historical answers, including those before a card reset. */
+  countForCards: (cardIds: readonly string[]) => Promise<number>;
   /** Rebuilds a card's state from its log, without writing anything. */
   rebuild: (cardId: string) => Promise<SchedulingState>;
   /** Appends entries whose scheduling was already decided elsewhere. */
@@ -258,6 +260,17 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
 
     async forCard(cardId) {
       return run(async (tx) => (await logFor(tx, userId, cardId)).map(toReviewLog));
+    },
+
+    async countForCards(cardIds) {
+      if (cardIds.length === 0) return 0;
+      return run(async (tx) => {
+        const [row] = await tx
+          .select({ total: count() })
+          .from(reviews)
+          .where(and(eq(reviews.userId, userId), inArray(reviews.cardId, [...cardIds])));
+        return row?.total ?? 0;
+      });
     },
 
     async rebuild(cardId) {

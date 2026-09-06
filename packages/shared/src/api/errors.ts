@@ -33,6 +33,8 @@ export const API_ERROR_CODES = [
   'name_taken',
   /** A deck was asked to be moved inside itself. */
   'deck_cycle',
+  /** The original parent deck or note must be restored first. */
+  'restore_dependency',
   /** The note type named on a write does not exist. */
   'unknown_note_type',
   /** The fields do not match the note type they claim to be. */
@@ -67,6 +69,8 @@ export const API_ERROR_CODES = [
   'invalid_token',
   /** A card cannot take another direction, or the direction is already there. */
   'direction_unavailable',
+  /** The edit would remove cards that have been answered, and nobody agreed. */
+  'cards_would_be_lost',
   /** A sync batch was rejected as a whole. */
   'sync_rejected',
   /** The database did not answer. */
@@ -91,6 +95,9 @@ export const apiErrorDetailsSchema = z.object({
   fields: z.array(z.strictObject({ path: z.string(), code: z.string() })).optional(),
   /** How long to wait, for a rate limited request. */
   retryAfterSeconds: z.number().int().min(0).optional(),
+  /** How many cards an edit would remove, and how many answers with them. */
+  cards: z.number().int().min(0).optional(),
+  reviews: z.number().int().min(0).optional(),
 });
 
 export const apiErrorSchema = z.object({
@@ -113,6 +120,7 @@ export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
   invalid_request: 400,
   name_taken: 409,
   deck_cycle: 409,
+  restore_dependency: 409,
   unknown_note_type: 400,
   invalid_note_fields: 400,
   rate_limited: 429,
@@ -132,6 +140,7 @@ export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
   two_factor_unavailable: 409,
   invalid_token: 400,
   direction_unavailable: 409,
+  cards_would_be_lost: 409,
   sync_rejected: 409,
   service_unavailable: 503,
   internal_error: 500,

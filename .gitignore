@@ -35,7 +35,6 @@ blob-report/
 CLAUDE.md
 .agents/
 .codex/
-AGENTS.md
 
 # Deployment platforms
 .wrangler/

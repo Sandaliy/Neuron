@@ -1,3 +1,5 @@
+import type { PartOfSpeech } from '@neuron/shared';
+
 /**
  * The words the seed puts in the database.
  *
@@ -18,7 +20,7 @@ export interface GermanWord {
   readonly article?: string;
   readonly plural?: string;
   readonly translation: string;
-  readonly partOfSpeech: string;
+  readonly partOfSpeech: PartOfSpeech;
   readonly example?: string;
 }
 
@@ -26,7 +28,7 @@ export interface EnglishWord {
   readonly term: string;
   readonly translation: string;
   readonly rank: number;
-  readonly partOfSpeech: string;
+  readonly partOfSpeech: PartOfSpeech;
 }
 
 /** Lesson 1: nouns from the first half of a B2 textbook chapter. */

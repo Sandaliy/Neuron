@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 import { CARD_DIRECTIONS, DAYS_PER_WEEK, type CardDirection } from '@neuron/core';
 
+import { cefrLevelSchema, languageCodeSchema } from './languages.js';
+
+import type { CefrLevel, LanguageCode } from './languages.js';
+
 /**
  * Settings on a deck, and how a deck inherits them from its parent.
  *
@@ -56,6 +60,18 @@ export const deckSettingsSchema = z.strictObject({
   maximumNewCardsPerDay: z.number().int().min(0).max(9999).optional(),
   targetRetention: z.number().min(0.7).max(0.98).optional(),
   studyPresetId: z.uuid().optional(),
+
+  /**
+   * What the deck is about, which the editor and the importer both need.
+   *
+   * The language decides which grammar fields a word is asked for, and all
+   * three are substituted into the card generation prompt. They inherit like
+   * everything else here, so "German" is set once on the folder and every
+   * lesson inside it is German.
+   */
+  targetLanguage: languageCodeSchema.optional(),
+  nativeLanguage: languageCodeSchema.optional(),
+  level: cefrLevelSchema.optional(),
 });
 
 export type DeckSettings = z.infer<typeof deckSettingsSchema>;
@@ -78,10 +94,24 @@ export interface ResolvedDeckSettings {
   readonly targetRetention: number;
   /** The one field with no sensible default: a deck may simply have no preset. */
   readonly studyPresetId?: string;
+  /**
+   * The three that cannot be guessed.
+   *
+   * A language has no sensible default: assuming German would fill a Spanish
+   * deck's prompt with the wrong word and produce five thousand wrong cards
+   * before anybody noticed. So they stay absent until somebody says, and the
+   * screens that need them say what is missing and where to set it.
+   */
+  readonly targetLanguage?: LanguageCode;
+  readonly nativeLanguage?: LanguageCode;
+  readonly level?: CefrLevel;
 }
 
 /** What a deck falls back to when nothing above it has an opinion. */
-export const DEFAULT_DECK_SETTINGS: Omit<ResolvedDeckSettings, 'studyPresetId'> = {
+export const DEFAULT_DECK_SETTINGS: Omit<
+  ResolvedDeckSettings,
+  'studyPresetId' | 'targetLanguage' | 'nativeLanguage' | 'level'
+> = {
   budgetMinutes: [30, 15, 15, 15, 15, 15, 30],
   allowCarryOver: true,
   ladder: [

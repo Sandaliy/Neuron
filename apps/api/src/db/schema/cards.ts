@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   doublePrecision,
   index,
@@ -57,6 +58,15 @@ export const cards = pgTable(
       .notNull()
       .references(() => decks.id, { onDelete: 'cascade' }),
     direction: text('direction').notNull(),
+    /**
+     * Which gap this card hides, on a cloze note. Zero everywhere else.
+     *
+     * A sentence with three gaps is three cards, and all three are in the
+     * `cloze` direction, so the direction on its own cannot tell them apart.
+     * Every other type has exactly one card per direction and leaves this at
+     * zero.
+     */
+    slot: integer('slot').notNull().default(0),
     state: text('state').notNull().default('new'),
     /** Days until recall drops to the target. Null until first answered. */
     stability: doublePrecision('stability'),
@@ -99,10 +109,12 @@ export const cards = pgTable(
      * being true the first time anyone pressed reset.
      */
     resetAt: instant('reset_at'),
+    /** True only when a live card was deleted by its parent note's deletion. */
+    deletedWithNote: boolean('deleted_with_note').notNull().default(false),
   },
   (table) => [
     uniqueIndex('cards_note_direction_key')
-      .on(table.noteId, table.direction)
+      .on(table.noteId, table.direction, table.slot)
       .where(sql`${table.deletedAt} is null`),
     /**
      * The query the application runs on every open: what is due now.
@@ -143,9 +155,14 @@ export const cards = pgTable(
     ),
     check('cards_stability_positive', sql`${table.stability} is null or ${table.stability} > 0`),
     check('cards_reps_not_negative', sql`${table.reps} >= 0`),
+    check('cards_slot_not_negative', sql`${table.slot} >= 0`),
     check('cards_lapses_not_negative', sql`${table.lapses} >= 0`),
     check('cards_lapses_within_reps', sql`${table.lapses} <= ${table.reps}`),
     check('cards_learning_step_not_negative', sql`${table.learningStep} >= 0`),
     check('cards_rev_not_negative', sql`${table.rev} >= 0`),
+    check(
+      'cards_note_deletion_requires_deleted',
+      sql`not ${table.deletedWithNote} or ${table.deletedAt} is not null`,
+    ),
   ],
 );

@@ -106,17 +106,66 @@ const ENROLLMENT = {
   ].map((code) => `${code}KM`),
 };
 
+/** A note as the browse screen reads it. */
+function note(id: string, term: string, translation: string): Record<string, unknown> {
+  return {
+    id,
+    deckId: 'd1',
+    noteType: 'vocab',
+    fields: { term, translation },
+    tags: [],
+    source: null,
+    rank: null,
+    status: 'active',
+    importBatchId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    rev: 1,
+    cardStates: { new: 1, learning: 0, review: 0, relearning: 0 },
+  };
+}
+
+const NOTES = [
+  note('n1', 'Sorgfalt', 'care, thoroughness'),
+  note('n2', 'Schlüssel', 'key'),
+  note('n3', 'Wohnung', 'flat, apartment'),
+  note('n4', 'Fenster', 'window'),
+  note('n5', 'Termin', 'appointment'),
+];
+
+const DELETED_DECKS = [
+  {
+    ...deck('deleted_d1', 'Archived lesson', 0, 0),
+    parentId: null,
+    pathNames: [],
+    parentDeleted: false,
+  },
+];
+
+/**
+ * A list long enough to be worth measuring a scroll on.
+ *
+ * Five thousand is what a frequency list off the internet actually holds, and
+ * it is the number the phase asks for a frame rate at.
+ */
+export function manyNotes(count: number): Record<string, unknown>[] {
+  return Array.from({ length: count }, (_, index) =>
+    note(`note_${index}`, `Wort ${index + 1}`, `word ${index + 1}`),
+  );
+}
+
 export interface FixtureOptions {
   /** Answers `/account` with a session. Off puts the app on the sign in screen. */
   readonly signedIn?: boolean;
   readonly decks?: Record<string, unknown>[];
+  readonly notes?: Record<string, unknown>[];
   /** What the account says about the second factor. Settings draws the state from it. */
   readonly twoFactor?: boolean;
 }
 
 /** Answers every api request this app makes, before the page loads. */
 export async function useFixtures(page: Page, options: FixtureOptions = {}): Promise<void> {
-  const { signedIn = true, decks = DECKS, twoFactor = false } = options;
+  const { signedIn = true, decks = DECKS, notes = NOTES, twoFactor = false } = options;
 
   /*
    * Matched on the path rather than with a glob. `**` matches slashes, so a
@@ -204,6 +253,48 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ decks }),
+        });
+
+        return;
+      }
+
+      if (path.endsWith('/api/decks/deleted')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ decks: DELETED_DECKS }),
+        });
+
+        return;
+      }
+
+      if (path.endsWith('/api/notes/deleted')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ notes: [] }),
+        });
+
+        return;
+      }
+
+      // The browse screen. One page, however many rows: what is being measured
+      // is the list rendering them, not the paging.
+      if (path.endsWith('/api/notes')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items: notes }),
+        });
+
+        return;
+      }
+
+      if (path.endsWith('/api/notes/duplicates')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ matches: [] }),
         });
 
         return;

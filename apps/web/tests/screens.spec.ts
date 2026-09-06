@@ -173,6 +173,16 @@ test('the interface in Russian', async ({ page }) => {
   await expect(page).toHaveScreenshot('settings-ru.png', { fullPage: true });
 });
 
+test('deleted content recovery is reachable', async ({ page }) => {
+  await usePreferences(page, { theme: 'dark', locale: 'en' });
+  await useFixtures(page);
+  await page.goto('/library/deleted');
+
+  await expect(page.getByRole('heading', { name: 'Deleted' })).toBeVisible();
+  await expect(page.getByText('Archived lesson')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Restore' })).toBeVisible();
+});
+
 /**
  * One second factor control, named for the thing and not for the verb.
  *

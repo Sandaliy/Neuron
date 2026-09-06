@@ -1,4 +1,4 @@
-import { NOTE_TYPES, NOTE_TYPE_FIELDS, NOTE_TYPE_TEMPLATES } from '@neuron/shared';
+import { NOTE_TYPES, NOTE_TYPE_TEMPLATES, noteFieldSummary } from '@neuron/shared';
 import type { NoteTypeName } from '@neuron/shared';
 
 import { stableId } from './stable-id.js';
@@ -57,7 +57,7 @@ export async function installSystemNoteTypes(pool: Pool): Promise<void> {
       [
         systemNoteTypeId(name),
         name,
-        JSON.stringify(NOTE_TYPE_FIELDS[name]),
+        JSON.stringify(noteFieldSummary(name)),
         JSON.stringify(NOTE_TYPE_TEMPLATES[name]),
       ],
     );

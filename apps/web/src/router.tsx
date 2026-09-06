@@ -15,7 +15,11 @@ import { SignInScreen } from './features/auth/sign-in';
 import { SignUpScreen } from './features/auth/sign-up';
 import { TwoFactorScreen } from './features/auth/two-factor';
 import { GalleryScreen } from './features/dev/gallery';
+import { ImportScreen } from './features/import/import-screen';
+import { DeletedScreen } from './features/library/deleted';
 import { LibraryScreen } from './features/library/library';
+import { NoteEditorScreen } from './features/notes/note-editor';
+import { NoteListScreen } from './features/notes/note-list';
 import { SettingsScreen } from './features/settings/settings';
 import { TodayScreen } from './features/today/today';
 
@@ -101,6 +105,74 @@ const libraryRoute = createRoute({
   component: LibraryScreen,
 });
 
+const deletedRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/deleted',
+  component: DeletedScreen,
+});
+
+/**
+ * The notes: a list, one being written, and one being edited.
+ *
+ * Which deck the list is showing, and which deck a new note lands in, are both
+ * in the address, so a screen can be bookmarked and going back from a note
+ * returns to the same deck.
+ */
+const noteListRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/notes',
+  validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
+    typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
+  component: NoteListRoute,
+});
+
+function NoteListRoute() {
+  const { deckId } = useSearch({ from: noteListRoute.id });
+
+  return <NoteListScreen {...(deckId === undefined ? {} : { deckId })} />;
+}
+
+const newNoteRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/notes/new',
+  validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
+    typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
+  component: NewNoteRoute,
+});
+
+function NewNoteRoute() {
+  const { deckId } = useSearch({ from: newNoteRoute.id });
+
+  return <NoteEditorScreen {...(deckId === undefined ? {} : { deckId })} />;
+}
+
+const noteRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/notes/$noteId',
+  component: NoteRoute,
+});
+
+function NoteRoute() {
+  const { noteId } = noteRoute.useParams();
+
+  return <NoteEditorScreen noteId={noteId} />;
+}
+
+/** Bringing a word list in. Which deck it lands in is in the address. */
+const importRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/import',
+  validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
+    typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
+  component: ImportRoute,
+});
+
+function ImportRoute() {
+  const { deckId } = useSearch({ from: importRoute.id });
+
+  return <ImportScreen {...(deckId === undefined ? {} : { deckId })} />;
+}
+
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/settings',
@@ -132,7 +204,18 @@ const routeTree = rootRoute.addChildren([
   recoveryRoute,
   newPasswordRoute,
   twoFactorRoute,
-  appRoute.addChildren([todayRoute, libraryRoute, settingsRoute]),
+  appRoute.addChildren([
+    todayRoute,
+    libraryRoute,
+    deletedRoute,
+    noteListRoute,
+    // Before the parameter route, or a new note is read as a note whose id is
+    // the word new.
+    newNoteRoute,
+    noteRoute,
+    importRoute,
+    settingsRoute,
+  ]),
   ...devRoutes,
 ]);
 

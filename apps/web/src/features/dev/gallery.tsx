@@ -1,3 +1,4 @@
+import { FolderInput, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
@@ -9,6 +10,7 @@ import { Chip } from '../../ui/chip';
 import { Dialog } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
+import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
 import { Progress } from '../../ui/progress';
 import { Range } from '../../ui/range';
 import { DenseRow, Row, RowChevron, TreeChildren, TreeRow } from '../../ui/row';
@@ -456,6 +458,28 @@ function Containers() {
       <Button variant="quiet" onClick={() => setDialog(true)}>
         Open a real dialog
       </Button>
+
+      <div className="flex items-center gap-12">
+        <Menu label="Actions for Deutsch">
+          <MenuItem icon={<Pencil size={16} strokeWidth={1.5} />} onSelect={() => {}}>
+            Rename
+          </MenuItem>
+          <MenuItem icon={<FolderInput size={16} strokeWidth={1.5} />} onSelect={() => {}}>
+            Move
+          </MenuItem>
+          <MenuSeparator />
+          <MenuItem disabled onSelect={() => {}}>
+            Move up
+          </MenuItem>
+          <MenuItem tone="danger" icon={<Trash2 size={16} strokeWidth={1.5} />} onSelect={() => {}}>
+            Delete
+          </MenuItem>
+        </Menu>
+        <span className="text-13 text-tertiary">
+          row menu · 44px items, danger last, disabled when there is nowhere to go
+        </span>
+      </div>
+      <State>menu · closed, and every item it can hold</State>
 
       <Dialog
         open={dialog}

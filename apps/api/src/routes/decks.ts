@@ -54,6 +54,30 @@ export function deckRoutes(): Hono<RequestBindings> {
     return context.json({ deck: serialiseDeck(deck) }, 201);
   });
 
+  routes.get('/deleted', async (context) => {
+    const repositories = repositoriesOf(context);
+    const [deleted, live] = await Promise.all([
+      repositories.decks.listDeleted(),
+      repositories.decks.list(),
+    ]);
+    const byId = new Map([...live, ...deleted].map((deck) => [deck.id, deck]));
+
+    return context.json({
+      decks: deleted.map((deck) => {
+        const parent = deck.parentId === null ? undefined : byId.get(deck.parentId);
+
+        return {
+          ...serialiseDeck(deck),
+          pathNames: deck.path.flatMap((id) => {
+            const ancestor = byId.get(id);
+            return ancestor ? [ancestor.name] : [];
+          }),
+          parentDeleted: parent?.deletedAt !== null && parent !== undefined,
+        };
+      }),
+    });
+  });
+
   routes.get('/:id', async (context) => {
     const { id } = readParams(context, idParamSchema);
     const deck = await repositoriesOf(context).decks.byId(id);

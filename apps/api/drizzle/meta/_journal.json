@@ -64,6 +64,27 @@
       "when": 1786502396101,
       "tag": "0008_regular_alice",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786895828106,
+      "tag": "0009_wooden_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786896372881,
+      "tag": "0010_petite_toad",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788562799443,
+      "tag": "0011_chilly_pyro",
+      "breakpoints": true
     }
   ]
 }

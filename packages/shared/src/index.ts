@@ -7,24 +7,89 @@ export type { UuidV7Sources } from './uuid.js';
 export {
   NOTE_STATUSES,
   NOTE_TYPES,
-  NOTE_TYPE_FIELDS,
   NOTE_TYPE_TEMPLATES,
+  PARTS_OF_SPEECH,
+  clozeGaps,
+  hasClozeGap,
+  mergeNoteFields,
+  noteFieldSummary,
   noteFieldsSchemas,
   noteStatusSchema,
   noteTypeSchema,
+  partOfSpeechSchema,
   parseNoteFields,
   templatesFor,
 } from './note-types.js';
+export { restoreNoteResultSchema } from './api/notes.js';
+export type { RestoreNoteResult } from './api/notes.js';
+
 export type {
   BasicFields,
   CardTemplate,
   ClozeFields,
-  NoteFieldDefinition,
+  ClozeGap,
   NoteFields,
+  NoteFieldSummary,
+  NoteGrammar,
   NoteStatus,
   NoteTypeName,
+  PartOfSpeech,
   VocabFields,
 } from './note-types.js';
+
+export { directionsOf, openingCards, possibleCards, reconcileCards } from './card-plan.js';
+export type {
+  CardFace,
+  CardReconciliation,
+  ExistingCard,
+  LadderStep,
+  PlannedCard,
+} from './card-plan.js';
+
+export { editorFields, filledPaths, readField, writeField } from './note-fields.js';
+export type {
+  EditorField,
+  EditorSection,
+  FieldContext,
+  FieldKind,
+  FieldOption,
+} from './note-fields.js';
+
+export {
+  CEFR_LEVELS,
+  LANGUAGE_CODES,
+  LANGUAGE_NAMES,
+  cefrLevelSchema,
+  languageCodeSchema,
+} from './languages.js';
+export type { CefrLevel, LanguageCode } from './languages.js';
+
+export { PROMPT_VARIANTS, fillPrompt, missingFromPrompt, readPrompts } from './prompt.js';
+export type { Prompt, PromptContext, PromptVariant } from './prompt.js';
+
+export {
+  IMPORT_FIELDS,
+  IMPORT_FORMATS,
+  detectFormat,
+  parseImport,
+  rowProblems,
+  termCounts,
+} from './import-parse.js';
+export type {
+  ImportField,
+  ImportFormat,
+  ParseResult,
+  ParsedRow,
+  RowProblems,
+} from './import-parse.js';
+
+export {
+  TERM_KEY_LENGTH,
+  exampleContainsTerm,
+  normaliseTerm,
+  noteTermKey,
+  termOf,
+} from './text.js';
 
 export { DEFAULT_DECK_SETTINGS, deckSettingsSchema, resolveDeckSettings } from './deck-settings.js';
 export type { DeckSettings, ResolvedDeckSettings } from './deck-settings.js';
@@ -76,6 +141,8 @@ export type { ApiError, ApiErrorCode } from './api/errors.js';
 export {
   createDeckSchema,
   deckNodeSchema,
+  deletedDeckListSchema,
+  deletedDeckSchema,
   deckSchema,
   deckTreeSchema,
   moveDeckSchema,
@@ -86,23 +153,41 @@ export type {
   CreateDeckBody,
   Deck,
   DeckNode,
+  DeletedDeck,
   MoveDeckBody,
   ReorderDecksBody,
   UpdateDeckBody,
 } from './api/decks.js';
 
 export {
+  BULK_LIMIT,
+  MAX_NOTE_PAGE_SIZE,
+  NOTE_SORTS,
+  bulkDeleteSchema,
+  bulkMoveSchema,
   bulkStatusSchema,
+  bulkTagsSchema,
+  cardStateCountsSchema,
+  deletedNoteListSchema,
+  deletedNoteSchema,
   createNoteSchema,
   listNotesSchema,
+  noteLimitSchema,
   noteSchema,
+  noteSortSchema,
   updateNoteSchema,
 } from './api/notes.js';
 export type {
+  BulkDeleteBody,
+  BulkMoveBody,
   BulkStatusBody,
+  BulkTagsBody,
+  CardStateCounts,
+  DeletedNote,
   CreateNoteBody,
   ListNotesQuery,
   Note,
+  NoteSort,
   UpdateNoteBody,
 } from './api/notes.js';
 
@@ -116,16 +201,25 @@ export {
 export type { Card, DueCardsQuery, UnlockDirectionBody } from './api/cards.js';
 
 export {
+  IMPORT_CHUNK_SIZE,
   createImportSchema,
   createPresetSchema,
+  duplicateCheckSchema,
+  duplicateMatchSchema,
   importBatchSchema,
+  importChunkSchema,
+  importSummarySchema,
   studyPresetSchema,
   updatePresetSchema,
 } from './api/study.js';
 export type {
   CreateImportBody,
   CreatePresetBody,
+  DuplicateCheckBody,
+  DuplicateMatch,
   ImportBatch,
+  ImportChunkBody,
+  ImportSummary,
   StudyPreset,
   UpdatePresetBody,
 } from './api/study.js';

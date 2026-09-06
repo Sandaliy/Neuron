@@ -31,7 +31,7 @@ function presentRow(change: SyncRow) {
     // user_id is on every row in the database and on nothing that leaves it. A
     // client that had to be told whose data it was reading would be a client
     // that could ask for somebody else's.
-    if (key === 'userId') {
+    if (key === 'userId' || key === 'deletedWithNote') {
       continue;
     }
 
@@ -133,6 +133,7 @@ export function syncRoutes(): Hono<RequestBindings> {
         clamped,
         reviews: { applied, duplicates },
         revision: await inner.sync.revision(),
+        noteRestorations: pushed.noteRestorations,
       };
     });
 

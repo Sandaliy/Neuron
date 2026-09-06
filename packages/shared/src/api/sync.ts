@@ -11,6 +11,7 @@ import {
   revisionSchema,
   tagSchema,
 } from './common.js';
+import { restoreNoteResultSchema } from './notes.js';
 import { submitReviewSchema } from './reviews.js';
 
 /**
@@ -159,6 +160,8 @@ export const SYNC_OUTCOMES = ['applied', 'conflict', 'unchanged'] as const;
 export const syncOutcomeSchema = z.enum(SYNC_OUTCOMES);
 
 export const pushSyncResultSchema = z.object({
+  /** Restore transitions preserve saved note fields; unrelated edits can follow after a pull. */
+  noteRestorations: z.array(restoreNoteResultSchema.extend({ id: idSchema })).optional(),
   applied: z.array(z.object({ entity: syncEntitySchema, id: idSchema })),
   /**
    * The rows whose pushed version lost. Each is in the conflict log too, so

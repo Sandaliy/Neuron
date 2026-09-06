@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   NOTE_TYPES,
-  NOTE_TYPE_FIELDS,
   NOTE_TYPE_TEMPLATES,
+  clozeGaps,
+  hasClozeGap,
   noteFieldsSchemas,
   parseNoteFields,
   templatesFor,
@@ -78,29 +79,36 @@ describe('cloze notes', () => {
   });
 });
 
-describe('field definitions', () => {
-  it('lists exactly the fields the schema knows about', () => {
-    for (const type of NOTE_TYPES) {
-      const inSchema = Object.keys(noteFieldsSchemas[type].shape).sort();
-      const listed = NOTE_TYPE_FIELDS[type].map((field) => field.name).sort();
-
-      expect(listed).toEqual(inSchema);
-    }
+describe('cloze gaps', () => {
+  it('numbers bare gaps in the order they appear, one card each', () => {
+    expect(clozeGaps('Ich {{stehe}} früh {{auf}}.').map((gap) => gap.number)).toEqual([1, 2]);
   });
 
-  it('marks a field required exactly when the schema requires it', () => {
-    for (const type of NOTE_TYPES) {
-      for (const field of NOTE_TYPE_FIELDS[type]) {
-        const shape = noteFieldsSchemas[type].shape as Record<
-          string,
-          { safeParse: (v: unknown) => { success: boolean } }
-        >;
-        const entry = shape[field.name];
+  it('keeps the number an author wrote, so two gaps can share a card', () => {
+    const gaps = clozeGaps('{{c1::der}} Hund und {{c1::die}} Katze');
 
-        expect(entry).toBeDefined();
-        expect(entry?.safeParse(undefined).success).toBe(!field.required);
-      }
-    }
+    expect(gaps.map((gap) => gap.number)).toEqual([1, 1]);
+    expect(gaps.map((gap) => gap.answer)).toEqual(['der', 'die']);
+  });
+
+  it('reads the hint an author put after the answer', () => {
+    expect(clozeGaps('Er {{c1::ging::past}} weg.')[0]?.hint).toBe('past');
+  });
+
+  it('reads every gap after the text has been checked for gaps', () => {
+    // One shared global regular expression carries its position between calls,
+    // so checking and then reading used to lose the first gap. Three gaps came
+    // out as two cards, and only in this order, which is the order the api
+    // uses.
+    expect(hasClozeGap('a {{b}} c {{d}} e {{f}}')).toBe(true);
+    expect(clozeGaps('a {{b}} c {{d}} e {{f}}')).toHaveLength(3);
+  });
+
+  it('says where each gap starts and ends, so the text can be rebuilt', () => {
+    const text = 'a {{b}} c';
+    const gap = clozeGaps(text)[0];
+
+    expect(text.slice(gap?.start, gap?.end)).toBe('{{b}}');
   });
 });
 
@@ -129,7 +137,7 @@ describe('templatesFor', () => {
 
   it('only names fields the type actually has', () => {
     for (const type of NOTE_TYPES) {
-      const known = new Set(NOTE_TYPE_FIELDS[type].map((field) => field.name));
+      const known = new Set(Object.keys(noteFieldsSchemas[type].shape));
 
       for (const template of NOTE_TYPE_TEMPLATES[type]) {
         for (const name of [...template.ask, ...template.answer, ...template.requires]) {

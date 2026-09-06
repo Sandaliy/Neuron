@@ -35,6 +35,16 @@ export default defineConfig({
     // from a desktop browser window narrowed to 375 px.
     host: true,
     port: 5173,
+    fs: {
+      /*
+       * The card generation prompt is imported as text out of `docs/`, which is
+       * above this app. The dev server refuses to serve anything outside its own
+       * root unless it is told; the build does not care. Without this the
+       * production bundle works and the dev server answers 403, which is the
+       * worst way round for a thing to break.
+       */
+      allow: ['..', '../..'],
+    },
     proxy: {
       '/api': {
         target: API_TARGET,
