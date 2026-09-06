@@ -2,8 +2,6 @@ import { expect, test } from '@playwright/test';
 
 import { manyNotes, useFixtures, usePreferences } from './fixtures';
 
-import type { Page } from '@playwright/test';
-
 /** The frame-rate budget the default note list has to hold. */
 const BUDGET = 55;
 const CPU_THROTTLE = 4;
