@@ -180,7 +180,8 @@ export function LibraryScreen() {
           actions.update.isPending ||
           actions.remove.isPending
         }
-        error={actions.create.error ?? actions.rename.error}
+        createError={actions.create.error}
+        renameError={actions.rename.error}
       />
     </section>
   );
@@ -416,7 +417,8 @@ function DeckDialogs({
   onSaveSettings,
   onDelete,
   busy,
-  error,
+  createError,
+  renameError,
 }: {
   readonly state: DialogState;
   readonly decks: readonly DeckNode[];
@@ -427,7 +429,8 @@ function DeckDialogs({
   readonly onSaveSettings: (deck: DeckNode, settings: DeckSettings) => void;
   readonly onDelete: (deck: DeckNode) => void;
   readonly busy: boolean;
-  readonly error: unknown;
+  readonly createError: unknown;
+  readonly renameError: unknown;
 }) {
   const t = useTranslate();
 
@@ -443,7 +446,7 @@ function DeckDialogs({
         }
         submitLabel={t('library.createSubmit')}
         busy={busy}
-        error={error}
+        error={createError}
         onSubmit={(name) => onCreate(state.kind === 'create' ? state.parentId : null, name)}
       />
 
@@ -454,7 +457,7 @@ function DeckDialogs({
         submitLabel={t('library.renameSubmit')}
         initialName={state.kind === 'rename' ? state.deck.name : ''}
         busy={busy}
-        error={error}
+        error={renameError}
         onSubmit={(name) => {
           if (state.kind === 'rename') {
             onRename(state.deck, name);

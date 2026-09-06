@@ -86,10 +86,53 @@ test('deck create stays successful when the refresh fails', async ({ page }) => 
   });
   await page.goto('/library');
   await page.getByRole('button', { name: 'New deck' }).click();
+  await expect(page.getByText('Something went wrong')).toHaveCount(0);
   await page.getByLabel('Name').fill('Fresh');
   await page.getByRole('button', { name: 'Create the deck' }).click();
   await expect(page.getByText('Fresh created', { exact: true })).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
+});
+
+test('a failed deck create cannot leave an error in a later successful rename', async ({
+  page,
+}) => {
+  await usePreferences(page, { theme: 'dark', locale: 'en' });
+  await useFixtures(page);
+  await page.route('/api/decks', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 409,
+        json: {
+          error: {
+            code: 'name_taken',
+            status: 409,
+            correlationId: 'create-failed',
+          },
+        },
+      });
+      return;
+    }
+    if (route.request().method() === 'PATCH') {
+      await route.fulfill({ status: 200, json: { deck: { id: 'd1', name: 'German' } } });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.goto('/library');
+  await page.getByRole('button', { name: 'New deck' }).click();
+  await page.getByLabel('Name').fill('Deutsch');
+  await page.getByRole('button', { name: 'Create the deck' }).click();
+  await expect(page.getByText('That name is already used here')).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: 'Actions for Deutsch', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Rename' }).click();
+  const renameDialog = page.getByRole('dialog', { name: 'Rename the deck' });
+  await renameDialog.getByRole('textbox', { name: 'Name' }).fill('German');
+  await page.getByRole('button', { name: 'Save the name' }).click();
+
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('That name is already used here')).toHaveCount(0);
 });
 
 test('note create stays successful when the refresh fails', async ({ page }) => {
