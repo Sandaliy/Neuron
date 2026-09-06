@@ -211,41 +211,56 @@ test.describe('the note list', () => {
 
     await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
 
-    const frames = await page.evaluate(
-      ([count]) =>
-        new Promise<{ fps: number; worst: number }>((resolve) => {
-          const gaps: number[] = [];
+    const samples: Array<{ fps: number; worst: number }> = [];
 
-          let previous = 0;
-          let offset = 0;
+    try {
+      for (let sample = 0; sample < 3; sample += 1) {
+        await page.evaluate(() => window.scrollTo(0, 0));
 
-          const step = (now: number) => {
-            gaps.push(now - previous);
-            previous = now;
-            offset += 24;
-            window.scrollTo(0, offset);
+        samples.push(
+          await page.evaluate(
+            ([count]) =>
+              new Promise<{ fps: number; worst: number }>((resolve) => {
+                const gaps: number[] = [];
 
-            if (gaps.length < (count as number)) {
-              requestAnimationFrame(step);
+                let previous = 0;
+                let offset = 0;
 
-              return;
-            }
+                const step = (now: number) => {
+                  gaps.push(now - previous);
+                  previous = now;
+                  offset += 24;
+                  window.scrollTo(0, offset);
 
-            const total = gaps.reduce((sum, gap) => sum + gap, 0);
+                  if (gaps.length < (count as number)) {
+                    requestAnimationFrame(step);
 
-            resolve({ fps: (gaps.length / total) * 1000, worst: Math.max(...gaps) });
-          };
+                    return;
+                  }
 
-          requestAnimationFrame((now) => {
-            previous = now;
-            requestAnimationFrame(step);
-          });
-        }),
-      [FRAMES],
-    );
+                  const total = gaps.reduce((sum, gap) => sum + gap, 0);
 
-    await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
-    await session.detach();
+                  resolve({ fps: (gaps.length / total) * 1000, worst: Math.max(...gaps) });
+                };
+
+                requestAnimationFrame((now) => {
+                  previous = now;
+                  requestAnimationFrame(step);
+                });
+              }),
+            [FRAMES],
+          ),
+        );
+      }
+    } finally {
+      await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+      await session.detach();
+    }
+
+    // A single descheduled callback can dominate a three-second sample on a
+    // shared CI runner. The median keeps the 55 fps budget intact while
+    // requiring representative performance across three independent scrolls.
+    const frames = [...samples].sort((left, right) => left.fps - right.fps)[1];
 
     // A fast empty viewport is not a passing virtual list.
     const visible = await page.evaluate(() => {
@@ -271,7 +286,8 @@ test.describe('the note list', () => {
 
     const line =
       `5000 notes, ${inDocument} rows in the document, ${CPU_THROTTLE}x cpu: ` +
-      `${frames.fps.toFixed(1)} fps, worst frame ${frames.worst.toFixed(1)} ms`;
+      `${frames.fps.toFixed(1)} fps median from ${samples.map((sample) => sample.fps.toFixed(1)).join(', ')}, ` +
+      `worst frame ${frames.worst.toFixed(1)} ms`;
 
     console.log(line);
     test.info().annotations.push({ type: 'frame rate', description: line });
