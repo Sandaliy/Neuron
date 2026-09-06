@@ -227,6 +227,45 @@ describe.skipIf(!database)('the routes', () => {
       expect(body.cards[0]?.direction).toBe('cloze');
     });
 
+    it('writes each manual note type with its opening cards through the route', async () => {
+      const cases = [
+        {
+          noteType: 'vocab' as const,
+          fields: { term: 'Weg', translation: 'path' },
+          direction: 'recognition',
+        },
+        {
+          noteType: 'basic' as const,
+          fields: { front: 'Question', back: 'Answer' },
+          direction: 'recognition',
+        },
+        {
+          noteType: 'cloze' as const,
+          fields: { text: 'The {{answer}} is present.' },
+          direction: 'cloze',
+        },
+      ];
+
+      for (const entry of cases) {
+        const written = await json<{ note: Note; cards: Card[] }>(
+          await server.request('/api/notes', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ deckId, noteType: entry.noteType, fields: entry.fields }),
+          }),
+          201,
+        );
+
+        expect(written.note.noteType).toBe(entry.noteType);
+        expect(written.cards).toEqual(
+          expect.arrayContaining([expect.objectContaining({ direction: entry.direction })]),
+        );
+        expect(await repositories.cards.forNote(written.note.id)).toHaveLength(
+          written.cards.length,
+        );
+      }
+    });
+
     it('names the field that was wrong without quoting what was typed', async () => {
       const response = await server.request('/api/notes', {
         method: 'POST',
@@ -448,6 +487,52 @@ describe.skipIf(!database)('the routes', () => {
   });
 
   describe('imports', () => {
+    it('writes a valid first chunk and makes retrying it harmless', async () => {
+      const deck = await repositories.decks.create({ name: 'Chunked import' });
+      const batch = await json<{ import: { id: string } }>(
+        await server.request('/api/imports', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ deckId: deck.id, source: 'One row', format: 'manual' }),
+        }),
+        201,
+      );
+      const noteId = uuidV7();
+      const chunk = {
+        notes: [
+          {
+            id: noteId,
+            noteType: 'vocab',
+            fields: { term: 'eins', translation: 'one' },
+          },
+        ],
+      };
+
+      const first = await json<{ notes: number; cards: number; skipped: number }>(
+        await server.request(`/api/imports/${batch.import.id}/notes`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(chunk),
+        }),
+        200,
+      );
+
+      expect(first).toEqual({ notes: 1, cards: 1, skipped: 0 });
+      expect(await repositories.notes.byId(noteId)).toBeDefined();
+      expect(await repositories.cards.forNote(noteId)).toHaveLength(1);
+
+      const retry = await json<{ notes: number; cards: number; skipped: number }>(
+        await server.request(`/api/imports/${batch.import.id}/notes`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(chunk),
+        }),
+        200,
+      );
+
+      expect(retry).toEqual({ notes: 0, cards: 0, skipped: 1 });
+    });
+
     it('writes a batch and takes it back whole', async () => {
       const deck = await repositories.decks.create({ name: 'Imported' });
 

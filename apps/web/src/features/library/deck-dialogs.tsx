@@ -41,7 +41,7 @@ export function DeckNameDialog({
   readonly initialName?: string;
   readonly busy?: boolean;
   readonly error?: unknown;
-  readonly onSubmit: (name: string) => void;
+  readonly onSubmit: (name: string) => void | Promise<void>;
 }) {
   const t = useTranslate();
   // Refilled every time the dialog opens, so reopening it does not offer
@@ -52,7 +52,7 @@ export function DeckNameDialog({
     event.preventDefault();
 
     if (name.trim() !== '') {
-      onSubmit(name.trim());
+      void Promise.resolve(onSubmit(name.trim())).catch(() => undefined);
     }
   }
 
@@ -62,9 +62,7 @@ export function DeckNameDialog({
         <DialogBody>
           <FormField
             label={t('library.deckName')}
-            {...(error === undefined
-              ? {}
-              : { error: t(describe(error).key, describe(error).values) })}
+            {...(error == null ? {} : { error: t(describe(error).key, describe(error).values) })}
           >
             {(props) => (
               <Input
