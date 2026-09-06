@@ -306,6 +306,7 @@ function Deck({
                 },
               }
             : {})}
+          interactiveTrailing
           trailing={
             <>
               {deck.due > 0 ? (

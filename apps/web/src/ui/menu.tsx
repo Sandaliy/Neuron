@@ -50,6 +50,7 @@ export function Menu({
              * things it was not asked to do.
              */
             onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
             className="flex size-44 shrink-0 items-center justify-center rounded-12 text-tertiary hover:text-primary"
           >
             <MoreHorizontal size={20} strokeWidth={1.5} aria-hidden="true" />
@@ -93,6 +94,8 @@ export function MenuItem({
     <RadixMenu.Item
       disabled={disabled}
       onSelect={onSelect}
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
       className={[
         'flex min-h-44 cursor-default items-center gap-12 rounded-12 px-12 text-14',
         'outline-none select-none',
