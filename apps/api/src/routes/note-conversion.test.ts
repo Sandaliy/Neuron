@@ -145,6 +145,7 @@ describe.skipIf(!database)('atomic note conversion', () => {
             );
             expect(tombstone?.deleted).toBe(true);
             expect(tombstone?.row).toMatchObject({
+              deletedWithNote: false,
               stability: old.stability,
               difficulty: old.difficulty,
               reps: old.reps,

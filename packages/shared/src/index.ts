@@ -20,6 +20,9 @@ export {
   parseNoteFields,
   templatesFor,
 } from './note-types.js';
+export { restoreNoteResultSchema } from './api/notes.js';
+export type { RestoreNoteResult } from './api/notes.js';
+
 export type {
   BasicFields,
   CardTemplate,
@@ -138,6 +141,8 @@ export type { ApiError, ApiErrorCode } from './api/errors.js';
 export {
   createDeckSchema,
   deckNodeSchema,
+  deletedDeckListSchema,
+  deletedDeckSchema,
   deckSchema,
   deckTreeSchema,
   moveDeckSchema,
@@ -148,6 +153,7 @@ export type {
   CreateDeckBody,
   Deck,
   DeckNode,
+  DeletedDeck,
   MoveDeckBody,
   ReorderDecksBody,
   UpdateDeckBody,
@@ -162,6 +168,8 @@ export {
   bulkStatusSchema,
   bulkTagsSchema,
   cardStateCountsSchema,
+  deletedNoteListSchema,
+  deletedNoteSchema,
   createNoteSchema,
   listNotesSchema,
   noteLimitSchema,
@@ -175,6 +183,7 @@ export type {
   BulkStatusBody,
   BulkTagsBody,
   CardStateCounts,
+  DeletedNote,
   CreateNoteBody,
   ListNotesQuery,
   Note,

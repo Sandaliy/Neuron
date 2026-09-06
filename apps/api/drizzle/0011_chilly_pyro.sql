@@ -1,0 +1,2 @@
+ALTER TABLE "cards" ADD COLUMN "deleted_with_note" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "cards" ADD CONSTRAINT "cards_note_deletion_requires_deleted" CHECK (not "cards"."deleted_with_note" or "cards"."deleted_at" is not null);

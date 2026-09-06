@@ -8,6 +8,10 @@ import {
   createImportSchema,
   createNoteSchema,
   createPresetSchema,
+  deletedDeckListSchema,
+  deletedDeckSchema,
+  deletedNoteListSchema,
+  deletedNoteSchema,
   deckTreeSchema,
   deleteAccountSchema,
   dueCardsSchema,
@@ -20,6 +24,7 @@ import {
   pushSyncResultSchema,
   pushSyncSchema,
   reorderDecksSchema,
+  restoreNoteResultSchema,
   reviewBatchResultSchema,
   reviewResultSchema,
   studyPresetSchema,
@@ -48,11 +53,15 @@ import {
 const registry: Record<string, z.ZodType> = {
   ApiError: apiErrorSchema,
   DeckTree: deckTreeSchema,
+  DeletedDeck: deletedDeckSchema,
+  DeletedDeckList: deletedDeckListSchema,
   CreateDeck: createDeckSchema,
   UpdateDeck: updateDeckSchema,
   MoveDeck: moveDeckSchema,
   ReorderDecks: reorderDecksSchema,
   Note: noteSchema,
+  DeletedNote: deletedNoteSchema,
+  DeletedNoteList: deletedNoteListSchema,
   ListNotes: listNotesSchema,
   CreateNote: createNoteSchema,
   UpdateNote: updateNoteSchema,
@@ -72,6 +81,7 @@ const registry: Record<string, z.ZodType> = {
   PullSyncResult: pullSyncResultSchema,
   PushSync: pushSyncSchema,
   PushSyncResult: pushSyncResultSchema,
+  RestoreNoteResult: restoreNoteResultSchema,
   Me: meSchema,
   UpdatePreferences: updatePreferencesSchema,
   DeleteAccount: deleteAccountSchema,
@@ -103,6 +113,7 @@ const commonErrors = {
   400: answer('The request did not match its schema', 'ApiError'),
   401: answer('No session, or one that has expired', 'ApiError'),
   404: answer('Not there, or not yours', 'ApiError'),
+  409: answer('The current state prevents this operation', 'ApiError'),
   429: answer('Too many requests. retry-after says how long', 'ApiError'),
   500: answer('Something unexpected. The correlation id is in the server log', 'ApiError'),
 };
@@ -196,6 +207,12 @@ export function openApiDocument(baseUrl: string) {
           responses: { 200: answer('The decks in their new order'), ...commonErrors },
         },
       },
+      '/decks/deleted': {
+        get: {
+          summary: 'Soft-deleted decks, with original path and parent dependency',
+          responses: { 200: answer('Deleted decks', 'DeletedDeckList'), ...commonErrors },
+        },
+      },
       '/decks/{id}': {
         parameters: [idParameter],
         get: { summary: 'One deck', responses: { 200: answer('The deck'), ...commonErrors } },
@@ -220,8 +237,8 @@ export function openApiDocument(baseUrl: string) {
       '/decks/{id}/restore': {
         parameters: [idParameter],
         post: {
-          summary: 'Take back a delete',
-          responses: { 200: answer('How many rows came back'), ...commonErrors },
+          summary: 'Restore one deck after its parent is live',
+          responses: { 200: answer('One restored deck, or zero if already live'), ...commonErrors },
         },
       },
       '/notes': {
@@ -234,6 +251,12 @@ export function openApiDocument(baseUrl: string) {
           summary: 'Create a note and its opening cards',
           requestBody: body('CreateNote'),
           responses: { 201: answer('The note and the cards it produced'), ...commonErrors },
+        },
+      },
+      '/notes/deleted': {
+        get: {
+          summary: 'Soft-deleted notes, with original deck-chain availability',
+          responses: { 200: answer('Deleted notes', 'DeletedNoteList'), ...commonErrors },
         },
       },
       '/notes/status': {
@@ -262,8 +285,11 @@ export function openApiDocument(baseUrl: string) {
       '/notes/{id}/restore': {
         parameters: [idParameter],
         post: {
-          summary: 'Take back a delete',
-          responses: { 200: answer('Done'), ...commonErrors },
+          summary: 'Restore a note and only cards proven deleted with it',
+          responses: {
+            200: answer('Restoration result and remaining deleted card count', 'RestoreNoteResult'),
+            ...commonErrors,
+          },
         },
       },
       '/notes/{id}/cards': {

@@ -2,7 +2,8 @@
 
 Spaced repetition that schedules your time, not your card count.
 
-**Status:** early development. The foundation is in place, the app is not built yet.
+**Status:** early development. The learning core, API, authentication, application shell, and most note
+management/import work exist. Daily study and offline synchronization are not built yet.
 
 <!-- Screenshot of the review screen goes here once it exists. -->
 
@@ -38,14 +39,19 @@ The scenarios behind those numbers, including the one where the difference is sm
 
 ## Features
 
-<!-- Filled in as features land. -->
+- FSRS-6 scheduling in a pure deterministic package
+- Time budgets, load forecasting, new-card admission, and backlog recovery
+- Nested decks, notes, independent card directions, and immutable review history
+- Email/password accounts, recovery codes, optional TOTP, RLS, and restricted database roles
+- Mobile-first React interface with English and Russian, light/dark themes, and adaptive glass
+- Note authoring and chunked import work in progress
 
 ## Stack
 
 | Area      | Choice                                     |
 | --------- | ------------------------------------------ |
-| Web       | React 19, Vite, TypeScript, PWA            |
-| Api       | Hono, Drizzle, Cloudflare Workers          |
+| Web       | React 19, Vite, TypeScript, PWA shell      |
+| Api       | Hono, Drizzle, Vercel Functions            |
 | Scheduler | Pure TypeScript, no runtime dependencies   |
 | Database  | Postgres                                   |
 | Tooling   | pnpm workspaces, Turborepo, Vitest, ESLint |

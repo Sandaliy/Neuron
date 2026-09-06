@@ -33,6 +33,8 @@ export const API_ERROR_CODES = [
   'name_taken',
   /** A deck was asked to be moved inside itself. */
   'deck_cycle',
+  /** The original parent deck or note must be restored first. */
+  'restore_dependency',
   /** The note type named on a write does not exist. */
   'unknown_note_type',
   /** The fields do not match the note type they claim to be. */
@@ -118,6 +120,7 @@ export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
   invalid_request: 400,
   name_taken: 409,
   deck_cycle: 409,
+  restore_dependency: 409,
   unknown_note_type: 400,
   invalid_note_fields: 400,
   rate_limited: 429,

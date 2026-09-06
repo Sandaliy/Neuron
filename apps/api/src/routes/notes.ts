@@ -68,6 +68,33 @@ export function noteRoutes(): Hono<RequestBindings> {
     });
   });
 
+  routes.get('/deleted', async (context) => {
+    const repositories = repositoriesOf(context);
+    const [deleted, liveDecks, deletedDecks, typeNames] = await Promise.all([
+      repositories.notes.listDeleted(),
+      repositories.decks.list(),
+      repositories.decks.listDeleted(),
+      repositories.noteTypes.namesById(),
+    ]);
+    const decksById = new Map([...liveDecks, ...deletedDecks].map((deck) => [deck.id, deck]));
+
+    return context.json({
+      notes: deleted.map((note) => {
+        const deck = decksById.get(note.deckId);
+        const chain = deck ? [...deck.path, deck.id] : [];
+
+        return {
+          ...serialiseNote(note, typeNames),
+          deckPath: chain.flatMap((id) => {
+            const entry = decksById.get(id);
+            return entry ? [entry.name] : [];
+          }),
+          deckLive: chain.length > 0 && chain.every((id) => decksById.get(id)?.deletedAt === null),
+        };
+      }),
+    });
+  });
+
   routes.post('/', async (context) => {
     const body = await readBody(context, createNoteSchema);
     const repositories = repositoriesOf(context);
@@ -309,7 +336,7 @@ export function noteRoutes(): Hono<RequestBindings> {
   routes.post('/:id/restore', async (context) => {
     const { id } = readParams(context, idParamSchema);
 
-    return context.json({ restored: await repositoriesOf(context).notes.restore(id) });
+    return context.json(await repositoriesOf(context).notes.restore(id));
   });
 
   return routes;

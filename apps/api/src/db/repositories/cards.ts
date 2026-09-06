@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 import type { CardDirection, SchedulingState } from '@neuron/core';
 import { uuidV7 } from '@neuron/shared';
@@ -6,6 +6,7 @@ import { uuidV7 } from '@neuron/shared';
 import { cards, decks, notes } from '../schema/index.js';
 
 import { fromSchedulingState, toSchedulingState } from './mapping.js';
+import { requireLiveDeck, RestoreDependency } from './restoration.js';
 import { nextRev } from './session.js';
 
 import type { Runner, Tx } from './session.js';
@@ -359,8 +360,19 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
 
         const marked = await tx
           .update(cards)
-          .set({ deletedAt: now, updatedAt: now, rev })
-          .where(and(eq(cards.userId, userId), eq(cards.id, id), isNull(cards.deletedAt)))
+          .set({
+            deletedAt: sql`coalesce(${cards.deletedAt}, ${now})`,
+            deletedWithNote: false,
+            updatedAt: now,
+            rev,
+          })
+          .where(
+            and(
+              eq(cards.userId, userId),
+              eq(cards.id, id),
+              or(isNull(cards.deletedAt), eq(cards.deletedWithNote, true)),
+            ),
+          )
           .returning({ id: cards.id });
 
         return marked.length > 0;
@@ -378,12 +390,17 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
 
         const marked = await tx
           .update(cards)
-          .set({ deletedAt: now, updatedAt: now, rev })
+          .set({
+            deletedAt: sql`coalesce(${cards.deletedAt}, ${now})`,
+            deletedWithNote: false,
+            updatedAt: now,
+            rev,
+          })
           .where(
             and(
               eq(cards.userId, userId),
               inArray(cards.id, [...new Set(ids)]),
-              isNull(cards.deletedAt),
+              or(isNull(cards.deletedAt), eq(cards.deletedWithNote, true)),
             ),
           )
           .returning({ id: cards.id });
@@ -396,10 +413,23 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
         const now = new Date();
+        const [card] = await tx
+          .select()
+          .from(cards)
+          .where(and(eq(cards.userId, userId), eq(cards.id, id)))
+          .limit(1);
+        if (!card || card.deletedAt === null) return false;
+        const [note] = await tx
+          .select()
+          .from(notes)
+          .where(and(eq(notes.userId, userId), eq(notes.id, card.noteId)))
+          .limit(1);
+        if (!note || note.deletedAt !== null) throw new RestoreDependency();
+        await requireLiveDeck(tx, userId, note.deckId);
 
         const restored = await tx
           .update(cards)
-          .set({ deletedAt: null, updatedAt: now, rev })
+          .set({ deletedAt: null, deletedWithNote: false, updatedAt: now, rev })
           .where(and(eq(cards.userId, userId), eq(cards.id, id)))
           .returning({ id: cards.id });
 

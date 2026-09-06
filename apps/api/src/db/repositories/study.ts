@@ -70,9 +70,8 @@ export interface ImportBatchRepository {
   contents: (id: string) => Promise<ImportContents>;
   /**
    * Takes an import back: every note that arrived in it is marked deleted, and
-   * the batch is marked undone. Cards go with their notes through the cascade
-   * on the next cleanup, and the review log is left alone, because it records
-   * what happened and that did happen.
+   * the batch is marked undone. Live cards are deleted with those notes in the
+   * same transaction. Earlier card deletions and the review log are unchanged.
    */
   undo: (id: string) => Promise<number>;
 }
@@ -311,7 +310,7 @@ export function importBatchRepository(userId: string, run: Runner): ImportBatchR
         if (marked.length > 0) {
           await tx
             .update(cards)
-            .set({ deletedAt: now, updatedAt: now, rev })
+            .set({ deletedAt: now, deletedWithNote: true, updatedAt: now, rev })
             .where(
               and(
                 eq(cards.userId, userId),

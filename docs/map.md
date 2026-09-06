@@ -32,12 +32,12 @@ This is the part the project exists for. FSRS decides _when_, this decides _how 
 | ---------------- | --------------------------------------------------------------------------------------------- |
 | `types.ts`       | `WorkloadCard`, `WorkloadReview`, `DailyLoad`, card directions and states                     |
 | `config.ts`      | `WorkloadConfig` and every default: horizon, throttle window, backlog trigger, balance window |
-| `answer-time.ts` | Seconds per card, estimated per direction from the review log, trimmed mean                   |
+| `answer-time.ts` | Seconds by direction/state, a 95%-trimmed median blended with defaults                        |
 | `forecast.ts`    | Minutes per day over the horizon, including reviews today's answers will generate             |
 | `budget.ts`      | Per weekday minute budgets, carry over between days                                           |
 | `throttle.ts`    | `marginalCostOfNewCard`, `newCardAllowance`. Admits new cards only if the forecast fits       |
 | `balance.ts`     | Shifts a due date within a window to the least loaded day                                     |
-| `backlog.ts`     | Detects a pile up, orders it by salvage value, builds a recovery plan                         |
+| `backlog.ts`     | Detects a pile up, supports three orderings, builds a recovery plan                           |
 | `session.ts`     | `buildSession`: assembles what the user actually sees in one sitting                          |
 | `cards.ts`       | `freshCard`, `reviewCard`, the `CardShape` adapter between FSRS and workload types            |
 
@@ -61,6 +61,12 @@ Zod schemas and types used by both sides of the wire.
 | `src/rating.ts`        | `ratingSchema`, the four ratings                                                           |
 | `src/uuid.ts`          | UUID v7 generation and parsing. Time sortable ids                                          |
 | `src/note-types.ts`    | The three built in note types (`vocab`, `basic`, `cloze`), their fields and card templates |
+| `src/note-fields.ts`   | Conditional editor sections and field access for all three note types                      |
+| `src/card-plan.ts`     | The one note-to-card planner used by creation, import, preview and reconciliation          |
+| `src/import-parse.ts`  | JSON, CSV, TSV, text and Anki-text parsing, mapping and row diagnostics                    |
+| `src/prompt.ts`        | Reads and fills the three canonical card-generation prompt variants                        |
+| `src/text.ts`          | Term normalization, note identity and example-word checks                                  |
+| `src/languages.ts`     | Supported language codes and CEFR levels                                                   |
 | `src/deck-settings.ts` | Per deck settings schema, defaults, and inheritance from the parent deck                   |
 | `src/preferences.ts`   | Locale, theme, plan, time zone, day cutoff hour                                            |
 | `src/password.ts`      | The password policy: ten character floor, the small list of the worst ones                 |
@@ -112,7 +118,7 @@ Hono on the Node runtime, deployed to Vercel Functions. Drizzle over Postgres on
 | `src/validation.ts`     | `readBody`, `readQuery`, `readParams`. Nothing reaches a handler unparsed                                                 |
 | `src/rate-limit.ts`     | The limiter, counting in Postgres. The four rules live here too                                                           |
 | `src/serialise.ts`      | Rows into what goes over the wire, and the deck tree with its counts rolled up                                            |
-| `src/note-cards.ts`     | Which directions a new note starts with, from the deck's ladder                                                           |
+| `src/note-cards.ts`     | Applies shared opening-card and edit-reconciliation plans to the database                                                 |
 | `src/openapi.ts`        | The api described, generated from the schemas in `packages/shared`                                                        |
 | `src/testing/server.ts` | The real routes over the real database, behind a stubbed session. Only the session is replaced                            |
 
@@ -152,7 +158,7 @@ middleware put on the request, and answers only in the shape `src/errors.ts` dec
 
 ### Schema (`src/db/schema/`)
 
-Seventeen tables. `index.ts` also exports `USER_OWNED_TABLES`, `AUTH_TABLES`, `WRITE_ORDER` and the two
+Sixteen tables. `index.ts` also exports `USER_OWNED_TABLES`, `AUTH_TABLES`, `WRITE_ORDER` and the two
 lists of `user` columns the application role may touch, so a new table cannot be silently left out of
 the checks that prove isolation works.
 
@@ -179,11 +185,11 @@ The user is supplied once when the set is built. Do not write ad hoc queries in 
 | `index.ts`      | `createRepositories(db, userId)`, the `Repositories` interface, `transaction`                             |
 | `session.ts`    | `nameUser`, `transactionRunner`, `nextRev`. Names the user on the transaction so the policies can compare |
 | `decks.ts`      | Deck tree operations, reorder, restore, `DeckCycle` and `DeckNotFound`                                    |
-| `notes.ts`      | Note create, the browse query with its cursor, bulk status, restore, `UnknownNoteType`                    |
+| `notes.ts`      | Note create/edit, browse, duplicates, bulk actions, moves and restore, `UnknownNoteType`                  |
 | `note-types.ts` | The built in types, and turning a type id into the name the wire carries                                  |
 | `cards.ts`      | Card reads including the due query, the per deck counts, suspend, reset                                   |
 | `reviews.ts`    | Recording a review, idempotent by id, and reading a log that respects a reset                             |
-| `study.ts`      | Presets and import batches                                                                                |
+| `study.ts`      | Presets, retry-safe import batches, summaries and batch undo                                              |
 | `sync.ts`       | The revision stream out, and the merge coming in                                                          |
 | `account.ts`    | The user's own row: preferences, and soft deleting a collection                                           |
 | `mapping.ts`    | Converts between database rows and `packages/core` types (`toReviewLog`, rating words)                    |
@@ -229,19 +235,26 @@ the api anywhere in browser code would cost the session cookie.
 
 ### Screens (`src/features/`)
 
-| Path                      | Holds                                                                                           |
-| ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `auth/sign-up.tsx`        | Registering, then the ten codes, which it does not navigate away from                           |
-| `auth/sign-in.tsx`        | Email and password, and the hand off to the second factor when there is one                     |
-| `auth/recovery.tsx`       | Signing in with a code, then the new password that session owes                                 |
-| `auth/recovery-codes.tsx` | The codes, the warning, copy, download, and the box that has to be ticked. Held across a reload |
-| `auth/two-factor.tsx`     | The six digit challenge, with the lost phone codes on the same screen                           |
-| `auth/code-input.tsx`     | One field, not six boxes: it takes a paste and submits itself when full                         |
-| `auth/password-field.tsx` | The policy from `packages/shared`, judged when leaving the field rather than on every keystroke |
-| `settings/settings.tsx`   | Theme, language, password, codes, the second factor, and leaving                                |
-| `settings/totp.tsx`       | Enrollment in three steps that cannot be skipped, and removal                                   |
-| `library/library.tsx`     | The deck tree, read only, with the open folders remembered                                      |
-| `today/today.tsx`         | What is due, what is new, and the estimate that says "about"                                    |
+| Path                       | Holds                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `auth/sign-up.tsx`         | Registering, then the ten codes, which it does not navigate away from                           |
+| `auth/sign-in.tsx`         | Email and password, and the hand off to the second factor when there is one                     |
+| `auth/recovery.tsx`        | Signing in with a code, then the new password that session owes                                 |
+| `auth/recovery-codes.tsx`  | The codes, the warning, copy, download, and the box that has to be ticked. Held across a reload |
+| `auth/two-factor.tsx`      | The six digit challenge, with the lost phone codes on the same screen                           |
+| `auth/code-input.tsx`      | One field, not six boxes: it takes a paste and submits itself when full                         |
+| `auth/password-field.tsx`  | The policy from `packages/shared`, judged when leaving the field rather than on every keystroke |
+| `settings/settings.tsx`    | Theme, language, password, codes, the second factor, and leaving                                |
+| `settings/totp.tsx`        | Enrollment in three steps that cannot be skipped, and removal                                   |
+| `library/library.tsx`      | Writable deck tree: create, rename, move, reorder, settings, delete and remembered open state   |
+| `library/deck-dialogs.tsx` | Deck naming, safe move picker and inherited language/level settings                             |
+| `today/today.tsx`          | What is due, what is new, and the estimate that says "about"                                    |
+| `notes/note-list.tsx`      | Virtualized note browse, search, filters, sorts and selection                                   |
+| `notes/note-editor.tsx`    | Explicit create, autosaving edit, conditional fields and card preview                           |
+| `notes/note-selection.tsx` | Bulk known, move, tag and delete actions                                                        |
+| `notes/card-preview.tsx`   | The cards a note will keep, add or remove                                                       |
+| `import/import-screen.tsx` | Parse, map, preview, deduplicate, chunk, resume, finish and undo an import                      |
+| `import/prompt-dialog.tsx` | Prompt variant, substituted deck context, example and clipboard action                          |
 
 ### The design system (`src/ui/`)
 
@@ -274,6 +287,9 @@ every one of these in every state.
 | `lib/auth-client.ts`           | Better Auth over the same origin, and its own codes mapped onto the shared ones     |
 | `lib/account.ts`               | Who is signed in. One query, and the session check for the whole app                |
 | `lib/decks.ts`                 | The tree in one request, and adding up the roots                                    |
+| `lib/notes.ts`                 | Note queries, writes, bulk actions and batched duplicate lookup                     |
+| `lib/prompt.ts`                | Build-time import of `docs/card-generation-prompt.md`                               |
+| `lib/dialog-state.ts`          | Resets dialog-local state whenever the dialog opens                                 |
 | `lib/deployment-api-origin.ts` | Maps a web deployment to the matching api environment and fails closed for previews |
 | `lib/storage.ts`               | Local storage that cannot throw, because Safari's private mode does                 |
 | `lib/viewport.ts`              | Where the on-screen keyboard is, as CSS variables a sheet is positioned against     |
@@ -297,17 +313,19 @@ every one of these in every state.
 | `tests/gallery.spec.ts`        | One screenshot of the gallery per width                                       |
 | `tests/screens.spec.ts`        | The screens in both themes at 375 and 1440, with the api answered by fixtures |
 | `tests/motion.spec.ts`         | Computed durations under reduced motion, and what may be transitioned         |
-| `tests/performance.spec.ts`    | 500 rows, the default glass, a quarter speed processor, 55 fps                |
+| `tests/performance.spec.ts`    | Library and note-list scroll budgets under a throttled phone-sized browser    |
 | `tests/fixtures.ts`            | The api answers and the device preferences the browser tests run against      |
 
 ## Documentation
 
-| File                        | Holds                                                                         |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| `docs/STATE.md`             | Current phase, open threads, decision log. Read this first                    |
-| `docs/architecture.md`      | Why the structure is what it is, and the known limitations                    |
-| `docs/algorithm.md`         | FSRS and the workload manager explained in full, with the simulator results   |
-| `docs/design-system.md`     | The visual system: tokens, inventory, motion, glass, the words, the checklist |
-| `docs/design-principles.md` | A pointer to the file above. The phase 5 values in it are all wrong now       |
-| `docs/copy-audit.md`        | Every interface string in both languages, and what looks wrong with it        |
-| `docs/assets/*.svg`         | Charts produced by `sim/main.ts`                                              |
+| File                             | Holds                                                                         |
+| -------------------------------- | ----------------------------------------------------------------------------- |
+| `docs/STATE.md`                  | Current phase, open threads, decision log. Read this first                    |
+| `docs/ROADMAP.md`                | Product direction, committed milestone order, backlog and maintenance policy  |
+| `docs/architecture.md`           | Why the structure is what it is, and the known limitations                    |
+| `docs/algorithm.md`              | FSRS and the workload manager explained in full, with the simulator results   |
+| `docs/design-system.md`          | The visual system: tokens, inventory, motion, glass, the words, the checklist |
+| `docs/card-generation-prompt.md` | Canonical prompt and import output contract used by the web build             |
+| `docs/design-principles.md`      | A pointer to the file above. The phase 5 values in it are all wrong now       |
+| `docs/copy-audit.md`             | Every interface string in both languages, and what looks wrong with it        |
+| `docs/assets/*.svg`              | Charts produced by `sim/main.ts`                                              |

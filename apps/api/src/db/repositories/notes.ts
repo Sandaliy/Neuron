@@ -8,10 +8,12 @@ import type {
   NoteSort,
   NoteStatus,
   NoteTypeName,
+  RestoreNoteResult,
 } from '@neuron/shared';
 
 import { cards, decks, noteTypes, notes, user } from '../schema/index.js';
 
+import { restoreNote } from './restoration.js';
 import { nextRev } from './session.js';
 
 import type { Runner, Tx } from './session.js';
@@ -104,6 +106,8 @@ export interface NoteRepository {
    * the cursor is just the last id seen.
    */
   list: (query: ListNotes) => Promise<NotePage>;
+  /** Soft-deleted notes only, for the recovery screen. */
+  listDeleted: () => Promise<NoteRow[]>;
   /** Every note in a deck and, when asked, in the decks under it. */
   inDeck: (deckId: string, options?: { readonly includeSubtree?: boolean }) => Promise<NoteRow[]>;
   updateFields: (id: string, fields: NoteFields) => Promise<NoteRow | undefined>;
@@ -152,8 +156,8 @@ export interface NoteRepository {
    */
   moveToDeck: (id: string, deckId: string) => Promise<NoteRow | undefined>;
   softDelete: (id: string) => Promise<boolean>;
-  /** Takes back one delete, bringing the note's cards with it. */
-  restore: (id: string) => Promise<boolean>;
+  /** Restores only cards explicitly deleted by the note's deletion. */
+  restore: (id: string) => Promise<RestoreNoteResult>;
 }
 
 /**
@@ -485,6 +489,16 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       });
     },
 
+    async listDeleted() {
+      return run(async (tx) =>
+        tx
+          .select()
+          .from(notes)
+          .where(and(eq(notes.userId, userId), sql`${notes.deletedAt} is not null`))
+          .orderBy(asc(notes.deletedAt), asc(notes.id)),
+      );
+    },
+
     async inDeck(deckId, options) {
       return run(async (tx) => {
         if (!options?.includeSubtree) {
@@ -696,7 +710,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
         if (marked.length > 0) {
           await tx
             .update(cards)
-            .set({ deletedAt: now, updatedAt: now, rev })
+            .set({ deletedAt: now, deletedWithNote: true, updatedAt: now, rev })
             .where(
               and(
                 eq(cards.userId, userId),
@@ -777,7 +791,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
         if (marked.length > 0) {
           await tx
             .update(cards)
-            .set({ deletedAt: now, updatedAt: now, rev })
+            .set({ deletedAt: now, deletedWithNote: true, updatedAt: now, rev })
             .where(and(eq(cards.userId, userId), eq(cards.noteId, id), isNull(cards.deletedAt)));
         }
 
@@ -787,38 +801,8 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
 
     async restore(id) {
       return run(async (tx) => {
-        const [note] = await tx
-          .select({ deletedAt: notes.deletedAt })
-          .from(notes)
-          .where(and(eq(notes.userId, userId), eq(notes.id, id)))
-          .limit(1);
-
-        if (!note?.deletedAt) {
-          return false;
-        }
-
         const rev = await nextRev(tx, userId);
-        const now = new Date();
-
-        await tx
-          .update(notes)
-          .set({ deletedAt: null, updatedAt: now, rev })
-          .where(and(eq(notes.userId, userId), eq(notes.id, id)));
-
-        // Only the cards that went with the note. One deleted on its own
-        // beforehand was deleted on purpose and stays that way.
-        await tx
-          .update(cards)
-          .set({ deletedAt: null, updatedAt: now, rev })
-          .where(
-            and(
-              eq(cards.userId, userId),
-              eq(cards.noteId, id),
-              eq(cards.deletedAt, note.deletedAt),
-            ),
-          );
-
-        return true;
+        return restoreNote(tx, userId, id, rev, new Date());
       });
     },
   };

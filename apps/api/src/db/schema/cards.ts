@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   doublePrecision,
   index,
@@ -108,6 +109,8 @@ export const cards = pgTable(
      * being true the first time anyone pressed reset.
      */
     resetAt: instant('reset_at'),
+    /** True only when a live card was deleted by its parent note's deletion. */
+    deletedWithNote: boolean('deleted_with_note').notNull().default(false),
   },
   (table) => [
     uniqueIndex('cards_note_direction_key')
@@ -157,5 +160,9 @@ export const cards = pgTable(
     check('cards_lapses_within_reps', sql`${table.lapses} <= ${table.reps}`),
     check('cards_learning_step_not_negative', sql`${table.learningStep} >= 0`),
     check('cards_rev_not_negative', sql`${table.rev} >= 0`),
+    check(
+      'cards_note_deletion_requires_deleted',
+      sql`not ${table.deletedWithNote} or ${table.deletedAt} is not null`,
+    ),
   ],
 );

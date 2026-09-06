@@ -47,6 +47,18 @@ export const deckNodeSchema: z.ZodType<DeckNode> = deckSchema
 
 export const deckTreeSchema = z.object({ decks: z.array(deckNodeSchema) });
 
+/** A soft-deleted deck, kept separate from the live library tree. */
+export const deletedDeckSchema = deckSchema.extend({
+  /** Original ancestors, root first, resolved when the recovery list was read. */
+  pathNames: z.array(z.string()),
+  /** A deleted parent must be restored before this deck can be restored. */
+  parentDeleted: z.boolean(),
+});
+
+export type DeletedDeck = z.infer<typeof deletedDeckSchema>;
+
+export const deletedDeckListSchema = z.object({ decks: z.array(deletedDeckSchema) });
+
 export const createDeckSchema = z.strictObject({
   /** Supply one when the deck was made offline, so it keeps its identity. */
   id: idSchema.optional(),

@@ -16,6 +16,7 @@ import { SignUpScreen } from './features/auth/sign-up';
 import { TwoFactorScreen } from './features/auth/two-factor';
 import { GalleryScreen } from './features/dev/gallery';
 import { ImportScreen } from './features/import/import-screen';
+import { DeletedScreen } from './features/library/deleted';
 import { LibraryScreen } from './features/library/library';
 import { NoteEditorScreen } from './features/notes/note-editor';
 import { NoteListScreen } from './features/notes/note-list';
@@ -102,6 +103,12 @@ const libraryRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/library',
   component: LibraryScreen,
+});
+
+const deletedRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/deleted',
+  component: DeletedScreen,
 });
 
 /**
@@ -200,6 +207,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     todayRoute,
     libraryRoute,
+    deletedRoute,
     noteListRoute,
     // Before the parameter route, or a new note is read as a note whose id is
     // the word new.

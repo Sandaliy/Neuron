@@ -133,6 +133,15 @@ const NOTES = [
   note('n5', 'Termin', 'appointment'),
 ];
 
+const DELETED_DECKS = [
+  {
+    ...deck('deleted_d1', 'Archived lesson', 0, 0),
+    parentId: null,
+    pathNames: [],
+    parentDeleted: false,
+  },
+];
+
 /**
  * A list long enough to be worth measuring a scroll on.
  *
@@ -244,6 +253,26 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ decks }),
+        });
+
+        return;
+      }
+
+      if (path.endsWith('/api/decks/deleted')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ decks: DELETED_DECKS }),
+        });
+
+        return;
+      }
+
+      if (path.endsWith('/api/notes/deleted')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ notes: [] }),
         });
 
         return;

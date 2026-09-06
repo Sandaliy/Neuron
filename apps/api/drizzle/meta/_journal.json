@@ -78,6 +78,13 @@
       "when": 1786896372881,
       "tag": "0010_petite_toad",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788562799443,
+      "tag": "0011_chilly_pyro",
+      "breakpoints": true
     }
   ]
 }

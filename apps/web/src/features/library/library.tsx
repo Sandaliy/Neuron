@@ -92,10 +92,15 @@ export function LibraryScreen() {
       <header className="flex items-center justify-between gap-12">
         <h1 className="font-display text-24 tracking-tight text-primary">{t('library.title')}</h1>
 
-        <Button variant="quiet" onClick={() => setDialog({ kind: 'create', parentId: null })}>
-          <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
-          {t('library.newDeck')}
-        </Button>
+        <div className="flex items-center gap-8">
+          <Button variant="text" onClick={() => void navigate({ to: '/library/deleted' })}>
+            {t('deleted.title')}
+          </Button>
+          <Button variant="quiet" onClick={() => setDialog({ kind: 'create', parentId: null })}>
+            <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+            {t('library.newDeck')}
+          </Button>
+        </div>
       </header>
 
       {decks.isPending ? <SkeletonRows rows={5} /> : undefined}

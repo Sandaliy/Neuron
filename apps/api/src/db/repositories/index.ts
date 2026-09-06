@@ -47,8 +47,8 @@ export interface Repositories {
   /**
    * Runs several operations in one transaction.
    *
-   * Everything inside shares one version number and either all lands or none of
-   * it does. Creating a note and its cards belongs here: a note with no cards
+   * Everything inside either all lands or none of it does. Each repository write
+   * still allocates its own revision. Creating a note and its cards belongs here: a note with no cards
    * is invisible, and a card with no note is an error waiting to be read.
    */
   readonly transaction: <T>(work: (repositories: Repositories) => Promise<T>) => Promise<T>;
@@ -71,7 +71,7 @@ function build(db: Database, userId: string, run: Runner): Repositories {
         await nameUser(tx, userId);
 
         // The nested set runs everything on this transaction rather than
-        // opening its own, so the whole unit shares one version number.
+        // opening its own. Revision allocation stays with each repository write.
         return work(build(db, userId, async (inner) => inner(tx)));
       }),
   };

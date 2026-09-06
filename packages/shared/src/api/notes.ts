@@ -42,6 +42,18 @@ export const noteSchema = z.object({
 
 export type Note = z.infer<typeof noteSchema>;
 
+/** A soft-deleted note with the original deck chain needed for recovery. */
+export const deletedNoteSchema = noteSchema.extend({
+  /** Original deck chain, root first and including the note's deck. */
+  deckPath: z.array(z.string()),
+  /** A note cannot return until every deck in that chain is live. */
+  deckLive: z.boolean(),
+});
+
+export type DeletedNote = z.infer<typeof deletedNoteSchema>;
+
+export const deletedNoteListSchema = z.object({ notes: z.array(deletedNoteSchema) });
+
 /**
  * How a list of notes is ordered.
  *
@@ -177,6 +189,15 @@ export const bulkTagsSchema = z
   );
 
 export const bulkDeleteSchema = z.strictObject({ ids: bulkIds });
+
+/** Deleted cards without proven parent-note deletion stay deleted. Reviews are unchanged. */
+export const restoreNoteResultSchema = z.object({
+  restored: z.boolean(),
+  cardsRestored: z.number().int().min(0),
+  cardsRemainingDeleted: z.number().int().min(0),
+});
+
+export type RestoreNoteResult = z.infer<typeof restoreNoteResultSchema>;
 
 export type CreateNoteBody = z.infer<typeof createNoteSchema>;
 export type UpdateNoteBody = z.infer<typeof updateNoteSchema>;

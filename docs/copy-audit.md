@@ -26,11 +26,11 @@ come back without failing the build.
 
 |                                                       |         |
 | ----------------------------------------------------- | ------- |
-| Strings, each in two languages                        | **437** |
+| Strings, each in two languages                        | **438** |
 | Referenced by name somewhere in `apps/`               | 408     |
-| Reached only through a computed key (`error.${code}`) | 29      |
+| Reached only through a computed key (`error.${code}`) | 30      |
 | Present in one language only                          | 0       |
-| Carrying at least one flag                            | 130     |
+| Carrying at least one flag                            | 131     |
 
 ## What the flags mean
 
@@ -42,7 +42,7 @@ come back without failing the build.
 | `form-of-address` | Russian addresses the reader as вы. This project uses ты.                                                                                                                              | 0     |
 | `calque`          | A phrase translated word for word out of English. Nobody says it in Russian.                                                                                                           | 0     |
 | `bare-verb`       | A control whose label is a verb and nothing else. It does not say what it affects.                                                                                                     | 9     |
-| `no-next-step`    | An error or refusal that names the problem without saying what to do about it.                                                                                                         | 21    |
+| `no-next-step`    | An error or refusal that names the problem without saying what to do about it.                                                                                                         | 22    |
 | `only-en`         | Exists in English only.                                                                                                                                                                | 0     |
 | `only-ru`         | Exists in Russian only.                                                                                                                                                                | 0     |
 | `unreferenced`    | No code refers to this key. Either dead, or reached through a computed key.                                                                                                            | 0     |
@@ -94,6 +94,7 @@ come back without failing the build.
 | `error.no_recovery_codes`       | no-next-step                 | No recovery codes are left on this account.                                | На этом аккаунте не осталось кодов восстановления.                 |
 | `error.not_authenticated`       | no-next-step                 | Sign in to continue.                                                       | Войди, чтобы продолжить.                                           |
 | `error.not_found`               | no-next-step                 | That is not here.                                                          | Этого здесь нет.                                                   |
+| `error.restore_dependency`      | no-next-step                 | Restore the original parent deck or note first.                            | Сначала восстанови исходный родительский набор или запись.         |
 | `error.two_factor_unavailable`  | no-next-step                 | 2FA is not set up on this account.                                         | 2FA на этом аккаунте не настроена.                                 |
 | `error.unknown_note_type`       | no-next-step                 | That note type does not exist.                                             | Такого типа заметки не существует.                                 |
 | `import.checking`               | length-64%                   | Checking for duplicates                                                    | Ищу совпадения                                                     |
@@ -303,6 +304,7 @@ come back without failing the build.
 | `error.password_change_required`       | Choose a new password to finish signing in.                                                                                                                                                                                           | Задай новый пароль, чтобы закончить вход.                                                                                                                                                               |
 | `error.rate_limited`                   | Too many tries. Wait {seconds} seconds.                                                                                                                                                                                               | Слишком много попыток. Подожди {seconds} секунд.                                                                                                                                                        |
 | `error.registration_closed`            | New accounts are closed right now. If you already have one, you can still sign in.                                                                                                                                                    | Регистрация сейчас закрыта. Если аккаунт уже есть, войти по-прежнему можно.                                                                                                                             |
+| `error.restore_dependency`             | Restore the original parent deck or note first.                                                                                                                                                                                       | Сначала восстанови исходный родительский набор или запись.                                                                                                                                              |
 | `error.service_unavailable`            | The server is not answering. Your work is saved on this device.                                                                                                                                                                       | Сервер не отвечает. Работа сохранена на устройстве.                                                                                                                                                     |
 | `error.sync_rejected`                  | Those changes could not be saved. They are still on this device.                                                                                                                                                                      | Эти изменения не удалось сохранить. Они остались на устройстве.                                                                                                                                         |
 | `error.two_factor_code_reused`         | That code has already been used. Wait for a new one.                                                                                                                                                                                  | Этот код уже использован. Дождитесь следующего.                                                                                                                                                         |

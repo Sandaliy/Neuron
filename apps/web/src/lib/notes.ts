@@ -7,6 +7,7 @@ import type {
   NoteStatus,
   NoteTypeName,
   DuplicateMatch,
+  RestoreNoteResult,
 } from '@neuron/shared';
 
 import { request } from './api';
@@ -109,7 +110,7 @@ export function useNoteActions() {
 
   const restore = useMutation({
     mutationFn: (id: string) =>
-      request<{ restored: boolean }>(`/notes/${id}/restore`, { method: 'POST' }),
+      request<RestoreNoteResult>(`/notes/${id}/restore`, { method: 'POST' }),
     onSuccess: refresh,
   });
 
