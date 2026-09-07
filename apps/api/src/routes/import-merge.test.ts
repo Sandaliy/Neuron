@@ -107,7 +107,7 @@ describe.skipIf(!database)('safe import merge', () => {
       await server.request('/api/notes/duplicates', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ terms: ['Mixed'] }),
+        body: JSON.stringify({ deckId, terms: ['Mixed'] }),
       }),
       200,
     );

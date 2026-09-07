@@ -8,7 +8,7 @@ vi.mock('./api', () => ({
 
 describe('duplicate lookup', () => {
   it('does not send an invalid empty request', async () => {
-    const result = await findDuplicates([]);
+    const result = await findDuplicates('deck', []);
 
     expect(result).toEqual([]);
   });

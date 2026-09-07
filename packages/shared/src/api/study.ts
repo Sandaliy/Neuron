@@ -116,15 +116,9 @@ export type CreatePresetBody = z.infer<typeof createPresetSchema>;
 export type UpdatePresetBody = z.infer<typeof updatePresetSchema>;
 export type CreateImportBody = z.infer<typeof createImportSchema>;
 
-/**
- * Which of these words are already in the library.
- *
- * The whole library, not the target deck: a word already learned in another
- * deck is exactly the duplicate worth knowing about. The terms go up in one
- * request rather than one each, and come back matched against an indexed
- * column, so five thousand rows are a handful of queries.
- */
+/** Which of these terms already exist in the destination deck. */
 export const duplicateCheckSchema = z.strictObject({
+  deckId: idSchema,
   terms: z.array(z.string().trim().min(1).max(300)).min(1).max(1000),
 });
 

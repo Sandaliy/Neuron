@@ -149,19 +149,12 @@ export function noteRoutes(): Hono<RequestBindings> {
     return context.json({ changed });
   });
 
-  /**
-   * Which of these words the library already holds.
-   *
-   * One request for a whole chunk of an import, answered from an indexed
-   * generated column, so five thousand rows are five queries rather than five
-   * thousand. Across every deck, because a word already learned somewhere else
-   * is exactly the duplicate worth knowing about.
-   */
+  /** Which of these terms already exists in the requested live destination deck. */
   routes.post('/duplicates', async (context) => {
     const body = await readBody(context, duplicateCheckSchema);
     const repositories = repositoriesOf(context);
     const keys = body.terms.map((term) => normaliseTerm(term));
-    const rows = await repositories.notes.duplicatesOf(keys);
+    const rows = await repositories.notes.duplicatesOf(body.deckId, keys);
 
     return context.json({
       matches: rows.map((row) => ({
@@ -252,9 +245,9 @@ export function noteRoutes(): Hono<RequestBindings> {
           throw new ApiError('invalid_request');
         }
 
-        const eligible = (await inner.notes.duplicatesOf([noteTermKey(incoming)])).filter(
-          (match) => match.noteType === currentType,
-        );
+        const eligible = (
+          await inner.notes.duplicatesOf(existing.deckId, [noteTermKey(incoming)])
+        ).filter((match) => match.noteType === currentType);
 
         if (eligible.length !== 1 || eligible[0]?.id !== id) {
           throw new ApiError('invalid_request');

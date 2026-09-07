@@ -137,7 +137,7 @@ describe.skipIf(!database)('importing', () => {
     expect(batch?.noteCount).toBe(3);
   });
 
-  it('finds a word that is already in the library, whatever deck it is in', async () => {
+  it('finds a word only when it is live in the destination deck', async () => {
     if (!database) {
       return;
     }
@@ -150,19 +150,57 @@ describe.skipIf(!database)('importing', () => {
       fields: { term: 'Der  Schlüssel ', translation: 'key' },
     });
 
+    const deletedDeck = await repositories.decks.create({ name: 'Deleted deck' });
+    await repositories.notes.create({
+      deckId: deletedDeck.id,
+      noteType: 'vocab',
+      fields: { term: 'Gelöschtes Wort', translation: 'deleted deck' },
+    });
+    await repositories.decks.softDelete(deletedDeck.id);
+
     const body = await json<{ matches: { term: string; deckId: string; written: string }[] }>(
       await server.request('/api/notes/duplicates', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ terms: ['der schlüssel', 'Nichts davon'] }),
+        body: JSON.stringify({
+          deckId,
+          terms: ['der schlüssel', 'gelöschtes wort', 'Nichts davon'],
+        }),
       }),
       200,
     );
 
-    expect(body.matches).toHaveLength(1);
-    expect(body.matches[0]?.term).toBe(normaliseTerm('Der  Schlüssel '));
-    expect(body.matches[0]?.deckId).toBe(elsewhere.id);
-    expect(body.matches[0]?.written).toBe('Der  Schlüssel');
+    expect(body.matches).toHaveLength(0);
+
+    await repositories.notes.create({
+      deckId,
+      noteType: 'vocab',
+      fields: { term: 'Der  Schlüssel ', translation: 'key here' },
+    });
+    const deletedNote = await repositories.notes.create({
+      deckId,
+      noteType: 'vocab',
+      fields: { term: 'Gelöschte Notiz', translation: 'deleted note' },
+    });
+    await repositories.notes.softDelete(deletedNote.id);
+
+    const destination = await json<{
+      matches: { term: string; deckId: string; written: string }[];
+    }>(
+      await server.request('/api/notes/duplicates', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          deckId,
+          terms: ['der schlüssel', 'gelöschtes wort', 'gelöschte notiz'],
+        }),
+      }),
+      200,
+    );
+    expect(destination.matches).toHaveLength(1);
+    expect(destination.matches[0]?.term).toBe(normaliseTerm('Der  Schlüssel '));
+    expect(destination.matches[0]?.deckId).toBe(deckId);
+    expect(destination.matches[0]?.written).toBe('Der  Schlüssel');
   });
 
   it('does not treat two different words as the same one', async () => {
@@ -180,7 +218,7 @@ describe.skipIf(!database)('importing', () => {
       await server.request('/api/notes/duplicates', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ terms: ['schon'] }),
+        body: JSON.stringify({ deckId, terms: ['schon'] }),
       }),
       200,
     );
@@ -372,8 +410,9 @@ describe.skipIf(!database)('five thousand rows', () => {
     // notes. What is being proved is that each chunk is one statement rather
     // than one per row.
     for (let index = 0; index < terms.length; index += 1000) {
-      found += (await counted.repositories.notes.duplicatesOf(terms.slice(index, index + 1000)))
-        .length;
+      found += (
+        await counted.repositories.notes.duplicatesOf(deckId, terms.slice(index, index + 1000))
+      ).length;
     }
 
     const queries = counted.count();

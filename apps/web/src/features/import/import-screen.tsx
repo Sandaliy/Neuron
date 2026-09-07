@@ -127,7 +127,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
     try {
       const terms = parsed.rows.map((row) => termOf(row.fields)).filter((term) => term !== '');
 
-      const found = await findDuplicates(terms);
+      const found = await findDuplicates(deck, terms);
       if (sequence === checkSequence.current) setDuplicates(found);
     } catch (error) {
       // Keep the preview, but do not write before duplicate lookup succeeds.
