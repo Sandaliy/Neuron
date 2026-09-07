@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { neonConfig } from '@neondatabase/serverless';
 import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -35,14 +34,6 @@ const configured = Boolean(
   process.env['DATABASE_URL'] &&
   process.env['DATABASE_URL_AUTH'],
 );
-const webSocketProxy = process.env['DATABASE_URL_TEST_WS_PROXY'];
-
-if (webSocketProxy) {
-  neonConfig.wsProxy = webSocketProxy;
-  neonConfig.useSecureWebSocket = false;
-  neonConfig.pipelineConnect = false;
-}
-
 const databaseName = `neuron_release_${process.pid}_${Date.now()}`;
 const migrationsFolder = fileURLToPath(new URL('../../../drizzle', import.meta.url));
 let behindFolder = '';
