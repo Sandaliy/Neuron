@@ -20,13 +20,16 @@ export default defineConfig({
   testDir: './tests',
 
   /*
-   * One worker, because one of these tests measures a frame rate with the
-   * processor throttled to a quarter speed. A second worker on the same machine
-   * competes for exactly the resource being measured, and the number stops
-   * meaning anything. The whole suite still finishes in under a minute.
+   * The hosted frame-rate benchmark and the visual snapshot suite are isolated
+   * from concurrent work. Keep both on one worker so throttled measurements and
+   * screenshots remain honest; the blocking interaction suite can use two.
    */
   fullyParallel: false,
-  workers: 1,
+  workers:
+    process.env['PERFORMANCE_BENCHMARK'] === 'true' ||
+    process.env['VISUAL_SNAPSHOT_SUITE'] === 'true'
+      ? 1
+      : 2,
   forbidOnly: Boolean(process.env['CI']),
   retries: 0,
   reporter: process.env['CI'] ? 'line' : [['list']],
@@ -49,6 +52,7 @@ export default defineConfig({
   projects: [
     {
       name: 'phone',
+      testMatch: /(?:gallery|screens)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 375, height: 812 },
@@ -56,9 +60,25 @@ export default defineConfig({
     },
     {
       name: 'desktop',
-      // The frame rate budget is a phone measurement. Running it again at 1440
-      // measures a different thing and calls it the same name.
-      testIgnore: /performance\.spec\.ts/,
+      testMatch: /(?:gallery|screens)\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+      },
+    },
+    {
+      name: 'phone-interaction',
+      testIgnore: /(?:gallery|screens)\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 375, height: 812 },
+      },
+    },
+    {
+      name: 'desktop-interaction',
+      // The frame rate budgets are phone measurements. Running them again at
+      // 1440 measures a different thing and calls it the same name.
+      testIgnore: /(?:gallery|screens|performance)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },

@@ -126,8 +126,13 @@ jobs:
 
           throw "The web server did not start"
 
-      - name: Run browser tests
-        run: pnpm --filter @neuron/web test:screens
+      - name: Run interaction browser tests
+        run: pnpm --filter @neuron/web test:screens --project=phone-interaction --project=desktop-interaction
+
+      - name: Run visual snapshot tests
+        env:
+          VISUAL_SNAPSHOT_SUITE: 'true'
+        run: pnpm --filter @neuron/web test:screens --project=phone --project=desktop
 
       - name: Stop web server
         if: ${{ always() && steps.web-server.outputs.pid != '' }}

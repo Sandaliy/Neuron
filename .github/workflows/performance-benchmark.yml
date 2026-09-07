@@ -1,10 +1,23 @@
 name: Performance benchmark
 
 on:
+  schedule:
+    - cron: '17 3 * * 1'
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+    paths:
+      - 'apps/web/src/app/shell.tsx'
+      - 'apps/web/src/features/notes/**'
+      - 'apps/web/src/preferences/frame-rate.ts'
+      - 'apps/web/src/router.tsx'
+      - 'apps/web/src/styles/**'
+      - 'apps/web/src/ui/**'
+      - 'apps/web/tests/00-note-list-performance.spec.ts'
+      - 'apps/web/tests/performance.spec.ts'
+      - 'apps/web/playwright.config.ts'
+      - 'apps/web/package.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
   workflow_dispatch:
 
 permissions:
@@ -63,7 +76,7 @@ jobs:
       - name: Measure 5,000-note frame rate
         env:
           PERFORMANCE_BENCHMARK: 'true'
-        run: pnpm --filter @neuron/web test:screens tests/00-note-list-performance.spec.ts --project=phone
+        run: pnpm --filter @neuron/web test:screens tests/00-note-list-performance.spec.ts --project=phone-interaction
 
       - name: Stop web server
         if: ${{ always() && steps.web-server.outputs.pid != '' }}
