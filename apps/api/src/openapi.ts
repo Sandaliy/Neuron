@@ -168,9 +168,12 @@ export function openApiDocument(baseUrl: string) {
     paths: {
       '/health': {
         get: {
-          summary: 'Whether the server is up. The one endpoint with no session',
+          summary: 'Whether the server and its required database schema are ready',
           security: [],
-          responses: { 200: answer('The server is answering') },
+          responses: {
+            200: answer('The server and database schema are ready'),
+            503: answer('The database is unavailable or incompatible'),
+          },
         },
       },
       '/account': {

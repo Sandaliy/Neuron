@@ -200,10 +200,12 @@ The user is supplied once when the set is built. Do not write ad hoc queries in 
 | ------------------------------------------------ | ---------------------------------------------------------------------- |
 | `client.ts`                                      | `createDb` for the application role, `createAuthDb` for Better Auth    |
 | `health.ts`                                      | `readDatabaseTime`, used by `/db-check`                                |
+| `compatibility.ts`                               | Runtime role and schema compatibility used by builds and health        |
 | `stable-id.ts`                                   | Deterministic ids for seeded and built in rows                         |
 | `system-note-types.ts`                           | The built in note type rows                                            |
 | `tooling.ts`                                     | Shared helpers for the scripts below                                   |
 | `migrate/main.ts`                                | Applies migrations                                                     |
+| `release/`                                       | Verifies the migration journal and restricted release connections      |
 | `seed/main.ts`, `seed/data.ts`                   | Seeds a database with sample decks and notes                           |
 | `role/main.ts`                                   | Gives both restricted roles a password and writes their connections    |
 | `erase/main.ts`                                  | The only code that removes a review. Runs as the owner, thirty days on |

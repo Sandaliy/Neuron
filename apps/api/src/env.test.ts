@@ -154,4 +154,13 @@ describe('parseEnv', () => {
     expect(env).not.toHaveProperty('GOOGLE_CLIENT_ID');
     expect(env).not.toHaveProperty('GOOGLE_CLIENT_SECRET');
   });
+
+  it('does not expose the migration owner to runtime code', () => {
+    const env = parseEnv({
+      ...valid,
+      DATABASE_URL_OWNER: 'postgresql://neondb_owner:secret@host.neon.tech/neondb',
+    });
+
+    expect(env).not.toHaveProperty('DATABASE_URL_OWNER');
+  });
 });

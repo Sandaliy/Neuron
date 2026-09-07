@@ -24,6 +24,7 @@
     "db:generate": "pnpm --filter @neuron/api db:generate",
     "db:check": "pnpm --filter @neuron/api db:check",
     "db:migrate": "pnpm --filter @neuron/api db:migrate",
+    "db:verify-release": "pnpm --filter @neuron/api db:verify-release",
     "db:seed": "pnpm --filter @neuron/api db:seed",
     "db:role": "pnpm --filter @neuron/api db:role",
     "db:test-db": "pnpm --filter @neuron/api db:test-db",

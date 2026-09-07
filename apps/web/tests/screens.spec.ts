@@ -85,6 +85,9 @@ for (const theme of THEMES) {
       await page.goto('/settings');
       await page.getByRole('button', { name: 'Change your password' }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
+      // Clicking a below-the-fold row may scroll it into view before Radix
+      // opens the fixed dialog. The backdrop snapshot always starts at the top.
+      await page.evaluate(() => window.scrollTo(0, 0));
       await settle(page);
 
       await expect(page).toHaveScreenshot(`dialog-${theme}.png`);
