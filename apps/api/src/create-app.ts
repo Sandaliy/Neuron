@@ -6,6 +6,7 @@ import { uuidV7 } from '@neuron/shared';
 import { createAuth } from './auth.js';
 import { addressFromHeaders, clientAddress, requireSession, signedIn } from './context.js';
 import { createAuthDb, createDb } from './db/client.js';
+import { requireCompatibleApplicationSchema } from './db/compatibility.js';
 import { readDatabaseTime } from './db/health.js';
 import { loadEnv } from './env.js';
 import { ApiError, respondWithError } from './errors.js';
@@ -101,27 +102,34 @@ export function mountApp(app: Hono, parts: AppParts): Hono {
     }),
   );
 
-  app.get('/health', (context) =>
-    context.json({
-      status: 'ok',
-      time: new Date().toISOString(),
-      /*
-       * The addresses this deployment answers to, so the question can be
-       * answered with one request instead of by reading a dashboard.
-       *
-       * Not a secret: every one of these is already visible in the CORS header
-       * of any request that asks. Saying it here is what turns "sign in is
-       * refused and I cannot see why" into one curl.
-       */
-      canonicalUrl: env.APP_ORIGIN.canonical,
-      trustedOrigins: env.APP_ORIGIN.trusted,
-      // Both are visible from the sign in screen anyway: whether it offers a
-      // registration form, and whether it asks for a confirmation link. Saying
-      // so here is what makes a fresh deploy checkable without a browser.
-      registrationOpen: env.AUTH_REGISTRATION_OPEN,
-      emailVerificationRequired: env.AUTH_REQUIRE_EMAIL_VERIFICATION,
-    }),
-  );
+  app.get('/health', async (context) => {
+    try {
+      await requireCompatibleApplicationSchema(db);
+
+      return context.json({
+        status: 'ok',
+        schema: 'compatible',
+        time: new Date().toISOString(),
+        /*
+         * The addresses this deployment answers to, so the question can be
+         * answered with one request instead of by reading a dashboard.
+         *
+         * Not a secret: every one of these is already visible in the CORS header
+         * of any request that asks. Saying it here is what turns "sign in is
+         * refused and I cannot see why" into one curl.
+         */
+        canonicalUrl: env.APP_ORIGIN.canonical,
+        trustedOrigins: env.APP_ORIGIN.trusted,
+        // Both are visible from the sign in screen anyway: whether it offers a
+        // registration form, and whether it asks for a confirmation link. Saying
+        // so here is what makes a fresh deploy checkable without a browser.
+        registrationOpen: env.AUTH_REGISTRATION_OPEN,
+        emailVerificationRequired: env.AUTH_REQUIRE_EMAIL_VERIFICATION,
+      });
+    } catch (error) {
+      throw new ApiError('service_unavailable', { cause: error });
+    }
+  });
 
   app.get('/db-check', async (context) => {
     try {

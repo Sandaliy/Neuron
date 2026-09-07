@@ -4,8 +4,8 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-06, after Phase 6 production recovery merged and hosted FPS measurement split from
-the blocking browser gate.
+Last updated: 2026-09-07, while production migration safety is proposed in PR #12 but is not yet active
+on `main`.
 
 ## Now
 
@@ -17,7 +17,10 @@ rows. Five isolated Chromium phone runs at 375 by 812, device scale 2 and CPU th
 verified in production.
 
 The stabilized `main` branch has protected pull-request delivery, required CI and Vercel checks, and
-isolated preview data. Production web, API `/health`, and `/db-check` passed after the recovery deployment.
+isolated preview data. It does not yet enforce production migration ordering or schema-aware health. PR
+#12 proposes the owner-only post-`main` migration path, a production build that waits for that migration
+through restricted credentials, schema-aware health, and a deliberately-behind regression. None of that
+mechanism is active until the pull request is merged and delivered.
 
 ## Done
 

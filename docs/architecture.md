@@ -327,6 +327,7 @@ row the TypeScript type could not describe cannot be stored either.
 ```
 pnpm db:generate     write a migration from the schema
 pnpm db:migrate      apply migrations, as the owner
+pnpm db:verify-release verify the migration journal and both restricted roles
 pnpm db:seed         fill the demo collection
 ```
 
@@ -342,6 +343,42 @@ pnpm db:erase        remove accounts whose thirty days are up, and sweep the rat
 The migration runner is ours rather than `drizzle-kit migrate`, which reports a failure as an exit code
 and nothing else. It runs the same files in the same order through the same journal, and prints what went
 wrong. The test setup calls the same function.
+
+### Production release ordering
+
+Vercel's Git integration builds every pull request and automatically deploys `main`. A successful build
+only proves that the code compiled; it does not apply a Drizzle migration, inspect the production
+migration journal or call an application endpoint. `drizzle-kit check` likewise validates the local
+migration files, not a remote database. A plain `select now()` proves only that a credential can reach
+Postgres.
+
+Production migrations therefore run after a protected `main` update in the trusted `Production
+migrations` GitHub workflow. The workflow definition comes from `main`, does not run for pull request
+events and does not check out pull request code. Only its migration and journal-verification steps receive
+`DATABASE_URL_OWNER`, from the `production-migrations` environment restricted to protected branches. It
+then verifies the exact migration journal. The independently started production build waits at its
+restricted compatibility gate while this trusted workflow is applying migrations.
+
+Pull requests validate the migration set and run the deliberately-behind regression against uniquely
+named throwaway databases. A Preview build does not compare the proposed Drizzle schema with the shared
+Preview database: doing so would require either mutating that database from pull request code or making
+every migration pull request fail until somebody migrated Preview by hand. Preview remains owner-free,
+and its runtime `/health` still reports an incompatible shared schema as unavailable.
+
+The production API Vercel build independently derives the tables and columns required by the current
+Drizzle schema and verifies them through its two restricted runtime connections. The same application-role
+check is part of `/health`; `/db-check` adds the database time only after compatibility passes. A missing
+required column therefore fails the production build and health instead of first appearing inside a user
+mutation. If Vercel's automatic production build reaches this gate before migration completes, it waits
+for the trusted workflow and retries only the missing-schema result for up to forty minutes within
+Vercel's forty-five-minute build limit. A migration failure therefore leaves deployment failed, while the
+normal deployment-before-migration race resolves without a second credential or a manual redeploy.
+`DATABASE_URL_OWNER` remains absent from Vercel build and request environments.
+
+The migration safety regression creates a uniquely named throwaway database, applies every migration
+except the latest through the normal runner, proves release verification and `/health` fail, applies the
+latest migration as the owner, then proves the journal, health, credentialed runtime connections and the
+restricted role identities pass. The database is dropped after the test.
 
 ### Tests that need a database
 

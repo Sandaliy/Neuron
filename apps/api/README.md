@@ -4,13 +4,13 @@ Hono on the Node runtime, deployed to Vercel Functions. It owns accounts, sessio
 
 ## Routes
 
-| Route           | What it does                                        |
-| --------------- | --------------------------------------------------- |
-| `GET /health`   | Says the server is up. No database, no session      |
-| `GET /db-check` | Asks the database for its time. Proves the wiring   |
-| `GET /me`       | The signed in user, or 401 when there is no session |
-| `/api/auth/*`   | Better Auth: sign up, sign in, sign out             |
-| `GET /spike`    | Temporary check page. Deleted in phase 5            |
+| Route           | What it does                                               |
+| --------------- | ---------------------------------------------------------- |
+| `GET /health`   | Says the server and its required database schema are ready |
+| `GET /db-check` | Adds a database-time query to the same schema check        |
+| `GET /me`       | The signed in user, or 401 when there is no session        |
+| `/api/auth/*`   | Better Auth: sign up, sign in, sign out                    |
+| `GET /spike`    | Temporary check page. Deleted in phase 5                   |
 
 ## Running it
 
@@ -27,7 +27,20 @@ every sign in is refused with a 403 that says nothing.
 pnpm dev            starts on http://localhost:8787
 pnpm db:generate    writes a migration from the schema
 pnpm db:migrate     applies migrations to the database
+pnpm db:verify-release checks the migration journal and both restricted roles
 ```
+
+Pull requests validate migration files and exercise migration compatibility in isolated throwaway
+databases. Preview builds do not compare their proposed schema with the shared Preview database and never
+receive an owner credential.
+
+After a protected `main` update, production migration files are applied by the trusted `Production
+migrations` GitHub workflow. Its owner URL is scoped to the `production-migrations` GitHub environment,
+which accepts only protected branches; pull request code cannot execute with it. The workflow verifies the
+journal after migration. The concurrent production build waits at its restricted-role compatibility gate
+while the trusted migration is still running, so a normal deployment-before-migration race resolves
+automatically. Vercel never receives the owner variable: production builds and request runtime use only
+`DATABASE_URL` (`neuron_app`) and `DATABASE_URL_AUTH` (`neuron_auth`).
 
 ## Layout
 

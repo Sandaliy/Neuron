@@ -26,9 +26,12 @@ const migrationsFolder = fileURLToPath(new URL('../../../drizzle', import.meta.u
  *
  * @param connectionString the database to migrate, as the owner
  */
-export async function applyMigrations(connectionString: string): Promise<void> {
+export async function applyMigrations(
+  connectionString: string,
+  folder = migrationsFolder,
+): Promise<void> {
   await withPool(connectionString, async (pool) => {
-    await migrate(drizzle(pool), { migrationsFolder });
+    await migrate(drizzle(pool), { migrationsFolder: folder });
   });
 }
 

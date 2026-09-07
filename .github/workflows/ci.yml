@@ -36,6 +36,31 @@ jobs:
     name: Typecheck, lint, test, build
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: neuron
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d neuron"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      postgres-websocket:
+        image: ghcr.io/neondatabase/wsproxy:latest
+        env:
+          ALLOW_ADDR_REGEX: '^postgres:5432$'
+        ports:
+          - 5433:80
+        options: >-
+          --health-cmd "curl --fail http://localhost:2112/metrics"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Check out the repository
         uses: actions/checkout@v5
@@ -63,6 +88,19 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Test migration safety against a behind schema
+        run: node node_modules/vitest/vitest.mjs run --config apps/api/vitest.release.config.ts
+        env:
+          DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/neuron
+          DATABASE_URL: postgresql://neuron_app:runtimeapp123@postgres:5432/neuron
+          DATABASE_URL_AUTH: postgresql://neuron_auth:runtimeauth123@postgres:5432/neuron
+          DATABASE_URL_TEST_WS_PROXY: localhost:5433/v1
+
+      - name: Verify Preview build is owner-free
+        run: pnpm --filter @neuron/api db:verify-vercel
+        env:
+          VERCEL_ENV: preview
 
       - name: Check migrations
         run: pnpm db:check

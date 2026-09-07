@@ -1,0 +1,53 @@
+name: Production migrations
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-migrations
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  production-schema:
+    name: Production migration journal
+    runs-on: ubuntu-latest
+    environment: production-migrations
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check whether production migrations are current
+        id: before_migration
+        continue-on-error: true
+        run: pnpm --filter @neuron/api db:verify-journal
+        env:
+          DATABASE_URL_OWNER: ${{ secrets.DATABASE_URL_OWNER }}
+
+      - name: Apply production migrations
+        if: steps.before_migration.outcome == 'failure'
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL_OWNER: ${{ secrets.DATABASE_URL_OWNER }}
+
+      - name: Verify production migration journal
+        run: pnpm --filter @neuron/api db:verify-journal
+        env:
+          DATABASE_URL_OWNER: ${{ secrets.DATABASE_URL_OWNER }}
