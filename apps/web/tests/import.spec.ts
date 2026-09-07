@@ -131,6 +131,135 @@ test('checks duplicates in the selected destination deck', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^Import 1/ })).toBeEnabled();
 });
 
+test('final import creates an other-deck term in the selected destination', async ({ page }) => {
+  await usePreferences(page, { theme: 'dark', locale: 'en' });
+  await useFixtures(page);
+  const writes: { path: string; body: Record<string, unknown> }[] = [];
+  await page.route('**/api/notes/duplicates', (route) => route.fulfill({ json: { matches: [] } }));
+  await page.route('**/api/imports**', async (route) => {
+    if (route.request().method() === 'POST') {
+      writes.push({
+        path: new URL(route.request().url()).pathname,
+        body: route.request().postDataJSON() as Record<string, unknown>,
+      });
+    }
+    await route.fulfill({ json: { notes: 1, cards: 1 } });
+  });
+  await page.goto('/import?deckId=d1');
+  await page.locator('textarea').fill(
+    JSON.stringify({
+      noteType: 'vocab',
+      notes: [{ term: 'elsewhere only', translation: 'create here' }],
+    }),
+  );
+  await page.getByRole('button', { name: 'Read the list' }).click();
+  await page.getByRole('button', { name: /^Import 1/ }).click();
+  await expect(page.getByText('Imported', { exact: true })).toBeVisible();
+  expect(writes.map((write) => write.path)).toEqual([
+    '/api/imports',
+    expect.stringMatching(/\/notes$/),
+  ]);
+  const chunk = writes[1]?.body['notes'] as { fields: { term: string } }[];
+  expect(chunk.map((note) => note.fields.term)).toEqual(['elsewhere only']);
+});
+
+test('final import merges an exact destination duplicate without creating an empty batch', async ({
+  page,
+}) => {
+  await usePreferences(page, { theme: 'dark', locale: 'en' });
+  await useFixtures(page);
+  const writes: { path: string; body: Record<string, unknown> }[] = [];
+  await page.route('**/api/notes/duplicates', (route) =>
+    route.fulfill({
+      json: {
+        matches: [
+          {
+            term: 'destination only',
+            noteId: 'destination-note',
+            noteType: 'vocab',
+            deckId: 'd1',
+            written: 'Destination only',
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/notes/destination-note', async (route) => {
+    writes.push({
+      path: new URL(route.request().url()).pathname,
+      body: route.request().postDataJSON() as Record<string, unknown>,
+    });
+    await route.fulfill({ json: {} });
+  });
+  await page.route('**/api/imports**', async (route) => {
+    writes.push({
+      path: new URL(route.request().url()).pathname,
+      body: route.request().postDataJSON() as Record<string, unknown>,
+    });
+    await route.fulfill({ json: { notes: 0, cards: 0 } });
+  });
+  await page.goto('/import?deckId=d1');
+  await page.locator('textarea').fill(
+    JSON.stringify({
+      noteType: 'vocab',
+      notes: [{ term: 'destination only', translation: 'fill this if blank' }],
+    }),
+  );
+  await page.getByRole('button', { name: 'Read the list' }).click();
+  await expect(page.getByText('Already in Deutsch', { exact: true })).toBeVisible();
+  await page.getByLabel('Default for duplicates', { exact: true }).selectOption('merge');
+  await page.getByRole('button', { name: /^Import 1/ }).click();
+  await expect(page.getByText('Imported', { exact: true })).toBeVisible();
+  expect(writes).toEqual([
+    {
+      path: '/api/notes/destination-note',
+      body: {
+        merge: true,
+        noteType: 'vocab',
+        fields: { term: 'destination only', translation: 'fill this if blank' },
+      },
+    },
+  ]);
+  await expect(page.getByRole('button', { name: 'Take this import back' })).toHaveCount(0);
+});
+
+test('all skipped rows stay a clean no-op and do not start an import batch', async ({ page }) => {
+  await usePreferences(page, { theme: 'dark', locale: 'en' });
+  await useFixtures(page);
+  let importWrites = 0;
+  await page.route('**/api/notes/duplicates', (route) =>
+    route.fulfill({
+      json: {
+        matches: [
+          {
+            term: 'already present',
+            noteId: 'present-note',
+            noteType: 'vocab',
+            deckId: 'd1',
+            written: 'Already present',
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/imports**', async (route) => {
+    importWrites += 1;
+    await route.fulfill({ json: {} });
+  });
+  await page.goto('/import?deckId=d1');
+  await page.locator('textarea').fill(
+    JSON.stringify({
+      noteType: 'vocab',
+      notes: [{ term: 'already present', translation: 'keep existing' }],
+    }),
+  );
+  await page.getByRole('button', { name: 'Read the list' }).click();
+  await expect(page.getByText('Already in Deutsch', { exact: true })).toBeVisible();
+  await expect(page.getByText('Nothing here to import yet.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Import 0/ })).toBeDisabled();
+  expect(importWrites).toBe(0);
+});
+
 test('lost chunk response resumes with the original IDs and does not duplicate rows', async ({
   page,
 }) => {

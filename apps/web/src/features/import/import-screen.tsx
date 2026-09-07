@@ -51,14 +51,15 @@ type Stage =
   | {
       readonly kind: 'importing';
       readonly attempt: ImportAttempt;
-      readonly batchId: string;
+      readonly batchId?: string;
       readonly done: number;
       readonly total: number;
       readonly failed?: boolean;
     }
   | {
       readonly kind: 'done';
-      readonly batchId: string;
+      /** Merges change an existing note and do not create an undoable batch. */
+      readonly batchId?: string;
       readonly notes: number;
       readonly cards: number;
     };
@@ -146,7 +147,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
    * @param from which chunk to start at, so a failure can be carried on from
    */
   async function upload(plan: ImportAttempt, from = 0) {
-    const { batchId } = plan;
+    const batchId = plan.create.length > 0 ? plan.batchId : undefined;
     const chunks: (typeof plan.create)[] = [];
 
     for (let start = 0; start < plan.create.length; start += IMPORT_CHUNK_SIZE) {
@@ -154,10 +155,16 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
     }
 
     setFailure(undefined);
-    setStage({ kind: 'importing', attempt: plan, batchId, done: from, total: chunks.length });
+    setStage({
+      kind: 'importing',
+      attempt: plan,
+      ...(batchId === undefined ? {} : { batchId }),
+      done: from,
+      total: chunks.length,
+    });
 
     try {
-      if (from === 0) {
+      if (from === 0 && batchId) {
         await request('/imports', {
           method: 'POST',
           body: {
@@ -170,6 +177,10 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       }
 
       for (let index = from; index < chunks.length; index += 1) {
+        if (!batchId) {
+          throw new Error('an import chunk needs a batch');
+        }
+
         await request(`/imports/${batchId}/notes`, {
           method: 'POST',
           body: {
@@ -202,7 +213,9 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
         });
       }
 
-      const summary = await request<{ notes: number; cards: number }>(`/imports/${batchId}`);
+      const summary = batchId
+        ? await request<{ notes: number; cards: number }>(`/imports/${batchId}`)
+        : { notes: 0, cards: 0 };
 
       // The list and tree are intentionally fresh for five minutes between
       // collection screens. This write happened outside the normal note
@@ -214,7 +227,12 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
         queryClient.invalidateQueries({ queryKey: DECK_TREE_KEY }),
       ]);
 
-      setStage({ kind: 'done', batchId, notes: summary.notes, cards: summary.cards });
+      setStage({
+        kind: 'done',
+        ...(batchId === undefined ? {} : { batchId }),
+        notes: summary.notes,
+        cards: summary.cards,
+      });
     } catch (error) {
       setFailure(error);
       setStage((current) =>
@@ -323,10 +341,14 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
           <p className="text-14 leading-body text-secondary" data-numeric="">
             {t('import.doneBody', { notes: stage.notes, cards: stage.cards })}
           </p>
-          <p className="text-14 leading-body text-secondary">{t('import.undoBoundary')}</p>
+          {stage.batchId ? (
+            <>
+              <p className="text-14 leading-body text-secondary">{t('import.undoBoundary')}</p>
 
-          {/* The triage sweep lands here in phase 9. */}
-          <p className="text-13 text-tertiary">{t('import.triageLater')}</p>
+              {/* The triage sweep lands here in phase 9. */}
+              <p className="text-13 text-tertiary">{t('import.triageLater')}</p>
+            </>
+          ) : undefined}
 
           <div className="flex flex-wrap gap-8">
             <Button
@@ -341,18 +363,20 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
               {t('import.openDeck')}
             </Button>
 
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                const summary = await request<{ notes: number; reviewedCards: number }>(
-                  `/imports/${stage.batchId}`,
-                );
+            {stage.batchId ? (
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  const summary = await request<{ notes: number; reviewedCards: number }>(
+                    `/imports/${stage.batchId}`,
+                  );
 
-                setConfirmUndo(summary);
-              }}
-            >
-              {t('import.undo')}
-            </Button>
+                  setConfirmUndo(summary);
+                }}
+              >
+                {t('import.undo')}
+              </Button>
+            ) : undefined}
           </div>
         </Card>
       ) : undefined}
@@ -391,7 +415,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
               </p>
             ) : undefined}
 
-            <Button variant="destructive" full onClick={() => void undo(stage.batchId)}>
+            <Button variant="destructive" full onClick={() => void undo(stage.batchId!)}>
               {confirmUndo.reviewedCards > 0 ? t('import.undoConfirm') : t('import.undo')}
             </Button>
             <Button variant="text" full onClick={() => setConfirmUndo(undefined)}>
@@ -611,6 +635,10 @@ function Preview({
           <p className="text-13 text-error">{parsed.failures[0]?.reason}</p>
         ) : undefined}
       </Panel>
+
+      {plan.create.length + plan.merge.length === 0 && !checking && !blocked ? (
+        <p className="text-14 leading-body text-secondary">{t('import.nothingToImport')}</p>
+      ) : undefined}
 
       {checking ? (
         <p className="text-13 text-tertiary">{t('import.checking')}</p>
