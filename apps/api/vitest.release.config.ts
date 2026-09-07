@@ -7,8 +7,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['src/db/release/release-safety.test.ts'],
+    fileParallelism: false,
+    include: ['src/db/release/*.test.ts'],
     root: import.meta.dirname,
+    setupFiles: ['src/db/release/test-setup.ts'],
     testTimeout: 120_000,
     hookTimeout: 120_000,
     reporters: ['verbose'],

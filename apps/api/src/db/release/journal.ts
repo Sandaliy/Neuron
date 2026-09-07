@@ -2,7 +2,7 @@ import process from 'node:process';
 
 import { requireUrl } from '../tooling.js';
 
-import { verifyMigrationJournal } from './verify.js';
+import { verifyMigrationJournal } from './journal-verification.js';
 
 async function main(): Promise<void> {
   const ownerUrl = requireUrl(

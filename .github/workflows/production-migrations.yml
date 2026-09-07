@@ -34,20 +34,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check whether production migrations are current
-        id: before_migration
-        continue-on-error: true
-        run: pnpm --filter @neuron/api db:verify-journal
-        env:
-          DATABASE_URL_OWNER: ${{ secrets.DATABASE_URL_OWNER }}
-
-      - name: Apply production migrations
-        if: steps.before_migration.outcome == 'failure'
-        run: pnpm db:migrate
-        env:
-          DATABASE_URL_OWNER: ${{ secrets.DATABASE_URL_OWNER }}
-
-      - name: Verify production migration journal
-        run: pnpm --filter @neuron/api db:verify-journal
+      - name: Verify and apply production migrations
+        run: pnpm --filter @neuron/api db:ensure-production-migrations
         env:
           DATABASE_URL_OWNER: ${{ secrets.DATABASE_URL_OWNER }}
