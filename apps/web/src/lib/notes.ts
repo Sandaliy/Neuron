@@ -153,7 +153,10 @@ export function useNoteActions() {
  * @param terms the words to ask about, already read out of the file
  * @returns what was found, keyed by the comparable form of the term
  */
-export async function findDuplicates(terms: readonly string[]): Promise<DuplicateMatch[]> {
+export async function findDuplicates(
+  deckId: string,
+  terms: readonly string[],
+): Promise<DuplicateMatch[]> {
   const found: DuplicateMatch[] = [];
 
   // The duplicate endpoint deliberately rejects an empty list. Imports whose
@@ -164,7 +167,7 @@ export async function findDuplicates(terms: readonly string[]): Promise<Duplicat
   for (let start = 0; start < terms.length; start += 1000) {
     const body = await request<{ matches: DuplicateMatch[] }>('/notes/duplicates', {
       method: 'POST',
-      body: { terms: terms.slice(start, start + 1000) },
+      body: { deckId, terms: terms.slice(start, start + 1000) },
     });
 
     found.push(...body.matches);

@@ -86,15 +86,8 @@ export interface NoteRepository {
     inputs: readonly CreateNote[],
     options?: { readonly skipExisting?: boolean },
   ) => Promise<NoteRow[]>;
-  /**
-   * Which of these words the library already holds.
-   *
-   * One query for the whole list, matched against the indexed generated column,
-   * because an import of five thousand rows cannot become five thousand
-   * queries. Across every deck, since a word already learned somewhere else is
-   * exactly the duplicate worth knowing about.
-   */
-  duplicatesOf: (termKeys: readonly string[]) => Promise<DuplicateRow[]>;
+  /** Matching live notes in one exact destination deck, in one batched query. */
+  duplicatesOf: (deckId: string, termKeys: readonly string[]) => Promise<DuplicateRow[]>;
   byId: (id: string, options?: { readonly forUpdate: boolean }) => Promise<NoteRow | undefined>;
   /**
    * The browse screen: filtered, and one page at a time.
@@ -335,7 +328,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       });
     },
 
-    async duplicatesOf(termKeys) {
+    async duplicatesOf(deckId, termKeys) {
       if (termKeys.length === 0) {
         return [];
       }
@@ -357,8 +350,16 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
           })
           .from(notes)
           .innerJoin(noteTypes, eq(notes.noteTypeId, noteTypes.id))
+          .innerJoin(decks, eq(notes.deckId, decks.id))
           .where(
-            and(eq(notes.userId, userId), isNull(notes.deletedAt), inArray(notes.termKey, wanted)),
+            and(
+              eq(notes.userId, userId),
+              eq(notes.deckId, deckId),
+              eq(decks.userId, userId),
+              isNull(notes.deletedAt),
+              isNull(decks.deletedAt),
+              inArray(notes.termKey, wanted),
+            ),
           );
 
         return rows.map((row) => ({ ...row, termKey: row.termKey ?? '' }));

@@ -110,6 +110,27 @@ for (const locale of ['en', 'ru'] as const) {
   });
 }
 
+test('checks duplicates in the selected destination deck', async ({ page }) => {
+  await usePreferences(page, { theme: 'dark', locale: 'en' });
+  await useFixtures(page);
+  let checked: Record<string, unknown> | undefined;
+  await page.route('**/api/notes/duplicates', async (route) => {
+    checked = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ json: { matches: [] } });
+  });
+  await page.goto('/import?deckId=d1');
+  await page.locator('textarea').fill(
+    JSON.stringify({
+      noteType: 'vocab',
+      notes: [{ term: 'elsewhere', translation: 'allowed' }],
+    }),
+  );
+  await page.getByRole('button', { name: 'Read the list' }).click();
+  await expect(page.getByText('elsewhere', { exact: true })).toBeVisible();
+  expect(checked).toEqual({ deckId: 'd1', terms: ['elsewhere'] });
+  await expect(page.getByRole('button', { name: /^Import 1/ })).toBeEnabled();
+});
+
 test('lost chunk response resumes with the original IDs and does not duplicate rows', async ({
   page,
 }) => {
