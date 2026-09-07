@@ -145,3 +145,61 @@ test('lost chunk response resumes with the original IDs and does not duplicate r
   expect(attempts[1]).toEqual(attempts[0]);
   expect(accepted.size).toBe(2);
 });
+
+test('completed import invalidates the cached destination list before opening its deck', async ({
+  page,
+}) => {
+  await usePreferences(page, { theme: 'dark', locale: 'en' });
+  await useFixtures(page);
+
+  let completed = false;
+  let listReads = 0;
+  const existing = {
+    id: 'existing',
+    deckId: 'd1',
+    noteType: 'vocab',
+    fields: { term: 'already here', translation: 'present' },
+    tags: [],
+    source: null,
+    rank: null,
+    status: 'active',
+    importBatchId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    rev: 1,
+    cardStates: { new: 1, learning: 0, review: 0, relearning: 0 },
+  };
+  const imported = {
+    ...existing,
+    id: 'imported',
+    fields: { term: 'newly imported', translation: 'now visible' },
+    importBatchId: 'batch_1',
+  };
+
+  await page.route('**/api/notes?**', async (route) => {
+    listReads += 1;
+    await route.fulfill({ json: { items: completed ? [existing, imported] : [existing] } });
+  });
+  await page.route('**/api/imports**', async (route) => {
+    if (route.request().method() === 'GET') completed = true;
+    await route.fulfill({ json: { notes: 1, cards: 1 } });
+  });
+
+  await page.goto('/notes?deckId=d1');
+  await expect(page.getByText('already here', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Import' }).click();
+  await page.locator('textarea').fill(
+    JSON.stringify({
+      noteType: 'vocab',
+      notes: [{ term: 'newly imported', translation: 'now visible' }],
+    }),
+  );
+  await page.getByRole('button', { name: 'Read the list' }).click();
+  await page.getByRole('button', { name: /^Import 1/ }).click();
+  await expect(page.getByText('Imported', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open the deck' }).click();
+
+  await expect(page.getByText('already here', { exact: true })).toBeVisible();
+  await expect(page.getByText('newly imported', { exact: true })).toBeVisible();
+  expect(listReads).toBeGreaterThanOrEqual(2);
+});
