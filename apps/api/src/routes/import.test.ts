@@ -225,6 +225,105 @@ describe.skipIf(!database)('importing', () => {
 
     expect(body.matches).toHaveLength(0);
   });
+
+  it('commits live destination decisions while ignoring other and deleted matches', async () => {
+    if (!database) {
+      return;
+    }
+
+    const elsewhere = await repositories.decks.create({ name: 'Commit elsewhere' });
+    await repositories.notes.create({
+      deckId: elsewhere.id,
+      noteType: 'vocab',
+      fields: { term: 'Other deck commit', translation: 'elsewhere' },
+    });
+    const deletedDeck = await repositories.decks.create({ name: 'Commit deleted deck' });
+    await repositories.notes.create({
+      deckId: deletedDeck.id,
+      noteType: 'vocab',
+      fields: { term: 'Deleted deck commit', translation: 'deleted deck' },
+    });
+    await repositories.decks.softDelete(deletedDeck.id);
+    const deletedNote = await repositories.notes.create({
+      deckId,
+      noteType: 'vocab',
+      fields: { term: 'Deleted note commit', translation: 'deleted note' },
+    });
+    await repositories.notes.softDelete(deletedNote.id);
+    const destination = await repositories.notes.create({
+      deckId,
+      noteType: 'vocab',
+      fields: { term: 'Destination commit', translation: 'keep this' },
+    });
+
+    const lookup = await json<{
+      matches: { term: string; noteId: string; deckId: string }[];
+    }>(
+      await server.request('/api/notes/duplicates', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          deckId,
+          terms: [
+            'Other deck commit',
+            'Deleted deck commit',
+            'Deleted note commit',
+            'Destination commit',
+          ],
+        }),
+      }),
+      200,
+    );
+
+    expect(lookup.matches).toHaveLength(1);
+    expect(lookup.matches[0]).toMatchObject({
+      term: normaliseTerm('Destination commit'),
+      noteId: destination.id,
+      deckId,
+    });
+
+    const batch = await startBatch('Destination decisions');
+    const created = [
+      note('Other deck commit'),
+      note('Deleted deck commit'),
+      note('Deleted note commit'),
+      note('Ordinary unique commit'),
+    ];
+    expect(await sendChunk(batch.import.id, created)).toEqual({
+      notes: created.length,
+      cards: created.length,
+      skipped: 0,
+    });
+    expect(await sendChunk(batch.import.id, created)).toEqual({
+      notes: 0,
+      cards: 0,
+      skipped: created.length,
+    });
+
+    await json(
+      await server.request(`/api/notes/${destination.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          merge: true,
+          noteType: 'vocab',
+          fields: { term: 'Destination commit', translation: 'do not overwrite', note: 'added' },
+        }),
+      }),
+      200,
+    );
+    expect((await repositories.notes.byId(destination.id))?.fields).toMatchObject({
+      term: 'Destination commit',
+      translation: 'keep this',
+      note: 'added',
+    });
+    expect(
+      await json<{ notes: number; cards: number; reviewedCards: number }>(
+        await server.request(`/api/imports/${batch.import.id}`),
+        200,
+      ),
+    ).toMatchObject({ notes: created.length, cards: created.length, reviewedCards: 0 });
+  });
 });
 
 describe.skipIf(!database)('taking an import back', () => {
