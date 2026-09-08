@@ -108,14 +108,37 @@ describe('tracking the visual viewport', () => {
     expect(variables().inset).toBe('0px');
   });
 
-  it('counts the page scrolled up under the keyboard as covered as well', async () => {
+  it('keeps keyboard padding stable while the visual viewport pans', async () => {
     const { trackViewport } = await import('./viewport');
 
     stop = trackViewport();
 
     await report({ height: 476, offsetTop: 40 });
 
-    expect(variables().inset).toBe('296px');
+    // Panning changes where the visible rectangle is, not how tall the
+    // keyboard is. Changing the page padding here would jump a focused editor.
+    expect(variables().inset).toBe('336px');
+    expect(document.documentElement.dataset['keyboard']).toBe('open');
+  });
+
+  it('does not reopen the tab bar or reveal the field again while the keyboard pans', async () => {
+    const { trackViewport } = await import('./viewport');
+
+    const field = document.createElement('input');
+    const reveal = vi.fn();
+
+    field.scrollIntoView = reveal;
+    document.body.append(field);
+    field.focus();
+
+    stop = trackViewport();
+
+    await report({ height: 476 });
+    await report({ offsetTop: 240 });
+
+    expect(document.documentElement.dataset['keyboard']).toBe('open');
+    expect(variables().inset).toBe('336px');
+    expect(reveal).toHaveBeenCalledTimes(1);
   });
 
   it('brings the field being typed into back onto the screen', async () => {
