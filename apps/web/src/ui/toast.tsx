@@ -26,13 +26,17 @@ interface Message {
   readonly id: number;
   readonly text: string;
   readonly tone: Tone;
+  readonly open: boolean;
 }
 
 export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
 
   const show = useCallback((text: string, tone: Tone = 'neutral') => {
-    setMessages((current) => [...current, { id: Date.now() + current.length, text, tone }]);
+    setMessages((current) => [
+      ...current,
+      { id: Date.now() + current.length, text, tone, open: true },
+    ]);
   }, []);
 
   const value = useMemo(() => ({ show }), [show]);
@@ -46,9 +50,17 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
           <RadixToast.Root
             key={message.id}
             data-g="toast"
+            open={message.open}
+            onAnimationEnd={(event) => {
+              if (event.target === event.currentTarget && !message.open) {
+                setMessages((current) => current.filter((item) => item.id !== message.id));
+              }
+            }}
             onOpenChange={(open) => {
               if (!open) {
-                setMessages((current) => current.filter((item) => item.id !== message.id));
+                setMessages((current) =>
+                  current.map((item) => (item.id === message.id ? { ...item, open: false } : item)),
+                );
               }
             }}
             className={[
@@ -61,19 +73,10 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
           </RadixToast.Root>
         ))}
 
-        {/*
-          Above the bottom bar and above the home indicator. A message that
-          lands underneath either one is a message nobody reads.
-
-          This named `--bar-gap`, which nothing defines. An undefined variable
-          inside `calc` makes the whole declaration invalid, so the padding was
-          dropped and every toast was drawn behind the tab bar. The bar's own
-          offset is `--bar-inset`, and how far the browser's furniture reaches
-          up the page is a translate in the stylesheet, the same as the bar's.
-        */}
+        {/* The stylesheet places feedback above the bar or the keyboard. */}
         <RadixToast.Viewport
           data-toasts=""
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col gap-8 p-16 pb-[calc(var(--safe-bottom)+var(--bar-height)+var(--bar-inset)+16px)]"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col gap-8 p-16"
         />
       </RadixToast.Provider>
     </ToastContext.Provider>

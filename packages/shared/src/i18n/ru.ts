@@ -299,6 +299,8 @@ export const ru: Messages = {
   'notes.bulkDeleteBody':
     'Они и их карточки перестанут участвовать в повторениях. Ничего не стирается тридцать дней, так что это можно отменить.',
   'notes.bulkDone': 'Изменено записей: {count}',
+  'notes.moved': 'Перемещено записей: {count}',
+  'notes.deleted': 'Удалено записей: {count}',
   'notes.bulkTagsTitle': 'Метки для {count} записей',
   'notes.tagsAdd': 'Добавить эти',
   'notes.tagsRemove': 'Убрать эти',
