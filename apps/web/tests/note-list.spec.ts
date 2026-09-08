@@ -6,11 +6,21 @@ for (const theme of ['dark', 'light']) {
   test(`virtual notes keep selection and refresh content in ${theme}`, async ({ page }) => {
     const notes = manyNotes(5000);
     let changed = false;
+    let confirmStatus!: () => void;
+    let statusRequested!: () => void;
+    const statusConfirmation = new Promise<void>((resolve) => {
+      confirmStatus = resolve;
+    });
+    const statusRequest = new Promise<void>((resolve) => {
+      statusRequested = resolve;
+    });
 
     await usePreferences(page, { theme, locale: 'en', glassScope: 'floating' });
     await useFixtures(page, { notes });
     await page.route('**/api/notes/status', async (route) => {
       expect(route.request().postDataJSON()).toEqual({ ids: ['note_0'], status: 'known' });
+      statusRequested();
+      await statusConfirmation;
       changed = true;
       await route.fulfill({ json: { changed: 1 } });
     });
@@ -55,6 +65,9 @@ for (const theme of ['dark', 'light']) {
     expect(await first.evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe('none');
 
     await page.getByRole('button', { name: 'Mark as known', exact: true }).click();
+    await statusRequest;
+    await expect(page.getByRole('button', { name: /^Wort 1 word 1 · Known/ })).toBeVisible();
+    confirmStatus();
     const updated = page.getByRole('button', { name: /^Updated word Updated meaning · Known/ });
     await expect(updated).toBeVisible();
     await expect(first).toHaveCount(0);

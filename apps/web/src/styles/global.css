@@ -1224,6 +1224,7 @@
 }
 
 /*
+/*
  * Reduced motion collapses every duration. States still change, nothing
  * travels. The switch in Appearance sets the attribute by hand and does exactly
  * what the system request does.
