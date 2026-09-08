@@ -138,8 +138,8 @@ describe('motion', () => {
     expect(held).toEqual([]);
   });
 
-  it('keeps fixed navigation outside the dialog push-back transform', () => {
-    expect(stylesheet).toContain("[data-dialog='open'] [data-shell-content]");
+  it('keeps the background stationary while a dialog is open', () => {
+    expect(stylesheet).not.toContain("[data-dialog='open'] [data-shell-content]");
     expect(stylesheet).not.toContain("[data-dialog='open'] #root");
   });
 

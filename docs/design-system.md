@@ -305,19 +305,25 @@ fill `forwards`, because something on its way out has to stay where it ended unt
   `[data-screen] > *`, so a screen added later gets it by being a screen.
 - Forward navigation enters from the right at 14px, backward from the left. The direction is a spatial
   claim and has to match the hierarchy.
-- Sheets rise from the bottom edge over `--dur-4` with `ease-enter` and leave over `--dur-3` with
-  `ease-exit`. Exits are always faster than entrances.
-- A sheet pushes the screen behind it back to 0.945 with the top edge as the origin. The screen is
-  still there and still theirs.
+- Dialogs appear in place with opacity and scale 0.99 to 1 over `--dur-2`. Closing reverses
+  those endpoints over `--dur-1`. The scrim fades in and out on the same timings.
+- The app background stays stationary at every width. The scrim, glass surface and shadow provide
+  depth without transforming the root or changing the containing block of fixed navigation.
+- Menus use a 2px approach and scale 0.99 from Radix's collision-aware trigger origin. Opening takes
+  `--dur-2`, closing reverses the same endpoints over `--dur-1`, without overshoot.
+- Toasts travel 4px with opacity, opening over `--dur-2` and closing over `--dur-1`. They remain mounted
+  through their exit. On phones they sit 8px above the tab bar, with safe area counted once; with the
+  keyboard open they sit 8px above it. Desktop feedback uses the bottom safe area plus 16px.
 - The card reveal moves 10px and scales .99 to 1 over `--dur-2`. It says the answer was already there.
 - A pushed screen brings its content a beat behind itself: four rows, 26ms apart, then it stops.
 - The focus ring is instant. The halo behind it fades over `--dur-1`.
 - What hangs under an open deck arrives with the reveal. The disclosure has already turned by then, so
   the movement is the answer to it.
 - Something appearing in place rather than from somewhere pops: a chip, a strength bar, `--dur-2` on
-  the spring, from 0.92.
+  the entrance curve, from 0.99.
 - A press answers everywhere, and by less the larger the thing is: a control gives 0.985, a card or a
-  row 0.99, a tab or a segmented cell 0.96. A large thing moving as far as a small one reads as loose.
+  row 0.99. Controls release over `--dur-2` without overshoot; text actions dim to 0.7.
+  Tab and segmented transitions retain their existing motion. A large thing moving as far as a small one reads as loose.
 - The segmented thumb and the tab pill travel over `--dur-3` on the spring, and give a little when the
   group is pressed. At `--dur-1` a thumb has not travelled as far as the eye is concerned, it has
   teleported; the platform's own controls take about this long, and the spring is what makes the

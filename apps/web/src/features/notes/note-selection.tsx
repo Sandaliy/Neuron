@@ -52,7 +52,10 @@ export function NoteSelectionBar({
     actions.removeMany.isPending;
 
   /** Runs one bulk action over the selection, five hundred at a time. */
-  async function inChunks(run: (chunk: readonly string[]) => Promise<{ [key: string]: unknown }>) {
+  async function inChunks(
+    run: (chunk: readonly string[]) => Promise<{ [key: string]: unknown }>,
+    outcome: 'notes.bulkDone' | 'notes.moved' | 'notes.deleted' = 'notes.bulkDone',
+  ) {
     let total = 0;
 
     for (let start = 0; start < ids.length; start += BULK_LIMIT) {
@@ -63,7 +66,7 @@ export function NoteSelectionBar({
 
     setDialog('none');
     onDone();
-    toast.show(t('notes.bulkDone', { count: total }));
+    toast.show(t(outcome, { count: total }));
   }
 
   return (
@@ -124,7 +127,10 @@ export function NoteSelectionBar({
         busy={busy}
         onClose={() => setDialog('none')}
         onMove={(target) =>
-          void inChunks((chunk) => actions.move.mutateAsync({ ids: chunk, deckId: target }))
+          void inChunks(
+            (chunk) => actions.move.mutateAsync({ ids: chunk, deckId: target }),
+            'notes.moved',
+          )
         }
       />
 
@@ -156,7 +162,9 @@ export function NoteSelectionBar({
               variant="destructive"
               full
               busy={busy}
-              onClick={() => void inChunks((chunk) => actions.removeMany.mutateAsync(chunk))}
+              onClick={() =>
+                void inChunks((chunk) => actions.removeMany.mutateAsync(chunk), 'notes.deleted')
+              }
             >
               {t('notes.bulkDelete')}
             </Button>

@@ -1,7 +1,7 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 
 import { useTranslate } from '../i18n/locale';
 
@@ -32,8 +32,7 @@ import type { ReactNode } from 'react';
  * and the ones in this app now are.
  *
  * The scrim is flat colour and is never blurred, because that would be a second
- * blurred layer. The screen behind goes back to 0.945 with its top edge as the
- * origin: it is still there and still theirs, the dialog is in front of it.
+ * blurred layer. The background stays stationary; the scrim and panel shadow establish depth.
  *
  * `dismissable` is the point of this component. The recovery codes screen shows
  * the only copy of the only way back into an account, and a stray tap on the
@@ -62,31 +61,13 @@ export function Dialog({
   const t = useTranslate();
   const content = useRef<HTMLDivElement>(null);
 
-  /*
-   * The screen behind the dialog is not inside this component, so the push back
-   * is an attribute on the document that the stylesheet acts on. Removed on
-   * unmount as well as on close, or a dialog torn down while open would leave
-   * the app scaled down for good.
-   */
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    document.documentElement.dataset['dialog'] = 'open';
-
-    return () => {
-      delete document.documentElement.dataset['dialog'];
-    };
-  }, [open]);
-
   return (
     <RadixDialog.Root open={open} {...(dismissable && onOpenChange ? { onOpenChange } : {})}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay
           className={[
             'fixed inset-0 z-40 bg-scrim',
-            'data-[state=open]:neu-scrim-in data-[state=closed]:opacity-0',
+            'data-[state=open]:neu-scrim-in data-[state=closed]:neu-scrim-out',
           ].join(' ')}
         />
 
