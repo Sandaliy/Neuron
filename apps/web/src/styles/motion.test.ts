@@ -138,6 +138,11 @@ describe('motion', () => {
     expect(held).toEqual([]);
   });
 
+  it('keeps fixed navigation outside the dialog push-back transform', () => {
+    expect(stylesheet).toContain("[data-dialog='open'] [data-shell-content]");
+    expect(stylesheet).not.toContain("[data-dialog='open'] #root");
+  });
+
   it('lets an exit hold where it ended', () => {
     // Something on its way out has to stay where it finished until whatever is
     // unmounting it gets around to it.

@@ -1220,12 +1220,12 @@
  * push back is what says the screen is still there.
  */
 @layer components {
-  #root {
+  [data-shell-content] {
     transition: transform var(--dur-3) var(--ease-enter);
   }
 
   @media (max-width: 639px) {
-    [data-dialog='open'] #root {
+    [data-dialog='open'] [data-shell-content] {
       transform: scale(0.945);
       transform-origin: top center;
     }

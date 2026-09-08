@@ -32,7 +32,8 @@ async function editor(
     cards: [{ id: 'old-card', direction: 'recognition', slot: 0, reps: options.reviewed ? 1 : 0 }],
   };
   const writes: Record<string, unknown>[] = [];
-  const control = { fail: false, answeredOnServer: false };
+  let reads = 0;
+  const control = { fail: false, answeredOnServer: false, statusDelay: 0 };
   await page.route('**/api/notes/conversion', async (route) => {
     if (route.request().method() === 'PATCH') {
       const body = route.request().postDataJSON() as Record<string, unknown>;
@@ -43,6 +44,8 @@ async function editor(
           status: 409,
           json: { error: { code: 'cards_would_be_lost', status: 409, correlationId: 'test' } },
         });
+      if (body['status'] && control.statusDelay > 0)
+        await new Promise<void>((resolve) => setTimeout(resolve, control.statusDelay));
       stored = {
         note: { ...stored.note, ...body, rev: stored.note.rev + 1 },
         cards: body['noteType']
@@ -56,13 +59,40 @@ async function editor(
             ]
           : stored.cards,
       };
+    } else {
+      reads += 1;
     }
     return route.fulfill({ json: stored });
   });
   await page.goto('/notes/conversion');
   await expect(page.getByRole('radiogroup')).toBeVisible();
-  return { writes, control, stored: () => stored };
+  return { writes, control, reads: () => reads, stored: () => stored };
 }
+
+test('autosave reconciles its response without refetching the editor', async ({ page }) => {
+  const state = await editor(page);
+
+  await page.getByRole('textbox', { name: 'Translation', exact: true }).fill('thoroughness');
+  await expect
+    .poll(() => state.writes)
+    .toEqual([{ fields: { term: 'Sorgfalt', translation: 'thoroughness' }, tags: ['kept'] }]);
+
+  // The initial GET is enough. A second one during an active edit can move the
+  // focused field after the keyboard has already positioned it.
+  expect(state.reads()).toBe(1);
+});
+
+test('marking a note known updates immediately while the server confirms it', async ({ page }) => {
+  const state = await editor(page);
+  state.control.statusDelay = 700;
+
+  await page.getByRole('button', { name: 'Note', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Mark as known', exact: true }).click();
+
+  await page.getByRole('button', { name: 'Note', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Study it again', exact: true })).toBeVisible();
+  await expect.poll(() => state.stored().note.status).toBe('known');
+});
 
 for (const target of ['basic', 'vocab', 'cloze'] as const) {
   test(`valid empty ${target} draft, explicit apply, then same-type autosave`, async ({ page }) => {

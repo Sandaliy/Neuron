@@ -88,8 +88,21 @@ function measure(): void {
     return;
   }
 
-  const covered = Math.max(0, Math.round(window.innerHeight - visual.height - visual.offsetTop));
-  const keyboardOpen = covered > KEYBOARD_THRESHOLD_PX;
+  /*
+   * The visual viewport can pan independently while the keyboard stays open.
+   * `offsetTop` moves during that pan, so using the exposed bottom edge to
+   * decide whether a keyboard exists made the answer flap between open and
+   * closed. That in turn repeatedly changed the page's bottom padding and
+   * brought the tab bar back over an open keyboard.
+   *
+   * Its height loss is stable through that pan. It is also zero on browsers
+   * that honour `interactive-widget=resizes-content`, because their layout
+   * viewport shrinks by the same amount. Use it to classify the obstruction;
+   * keep the bottom edge only for the browser-chrome lift below.
+   */
+  const heightLoss = Math.max(0, Math.round(window.innerHeight - visual.height));
+  const covered = Math.max(0, Math.round(heightLoss - visual.offsetTop));
+  const keyboardOpen = heightLoss > KEYBOARD_THRESHOLD_PX;
   const root = document.documentElement;
 
   /*
@@ -97,10 +110,13 @@ function measure(): void {
    * lifted itself by the height of Safari's toolbar would sit halfway up the
    * screen for no reason.
    */
-  const keyboard = keyboardOpen ? covered : 0;
+  const keyboard = keyboardOpen ? heightLoss : 0;
   const chrome = settle(keyboardOpen ? 0 : covered, published.chrome);
   const height = settle(Math.round(visual.height), published.height);
-  const top = settle(Math.max(0, Math.round(visual.offsetTop)), published.top);
+  // A panned visual viewport only matters to an open keyboard dialog. Leaving
+  // this at zero while Safari's chrome moves avoids a document-wide style write
+  // on every ordinary scroll event.
+  const top = settle(keyboardOpen ? Math.max(0, Math.round(visual.offsetTop)) : 0, published.top);
 
   if (keyboard !== published.keyboard) {
     published.keyboard = keyboard;

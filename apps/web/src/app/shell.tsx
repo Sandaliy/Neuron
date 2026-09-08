@@ -1,9 +1,11 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { Suspense } from 'react';
 
 import type { MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../i18n/locale';
 import { Sheen } from '../ui/sheen';
+import { SkeletonRows } from '../ui/states';
 
 import type { CSSProperties } from 'react';
 
@@ -63,8 +65,8 @@ export function Shell() {
   return (
     <div className="flex min-h-dvh flex-col">
       {/*
-        Keyed on the path, so a tab change replays the arrival rather than
-        swapping the content in place. The tabs are siblings, nothing travels
+        Routes mount their own screen, so a tab change replays the arrival
+        without remounting this layout. The tabs are siblings, nothing travels
         sideways, and what says a screen changed is that it arrives.
 
         The arrival is the blocks inside rising, and nothing on this element.
@@ -74,10 +76,18 @@ export function Shell() {
         already cached should read as instant, and it did not.
       */}
       <main
-        key={path}
+        data-shell-content=""
         className="mx-auto w-full max-w-[720px] grow px-20 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+40px+var(--keyboard-inset))] sm:pt-24"
       >
-        <Outlet />
+        <Suspense
+          fallback={
+            <section data-screen="" className="flex flex-col gap-20">
+              <SkeletonRows rows={5} />
+            </section>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
 
       <nav

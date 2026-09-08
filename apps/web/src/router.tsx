@@ -5,23 +5,84 @@ import {
   createRouter,
   useSearch,
 } from '@tanstack/react-router';
+import { lazy } from 'react';
 
 import { Failure, NotFound } from './app/failure';
 import { PreferencesSync } from './app/preferences-sync';
 import { SessionGate } from './app/session-gate';
 import { Shell } from './app/shell';
-import { NewPasswordScreen, RecoveryScreen } from './features/auth/recovery';
-import { SignInScreen } from './features/auth/sign-in';
-import { SignUpScreen } from './features/auth/sign-up';
-import { TwoFactorScreen } from './features/auth/two-factor';
-import { GalleryScreen } from './features/dev/gallery';
-import { ImportScreen } from './features/import/import-screen';
-import { DeletedScreen } from './features/library/deleted';
-import { LibraryScreen } from './features/library/library';
-import { NoteEditorScreen } from './features/notes/note-editor';
-import { NoteListScreen } from './features/notes/note-list';
-import { SettingsScreen } from './features/settings/settings';
-import { TodayScreen } from './features/today/today';
+
+/*
+ * A signed-in shell has to be interactive before a seldom-used screen (the
+ * importer, recovery flow, or editor conversion UI) has downloaded. Keep route
+ * modules behind their route boundary; Shell supplies the short skeleton while
+ * a first visit to one arrives.
+ */
+const NewPasswordScreen = lazy(async () => {
+  const screen = await import('./features/auth/recovery');
+
+  return { default: screen.NewPasswordScreen };
+});
+const RecoveryScreen = lazy(async () => {
+  const screen = await import('./features/auth/recovery');
+
+  return { default: screen.RecoveryScreen };
+});
+const SignInScreen = lazy(async () => {
+  const screen = await import('./features/auth/sign-in');
+
+  return { default: screen.SignInScreen };
+});
+const SignUpScreen = lazy(async () => {
+  const screen = await import('./features/auth/sign-up');
+
+  return { default: screen.SignUpScreen };
+});
+const TwoFactorScreen = lazy(async () => {
+  const screen = await import('./features/auth/two-factor');
+
+  return { default: screen.TwoFactorScreen };
+});
+const GalleryScreen = lazy(async () => {
+  const screen = await import('./features/dev/gallery');
+
+  return { default: screen.GalleryScreen };
+});
+const ImportScreen = lazy(async () => {
+  const screen = await import('./features/import/import-screen');
+
+  return { default: screen.ImportScreen };
+});
+const DeletedScreen = lazy(async () => {
+  const screen = await import('./features/library/deleted');
+
+  return { default: screen.DeletedScreen };
+});
+const LibraryScreen = lazy(async () => {
+  const screen = await import('./features/library/library');
+
+  return { default: screen.LibraryScreen };
+});
+const NoteEditorScreen = lazy(async () => {
+  const screen = await import('./features/notes/note-editor');
+
+  return { default: screen.NoteEditorScreen };
+});
+const NoteListScreen = lazy(async () => {
+  const screen = await import('./features/notes/note-list');
+
+  return { default: screen.NoteListScreen };
+});
+const SettingsScreen = lazy(async () => {
+  const screen = await import('./features/settings/settings');
+
+  return { default: screen.SettingsScreen };
+});
+const TodayScreen = lazy(async () => {
+  const screen = await import('./features/today/today');
+
+  return { default: screen.TodayScreen };
+});
 
 /**
  * The routes, written out rather than generated from the file tree.
