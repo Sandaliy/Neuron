@@ -124,6 +124,14 @@ export function useNoteActions() {
     ]).catch(() => undefined);
   };
 
+  /** Refreshes browse rows after a confirmed bulk write, without touching an open editor. */
+  const refreshLists = () => {
+    void Promise.all([
+      client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'] }),
+      client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' }),
+    ]).catch(() => undefined);
+  };
+
   const reconcileWrite = (written: NoteDetail) => {
     client.setQueryData<NoteDetail>([NOTE_KEY, written.note.id], written);
     replaceInLists(client, written.note);
@@ -201,7 +209,9 @@ export function useNoteActions() {
   const setStatus = useMutation({
     mutationFn: (input: { readonly ids: readonly string[]; readonly status: NoteStatus }) =>
       request<{ changed: number }>('/notes/status', { method: 'POST', body: input }),
-    onMutate: (input) => {
+    onMutate: async (input) => {
+      await client.cancelQueries({ queryKey: [NOTE_KEY, 'list'] });
+
       const lists = client.getQueriesData<NoteListCache>({ queryKey: [NOTE_KEY, 'list'] });
       const ids = new Set(input.ids);
 
@@ -226,7 +236,7 @@ export function useNoteActions() {
         client.setQueryData(key, value);
       }
     },
-    onSuccess: markCollectionStale,
+    onSuccess: refreshLists,
   });
 
   const move = useMutation({
