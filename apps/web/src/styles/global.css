@@ -229,17 +229,7 @@
     --visual-viewport-height: 100svh;
     --visual-viewport-top: 0px;
 
-    /*
-     * How much of the layout viewport the browser's own furniture is covering
-     * at the bottom. `src/lib/viewport.ts` keeps it up to date, and it is zero
-     * when the thing covering the page is a keyboard instead.
-     *
-     * A `position: fixed` element is placed against the layout viewport, and on
-     * iOS that viewport extends underneath Safari's toolbar. Anything meant to
-     * sit at the bottom of what a person can actually see has to be lifted by
-     * this much, or it hides behind the toolbar when the toolbar is out and
-     * floats far too high when it is not.
-     */
+    /* Native fixed navigation follows browser chrome without an extra lift. */
     --chrome-inset: 0px;
 
     background-color: var(--bg-canvas);
@@ -821,48 +811,29 @@
     scroll-padding-block: var(--u-2);
   }
 
-  /*
-   * The tab bar rides above the browser's own furniture, and it does it on the
-   * compositor.
-   *
-   * `--chrome-inset` is how much of the layout viewport Safari's toolbar is
-   * covering, and it changes every time that toolbar slides in or out, which is
-   * every time the page is scrolled the other way. Written into `bottom` that
-   * was a layout change per step and the bar arrived in visible jumps. `translate`
-   * is a separate property from `transform`, so the lift composes with the
-   * keyboard exit below instead of fighting it, and both are work the compositor
-   * already does.
-   *
-   * The transition is what turns iOS reporting the change in two or three coarse
-   * steps into one glide. The bar is following a toolbar that is itself
-   * animating, so arriving a fraction behind it reads as deliberate, where
-   * teleporting to each reported value reads as a fault.
-   */
-  [data-g='tabbar'] {
-    translate: 0 calc(-1 * var(--chrome-inset));
-    transition:
-      translate var(--dur-3) var(--ease-inout),
-      transform var(--dur-3) var(--ease-exit),
-      opacity var(--dur-2) var(--ease-exit);
-  }
-
-  /* A toast sits above the bar, so it rides on the same lift. */
-  [data-toasts] {
-    translate: 0 calc(-1 * var(--chrome-inset));
-    transition: translate var(--dur-3) var(--ease-inout);
-  }
-
-  /*
-   * The tab bar goes away while the keyboard is up.
-   *
-   * It belongs to the bottom of the screen and the keyboard has taken that. It
-   * leaves downward, by transform, which is also the direction it will come
-   * back from.
-   */
+  /* Fixed chrome follows the browser, without a delayed second translation. */
   [data-keyboard='open'] [data-g='tabbar'] {
-    transform: translate3d(0, 140%, 0);
-    opacity: 0;
+    visibility: hidden;
     pointer-events: none;
+  }
+
+  [data-keyboard='open'] [data-toasts] {
+    bottom: var(--keyboard-inset);
+    padding-bottom: var(--u-4);
+  }
+
+  @media (hover: none) {
+    button:active,
+    [data-row]:active,
+    [data-tab]:active,
+    [data-cell]:active {
+      transform: none !important;
+      opacity: 1 !important;
+    }
+    [data-pressed] {
+      opacity: 0.7;
+      transition: none;
+    }
   }
 
   /* A bar gains its edge only once content has passed under it. */
@@ -979,7 +950,7 @@
 @keyframes neu-toast-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 16px, 0) scale(0.97);
+    transform: translate3d(0, 4px, 0) scale(0.97);
   }
   to {
     opacity: 1;
@@ -1205,6 +1176,11 @@
     animation-delay: 62ms;
   }
 
+  /* Editing can begin as soon as fields appear; never move their ancestors. */
+  [data-editor] > * {
+    animation-name: none;
+  }
+
   /*
    * What hangs under an open deck arrives rather than appearing. The disclosure
    * has already turned by then, so this is the answer to it.
@@ -1220,12 +1196,12 @@
  * push back is what says the screen is still there.
  */
 @layer components {
-  #root {
+  #root main {
     transition: transform var(--dur-3) var(--ease-enter);
   }
 
   @media (max-width: 639px) {
-    [data-dialog='open'] #root {
+    [data-dialog='open'] #root main {
       transform: scale(0.945);
       transform-origin: top center;
     }

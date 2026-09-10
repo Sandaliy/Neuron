@@ -196,3 +196,24 @@ describe('five thousand rows', () => {
     expect(Date.now() - started).toBeLessThan(2000);
   });
 });
+
+describe('invalid JSON envelopes', () => {
+  for (const raw of ['null', 'true', '42', '{}', '{"notes":[],"noteType":"unknown"}']) {
+    it(`reports ${raw} without throwing`, () => {
+      const result = parseImport(raw, 'json');
+      expect(result.rows).toEqual([]);
+      expect(result.failures).toHaveLength(1);
+    });
+  }
+});
+
+describe('gap import diagnostics', () => {
+  for (const text of ['A {{valid}} and {{unfinished', '{{ }}', '{{c0::zero}}']) {
+    it(`refuses incomplete gaps in ${text}`, () => {
+      const parsed = parseImport(text, 'text', { noteType: 'cloze' });
+      expect(rowProblems(parsed.rows[0]!, 'cloze', termCounts(parsed.rows)).missing).toContain(
+        'text',
+      );
+    });
+  }
+});

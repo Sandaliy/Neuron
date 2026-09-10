@@ -7,11 +7,16 @@ test('a dismissed toast does not leave a layer over the bottom navigation', asyn
   await useFixtures(page);
   await page.goto('/library');
 
+  const barBefore = await page.locator('[data-g="tabbar"]').boundingBox();
   await page.getByRole('button', { name: 'Actions for Deutsch', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  expect((await page.locator('[data-g="tabbar"]').boundingBox())!.y).toBe(barBefore!.y);
   await page.getByRole('button', { name: 'Delete the deck' }).click();
-  await expect(page.getByText('Deutsch deleted', { exact: true })).toBeVisible();
+  await expect(page.getByText('Deck deleted: Deutsch', { exact: true })).toBeVisible();
 
+  const toast = await page.locator('[data-g="toast"]').boundingBox();
+  expect(toast!.y + toast!.height).toBeLessThanOrEqual(barBefore!.y - 8);
   await expect(page.locator('[data-g="toast"]')).toHaveCount(0, { timeout: 6_000 });
   await page.getByRole('link', { name: 'Settings' }).click();
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();

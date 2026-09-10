@@ -61,19 +61,10 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
           </RadixToast.Root>
         ))}
 
-        {/*
-          Above the bottom bar and above the home indicator. A message that
-          lands underneath either one is a message nobody reads.
-
-          This named `--bar-gap`, which nothing defines. An undefined variable
-          inside `calc` makes the whole declaration invalid, so the padding was
-          dropped and every toast was drawn behind the tab bar. The bar's own
-          offset is `--bar-inset`, and how far the browser's furniture reaches
-          up the page is a translate in the stylesheet, the same as the bar's.
-        */}
+        {/* One safe-area-aware offset above native fixed navigation. */}
         <RadixToast.Viewport
           data-toasts=""
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col gap-8 p-16 pb-[calc(var(--safe-bottom)+var(--bar-height)+var(--bar-inset)+16px)]"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col gap-8 p-16 pb-[calc(var(--safe-bottom)+var(--bar-height)+var(--bar-inset)+20px)]"
         />
       </RadixToast.Provider>
     </ToastContext.Provider>

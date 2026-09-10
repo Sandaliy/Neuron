@@ -1,4 +1,4 @@
-import { noteFieldsSchemas } from './note-types.js';
+import { clozeGaps, noteFieldsSchemas } from './note-types.js';
 import { exampleContainsTerm, noteTermKey, termOf } from './text.js';
 
 import type { NoteTypeName } from './note-types.js';
@@ -223,9 +223,25 @@ function parseJson(raw: string): ParseResult {
     };
   }
 
+  if (typeof parsed !== 'object' || parsed === null) {
+    return {
+      format: 'json',
+      noteType: 'vocab',
+      rows: [],
+      failures: [{ line: 1, reason: 'expected notes array' }],
+    };
+  }
   const envelope = (Array.isArray(parsed) ? { notes: parsed } : parsed) as Record<string, unknown>;
   const list = Array.isArray(envelope['notes']) ? envelope['notes'] : [];
   const noteType = (text(envelope['noteType']) ?? 'vocab') as NoteTypeName;
+  if (!['vocab', 'basic', 'cloze'].includes(noteType) || !Array.isArray(envelope['notes'])) {
+    return {
+      format: 'json',
+      noteType: 'vocab',
+      rows: [],
+      failures: [{ line: 1, reason: 'unsupported note type or missing notes array' }],
+    };
+  }
   const rows: ParsedRow[] = [];
 
   for (const [index, entry] of list.entries()) {
@@ -569,6 +585,21 @@ export function rowProblems(
           parsed.error.issues.map((issue) => issue.path.map(String).join('.') || '(fields)'),
         ),
       ];
+
+  if (noteType === 'cloze' && typeof row.fields['text'] === 'string') {
+    const value = row.fields['text'];
+    const gaps = clozeGaps(value);
+    const remainder = [...gaps]
+      .reverse()
+      .reduce((rest, gap) => rest.slice(0, gap.start) + rest.slice(gap.end), value);
+    if (
+      gaps.some((gap) => gap.answer === '' || gap.number < 1) ||
+      remainder.includes('{{') ||
+      remainder.includes('}}')
+    ) {
+      if (!missing.includes('text')) missing.push('text');
+    }
+  }
 
   const example = row.fields['example'];
   const exampleMisses =

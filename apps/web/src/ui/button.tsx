@@ -123,7 +123,9 @@ export function Button({
         The label stays where it is and turns transparent, so a button that
         starts waiting does not change width and move everything under it.
       */}
-      <span className={busy ? 'invisible' : undefined}>{children}</span>
+      <span className={`inline-flex items-center justify-center gap-8 ${busy ? 'invisible' : ''}`}>
+        {children}
+      </span>
 
       {busy ? (
         <span className="absolute inset-0 flex items-center justify-center">

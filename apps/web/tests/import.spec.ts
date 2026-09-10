@@ -78,7 +78,7 @@ for (const locale of ['en', 'ru'] as const) {
       .getByRole('button', { name: locale === 'en' ? /^Import 3/ : /^Импортировать записей: 3/ })
       .click();
     await expect(
-      page.getByText(locale === 'en' ? 'Imported' : 'Импортировано', { exact: true }),
+      page.getByText(locale === 'en' ? 'Import complete' : 'Импорт завершён', { exact: true }),
     ).toBeVisible();
     const patches = writes.filter((write) => write.path.startsWith('/api/notes/'));
     expect(patches).toEqual([
@@ -154,7 +154,7 @@ test('final import creates an other-deck term in the selected destination', asyn
   );
   await page.getByRole('button', { name: 'Read the list' }).click();
   await page.getByRole('button', { name: /^Import 1/ }).click();
-  await expect(page.getByText('Imported', { exact: true })).toBeVisible();
+  await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   expect(writes.map((write) => write.path)).toEqual([
     '/api/imports',
     expect.stringMatching(/\/notes$/),
@@ -209,7 +209,7 @@ test('final import merges an exact destination duplicate without creating an emp
   await expect(page.getByText('Already in Deutsch', { exact: true })).toBeVisible();
   await page.getByLabel('Default for duplicates', { exact: true }).selectOption('merge');
   await page.getByRole('button', { name: /^Import 1/ }).click();
-  await expect(page.getByText('Imported', { exact: true })).toBeVisible();
+  await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   expect(writes).toEqual([
     {
       path: '/api/notes/destination-note',
@@ -290,7 +290,7 @@ test('lost chunk response resumes with the original IDs and does not duplicate r
   await page.getByRole('button', { name: 'Read the list' }).click();
   await page.getByRole('button', { name: /^Import 2/ }).click();
   await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
-  await expect(page.getByText('Imported', { exact: true })).toBeVisible();
+  await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   expect(attempts).toHaveLength(2);
   expect(attempts[1]).toEqual(attempts[0]);
   expect(accepted.size).toBe(2);
@@ -346,7 +346,7 @@ test('completed import invalidates the cached destination list before opening it
   );
   await page.getByRole('button', { name: 'Read the list' }).click();
   await page.getByRole('button', { name: /^Import 1/ }).click();
-  await expect(page.getByText('Imported', { exact: true })).toBeVisible();
+  await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Open the deck' }).click();
 
   await expect(page.getByText('already here', { exact: true })).toBeVisible();

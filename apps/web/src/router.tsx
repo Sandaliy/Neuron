@@ -22,6 +22,7 @@ import { NoteEditorScreen } from './features/notes/note-editor';
 import { NoteListScreen } from './features/notes/note-list';
 import { SettingsScreen } from './features/settings/settings';
 import { TodayScreen } from './features/today/today';
+import { resetInteractions } from './lib/interactions';
 
 /**
  * The routes, written out rather than generated from the file tree.
@@ -229,6 +230,8 @@ export const router = createRouter({
   defaultErrorComponent: ({ error, reset }) => <Failure error={error} reset={reset} />,
   defaultNotFoundComponent: NotFound,
 });
+
+router.subscribe('onBeforeNavigate', resetInteractions);
 
 declare module '@tanstack/react-router' {
   interface Register {

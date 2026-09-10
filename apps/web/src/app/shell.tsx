@@ -7,45 +7,8 @@ import { Sheen } from '../ui/sheen';
 
 import type { CSSProperties } from 'react';
 
-/**
- * The frame every signed in screen sits in.
- *
- * Navigation is a bar floating over the content near the bottom edge, on every
- * size. The phone is the primary target and the bottom third of a phone is the
- * part a thumb reaches without the hand moving; on a wide screen the same bar
- * stays where the eye has learned to find it rather than moving to the top and
- * making the two look like two different applications.
- *
- * Where the bottom is takes measuring. A `position: fixed` element is placed
- * against the layout viewport, and on iOS that viewport runs on underneath
- * Safari's toolbar, so a bar at `bottom: 0` hides behind the toolbar while the
- * toolbar is out and sits far too high once it retracts. `--chrome-inset` is
- * how much of it the browser's own furniture is covering, measured by
- * `src/lib/viewport.ts`, and lifting the bar by that puts it just above
- * whatever the browser is showing, in every state of it.
- *
- * That lift is a `translate` in the stylesheet, not part of this offset. The
- * toolbar slides in and out on every change of scroll direction, iOS reports
- * the move in two or three coarse steps, and following them in `bottom` meant a
- * layout pass per step and a bar that jumped. On the compositor, with the
- * screen duration under it, the same three steps read as one glide.
- *
- * While the keyboard is up the bar goes away. It belongs to the bottom of the
- * screen, the keyboard has taken that, and a bar riding on top of the keys is
- * what a web page does rather than what an app does.
- *
- * The current tab is a filled slab that travels, not a colour. The tabs are
- * equal width, so where the slab belongs is the index of the current tab and
- * nothing has to be measured: it is in the right place on the first frame, and
- * it moves by `transform` alone.
- *
- * Every label on the bar is primary, and that is not a detail. The share of the
- * backdrop a translucent layer lets through is exactly one minus its alpha, so
- * the tint's density and its contrast are one dial. The floor is set by the
- * quietest text on the layer, so taking the quiet tone off it moves the floor
- * from secondary to primary and buys the bar twenty points of transparency:
- * 0.58 instead of 0.78, measured at 4.55 to 1 against the worst backdrop.
- */
+/** Native fixed positioning follows Safari's toolbar. Viewport measurements
+ * are reserved for keyboard-aware dialogs and feedback. */
 const TABS: readonly { to: string; label: MessageKey }[] = [
   { to: '/', label: 'nav.today' },
   { to: '/library', label: 'nav.library' },
@@ -75,7 +38,7 @@ export function Shell() {
       */}
       <main
         key={path}
-        className="mx-auto w-full max-w-[720px] grow px-20 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+40px+var(--keyboard-inset))] sm:pt-24"
+        className="mx-auto w-full max-w-[720px] grow px-20 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+40px)] sm:pt-24"
       >
         <Outlet />
       </main>
@@ -85,13 +48,6 @@ export function Shell() {
         aria-label={t('app.name')}
         className={[
           'fixed inset-x-16 z-30 flex gap-4 rounded-24 p-8',
-          /*
-           * Against the bottom of the page. How far the browser's own furniture
-           * is covering is a `translate` in the stylesheet rather than part of
-           * this offset: it changes on every scroll that moves Safari's toolbar,
-           * and moving `bottom` per step laid the page out again each time and
-           * arrived in visible jumps.
-           */
           'bottom-[var(--bar-inset)]',
           'sm:mx-auto sm:w-full sm:max-w-[420px]',
         ].join(' ')}

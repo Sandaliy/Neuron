@@ -193,12 +193,10 @@ test.describe('the keyboard', () => {
 
     await raiseKeyboard(page);
 
-    await expect(bar).toHaveCSS('opacity', '0');
-
-    const after = await bar.boundingBox();
-
-    // Gone downward, not merely faded: it comes back from where it went.
-    expect(after!.y).toBeGreaterThan(before!.y);
+    await expect(bar).toBeHidden();
+    await lowerKeyboard(page);
+    await expect(bar).toBeVisible();
+    expect((await bar.boundingBox())!.y).toBe(before!.y);
   });
 
   test('keeps the button on the sign up form reachable', async ({ page }) => {

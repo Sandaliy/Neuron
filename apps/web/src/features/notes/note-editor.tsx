@@ -1,6 +1,6 @@
-import { useNavigate } from '@tanstack/react-router';
-import { Check, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useBlocker, useNavigate } from '@tanstack/react-router';
+import { Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   NOTE_TYPES,
@@ -21,7 +21,6 @@ import type {
   MessageKey,
   Note,
   NoteFields,
-  NoteStatus,
   NoteTypeName,
   PartOfSpeech,
 } from '@neuron/shared';
@@ -35,7 +34,7 @@ import { GroupLabel } from '../../ui/card';
 import { Dialog, DialogFooter } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
-import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
+import { Menu, MenuItem } from '../../ui/menu';
 import { Segmented } from '../../ui/segmented';
 import { Select } from '../../ui/select';
 import { ErrorState, SkeletonRows } from '../../ui/states';
@@ -88,7 +87,7 @@ export function NoteEditorScreen({
     );
   }
 
-  if (noteId !== undefined && existing.error) {
+  if (noteId !== undefined && existing.error && !existing.data) {
     return (
       <section data-screen="" className="flex flex-col gap-20">
         <ErrorState
@@ -140,6 +139,12 @@ function Editor({
   const [storedFields, setFields] = useState<Record<string, unknown>>(note?.fields ?? {});
   const [tags, setTags] = useState((note?.tags ?? []).join(', '));
   const [save, setSave] = useState<SaveState>('clean');
+  const draft = useRef({ fields: storedFields, tags, version: 0 });
+  const savedVersion = useRef(0);
+  const saving = useRef<Promise<boolean> | undefined>(undefined);
+  const [saveError, setSaveError] = useState<unknown>();
+  const [statusError, setStatusError] = useState<unknown>();
+  const createId = useRef(uuidV7());
   const [conversion, setConversion] = useState<{
     type: NoteTypeName;
     fields: Record<string, unknown>;
@@ -246,29 +251,59 @@ function Editor({
    * starts a new one. Nothing is held in a ref, so nothing can be stale.
    */
   const update = actions.update.mutateAsync;
+  const persistedId = note?.id;
+
+  const persist = useCallback((): Promise<boolean> => {
+    if (saving.current) return saving.current;
+    if (!persistedId || draft.current.version === savedVersion.current)
+      return Promise.resolve(true);
+    setSave('saving');
+    setSaveError(undefined);
+    const task = async () => {
+      try {
+        // A single writer drains newer edits after the outstanding request.
+        while (savedVersion.current !== draft.current.version) {
+          const snapshot = draft.current;
+          await update({
+            id: persistedId,
+            fields: snapshot.fields,
+            tags: snapshot.tags
+              .split(',')
+              .map((tag) => tag.trim())
+              .filter(Boolean),
+          });
+          savedVersion.current = snapshot.version;
+        }
+        setSave('saved');
+        return true;
+      } catch (error) {
+        setSaveError(error);
+        setSave('failed');
+        return false;
+      } finally {
+        saving.current = undefined;
+      }
+    };
+    saving.current = task();
+    return saving.current;
+  }, [persistedId, update]);
 
   useEffect(() => {
-    if (!note || conversion || save !== 'dirty') {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setSave('saving');
-
-      update({
-        id: note.id,
-        fields: storedFields,
-        tags: tags
-          .split(',')
-          .map((tag) => tag.trim())
-          .filter((tag) => tag !== ''),
-      })
-        .then(() => setSave('saved'))
-        .catch(() => setSave('failed'));
-    }, 700);
-
+    if (!persistedId || conversion || save !== 'dirty') return;
+    const timer = setTimeout(() => void persist(), 700);
     return () => clearTimeout(timer);
-  }, [save, note, storedFields, tags, update, conversion]);
+  }, [save, persistedId, storedFields, tags, persist, conversion]);
+
+  useBlocker({
+    // Start the last write, but let navigation continue. Waiting for a slow
+    // mobile request here makes Back feel broken, and a failed request would
+    // otherwise leave the route blocked with no useful way to leave it.
+    shouldBlockFn: () => {
+      if (note && !conversion) void persist();
+      return false;
+    },
+    enableBeforeUnload: !!note && (save === 'dirty' || save === 'saving' || save === 'failed'),
+  });
 
   function edit(next: Record<string, unknown>) {
     if (conversion) {
@@ -276,6 +311,7 @@ function Editor({
       setConversionError(undefined);
       return;
     }
+    draft.current = { ...draft.current, fields: next, version: draft.current.version + 1 };
     setFields(next);
     setSave(note ? 'dirty' : 'clean');
   }
@@ -286,12 +322,13 @@ function Editor({
     }
 
     setSave('saving');
+    setSaveError(undefined);
 
     try {
       const written = await actions.create.mutateAsync({
         // Generated here, so a retry after a timeout that actually landed does
         // not write the note twice.
-        id: uuidV7(),
+        id: createId.current,
         deckId: deck,
         noteType,
         fields,
@@ -300,7 +337,8 @@ function Editor({
 
       setSave('saved');
       await navigate({ to: '/notes/$noteId', params: { noteId: written.note.id } });
-    } catch {
+    } catch (error) {
+      setSaveError(error);
       setSave('failed');
     }
   }
@@ -323,6 +361,7 @@ function Editor({
       });
       setNoteType(written.note.noteType);
       setFields(written.note.fields);
+      draft.current = { fields: written.note.fields, tags, version: savedVersion.current };
       setConversion(undefined);
       setSave('saved');
       focusType();
@@ -368,31 +407,17 @@ function Editor({
   }
 
   return (
-    <section data-screen="" className="flex flex-col gap-20">
+    <section data-screen="" data-editor="" className="flex flex-col gap-20">
       <header className="flex items-center justify-between gap-12">
         <h1 className="font-display text-24 tracking-tight text-primary">
           {note ? t('note.edit') : t('note.new')}
         </h1>
 
         <div className="flex items-center gap-8">
-          {!conversion && <SaveIndicator state={save} onRetry={() => setSave('dirty')} />}
+          {note && !conversion && <SaveIndicator state={save} onRetry={() => void persist()} />}
 
           {note && !conversion ? (
             <Menu label={t('note.edit')}>
-              <MenuItem
-                icon={<Check size={16} strokeWidth={1.5} />}
-                onSelect={() =>
-                  void actions.update.mutateAsync({
-                    id: note.id,
-                    status: (note.status === 'known' ? 'active' : 'known') as NoteStatus,
-                  })
-                }
-              >
-                {note.status === 'known' ? t('note.markActive') : t('note.markKnown')}
-              </MenuItem>
-
-              <MenuSeparator />
-
               <MenuItem
                 tone="danger"
                 icon={<Trash2 size={16} strokeWidth={1.5} />}
@@ -404,6 +429,33 @@ function Editor({
           ) : undefined}
         </div>
       </header>
+
+      {note && !conversion && (
+        <div className="flex min-h-44 items-center justify-between gap-12">
+          <span role="status" className="text-14 text-secondary">
+            {t(
+              `note.status.${actions.setStatus.isPending ? actions.setStatus.variables.status : note.status}`,
+            )}
+          </span>
+          <Button
+            aria-pressed={note.status === 'known'}
+            disabled={actions.setStatus.isPending}
+            aria-busy={actions.setStatus.isPending}
+            onClick={() => {
+              if (actions.setStatus.isPending) return;
+              setStatusError(undefined);
+              void actions.setStatus
+                .mutateAsync({
+                  ids: [note.id],
+                  status: note.status === 'known' ? 'active' : 'known',
+                })
+                .catch(setStatusError);
+            }}
+          >
+            {note.status === 'known' ? t('note.markActive') : t('note.markKnown')}
+          </Button>
+        </div>
+      )}
 
       {conversion && (
         <p role="status" className="text-14 text-secondary">
@@ -428,9 +480,6 @@ function Editor({
             />
           )}
         </FormField>
-        {note && !conversion && (save === 'dirty' || save === 'failed') && (
-          <p className="text-14 text-secondary">{t('note.conversionWait')}</p>
-        )}
 
         <FormField
           label={t('note.deck')}
@@ -455,7 +504,7 @@ function Editor({
         {sections.map((section) => (
           <fieldset
             key={section.name}
-            disabled={!!conversion && save === 'saving'}
+            disabled={(!!conversion || !note) && save === 'saving'}
             className="flex min-w-0 flex-col gap-16"
           >
             {section.labelKey ? <GroupLabel>{t(section.labelKey)}</GroupLabel> : undefined}
@@ -476,10 +525,15 @@ function Editor({
             <Input
               {...props}
               value={tags}
-              disabled={!!conversion}
+              disabled={!!conversion || (!note && save === 'saving')}
               autoComplete="off"
               enterKeyHint="done"
               onChange={(event) => {
+                draft.current = {
+                  ...draft.current,
+                  tags: event.target.value,
+                  version: draft.current.version + 1,
+                };
                 setTags(event.target.value);
                 setSave(note ? 'dirty' : 'clean');
               }}
@@ -487,6 +541,17 @@ function Editor({
           )}
         </FormField>
       </div>
+
+      {saveError !== undefined && (
+        <p role="alert" className="text-14 text-error">
+          {t(describe(saveError).key, describe(saveError).values)}
+        </p>
+      )}
+      {statusError !== undefined && (
+        <p role="alert" className="text-14 text-error">
+          {t(describe(statusError).key, describe(statusError).values)}
+        </p>
+      )}
 
       <CardPreview cards={preview} />
 
@@ -682,28 +747,24 @@ function SaveIndicator({
 }) {
   const t = useTranslate();
 
-  if (state === 'clean') {
-    return undefined;
-  }
-
-  if (state === 'failed') {
-    return (
-      <button type="button" onClick={onRetry} className="min-h-44 text-13 text-error">
-        {t('note.saveFailed')}. {t('note.saveRetry')}
-      </button>
-    );
-  }
-
   return (
-    <span
-      role="status"
-      className={`text-13 ${state === 'saved' ? 'text-tertiary' : 'text-secondary'}`}
+    <div
+      className="flex h-44 w-[144px] shrink-0 items-center justify-end text-right text-13"
+      aria-live="polite"
     >
-      {state === 'saving'
-        ? t('note.saving')
-        : state === 'saved'
-          ? t('note.saved')
-          : t('note.saveNeeded')}
-    </span>
+      {state === 'failed' ? (
+        <button type="button" onClick={onRetry} className="min-h-44 text-error">
+          {t('note.saveFailed')} · {t('common.retry')}
+        </button>
+      ) : (
+        <span role="status" className="text-secondary">
+          {state === 'saving'
+            ? t('note.saving')
+            : state === 'dirty'
+              ? t('note.saveNeeded')
+              : t('note.saved')}
+        </span>
+      )}
+    </div>
   );
 }

@@ -6,6 +6,8 @@ import { createRoot } from 'react-dom/client';
 import { accountQuery } from './lib/account';
 import { ApiFailure } from './lib/api';
 import { deckTreeQuery } from './lib/decks';
+import { trackPresses } from './lib/interactions';
+import { noteQuery } from './lib/notes';
 import { trackViewport } from './lib/viewport';
 import { watchFrameRate } from './preferences/frame-rate';
 import { router } from './router';
@@ -91,9 +93,16 @@ function warmUp(): void {
 
   const path = window.location.pathname;
 
-  if (path === '/' || path.startsWith('/library')) {
+  if (
+    path === '/' ||
+    path.startsWith('/library') ||
+    path.startsWith('/notes') ||
+    path === '/import'
+  ) {
     void queryClient.prefetchQuery(deckTreeQuery());
   }
+  const noteId = /^\/notes\/([^/]+)$/.exec(path)?.[1];
+  if (noteId && noteId !== 'new') void queryClient.prefetchQuery(noteQuery(noteId));
 }
 
 warmUp();
@@ -101,6 +110,7 @@ warmUp();
 // Started before the first render, so a dialog opened straight away already
 // knows where the keyboard is.
 void trackViewport();
+trackPresses();
 
 /*
  * Watching the frames during a scroll, so a phone that cannot afford the glass

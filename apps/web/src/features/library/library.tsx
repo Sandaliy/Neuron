@@ -89,14 +89,19 @@ export function LibraryScreen() {
 
   return (
     <section data-screen="" className="flex flex-col gap-20">
-      <header className="flex items-center justify-between gap-12">
+      <header className="flex flex-col gap-12 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="font-display text-24 tracking-tight text-primary">{t('library.title')}</h1>
 
         <div className="flex items-center gap-8">
-          <Button variant="text" onClick={() => void navigate({ to: '/library/deleted' })}>
+          <Button variant="quiet" onClick={() => void navigate({ to: '/library/deleted' })}>
+            <Trash2 size={16} strokeWidth={1.5} aria-hidden="true" />
             {t('deleted.title')}
           </Button>
-          <Button variant="quiet" onClick={() => setDialog({ kind: 'create', parentId: null })}>
+          <Button
+            variant="primary"
+            className="order-first"
+            onClick={() => setDialog({ kind: 'create', parentId: null })}
+          >
             <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
             {t('library.newDeck')}
           </Button>
@@ -119,15 +124,7 @@ export function LibraryScreen() {
       ) : undefined}
 
       {decks.data?.length === 0 ? (
-        <EmptyState
-          title={t('library.emptyTitle')}
-          description={t('library.emptyBody')}
-          action={
-            <Button variant="primary" onClick={() => setDialog({ kind: 'create', parentId: null })}>
-              {t('library.newDeck')}
-            </Button>
-          }
-        />
+        <EmptyState title={t('library.emptyTitle')} description={t('library.emptyBody')} />
       ) : undefined}
 
       {tree.length > 0 ? (

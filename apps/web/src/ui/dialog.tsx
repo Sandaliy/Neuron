@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import { useTranslate } from '../i18n/locale';
+import { NAVIGATION_EVENT } from '../lib/interactions';
 
 import type { ReactNode } from 'react';
 
@@ -79,6 +80,14 @@ export function Dialog({
       delete document.documentElement.dataset['dialog'];
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !dismissable || !onOpenChange) return;
+
+    const close = () => onOpenChange(false);
+    window.addEventListener(NAVIGATION_EVENT, close);
+    return () => window.removeEventListener(NAVIGATION_EVENT, close);
+  }, [dismissable, onOpenChange, open]);
 
   return (
     <RadixDialog.Root open={open} {...(dismissable && onOpenChange ? { onOpenChange } : {})}>
