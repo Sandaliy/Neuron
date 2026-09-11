@@ -12,8 +12,8 @@ test('a dismissed toast does not leave a layer over the bottom navigation', asyn
   await page.getByRole('menuitem', { name: 'Delete' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   expect((await page.locator('[data-g="tabbar"]').boundingBox())!.y).toBe(barBefore!.y);
-  await page.getByRole('button', { name: 'Delete the deck' }).click();
-  await expect(page.getByText('Deck deleted: Deutsch', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByText('Moved “Deutsch” to Deleted', { exact: true })).toBeVisible();
 
   if (page.viewportSize()?.width === 375) {
     await page.locator('[data-g="toast"]').evaluate(async (element) => {
