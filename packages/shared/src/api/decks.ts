@@ -5,7 +5,7 @@ import { deckSettingsSchema } from '../deck-settings.js';
 import { idSchema, nameSchema } from './common.js';
 
 /**
- * Decks, which are also folders.
+ * Folders and leaf study decks share one collection hierarchy.
  *
  * Every schema here is strict: a field the server does not know about is a
  * rejected request, not a silently ignored one. A client sending `parentID`
@@ -14,6 +14,7 @@ import { idSchema, nameSchema } from './common.js';
  */
 
 export const deckSchema = z.object({
+  kind: z.enum(['folder', 'deck']),
   id: idSchema,
   name: z.string(),
   parentId: idSchema.nullable(),
@@ -49,6 +50,7 @@ export const deckTreeSchema = z.object({ decks: z.array(deckNodeSchema) });
 
 /** A soft-deleted deck, kept separate from the live library tree. */
 export const deletedDeckSchema = deckSchema.extend({
+  context: z.boolean().default(false),
   /** Original ancestors, root first, resolved when the recovery list was read. */
   pathNames: z.array(z.string()),
   /** A deleted parent must be restored before this deck can be restored. */
@@ -60,6 +62,7 @@ export type DeletedDeck = z.infer<typeof deletedDeckSchema>;
 export const deletedDeckListSchema = z.object({ decks: z.array(deletedDeckSchema) });
 
 export const createDeckSchema = z.strictObject({
+  kind: z.enum(['folder', 'deck']).default('deck'),
   /** Supply one when the deck was made offline, so it keeps its identity. */
   id: idSchema.optional(),
   name: nameSchema,
@@ -94,6 +97,20 @@ export const reorderDecksSchema = z.strictObject({
   parentId: idSchema.nullable(),
   order: z.array(idSchema).min(1).max(500),
 });
+
+/** The irreversible product action requires an explicit, machine-checked acknowledgement. */
+export const purgeConfirmationSchema = z.strictObject({ confirmed: z.literal(true) });
+
+/** Server-calculated impact for permanently removing recoverable collection content. */
+export const purgeImpactSchema = z.object({
+  name: z.string(),
+  folders: z.number().int().min(0),
+  decks: z.number().int().min(0),
+  notes: z.number().int().min(0),
+  cards: z.number().int().min(0),
+});
+
+export type PurgeImpact = z.infer<typeof purgeImpactSchema>;
 
 export type CreateDeckBody = z.infer<typeof createDeckSchema>;
 export type UpdateDeckBody = z.infer<typeof updateDeckSchema>;

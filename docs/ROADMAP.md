@@ -39,7 +39,7 @@ when it earns its place, but the interface should not reproduce Anki's configura
   motion, and non-color cues are part of completion.
 - **Performance is behavior.** Large decks, long lists, glass, and motion must stay within measured phone
   budgets. Visual effects yield when they make interaction worse.
-- **Clean product language.** A deck is also a folder, a note is a fact, and a card is one way to test it.
+- **Clean product language.** Folders organize leaf decks, a note is a fact, and a card is one way to test it.
   Terms should remain stable in English and Russian.
 - **Extensibility without premature complexity.** Preserve boundaries that are costly to retrofit. Do not
   build billing, enterprise, collaboration, or speculative scale systems before they are needed.
@@ -71,12 +71,11 @@ level settings, schemas and conditional editors for three note types, shared car
 bulk APIs, a virtualized note list, chunked imports, format parsing, preview warnings, duplicate lookup,
 import batches and undo, and the canonical card-generation prompt flow.
 
-The unfinished portion includes list performance, complete phone/desktop browser coverage, screenshot
-baselines, direct keyboard checks, and several behavior gaps found during reconciliation: source filtering
-is not exposed in the list, row summaries omit card state, duplicate choices are global rather than per row,
-merge does not yet fill only empty fields, note-type changes from the editor normally fail strict field
-validation, full card-direction controls are absent, and deleted decks/notes lack a working restore path in
-the UI.
+The current coherent release slice establishes explicit folders and leaf decks, operation-scoped
+subtree recovery, product permanent deletion that preserves review history, accessible note deletion,
+and English/Russian copy and import refinements. Migration, sync and recovery integrity are release
+gates. The 5,000-note, 4x CPU, 55 fps requirement remains unchanged. Full direction controls and real
+iPhone acceptance remain separate unfinished milestone work.
 
 Phase 6 is complete when the original note/import acceptance flows work with real material, all destructive
 or history-affecting actions tell the truth, a 5,000-note list meets the 55 fps budget, large imports recover

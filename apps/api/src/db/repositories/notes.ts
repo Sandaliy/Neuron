@@ -13,7 +13,7 @@ import type {
 
 import { cards, decks, noteTypes, notes, user } from '../schema/index.js';
 
-import { restoreNote } from './restoration.js';
+import { requireLiveDeck, restoreNote } from './restoration.js';
 import { nextRev } from './session.js';
 
 import type { Runner, Tx } from './session.js';
@@ -253,6 +253,8 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
     rev: number,
     skipExisting = false,
   ): Promise<NoteRow[]> {
+    for (const deckId of new Set(inputs.map((input) => input.deckId)))
+      await requireLiveDeck(tx, userId, deckId, 'deck');
     const typeIds = new Map<string, string>();
 
     for (const input of inputs) {
@@ -495,7 +497,13 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
         tx
           .select()
           .from(notes)
-          .where(and(eq(notes.userId, userId), sql`${notes.deletedAt} is not null`))
+          .where(
+            and(
+              eq(notes.userId, userId),
+              sql`${notes.deletedAt} is not null`,
+              isNull(notes.purgedAt),
+            ),
+          )
           .orderBy(asc(notes.deletedAt), asc(notes.id)),
       );
     },
@@ -618,6 +626,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       return run(async (tx) => {
         const unique = [...new Set(ids)];
         const rev = await nextRev(tx, userId);
+        await requireLiveDeck(tx, userId, deckId, 'deck');
         const now = new Date();
 
         const moved = await tx
@@ -639,7 +648,6 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
                   cards.noteId,
                   moved.map((row) => row.id),
                 ),
-                isNull(cards.deletedAt),
               ),
             );
         }
@@ -755,6 +763,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
     async moveToDeck(id, deckId) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
+        await requireLiveDeck(tx, userId, deckId, 'deck');
         const now = new Date();
 
         const [row] = await tx
@@ -770,7 +779,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
         await tx
           .update(cards)
           .set({ deckId, updatedAt: now, rev })
-          .where(and(eq(cards.userId, userId), eq(cards.noteId, id), isNull(cards.deletedAt)));
+          .where(and(eq(cards.userId, userId), eq(cards.noteId, id)));
 
         return row;
       });

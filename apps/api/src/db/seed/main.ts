@@ -271,11 +271,13 @@ async function writeCollection(repositories: Repositories, now: Date) {
   const historyStart = new Date(now.getTime() - HISTORY_DAYS * MS_PER_DAY);
 
   const german = await repositories.decks.create({
+    kind: 'folder',
     id: seedId('deck:german'),
     name: 'German',
     settings: { budgetMinutes: [30, 20, 20, 20, 20, 20, 45] },
   });
   const textbook = await repositories.decks.create({
+    kind: 'folder',
     id: seedId('deck:german/textbook'),
     name: 'Textbook',
     parentId: german.id,
@@ -291,6 +293,7 @@ async function writeCollection(repositories: Repositories, now: Date) {
     parentId: textbook.id,
   });
   const english = await repositories.decks.create({
+    kind: 'folder',
     id: seedId('deck:english'),
     name: 'English',
     settings: { maximumNewCardsPerDay: 15 },

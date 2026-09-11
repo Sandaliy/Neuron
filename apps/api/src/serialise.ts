@@ -35,6 +35,7 @@ function moment(value: Date | null): string | null {
 
 export function serialiseDeck(row: DeckRow): Deck {
   return {
+    kind: row.kind,
     id: row.id,
     name: row.name,
     parentId: row.parentId,

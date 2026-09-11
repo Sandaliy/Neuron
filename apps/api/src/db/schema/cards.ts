@@ -37,6 +37,7 @@ export const cards = pgTable(
   {
     id: id(),
     ...owned(),
+    purgedAt: instant('purged_at'),
     noteId: uuid('note_id')
       .notNull()
       .references(() => notes.id, { onDelete: 'cascade' }),
@@ -113,6 +114,10 @@ export const cards = pgTable(
     deletedWithNote: boolean('deleted_with_note').notNull().default(false),
   },
   (table) => [
+    check(
+      'cards_purge_requires_deleted',
+      sql`${table.purgedAt} is null or ${table.deletedAt} is not null`,
+    ),
     uniqueIndex('cards_note_direction_key')
       .on(table.noteId, table.direction, table.slot)
       .where(sql`${table.deletedAt} is null`),

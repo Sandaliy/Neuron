@@ -8,6 +8,7 @@ import { DeletedScreen } from './deleted';
 
 const deck = {
   id: 'deck-1',
+  kind: 'deck' as const,
   name: 'Lesson 3',
   parentId: 'deck-0',
   position: 0,
@@ -76,7 +77,7 @@ describe('deleted content recovery', () => {
     expect(await screen.findByText('Lesson 3')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Restore' }));
 
-    expect(await screen.findByText('No deleted decks')).toBeInTheDocument();
+    expect(await screen.findByText('No deleted folders or decks')).toBeInTheDocument();
   });
 
   it('keeps a blocked deck unavailable and reports partial note recovery honestly', async () => {
@@ -99,7 +100,7 @@ describe('deleted content recovery', () => {
       }),
     );
 
-    expect(await screen.findByText('Restore its original parent deck first.')).toBeInTheDocument();
+    expect(await screen.findByText('Restore the parent folder first.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Restore' })).toBeDisabled();
 
     await user.click(screen.getByLabelText('Notes'));

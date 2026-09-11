@@ -4,6 +4,7 @@ import { uuidV7 } from '@neuron/shared';
 
 import { cards, importBatches, notes, studyPresets } from '../schema/index.js';
 
+import { requireLiveDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
 import type { Runner } from './session.js';
@@ -185,6 +186,7 @@ export function importBatchRepository(userId: string, run: Runner): ImportBatchR
     async create(input) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
+        await requireLiveDeck(tx, userId, input.deckId, 'deck');
 
         const id = input.id ?? uuidV7();
 

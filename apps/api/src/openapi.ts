@@ -21,6 +21,8 @@ import {
   noteSchema,
   pullSyncResultSchema,
   pullSyncSchema,
+  purgeConfirmationSchema,
+  purgeImpactSchema,
   pushSyncResultSchema,
   pushSyncSchema,
   reorderDecksSchema,
@@ -58,6 +60,8 @@ const registry: Record<string, z.ZodType> = {
   CreateDeck: createDeckSchema,
   UpdateDeck: updateDeckSchema,
   MoveDeck: moveDeckSchema,
+  PurgeConfirmation: purgeConfirmationSchema,
+  PurgeImpact: purgeImpactSchema,
   ReorderDecks: reorderDecksSchema,
   Note: noteSchema,
   DeletedNote: deletedNoteSchema,
@@ -244,6 +248,28 @@ export function openApiDocument(baseUrl: string) {
           responses: { 200: answer('One restored deck, or zero if already live'), ...commonErrors },
         },
       },
+      '/decks/{id}/purge-impact': {
+        parameters: [idParameter],
+        get: {
+          summary: 'Calculate the server-owned permanent deletion impact',
+          responses: {
+            200: answer('Affected folders, decks, notes and cards', 'PurgeImpact'),
+            ...commonErrors,
+          },
+        },
+      },
+      '/decks/{id}/purge': {
+        parameters: [idParameter],
+        post: {
+          summary:
+            'Permanently remove recoverable collection content while retaining review history',
+          requestBody: body('PurgeConfirmation'),
+          responses: {
+            200: answer('Affected content that was made unrecoverable', 'PurgeImpact'),
+            ...commonErrors,
+          },
+        },
+      },
       '/notes': {
         get: {
           summary: 'Browse notes, filtered and paged by cursor',
@@ -291,6 +317,24 @@ export function openApiDocument(baseUrl: string) {
           summary: 'Restore a note and only cards proven deleted with it',
           responses: {
             200: answer('Restoration result and remaining deleted card count', 'RestoreNoteResult'),
+            ...commonErrors,
+          },
+        },
+      },
+      '/notes/{id}/purge-impact': {
+        parameters: [idParameter],
+        get: {
+          summary: 'Calculate the server-owned permanent deletion impact',
+          responses: { 200: answer('Affected note and cards', 'PurgeImpact'), ...commonErrors },
+        },
+      },
+      '/notes/{id}/purge': {
+        parameters: [idParameter],
+        post: {
+          summary: 'Permanently remove a note and its cards while retaining review history',
+          requestBody: body('PurgeConfirmation'),
+          responses: {
+            200: answer('Affected content that was made unrecoverable', 'PurgeImpact'),
             ...commonErrors,
           },
         },

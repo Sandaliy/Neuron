@@ -1,8 +1,8 @@
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { Plus, Upload } from 'lucide-react';
-import { memo, useEffect, useRef, useState } from 'react';
+import { Plus, Upload, Trash2 } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { NOTE_SORTS, NOTE_STATUSES, termOf } from '@neuron/shared';
 import type { CardStateCounts, MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
@@ -10,13 +10,14 @@ import type { CardStateCounts, MessageKey, Note, NoteSort, NoteStatus } from '@n
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
 import { findDeck, useDeckTree } from '../../lib/decks';
-import { NOTE_KEY, noteQueryString } from '../../lib/notes';
+import { NOTE_KEY, noteQueryString, useNoteActions } from '../../lib/notes';
 import { Button } from '../../ui/button';
 import { Chip } from '../../ui/chip';
 import { Input } from '../../ui/input';
 import { DenseRow } from '../../ui/row';
 import { Select } from '../../ui/select';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
+import { useToast } from '../../ui/toast';
 
 import { NoteSelectionBar } from './note-selection';
 
@@ -44,6 +45,19 @@ const CARD_STATE_ORDER = ['new', 'learning', 'review', 'relearning'] as const;
  */
 export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const t = useTranslate();
+  const toast = useToast();
+  const { mutateAsync: deleteNote } = useNoteActions().remove;
+  const removeNote = useCallback(
+    async (id: string) => {
+      try {
+        await deleteNote(id);
+        toast.show(t('note.deleted'));
+      } catch (error) {
+        toast.show(t(describe(error).key, describe(error).values));
+      }
+    },
+    [deleteNote, toast, t],
+  );
   const navigate = useNavigate();
   const decks = useDeckTree();
 
@@ -327,7 +341,9 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       ) : undefined}
       {rows.length > 0 ? (
         <VirtualNotes
+          key={`${deckId ?? 'all'}:${selecting}`}
           rows={rows}
+          onRemove={removeNote}
           selecting={selecting}
           layoutKey={`${selecting}:${filtersOpen}:${filtered}`}
           selected={selected}
@@ -359,6 +375,7 @@ function VirtualNotes({
   selected,
   onToggle,
   onOpen,
+  onRemove,
   hasMore,
   onNeedMore,
 }: {
@@ -367,11 +384,13 @@ function VirtualNotes({
   readonly selected: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
   readonly onOpen: (id: string) => void;
+  readonly onRemove: (id: string) => void;
   readonly layoutKey: string;
   readonly hasMore: boolean;
   readonly onNeedMore: () => void;
 }) {
   const list = useRef<HTMLDivElement>(null);
+  const [revealed, setRevealed] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
 
   // Where the list starts down the page. The window virtualiser needs it to
@@ -425,6 +444,9 @@ function VirtualNotes({
                 selected={selected.has(note.id)}
                 onToggle={onToggle}
                 onOpen={onOpen}
+                onRemove={onRemove}
+                revealed={!selecting && revealed === note.id}
+                onReveal={setRevealed}
               />
             </div>
           );
@@ -441,14 +463,22 @@ const NoteRow = memo(function NoteRow({
   selected,
   onToggle,
   onOpen,
+  onRemove,
+  revealed,
+  onReveal,
 }: {
   readonly note: Note;
   readonly selecting: boolean;
   readonly selected: boolean;
   readonly onToggle: (id: string) => void;
   readonly onOpen: (id: string) => void;
+  readonly onRemove: (id: string) => void;
+  readonly revealed: boolean;
+  readonly onReveal: (id: string | null) => void;
 }) {
   const t = useTranslate();
+  const gesture = useRef<{ x: number; y: number } | null>(null);
+  const swallowClick = useRef(false);
   const meaning =
     typeof note.fields['translation'] === 'string'
       ? note.fields['translation']
@@ -458,26 +488,99 @@ const NoteRow = memo(function NoteRow({
   const detail = note.status === 'known' ? `${meaning} · ${t('note.status.known')}` : meaning;
 
   return (
-    <DenseRow
-      selected={selecting ? selected : undefined}
-      word={termOf(note.fields)}
-      meaning={detail}
-      onClick={() => (selecting ? onToggle(note.id) : onOpen(note.id))}
-      trailing={
-        selecting ? (
-          <span
-            aria-hidden="true"
-            data-selected={selected ? '' : undefined}
-            className={[
-              'flex size-20 shrink-0 items-center justify-center rounded-8 border',
-              selected ? 'border-accent bg-fill-accent' : 'border-default',
-            ].join(' ')}
-          />
-        ) : (
-          <CardStateSummary counts={note.cardStates} />
-        )
-      }
-    />
+    <div
+      className="relative h-52 overflow-hidden"
+      style={{ touchAction: 'pan-y' }}
+      onPointerDown={(event) => {
+        swallowClick.current = false;
+        if (!selecting && event.pointerType === 'touch')
+          gesture.current = { x: event.clientX, y: event.clientY };
+      }}
+      onPointerCancel={() => {
+        gesture.current = null;
+      }}
+      onPointerMove={(event) => {
+        const start = gesture.current;
+        if (!start) return;
+        const dx = event.clientX - start.x;
+        const dy = event.clientY - start.y;
+        if (Math.abs(dy) > 16) {
+          gesture.current = null;
+          return;
+        }
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 2) {
+          onReveal(dx < 0 ? note.id : null);
+          swallowClick.current = true;
+          gesture.current = null;
+        }
+      }}
+      onPointerUp={() => {
+        gesture.current = null;
+      }}
+      onClickCapture={(event) => {
+        if (swallowClick.current) {
+          swallowClick.current = false;
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+    >
+      {revealed && (
+        <button
+          type="button"
+          aria-label={t('note.delete')}
+          data-swipe-action=""
+          className="absolute inset-y-0 right-0 flex w-64 items-center justify-center bg-fill-error-quiet text-error"
+          onClick={() => {
+            onReveal(null);
+            onRemove(note.id);
+          }}
+        >
+          <Trash2 size={20} aria-hidden="true" />
+        </button>
+      )}
+      <div
+        className="flex h-52 bg-base transition-transform dur-reveal"
+        style={{ transform: revealed ? 'translateX(-64px)' : undefined }}
+      >
+        <DenseRow
+          selected={selecting ? selected : undefined}
+          word={termOf(note.fields)}
+          meaning={detail}
+          onClick={() =>
+            revealed ? onReveal(null) : selecting ? onToggle(note.id) : onOpen(note.id)
+          }
+          trailing={
+            selecting ? (
+              <span
+                aria-hidden="true"
+                data-selected={selected ? '' : undefined}
+                className={[
+                  'flex size-20 shrink-0 items-center justify-center rounded-8 border',
+                  selected ? 'border-accent bg-fill-accent' : 'border-default',
+                ].join(' ')}
+              />
+            ) : (
+              <CardStateSummary counts={note.cardStates} />
+            )
+          }
+        />
+        {!selecting && (
+          <button
+            type="button"
+            aria-label={t('note.delete')}
+            title={t('note.delete')}
+            className="flex size-44 shrink-0 items-center justify-center self-center rounded-12 text-tertiary hover:text-error"
+            onClick={() => {
+              onReveal(null);
+              onRemove(note.id);
+            }}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+    </div>
   );
 });
 

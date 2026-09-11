@@ -4,6 +4,7 @@ import {
   createDeckSchema,
   idParamSchema,
   moveDeckSchema,
+  purgeConfirmationSchema,
   reorderDecksSchema,
   updateDeckSchema,
 } from '@neuron/shared';
@@ -16,7 +17,7 @@ import { readBody, readParams } from '../validation.js';
 import type { RequestBindings } from '../context.js';
 
 /**
- * Decks, which are also folders.
+ * Folders and leaf study decks share one collection hierarchy.
  *
  * The tree endpoint is the one that matters. It is what the library screen
  * draws, it runs on every app open, and it carries the counts, so getting it
@@ -45,6 +46,7 @@ export function deckRoutes(): Hono<RequestBindings> {
   routes.post('/', async (context) => {
     const body = await readBody(context, createDeckSchema);
     const deck = await repositoriesOf(context).decks.create({
+      kind: body.kind,
       ...(body.id === undefined ? {} : { id: body.id }),
       name: body.name,
       parentId: body.parentId ?? null,
@@ -61,17 +63,26 @@ export function deckRoutes(): Hono<RequestBindings> {
       repositories.decks.list(),
     ]);
     const byId = new Map([...live, ...deleted].map((deck) => [deck.id, deck]));
+    const contextIds = new Set<string>();
+
+    // Parent links are authoritative. A legacy sync client may have left a
+    // stale materialized path, but Deleted still has to show the live ancestors
+    // that explain where a tombstone belongs.
+    for (const row of deleted) {
+      for (const ancestor of ancestorChain(row, byId)) {
+        if (ancestor.deletedAt === null) contextIds.add(ancestor.id);
+      }
+    }
 
     return context.json({
-      decks: deleted.map((deck) => {
+      decks: [...live.filter((deck) => contextIds.has(deck.id)), ...deleted].map((deck) => {
         const parent = deck.parentId === null ? undefined : byId.get(deck.parentId);
+        const ancestors = ancestorChain(deck, byId);
 
         return {
           ...serialiseDeck(deck),
-          pathNames: deck.path.flatMap((id) => {
-            const ancestor = byId.get(id);
-            return ancestor ? [ancestor.name] : [];
-          }),
+          context: deck.deletedAt === null,
+          pathNames: ancestors.map((ancestor) => ancestor.name),
           parentDeleted: parent?.deletedAt !== null && parent !== undefined,
         };
       }),
@@ -143,8 +154,7 @@ export function deckRoutes(): Hono<RequestBindings> {
       throw new ApiError('not_found');
     }
 
-    // Nothing is removed. The rows carry a deletion mark and are swept thirty
-    // days later, so this is undoable until then.
+    // Recovery preserves the original rows and their deletion operation.
     return context.json({ deleted: marked });
   });
 
@@ -154,5 +164,48 @@ export function deckRoutes(): Hono<RequestBindings> {
     return context.json({ restored: await repositoriesOf(context).decks.restore(id) });
   });
 
+  routes.get('/:id/purge-impact', async (context) => {
+    const { id } = readParams(context, idParamSchema);
+    return context.json(await repositoriesOf(context).purge.impact('decks', id));
+  });
+  routes.post('/:id/purge', async (context) => {
+    const { id } = readParams(context, idParamSchema);
+    await readBody(context, purgeConfirmationSchema);
+    return context.json(await repositoriesOf(context).purge.remove('decks', id));
+  });
+
   return routes;
+}
+
+/** Resolves a row's original parent chain without trusting its cached path. */
+function ancestorChain(
+  row: { readonly parentId: string | null },
+  byId: ReadonlyMap<
+    string,
+    {
+      readonly id: string;
+      readonly parentId: string | null;
+      readonly name: string;
+      readonly deletedAt: Date | null;
+    }
+  >,
+) {
+  const chain: {
+    readonly id: string;
+    readonly parentId: string | null;
+    readonly name: string;
+    readonly deletedAt: Date | null;
+  }[] = [];
+  const seen = new Set<string>();
+  let parentId = row.parentId;
+
+  while (parentId !== null && !seen.has(parentId) && seen.size < 8) {
+    seen.add(parentId);
+    const parent = byId.get(parentId);
+    if (!parent) break;
+    chain.unshift(parent);
+    parentId = parent.parentId;
+  }
+
+  return chain;
 }

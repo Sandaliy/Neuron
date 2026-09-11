@@ -46,6 +46,7 @@ function deck(
 ): Record<string, unknown> {
   return {
     id,
+    kind: children.length ? 'folder' : 'deck',
     name,
     parentId: null,
     position: 0,

@@ -11,7 +11,7 @@ import { instant } from './columns.js';
  * state, which fails later and confusingly.
  *
  * `deletedAt` is what makes a delete recoverable: rows are marked, never
- * removed, and a cleanup job takes them away thirty days later. `rev` is the
+ * removed. Permanent collection deletion retains history-safe tombstones. `rev` is the
  * user's version counter at the moment of the write, which is what lets a
  * client ask for exactly what changed since it last synced.
  *

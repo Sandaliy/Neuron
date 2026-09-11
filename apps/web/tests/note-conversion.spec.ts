@@ -93,7 +93,7 @@ test('marking a note known updates immediately while the server confirms it', as
   const state = await editor(page);
   state.control.statusDelay = 700;
 
-  await page.getByRole('button', { name: 'Mark as known', exact: true }).click();
+  await page.getByRole('button', { name: 'Already know this', exact: true }).click();
 
   await expect(page.getByRole('button', { name: 'Study it again', exact: true })).toBeVisible();
   await expect.poll(() => state.stored().note.status).toBe('known');

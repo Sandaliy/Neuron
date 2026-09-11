@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Folder } from 'lucide-react';
 import { useState } from 'react';
 
 import { termOf } from '@neuron/shared';
@@ -11,10 +11,12 @@ import { useDeckActions } from '../../lib/decks';
 import { useNoteActions } from '../../lib/notes';
 import { useDeletedDecks, useDeletedNotes } from '../../lib/recovery';
 import { Button } from '../../ui/button';
-import { DenseRow, Row } from '../../ui/row';
+import { DenseRow, Row, TreeChildren } from '../../ui/row';
 import { Segmented } from '../../ui/segmented';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
+
+import { PurgeAction } from './purge-action';
 type Kind = 'decks' | 'notes';
 
 /** A separate recovery surface: live library and browse never request tombstones. */
@@ -56,6 +58,7 @@ function DeletedDeckList() {
   const toast = useToast();
   const deleted = useDeletedDecks();
   const actions = useDeckActions();
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, unknown>>({});
 
   async function restore(deck: DeletedDeck) {
@@ -87,40 +90,76 @@ function DeletedDeckList() {
     );
   }
 
+  const rows = deleted.data ?? [];
+  const ids = new Set(rows.map((row) => row.id));
+  function render(deck: DeletedDeck) {
+    const children = rows.filter((row) => row.parentId === deck.id);
+    const expanded = !collapsed.has(deck.id);
+    const error = errors[deck.id];
+    return (
+      <div key={deck.id} className="flex flex-col gap-8">
+        <div className={deck.context ? 'opacity-60' : ''}>
+          <Row
+            title={deck.name}
+            subtitle={t(deck.context ? 'deleted.liveContext' : 'deleted.originalLocation')}
+            leading={
+              <>
+                {children.length > 0 && (
+                  <button
+                    type="button"
+                    className="flex size-44 shrink-0 items-center justify-center"
+                    aria-expanded={expanded}
+                    aria-label={t(expanded ? 'library.collapse' : 'library.expand')}
+                    onClick={() =>
+                      setCollapsed((current) => {
+                        const next = new Set(current);
+                        if (!next.delete(deck.id)) next.add(deck.id);
+                        return next;
+                      })
+                    }
+                  >
+                    <ChevronRight
+                      size={16}
+                      className={expanded ? 'rotate-90' : ''}
+                      aria-hidden="true"
+                    />
+                  </button>
+                )}
+                {deck.kind === 'folder' && (
+                  <Folder size={18} className="shrink-0 text-tertiary" aria-hidden="true" />
+                )}
+              </>
+            }
+          />
+        </div>
+        {!deck.context && (
+          <div className="flex flex-wrap gap-8 px-12">
+            <Button
+              variant="quiet"
+              busy={actions.restore.isPending && actions.restore.variables === deck.id}
+              disabled={deck.parentDeleted}
+              onClick={() => void restore(deck)}
+            >
+              {t('deleted.restore')}
+            </Button>
+            <PurgeAction target="decks" id={deck.id} name={deck.name} />
+          </div>
+        )}
+        {!deck.context && deck.parentDeleted && (
+          <p className="px-16 text-12 text-secondary">{t('deleted.parentRequired')}</p>
+        )}
+        {!!error && (
+          <p role="alert" className="px-16 text-12 text-error">
+            {t(describe(error).key, describe(error).values)}
+          </p>
+        )}
+        {expanded && children.length > 0 && <TreeChildren>{children.map(render)}</TreeChildren>}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-8">
-      {deleted.data?.map((deck) => {
-        const error = errors[deck.id];
-        const blocked = deck.parentDeleted;
-        return (
-          <div key={deck.id} className="flex flex-col gap-8">
-            <Row
-              title={deck.name}
-              subtitle={
-                deck.pathNames.length > 0 ? deck.pathNames.join(' / ') : t('deleted.topLevel')
-              }
-              trailing={
-                <Button
-                  variant="quiet"
-                  busy={actions.restore.isPending && actions.restore.variables === deck.id}
-                  disabled={blocked}
-                  onClick={() => void restore(deck)}
-                >
-                  {t('deleted.restore')}
-                </Button>
-              }
-            />
-            {blocked ? (
-              <p className="px-16 text-12 text-error">{t('deleted.parentRequired')}</p>
-            ) : undefined}
-            {error ? (
-              <p role="alert" className="px-16 text-12 text-error">
-                {t(describe(error).key, describe(error).values)}
-              </p>
-            ) : undefined}
-          </div>
-        );
-      })}
+      {rows.filter((row) => row.parentId === null || !ids.has(row.parentId)).map(render)}
     </div>
   );
 }
@@ -174,7 +213,7 @@ function DeletedNoteList() {
           <div key={note.id} className="flex flex-col gap-8 rounded-12 border">
             <DenseRow
               word={termOf(note.fields)}
-              meaning={note.deckPath.join(' / ') || t('deleted.unknownDeck')}
+              meaning={note.deckPath.at(-1) || t('deleted.unknownDeck')}
               trailing={
                 <Button
                   variant="quiet"
@@ -186,6 +225,14 @@ function DeletedNoteList() {
                 </Button>
               }
             />
+            {note.deckPath.length > 1 && (
+              <p className="px-16 text-12 text-secondary">
+                {note.deckPath.slice(0, -1).join(' / ')}
+              </p>
+            )}
+            <div className="px-12">
+              <PurgeAction target="notes" id={note.id} name={termOf(note.fields)} />
+            </div>
             {blocked ? (
               <p className="px-16 pb-8 text-12 text-error">{t('deleted.deckRequired')}</p>
             ) : undefined}

@@ -25,6 +25,7 @@ describe.skipIf(!database)('sync', () => {
   let repositories: Repositories;
   let server: Hono;
   let deckId: string;
+  let folderId: string;
 
   beforeAll(async () => {
     if (!database) {
@@ -36,9 +37,11 @@ describe.skipIf(!database)('sync', () => {
     repositories = repositoriesFor(database, OWNER);
     server = testServer(database, OWNER);
 
-    const deck = await repositories.decks.create({ name: 'Sync' });
+    const folder = await repositories.decks.create({ kind: 'folder', name: 'Sync' });
+    const deck = await repositories.decks.create({ name: 'Sync deck', parentId: folder.id });
 
     deckId = deck.id;
+    folderId = folder.id;
   });
 
   async function push(body: unknown) {
@@ -59,7 +62,7 @@ describe.skipIf(!database)('sync', () => {
   it('sends everything above a revision, oldest first', async () => {
     const before = await repositories.sync.revision();
 
-    await repositories.decks.create({ name: 'After the mark', parentId: deckId });
+    await repositories.decks.create({ name: 'After the mark', parentId: folderId });
 
     const result = await pull(`?since=${before}`);
 
@@ -77,6 +80,7 @@ describe.skipIf(!database)('sync', () => {
     // Every row in the database carries one. A client that had to be told whose
     // data it was reading would be a client that could ask for somebody else's.
     expect(result.changes.every((change) => !('userId' in change.row))).toBe(true);
+    expect(result.changes.every((change) => change.purged === false)).toBe(true);
   });
 
   it('lets a client resume a download that was cut off', async () => {
@@ -89,7 +93,7 @@ describe.skipIf(!database)('sync', () => {
      * half a transaction and believing it had all of it.
      */
     for (let index = 0; index < 6; index += 1) {
-      await repositories.decks.create({ name: `Page ${index}`, parentId: deckId });
+      await repositories.decks.create({ name: `Page ${index}`, parentId: folderId });
     }
 
     const first = await pull('?since=0&limit=3');

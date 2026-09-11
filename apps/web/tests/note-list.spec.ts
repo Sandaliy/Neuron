@@ -64,7 +64,7 @@ for (const theme of ['dark', 'light']) {
     await expect(first).toBeFocused();
     expect(await first.evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe('none');
 
-    await page.getByRole('button', { name: 'Mark as known', exact: true }).click();
+    await page.getByRole('button', { name: 'Already know these', exact: true }).click();
     await statusRequest;
     await expect(page.getByRole('button', { name: /^Wort 1 word 1 · Known/ })).toBeVisible();
     confirmStatus();

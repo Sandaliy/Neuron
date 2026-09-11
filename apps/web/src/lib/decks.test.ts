@@ -14,6 +14,7 @@ function deck(
   children: readonly DeckNode[] = [],
 ): DeckNode {
   return {
+    kind: children.length ? 'folder' : 'deck',
     id: name,
     name,
     parentId: null,

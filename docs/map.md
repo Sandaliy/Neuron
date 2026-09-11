@@ -67,7 +67,7 @@ Zod schemas and types used by both sides of the wire.
 | `src/prompt.ts`        | Reads and fills the three canonical card-generation prompt variants                        |
 | `src/text.ts`          | Term normalization, note identity and example-word checks                                  |
 | `src/languages.ts`     | Supported language codes and CEFR levels                                                   |
-| `src/deck-settings.ts` | Per deck settings schema, defaults, and inheritance from the parent deck                   |
+| `src/deck-settings.ts` | Collection settings schema, defaults, and inheritance from ancestor folders                |
 | `src/preferences.ts`   | Locale, theme, plan, time zone, day cutoff hour                                            |
 | `src/password.ts`      | The password policy: ten character floor, the small list of the worst ones                 |
 | `src/recovery-code.ts` | The recovery code alphabet, grouping, and how a typed one is read back                     |
@@ -165,7 +165,7 @@ the checks that prove isolation works.
 | File                     | Tables                                                                                                                                                        |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `auth.ts`                | `user`, `session`, `account`, `verification`, `two_factor`, `recovery_codes`, `registration_counts`. Reached over a second connection, as a role of their own |
-| `decks.ts`               | `decks`. Folder and deck are the same entity. Ancestors stored as an array for subtree queries                                                                |
+| `decks.ts`               | `decks`. Immutable Folder/Deck kind discriminator; ancestors stored as an array for subtree queries                                                           |
 | `notes.ts`               | `notes`. The fact, with all its fields                                                                                                                        |
 | `note-types.ts`          | `note_types`. Built in types belong to nobody, so this has its own policy                                                                                     |
 | `cards.ts`               | `cards`. One review direction of a note, with its FSRS state                                                                                                  |
@@ -248,7 +248,7 @@ the api anywhere in browser code would cost the session cookie.
 | `auth/password-field.tsx`  | The policy from `packages/shared`, judged when leaving the field rather than on every keystroke |
 | `settings/settings.tsx`    | Theme, language, password, codes, the second factor, and leaving                                |
 | `settings/totp.tsx`        | Enrollment in three steps that cannot be skipped, and removal                                   |
-| `library/library.tsx`      | Writable deck tree: create, rename, move, reorder, settings, delete and remembered open state   |
+| `library/library.tsx`      | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
 | `library/deck-dialogs.tsx` | Deck naming, safe move picker and inherited language/level settings                             |
 | `today/today.tsx`          | What is due, what is new, and the estimate that says "about"                                    |
 | `notes/note-list.tsx`      | Virtualized note browse, search, filters, sorts and selection                                   |
@@ -331,3 +331,8 @@ every one of these in every state.
 | `docs/design-principles.md`      | A pointer to the file above. The phase 5 values in it are all wrong now       |
 | `docs/copy-audit.md`             | Every interface string in both languages, and what looks wrong with it        |
 | `docs/assets/*.svg`              | Charts produced by `sim/main.ts`                                              |
+
+Collection recovery additions: `apps/api/src/db/repositories/purge.ts` owns irreversible deletion and
+server impact counts; `restoration.ts` owns operation-scoped subtree restoration. In the web Library,
+`collection-picker.tsx` renders clean names and secondary paths, `deleted.tsx` renders recovery
+hierarchies and note dependencies, and `purge-action.tsx` owns irreversible confirmation.
