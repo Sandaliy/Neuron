@@ -4,7 +4,7 @@ import { check, index, integer, jsonb, pgTable, text, uuid } from 'drizzle-orm/p
 import { NOTE_STATUSES } from '@neuron/shared';
 import type { NoteFields } from '@neuron/shared';
 
-import { id, literalList } from './columns.js';
+import { id, instant, literalList } from './columns.js';
 import { decks } from './decks.js';
 import { noteTypes } from './note-types.js';
 import { owned } from './owned.js';
@@ -28,6 +28,7 @@ export const notes = pgTable(
   {
     id: id(),
     ...owned(),
+    purgedAt: instant('purged_at'),
     deckId: uuid('deck_id')
       .notNull()
       .references(() => decks.id, { onDelete: 'cascade' }),
@@ -70,6 +71,10 @@ export const notes = pgTable(
     ),
   },
   (table) => [
+    check(
+      'notes_purge_requires_deleted',
+      sql`${table.purgedAt} is null or ${table.deletedAt} is not null`,
+    ),
     index('notes_user_deck_idx')
       .on(table.userId, table.deckId)
       .where(sql`${table.deletedAt} is null`),

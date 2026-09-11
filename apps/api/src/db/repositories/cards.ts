@@ -112,7 +112,13 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
     const rows = await tx
       .select({ id: notes.id, deckId: notes.deckId })
       .from(notes)
-      .where(and(eq(notes.userId, userId), inArray(notes.id, [...new Set(noteIds)])));
+      .where(
+        and(
+          eq(notes.userId, userId),
+          inArray(notes.id, [...new Set(noteIds)]),
+          isNull(notes.purgedAt),
+        ),
+      );
 
     return new Map(rows.map((row) => [row.id, row.deckId]));
   }
@@ -148,13 +154,13 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
   return {
     async create(input) {
       return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
         const deckId = (await decksOfNotes(tx, [input.noteId])).get(input.noteId);
 
         if (deckId === undefined) {
           throw new NoteNotFound(input.noteId);
         }
 
-        const rev = await nextRev(tx, userId);
         const [row] = await tx
           .insert(cards)
           .values(toValues(input, deckId, rev))
@@ -174,11 +180,11 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
       }
 
       return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
         const deckIds = await decksOfNotes(
           tx,
           inputs.map((input) => input.noteId),
         );
-        const rev = await nextRev(tx, userId);
         const written: CardRow[] = [];
 
         for (let start = 0; start < inputs.length; start += 200) {
@@ -418,6 +424,7 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
           .from(cards)
           .where(and(eq(cards.userId, userId), eq(cards.id, id)))
           .limit(1);
+        if (card?.purgedAt) throw new RestoreDependency();
         if (!card || card.deletedAt === null) return false;
         const [note] = await tx
           .select()
@@ -425,7 +432,7 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
           .where(and(eq(notes.userId, userId), eq(notes.id, card.noteId)))
           .limit(1);
         if (!note || note.deletedAt !== null) throw new RestoreDependency();
-        await requireLiveDeck(tx, userId, note.deckId);
+        await requireLiveDeck(tx, userId, note.deckId, 'deck');
 
         const restored = await tx
           .update(cards)

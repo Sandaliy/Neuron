@@ -76,8 +76,12 @@ describe.skipIf(!database)('the routes', () => {
        * eventually, which is why the counts come from a single grouped query
        * and are added up here rather than asked for per deck.
        */
-      const root = await repositories.decks.create({ name: 'Counting' });
-      const child = await repositories.decks.create({ name: 'Lesson 1', parentId: root.id });
+      const root = await repositories.decks.create({ kind: 'folder', name: 'Counting' });
+      const child = await repositories.decks.create({
+        kind: 'folder',
+        name: 'Lesson 1',
+        parentId: root.id,
+      });
       const grandchild = await repositories.decks.create({ name: 'Part A', parentId: child.id });
 
       const note = await repositories.notes.create({
@@ -121,8 +125,12 @@ describe.skipIf(!database)('the routes', () => {
     });
 
     it('refuses to move a deck into its own child, and says which refusal it was', async () => {
-      const parent = await repositories.decks.create({ name: 'Cycle top' });
-      const child = await repositories.decks.create({ name: 'Cycle bottom', parentId: parent.id });
+      const parent = await repositories.decks.create({ kind: 'folder', name: 'Cycle top' });
+      const child = await repositories.decks.create({
+        kind: 'folder',
+        name: 'Cycle bottom',
+        parentId: parent.id,
+      });
 
       const response = await server.request(`/api/decks/${parent.id}/move`, {
         method: 'POST',
@@ -138,7 +146,7 @@ describe.skipIf(!database)('the routes', () => {
     });
 
     it('turns a duplicate sibling name into a code the client can translate', async () => {
-      const parent = await repositories.decks.create({ name: 'Naming' });
+      const parent = await repositories.decks.create({ kind: 'folder', name: 'Naming' });
 
       await repositories.decks.create({ name: 'Lesson', parentId: parent.id });
 
@@ -156,7 +164,7 @@ describe.skipIf(!database)('the routes', () => {
     });
 
     it('restores a deleted hierarchy one deck at a time', async () => {
-      const deck = await repositories.decks.create({ name: 'Regret' });
+      const deck = await repositories.decks.create({ kind: 'folder', name: 'Regret' });
       const child = await repositories.decks.create({ name: 'Also regret', parentId: deck.id });
 
       await json(await server.request(`/api/decks/${deck.id}`, { method: 'DELETE' }), 200);
@@ -166,7 +174,7 @@ describe.skipIf(!database)('the routes', () => {
       await json(await server.request(`/api/decks/${deck.id}/restore`, { method: 'POST' }), 200);
 
       expect(await repositories.decks.byId(deck.id)).toBeDefined();
-      expect(await repositories.decks.byId(child.id)).toBeUndefined();
+      expect(await repositories.decks.byId(child.id)).toBeDefined();
       await json(await server.request(`/api/decks/${child.id}/restore`, { method: 'POST' }), 200);
       expect(await repositories.decks.byId(child.id)).toBeDefined();
       expect((await repositories.decks.byId(child.id))?.path).toEqual(child.path);
@@ -602,6 +610,9 @@ describe.skipIf(!database)('the routes', () => {
       expect(document.openapi).toBe('3.1.0');
       expect(Object.keys(document.paths).length).toBeGreaterThan(20);
       expect(document.components.schemas['SubmitReview']).toBeDefined();
+      expect(document.paths['/decks/{id}/purge-impact']).toBeDefined();
+      expect(document.paths['/notes/{id}/purge']).toBeDefined();
+      expect(document.components.schemas['PurgeImpact']).toBeDefined();
     });
 
     it('is not readable without a session', async () => {

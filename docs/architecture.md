@@ -22,25 +22,24 @@ often and the hard one not often enough.
 The cost is that one imported list of 5000 words can become 15000 cards. That is why directions open one
 at a time rather than all at once, which is what the `ladder` setting on a deck describes.
 
-### A deck is also a folder
+### Folders and decks share one hierarchy
 
-There is no separate folder table. A deck holding other decks is what a person calls a folder, and
-studying one means studying everything underneath it at any depth.
+The `decks` table has an immutable `kind`: `folder` or `deck`. Folders contain folders and decks;
+decks are leaves and own notes and cards. Root accepts either kind. Repositories and sync reject deck
+parents, folder-owned notes, deleted dependency chains and cycles. Database triggers enforce parent
+and ownership kinds as a second barrier. Existing IDs and the ancestor `path` representation remain.
+Moves update descendant paths, including tombstones, under the user's revision lock.
 
-Each deck carries `path`, an array of its ancestors, root first. "Everything under this folder" is then
-one indexed query rather than a recursive walk:
+Folder settings are inherited defaults for descendant decks, including the existing language, level
+and scheduling defaults. They do not make the folder itself a study set. Deck settings override the
+nearest inherited value; there is no second hierarchy or settings inheritance mechanism.
 
-```sql
-where path @> array[$1]::uuid[]
-```
-
-The cost is that moving a deck has to rewrite the path of every row beneath it. That happens in one
-statement, inside the transaction that moved the deck, in `deckRepository.move`. Two tests hold it to
-that: one moves a three level subtree and checks every descendant, another moves a subtree up to the
-root.
-
-A check constraint refuses a deck that lists itself among its ancestors, and the depth is capped at
-eight.
+Migration 0012 classifies nodes with children as folders and leaves as decks. A legacy mixed node
+keeps its ID, name and children as a folder; its own notes and cards move into a deterministic,
+same-named child deck. A numeric suffix resolves a sibling-name collision if necessary. No note,
+card, review or schedule is replaced. Deleted mixed nodes retain their deletion state; historical
+operations are not inferred. Materialized paths are rebuilt from parent links, and changed entities
+receive the user's next revision so existing clients can pull the transition.
 
 ### The review log is append only
 
@@ -203,8 +202,11 @@ has two. Now the flag is necessary and not sufficient: the deleting role also ha
 
 Deck deletion marks the selected deck and its live descendant decks. It does not delete notes or cards.
 Both repository and sync deletion follow parent links, including legacy rows with incomplete paths.
-Deck restore changes only the selected row. The original parent chain must be live, so deleted
-hierarchies are restored parent-first. Descendants stay deleted, and restore never changes parent or path.
+Each collection deletion assigns a new server-owned `deletion_id` to the selected live row and its
+live descendants. Already deleted rows keep their provenance. Restore requires a live original parent
+chain and recovers the connected subtree with that exact operation ID. Independently deleted or
+permanently removed descendants stay deleted. Legacy null provenance restores only the selected row.
+Restore never changes parent or path. Retrying the same operation is harmless.
 
 Cards carry `deleted_with_note`, a server-owned boolean that defaults to false. Normal and bulk note
 deletion, import undo and sync note deletion set it only on cards that were live when their note was
@@ -227,14 +229,35 @@ remaining count. Dependency failures use `restore_dependency` (409).
 
 Sync restores deleted notes through the same helper and reports `noteRestorations` with those counts.
 Restore transitions preserve saved metadata and hierarchy; a client must pull before sending subsequent
-edits. Sync deck restoration is also one row at a time. Updates to tombstoned cards conflict as
+edits. Sync collection restoration uses the same operation-scoped helper. Updates to tombstoned cards conflict as
 `deleted_remotely`, preventing stale edits from reviving removed semantic tests. Explicit card removals
 in a sync batch are processed before parent-note deletions, so they retain independent provenance.
 Sync checks live parents for creation and updates, maintains deck paths, and rejects invalid parent
 dependencies atomically. Clients cannot propose the provenance flag and it is omitted from sync responses.
+Pull exposes only `purged: true` for an irreversible tombstone, so another client can remove recovery
+affordances without receiving the server-owned operation ID or purge timestamp.
 
 Neither `deleted_at` nor `rev` identifies a logical deletion. Independent events can share a timestamp
 or a sync batch revision. These fields remain timestamps and synchronization revisions, respectively.
+
+## Product permanent deletion
+
+`POST /decks/:id/purge` and `/notes/:id/purge` require `{ confirmed: true }` and only accept already
+soft-deleted roots. Corresponding `purge-impact` reads calculate folders, decks, notes and cards on the
+server. The write recalculates ownership under the user lock. Folder scope includes all descendants,
+including independently deleted ones; deck scope includes its notes and cards; note scope includes
+its cards. Parent links, not client counts, decide scope.
+
+Permanent deletion stamps `purged_at`, keeps rows deleted, clears collection names/settings and note
+fields/tags/source/rank, and cancels card restoration provenance. Recovery queries exclude these rows;
+repository restores reject them and sync returns `deleted_remotely` for future changes. Pull includes
+the irreversible tombstones with `purged: true`. Database triggers prevent clearing a purge or making it live again.
+Conflict payloads for purged entities are redacted through narrow column grants and a trigger that
+permits only empty payloads for already-purged sources. Conflict identity and reason are retained.
+
+Cards retain their IDs, ownership, schedules and replay fields. Reviews are neither updated nor
+deleted. Historical learning facts and referential integrity survive; this is product permanent
+deletion, not account erasure. Account erasure remains the only operation allowed to remove reviews.
 
 ## The version counter
 

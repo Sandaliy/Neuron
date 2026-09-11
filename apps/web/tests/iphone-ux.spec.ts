@@ -107,7 +107,7 @@ test('Known responds immediately, rejects repeated taps and rolls back on failur
   const { control } = await setup(page);
   control.delay = 1500;
   await page.goto('/notes/mobile');
-  const mark = page.getByRole('button', { name: 'Mark as known', exact: true });
+  const mark = page.getByRole('button', { name: 'Already know this', exact: true });
   await mark.click();
   await expect(page.getByRole('status').filter({ hasText: /^Known$/ })).toBeVisible({
     timeout: 500,
@@ -148,9 +148,7 @@ test('empty decks hide browse controls; selection actions stay in the page and o
   await expect(page.getByRole('button', { name: 'Edit tags', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Move to a deck', exact: true })).toBeVisible();
   const first = await page.locator('[data-row]').first().boundingBox();
-  const actions = await page
-    .getByRole('button', { name: 'Delete them', exact: true })
-    .boundingBox();
+  const actions = await page.getByRole('button', { name: 'Delete', exact: true }).boundingBox();
   expect(first!.y).toBeGreaterThanOrEqual(actions!.y + actions!.height);
   await page.screenshot({ path: test.info().outputPath('selection-mobile.png'), fullPage: true });
 });
@@ -163,7 +161,7 @@ for (const locale of ['en', 'ru'] as const) {
     await page.route('**/api/notes/duplicates', (route) =>
       route.fulfill({ json: { matches: [] } }),
     );
-    await page.goto('/import?deckId=d1');
+    await page.goto('/import?deckId=d3');
     await page
       .getByRole('textbox', { name: locale === 'en' ? 'Word' : 'Слово', exact: true })
       .fill('Haus');
@@ -177,17 +175,21 @@ for (const locale of ['en', 'ru'] as const) {
       })
       .click();
     await page
-      .getByRole('button', { name: locale === 'en' ? 'Read the list' : 'Прочитать список' })
+      .getByRole('button', {
+        name: locale === 'en' ? 'Preview import' : 'Проверить перед импортом',
+      })
       .click();
     await expect(page.locator('[data-import-row]')).toContainText('Haus');
     await expect(page.locator('[data-import-row]')).toContainText('house');
-    await page.goto('/import?deckId=d1');
+    await page.goto('/import?deckId=d3');
     await page
-      .getByRole('combobox', { name: locale === 'en' ? 'Note type' : 'Тип заметки', exact: true })
+      .getByRole('combobox', { name: locale === 'en' ? 'Note type' : 'Тип записи', exact: true })
       .selectOption('cloze');
     await page.locator('textarea').fill('Ich {{lerne}} Deutsch.');
     await page
-      .getByRole('button', { name: locale === 'en' ? 'Read the list' : 'Прочитать список' })
+      .getByRole('button', {
+        name: locale === 'en' ? 'Preview import' : 'Проверить перед импортом',
+      })
       .click();
     await page
       .locator('summary')

@@ -4,7 +4,7 @@ import { API_ERROR_STATUS, uuidV7 } from '@neuron/shared';
 import type { ApiErrorCode } from '@neuron/shared';
 
 import { CardNotFound, DeckCycle, DeckNotFound, UnknownNoteType } from './db/repositories/index.js';
-import { RestoreDependency } from './db/repositories/restoration.js';
+import { InvalidCollectionKind, RestoreDependency } from './db/repositories/restoration.js';
 
 import type { Context } from 'hono';
 
@@ -136,6 +136,9 @@ export function toApiError(error: unknown): ApiError {
   if (error instanceof DeckCycle) {
     return new ApiError('deck_cycle', { cause: error });
   }
+
+  if (error instanceof InvalidCollectionKind)
+    return new ApiError('invalid_request', { cause: error });
 
   if (error instanceof RestoreDependency) {
     return new ApiError('restore_dependency', { cause: error });

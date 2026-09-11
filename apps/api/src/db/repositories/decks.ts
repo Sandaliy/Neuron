@@ -5,13 +5,13 @@ import type { DeckSettings } from '@neuron/shared';
 
 import { decks } from '../schema/index.js';
 
-import { requireLiveDeck, softDeleteDeck } from './restoration.js';
+import { requireLiveDeck, restoreDeck, rewriteDeckSubtree, softDeleteDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
 import type { Runner, Tx } from './session.js';
 
 /**
- * Decks, which are also folders.
+ * Folders and leaf study decks share one collection hierarchy.
  *
  * The tree is stored as a `path` array of ancestors on every row, so "give me
  * everything under this folder" is one indexed query rather than a walk. The
@@ -26,6 +26,7 @@ export interface CreateDeck {
   /** Supply one when the client made it offline. Otherwise one is generated. */
   readonly id?: string;
   readonly name: string;
+  readonly kind?: 'folder' | 'deck';
   readonly parentId?: string | null;
   readonly settings?: DeckSettings | null;
 }
@@ -53,7 +54,7 @@ export interface DeckRepository {
   reorder: (parentId: string | null, order: readonly string[]) => Promise<DeckRow[]>;
   /** Marks the deck and everything under it. Nothing is removed. */
   softDelete: (id: string) => Promise<number>;
-  /** Restores one deck. Its parent must be live; descendants stay deleted. */
+  /** Restores a deleted root and its descendants from the same deletion operation. */
   restore: (id: string) => Promise<number>;
 }
 
@@ -116,12 +117,12 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
   return {
     async create(input) {
       return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
         const parentId = input.parentId ?? null;
+        if (parentId !== null) await requireLiveDeck(tx, userId, parentId, 'folder');
         const parent = parentId === null ? undefined : await loadDeck(tx, userId, parentId);
         const path = parent ? [...parent.path, parent.id] : [];
         const settings = input.settings ? deckSettingsSchema.parse(input.settings) : null;
-        const rev = await nextRev(tx, userId);
-
         const [row] = await tx
           .insert(decks)
           .values({
@@ -129,6 +130,7 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
             userId,
             parentId,
             name: input.name.trim(),
+            kind: input.kind ?? 'deck',
             position: await nextPosition(tx, userId, parentId),
             path,
             settings,
@@ -171,7 +173,13 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
         tx
           .select()
           .from(decks)
-          .where(and(eq(decks.userId, userId), sql`${decks.deletedAt} is not null`))
+          .where(
+            and(
+              eq(decks.userId, userId),
+              sql`${decks.deletedAt} is not null`,
+              isNull(decks.purgedAt),
+            ),
+          )
           .orderBy(asc(decks.deletedAt), asc(decks.position), asc(decks.name)),
       );
     },
@@ -258,39 +266,18 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
 
     async move(id, parentId) {
       return run(async (tx) => {
-        const deck = await loadDeck(tx, userId, id);
-        const parent = parentId === null ? undefined : await loadDeck(tx, userId, parentId);
-
-        if (parent && (parent.id === deck.id || parent.path.includes(deck.id))) {
-          throw new DeckCycle();
-        }
-
-        const newPath = parent ? [...parent.path, parent.id] : [];
-        const oldDepth = deck.path.length;
         const rev = await nextRev(tx, userId);
+        const deck = await loadDeck(tx, userId, id);
+        await requireLiveDeck(tx, userId, id, deck.kind);
+        const newPath =
+          parentId === null ? [] : await requireLiveDeck(tx, userId, parentId, 'folder');
+
+        if (newPath.includes(id)) throw new DeckCycle();
         const now = new Date();
 
-        // Every descendant's path starts with this deck's old path, then this
-        // deck's id, then whatever is below. Replacing the first `oldDepth`
-        // entries with the new path moves the whole subtree in one statement
-        // and leaves the shape underneath untouched.
-        await tx
-          .update(decks)
-          .set({
-            path: sql`array[${sql.join(
-              newPath.map((ancestor) => sql`${ancestor}`),
-              sql`, `,
-            )}]::uuid[] || ${decks.path}[${oldDepth + 1}:]`,
-            updatedAt: now,
-            rev,
-          })
-          .where(
-            and(
-              eq(decks.userId, userId),
-              sql`${decks.path} @> array[${id}]::uuid[]`,
-              isNull(decks.deletedAt),
-            ),
-          );
+        // Rebuild from parent links so a stale legacy path cannot miss a
+        // descendant or let a move create an inconsistent tree.
+        await rewriteDeckSubtree(tx, userId, id, newPath, rev, now);
 
         const [row] = await tx
           .update(decks)
@@ -363,29 +350,7 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
     async restore(id) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
-        const [deck] = await tx
-          .select({ deletedAt: decks.deletedAt, parentId: decks.parentId })
-          .from(decks)
-          .where(and(eq(decks.userId, userId), eq(decks.id, id)))
-          .limit(1);
-
-        if (!deck) {
-          throw new DeckNotFound(id);
-        }
-
-        if (deck.deletedAt === null) {
-          return 0;
-        }
-
-        if (deck.parentId !== null) await requireLiveDeck(tx, userId, deck.parentId);
-
-        const restored = await tx
-          .update(decks)
-          .set({ deletedAt: null, updatedAt: new Date(), rev })
-          .where(and(eq(decks.userId, userId), eq(decks.id, id)))
-          .returning({ id: decks.id });
-
-        return restored.length;
+        return restoreDeck(tx, userId, id, rev, new Date());
       });
     },
   };

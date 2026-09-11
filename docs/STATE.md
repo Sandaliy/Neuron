@@ -4,9 +4,20 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-08, after production migration safety was delivered through PRs #12 and #13.
+Last updated: 2026-09-12 on `work/collection-integrity`, based on `3b76220`. The collection hierarchy upgrade is locally verified, uncommitted and not deployed.
 
 ## Now
+
+The next collection release separates organizational Folders from leaf study Decks in the existing
+hierarchy. Migration 0012 preserves legacy mixed nodes as same-ID Folders and moves their own Notes
+into deterministic same-named child Decks. Notes, Cards and Reviews retain their IDs and history.
+Server-owned deletion operations govern subtree recovery; permanent deletion redacts recoverable
+content while retaining immutable Reviews and history-safe tombstones. Library, destination pickers,
+Deleted and import copy use the new model. Note rows offer reveal-only swipe and keyboard deletion.
+
+This release is not yet committed, merged or deployed. Real-iPhone acceptance remains outstanding.
+Chromium phone emulation passes the unchanged 55 fps budget (56.8 fps median with 5,000 notes and
+4x CPU throttling, 18 mounted rows). Real-Postgres integrity, route and browser gates pass.
 
 Phase 6 production recovery is merged to `main`. The release contains writable decks, note editing
 and browsing, shared card planning, chunked imports, and persistent Deleted/Restore UI for soft-deleted
@@ -35,10 +46,12 @@ owner-only `DATABASE_URL_OWNER` credential remains confined to the protected Git
 
 ## Next
 
-1. Complete real-iPhone acceptance for the merged Phase 6 collection flows.
-2. Continue the remaining Phase 6 direction-control, browser and screenshot coverage, mobile-keyboard
+1. Review and commit the collection integrity work, then open a protected PR.
+2. After merge, run migration 0012 through the production workflow and verify compatibility.
+3. Complete real-iPhone acceptance for collection, recovery, import and keyboard flows.
+4. Continue the remaining Phase 6 direction-control, browser and screenshot coverage, mobile-keyboard
    acceptance, and large-import acceptance work as separate workstreams and release slices where useful.
-3. Run the full milestone gates when closing Phase 6.
+5. Run the full milestone gates when closing Phase 6.
 
 ## Open threads
 
@@ -62,11 +75,10 @@ owner-only `DATABASE_URL_OWNER` credential remains confined to the protected Git
   Existing notes move only through list selection, and full direction/ladder controls are absent.
 - The note list exposes exact source filtering and per-row live-card summaries. Persistent Deleted/Restore
   UI now covers soft-deleted decks and notes.
-- Server restore integrity is verified by 22 real-database regression cases. Decks restore individually,
-  parent-first. Note restore uses explicit card deletion provenance, preserves schedules and reviews,
-  and reports cards left deleted. Historical and independently deleted cards remain deleted. Sync follows
-  the same dependency and provenance boundaries. Migration 0011 adds the conservative false default
-  without historical attribution. Broader Phase 6 acceptance and final milestone closure remain pending.
+- Collection restoration uses explicit deletion operation IDs, never timestamps or revision equality.
+  Independently deleted descendants remain deleted. Legacy deletions without provenance restore
+  individually. Note restoration retains `deleted_with_note` attribution for Cards. Permanent
+  deletion prevents restoration through repositories and sync without rewriting Reviews.
 - `stash@{0}` remains a backup of earlier Phase 6 local work. Keep it until the phase has landed safely.
 - The production API is in `iad1` while users and web requests enter through Europe. Region alignment
   remains deferred because the database must move with the API.
@@ -74,13 +86,15 @@ owner-only `DATABASE_URL_OWNER` credential remains confined to the protected Git
 - `sync_conflicts` records losing versions but the web app has no recovery screen.
 - The production web bundle is about 596 KB before gzip. Code splitting remains deferred.
 - Dependency alerts include `nanoid` 3.3.17 and the Drizzle tooling version of `esbuild`.
+- `drizzle-kit check` could not run locally because Node returned `uv_os_get_passwd ENOMEM`; the
+  escalation retry was rejected by automatic approval review. Migration tests and generated snapshot pass.
 
 ## Decisions
 
 | Date       | Decision                                                                     | Why                                                                                                           |
 | ---------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | 2026-08    | Keep scheduling pure and deterministic in `packages/core`                    | Browser and server projections must match while offline                                                       |
-| 2026-08    | Treat a deck and folder as one entity                                        | Studying a parent includes its subtree                                                                        |
+| 2026-09-11 | Distinguish Folders and leaf Decks in the existing hierarchy                 | Folders organize and provide defaults; only Decks own Notes.                                                  |
 | 2026-08    | Keep reviews append only                                                     | Card state can be rebuilt from the review log                                                                 |
 | 2026-08    | Require user context in repositories and RLS in Postgres                     | User isolation must survive a route bug                                                                       |
 | 2026-08    | Use recovery codes and optional TOTP without Google sign in                  | The current product has no mail or social identity provider                                                   |

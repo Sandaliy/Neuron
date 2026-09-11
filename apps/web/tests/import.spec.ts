@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test';
 
 import { useFixtures, usePreferences } from './fixtures';
 
+const IMPORT_DECK_ID = 'd3';
+const IMPORT_DECK_NAME = 'Verben mit Dativ';
+
 for (const locale of ['en', 'ru'] as const) {
   test(`duplicate defaults, exceptions and undo boundary in ${locale}`, async ({ page }) => {
     await usePreferences(page, { theme: locale === 'en' ? 'dark' : 'light', locale, glass: 'off' });
@@ -13,7 +16,7 @@ for (const locale of ['en', 'ru'] as const) {
       { term: 'ambiguous', noteId: 'a', noteType: 'vocab' },
       { term: 'ambiguous', noteId: 'b', noteType: 'vocab' },
       { term: 'incompatible', noteId: 'basic', noteType: 'basic' },
-    ].map((match) => ({ ...match, deckId: 'd1', written: match.term }));
+    ].map((match) => ({ ...match, deckId: IMPORT_DECK_ID, written: match.term }));
     const writes: { path: string; body: Record<string, unknown> }[] = [];
     await page.route('**/api/notes/duplicates', (route) => route.fulfill({ json: { matches } }));
     await page.route('**/api/imports**', async (route) => {
@@ -32,7 +35,7 @@ for (const locale of ['en', 'ru'] as const) {
       });
       await route.fulfill({ json: {} });
     });
-    await page.goto('/import?deckId=d1');
+    await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
     await page.locator('textarea').fill(
       JSON.stringify({
         noteType: 'vocab',
@@ -43,7 +46,9 @@ for (const locale of ['en', 'ru'] as const) {
       }),
     );
     await page
-      .getByRole('button', { name: locale === 'en' ? 'Read the list' : 'Прочитать список' })
+      .getByRole('button', {
+        name: locale === 'en' ? 'Preview import' : 'Проверить перед импортом',
+      })
       .click();
     const defaultChoice = page.getByLabel(
       locale === 'en' ? 'Default for duplicates' : 'По умолчанию для совпадений',
@@ -118,16 +123,16 @@ test('checks duplicates in the selected destination deck', async ({ page }) => {
     checked = route.request().postDataJSON() as Record<string, unknown>;
     await route.fulfill({ json: { matches: [] } });
   });
-  await page.goto('/import?deckId=d1');
+  await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
   await page.locator('textarea').fill(
     JSON.stringify({
       noteType: 'vocab',
       notes: [{ term: 'elsewhere', translation: 'allowed' }],
     }),
   );
-  await page.getByRole('button', { name: 'Read the list' }).click();
+  await page.getByRole('button', { name: 'Preview import' }).click();
   await expect(page.getByText('elsewhere', { exact: true })).toBeVisible();
-  expect(checked).toEqual({ deckId: 'd1', terms: ['elsewhere'] });
+  expect(checked).toEqual({ deckId: IMPORT_DECK_ID, terms: ['elsewhere'] });
   await expect(page.getByRole('button', { name: /^Import 1/ })).toBeEnabled();
 });
 
@@ -145,14 +150,14 @@ test('final import creates an other-deck term in the selected destination', asyn
     }
     await route.fulfill({ json: { notes: 1, cards: 1 } });
   });
-  await page.goto('/import?deckId=d1');
+  await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
   await page.locator('textarea').fill(
     JSON.stringify({
       noteType: 'vocab',
       notes: [{ term: 'elsewhere only', translation: 'create here' }],
     }),
   );
-  await page.getByRole('button', { name: 'Read the list' }).click();
+  await page.getByRole('button', { name: 'Preview import' }).click();
   await page.getByRole('button', { name: /^Import 1/ }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   expect(writes.map((write) => write.path)).toEqual([
@@ -177,7 +182,7 @@ test('final import merges an exact destination duplicate without creating an emp
             term: 'destination only',
             noteId: 'destination-note',
             noteType: 'vocab',
-            deckId: 'd1',
+            deckId: IMPORT_DECK_ID,
             written: 'Destination only',
           },
         ],
@@ -198,15 +203,15 @@ test('final import merges an exact destination duplicate without creating an emp
     });
     await route.fulfill({ json: { notes: 0, cards: 0 } });
   });
-  await page.goto('/import?deckId=d1');
+  await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
   await page.locator('textarea').fill(
     JSON.stringify({
       noteType: 'vocab',
       notes: [{ term: 'destination only', translation: 'fill this if blank' }],
     }),
   );
-  await page.getByRole('button', { name: 'Read the list' }).click();
-  await expect(page.getByText('Already in Deutsch', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Preview import' }).click();
+  await expect(page.getByText(`Already in ${IMPORT_DECK_NAME}`, { exact: true })).toBeVisible();
   await page.getByLabel('Default for duplicates', { exact: true }).selectOption('merge');
   await page.getByRole('button', { name: /^Import 1/ }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
@@ -235,7 +240,7 @@ test('all skipped rows stay a clean no-op and do not start an import batch', asy
             term: 'already present',
             noteId: 'present-note',
             noteType: 'vocab',
-            deckId: 'd1',
+            deckId: IMPORT_DECK_ID,
             written: 'Already present',
           },
         ],
@@ -246,15 +251,15 @@ test('all skipped rows stay a clean no-op and do not start an import batch', asy
     importWrites += 1;
     await route.fulfill({ json: {} });
   });
-  await page.goto('/import?deckId=d1');
+  await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
   await page.locator('textarea').fill(
     JSON.stringify({
       noteType: 'vocab',
       notes: [{ term: 'already present', translation: 'keep existing' }],
     }),
   );
-  await page.getByRole('button', { name: 'Read the list' }).click();
-  await expect(page.getByText('Already in Deutsch', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Preview import' }).click();
+  await expect(page.getByText(`Already in ${IMPORT_DECK_NAME}`, { exact: true })).toBeVisible();
   await expect(page.getByText('Nothing here to import yet.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Import 0/ })).toBeDisabled();
   expect(importWrites).toBe(0);
@@ -277,7 +282,7 @@ test('lost chunk response resumes with the original IDs and does not duplicate r
     }
     await route.fulfill({ json: { notes: accepted.size, cards: accepted.size } });
   });
-  await page.goto('/import?deckId=d1');
+  await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
   await page.locator('textarea').fill(
     JSON.stringify({
       noteType: 'vocab',
@@ -287,7 +292,7 @@ test('lost chunk response resumes with the original IDs and does not duplicate r
       ],
     }),
   );
-  await page.getByRole('button', { name: 'Read the list' }).click();
+  await page.getByRole('button', { name: 'Preview import' }).click();
   await page.getByRole('button', { name: /^Import 2/ }).click();
   await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
@@ -306,7 +311,7 @@ test('completed import invalidates the cached destination list before opening it
   let listReads = 0;
   const existing = {
     id: 'existing',
-    deckId: 'd1',
+    deckId: IMPORT_DECK_ID,
     noteType: 'vocab',
     fields: { term: 'already here', translation: 'present' },
     tags: [],
@@ -335,7 +340,7 @@ test('completed import invalidates the cached destination list before opening it
     await route.fulfill({ json: { notes: 1, cards: 1 } });
   });
 
-  await page.goto('/notes?deckId=d1');
+  await page.goto(`/notes?deckId=${IMPORT_DECK_ID}`);
   await expect(page.getByText('already here', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Import' }).click();
   await page.locator('textarea').fill(
@@ -344,7 +349,7 @@ test('completed import invalidates the cached destination list before opening it
       notes: [{ term: 'newly imported', translation: 'now visible' }],
     }),
   );
-  await page.getByRole('button', { name: 'Read the list' }).click();
+  await page.getByRole('button', { name: 'Preview import' }).click();
   await page.getByRole('button', { name: /^Import 1/ }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Open the deck' }).click();

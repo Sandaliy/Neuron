@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { useFixtures, usePreferences } from './fixtures';
 
-test.describe('phone deck menu isolation', () => {
+test.describe('phone collection row isolation', () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
   async function openMenu(page: Parameters<typeof useFixtures>[0], name = 'Deutsch') {
@@ -28,7 +28,7 @@ test.describe('phone deck menu isolation', () => {
     await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
 
     await openMenu(page);
-    await page.getByRole('menuitem', { name: 'Deck settings' }).click();
+    await page.getByRole('menuitem', { name: 'Settings' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page).toHaveURL(/\/library$/);
     await page.reload();
@@ -58,10 +58,11 @@ test.describe('phone deck menu isolation', () => {
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 
-  test('Open navigates and the old menu does not reappear on back', async ({ page }) => {
-    await openMenu(page);
-    await page.getByRole('menuitem', { name: 'Open' }).click();
-    await expect(page).toHaveURL(/\/notes\?deckId=d1/);
+  test('the folder body opens its contents and the menu does not reappear on back', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: 'Deutsch', exact: true }).click();
+    await expect(page).toHaveURL(/\/library\?folderId=d1/);
     await page.goBack();
     await expect(page).toHaveURL(/\/library$/);
     await expect(page.getByRole('menu')).toHaveCount(0);
@@ -88,8 +89,8 @@ test('deck create stays successful when the refresh fails', async ({ page }) => 
   await page.getByRole('button', { name: 'New deck' }).click();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
   await page.getByLabel('Name').fill('Fresh');
-  await page.getByRole('button', { name: 'Create the deck' }).click();
-  await expect(page.getByText('Fresh created', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByText('Created “Fresh”', { exact: true })).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
 });
 
@@ -121,13 +122,13 @@ test('a failed deck create cannot leave an error in a later successful rename', 
   await page.goto('/library');
   await page.getByRole('button', { name: 'New deck' }).click();
   await page.getByLabel('Name').fill('Deutsch');
-  await page.getByRole('button', { name: 'Create the deck' }).click();
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByText('That name is already used here')).toBeVisible();
   await page.keyboard.press('Escape');
 
   await page.getByRole('button', { name: 'Actions for Deutsch', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Rename' }).click();
-  const renameDialog = page.getByRole('dialog', { name: 'Rename the deck' });
+  const renameDialog = page.getByRole('dialog', { name: 'Rename' });
   await renameDialog.getByRole('textbox', { name: 'Name' }).fill('German');
   await page.getByRole('button', { name: 'Save the name' }).click();
 
@@ -175,6 +176,7 @@ test('note create stays successful when the refresh fails', async ({ page }) => 
 function singleDeck(id: string) {
   return {
     id,
+    kind: 'deck',
     name: 'Only',
     parentId: null,
     position: 0,

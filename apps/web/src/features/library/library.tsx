@@ -1,9 +1,11 @@
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import {
   ArrowDown,
   ArrowUp,
   FolderInput,
-  List,
+  Folder,
+  ChevronRight,
+  ArrowLeft,
   Pencil,
   Plus,
   Settings2,
@@ -15,13 +17,13 @@ import type { DeckNode, DeckSettings } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
-import { moveProblem, useDeckActions, useDeckTree } from '../../lib/decks';
+import { findDeck, moveProblem, useDeckActions, useDeckTree } from '../../lib/decks';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
 import { Button } from '../../ui/button';
 import { Chip } from '../../ui/chip';
 import { Dialog, DialogFooter } from '../../ui/dialog';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
-import { TreeChildren, TreeRow } from '../../ui/row';
+import { TreeChildren, Row } from '../../ui/row';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 
@@ -36,8 +38,8 @@ import type { DragEvent } from 'react';
  * rolled up over each subtree, so a deck shows what is waiting inside it
  * without asking about a single one of its children.
  *
- * Nesting is indentation and a hairline. A deck can contain decks, so the
- * interface never says folder, and there is no second noun to learn.
+ * Nesting is indentation and a hairline. Folders organize descendants; leaf
+ * decks open their notes directly.
  *
  * Moving is the part that usually gets built badly. Dragging on a touch screen
  * fights with scrolling and misfires, so the way to move a deck is an action
@@ -69,16 +71,20 @@ export function LibraryScreen() {
   }, []);
 
   const tree = decks.data ?? [];
+  const { folderId } = useSearch({ from: '/app/library' });
+  const folder = folderId ? findDeck(tree, folderId) : undefined;
+  const visible = folder?.kind === 'folder' ? folder.children : tree;
 
   const openNotes = (id: string) => {
-    void navigate({ to: '/notes', search: { deckId: id } });
+    if (findDeck(tree, id)?.kind === 'folder')
+      void navigate({ to: '/library', search: { folderId: id } });
+    else void navigate({ to: '/notes', search: { deckId: id } });
   };
 
   /**
    * Deleting says what happened and offers it back.
    *
-   * Nothing is really removed for thirty days, so the offer is honest: it is
-   * the same rows coming back rather than a copy being written again.
+   * Recovery returns the same rows and only descendants attributed to this deletion.
    */
   async function remove(deck: DeckNode) {
     await actions.remove.mutateAsync(deck.id);
@@ -90,9 +96,34 @@ export function LibraryScreen() {
   return (
     <section data-screen="" className="flex flex-col gap-20">
       <header className="flex flex-col gap-12 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-24 tracking-tight text-primary">{t('library.title')}</h1>
+        <h1 className="font-display text-24 tracking-tight text-primary">
+          {folder?.name ?? t('library.title')}
+        </h1>
 
-        <div className="flex items-center gap-8">
+        <div className="flex flex-wrap items-center gap-8">
+          {folder && (
+            <Button
+              variant="text"
+              aria-label={t('common.back')}
+              onClick={() =>
+                void navigate({
+                  to: '/library',
+                  search: folder.parentId ? { folderId: folder.parentId } : {},
+                })
+              }
+            >
+              <ArrowLeft size={18} />
+            </Button>
+          )}
+          <Button
+            variant="quiet"
+            onClick={() =>
+              setDialog({ kind: 'create', collectionKind: 'folder', parentId: folder?.id ?? null })
+            }
+          >
+            <Folder size={16} aria-hidden="true" />
+            {t('library.newFolder')}
+          </Button>
           <Button variant="quiet" onClick={() => void navigate({ to: '/library/deleted' })}>
             <Trash2 size={16} strokeWidth={1.5} aria-hidden="true" />
             {t('deleted.title')}
@@ -100,7 +131,9 @@ export function LibraryScreen() {
           <Button
             variant="primary"
             className="order-first"
-            onClick={() => setDialog({ kind: 'create', parentId: null })}
+            onClick={() =>
+              setDialog({ kind: 'create', collectionKind: 'deck', parentId: folder?.id ?? null })
+            }
           >
             <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
             {t('library.newDeck')}
@@ -123,17 +156,17 @@ export function LibraryScreen() {
         />
       ) : undefined}
 
-      {decks.data?.length === 0 ? (
+      {!decks.isPending && visible.length === 0 ? (
         <EmptyState title={t('library.emptyTitle')} description={t('library.emptyBody')} />
       ) : undefined}
 
-      {tree.length > 0 ? (
+      {visible.length > 0 ? (
         <div className="flex flex-col gap-8">
-          {tree.map((deck) => (
+          {visible.map((deck) => (
             <Deck
               key={deck.id}
               deck={deck}
-              siblings={tree}
+              siblings={visible}
               tree={tree}
               actions={actions}
               open={open}
@@ -149,8 +182,8 @@ export function LibraryScreen() {
         state={dialog}
         decks={tree}
         onClose={() => setDialog({ kind: 'none' })}
-        onCreate={async (parentId, name) => {
-          await actions.create.mutateAsync({ name, parentId });
+        onCreate={async (parentId, name, kind) => {
+          await actions.create.mutateAsync({ name, parentId, kind });
 
           setDialog({ kind: 'none' });
           toast.show(t('library.created', { name }));
@@ -197,7 +230,12 @@ const POINTER_FINE =
 /** Which dialog is open, and what it is about. */
 type DialogState =
   | { readonly kind: 'none' }
-  | { readonly kind: 'create'; readonly parentId: string | null; readonly parentName?: string }
+  | {
+      readonly kind: 'create';
+      readonly collectionKind: 'folder' | 'deck';
+      readonly parentId: string | null;
+      readonly parentName?: string;
+    }
   | { readonly kind: 'rename'; readonly deck: DeckNode }
   | { readonly kind: 'move'; readonly deck: DeckNode }
   | { readonly kind: 'settings'; readonly deck: DeckNode }
@@ -228,7 +266,7 @@ function Deck({
   const t = useTranslate();
   const [over, setOver] = useState(false);
 
-  const hasChildren = deck.children.length > 0;
+  const hasChildren = deck.kind === 'folder' && deck.children.length > 0;
   const expanded = open.has(deck.id);
   const index = siblings.findIndex((entry) => entry.id === deck.id);
 
@@ -282,19 +320,39 @@ function Deck({
             }
           : {})}
       >
-        <TreeRow
+        <Row
           title={deck.name}
           /*
             Nothing waiting is said by the row carrying no second line, not by a
             line of zeroes. A count of nothing is the one number worth not
             printing.
           */
-          {...(deck.due > 0 || deck.fresh > 0
+          {...(deck.kind === 'deck' && (deck.due > 0 || deck.fresh > 0)
             ? { subtitle: t('today.deckCounts', { due: deck.due, fresh: deck.fresh }) }
             : {})}
-          expandable={hasChildren}
-          expanded={expanded}
-          onClick={() => (hasChildren ? onToggle(deck.id) : onOpen(deck.id))}
+          leading={
+            deck.kind === 'folder' ? (
+              <>
+                {hasChildren && (
+                  <button
+                    type="button"
+                    aria-label={t(expanded ? 'library.collapse' : 'library.expand')}
+                    aria-expanded={expanded}
+                    className="flex size-44 shrink-0 items-center justify-center"
+                    onClick={() => onToggle(deck.id)}
+                  >
+                    <ChevronRight
+                      size={16}
+                      className={expanded ? 'rotate-90' : ''}
+                      aria-hidden="true"
+                    />
+                  </button>
+                )}
+                <Folder size={18} aria-hidden="true" className="shrink-0 text-tertiary" />
+              </>
+            ) : undefined
+          }
+          onClick={() => onOpen(deck.id)}
           {...(POINTER_FINE
             ? {
                 draggable: true,
@@ -307,11 +365,11 @@ function Deck({
           interactiveTrailing
           trailing={
             <>
-              {deck.due > 0 ? (
+              {deck.kind === 'deck' && deck.due > 0 ? (
                 <span aria-label={`${t('library.dueLabel')}: ${deck.due}`}>
                   <Chip tone="due">{deck.due}</Chip>
                 </span>
-              ) : deck.fresh > 0 ? (
+              ) : deck.kind === 'deck' && deck.fresh > 0 ? (
                 <span aria-label={`${t('library.newLabel')}: ${deck.fresh}`}>
                   <Chip tone="new">{deck.fresh}</Chip>
                 </span>
@@ -330,20 +388,36 @@ function Deck({
                 >
                   {t('library.move')}
                 </MenuItem>
-                <MenuItem
-                  icon={<List size={16} strokeWidth={1.5} />}
-                  onSelect={() => onOpen(deck.id)}
-                >
-                  {t('library.openNotes')}
-                </MenuItem>
-                <MenuItem
-                  icon={<Plus size={16} strokeWidth={1.5} />}
-                  onSelect={() =>
-                    onAct({ kind: 'create', parentId: deck.id, parentName: deck.name })
-                  }
-                >
-                  {t('library.newDeckInside')}
-                </MenuItem>
+                {deck.kind === 'folder' && (
+                  <>
+                    <MenuItem
+                      icon={<Folder size={16} />}
+                      onSelect={() =>
+                        onAct({
+                          kind: 'create',
+                          collectionKind: 'folder',
+                          parentId: deck.id,
+                          parentName: deck.name,
+                        })
+                      }
+                    >
+                      {t('library.newFolder')}
+                    </MenuItem>
+                    <MenuItem
+                      icon={<Plus size={16} />}
+                      onSelect={() =>
+                        onAct({
+                          kind: 'create',
+                          collectionKind: 'deck',
+                          parentId: deck.id,
+                          parentName: deck.name,
+                        })
+                      }
+                    >
+                      {t('library.newDeck')}
+                    </MenuItem>
+                  </>
+                )}
                 <MenuItem
                   icon={<Settings2 size={16} strokeWidth={1.5} />}
                   onSelect={() => onAct({ kind: 'settings', deck })}
@@ -420,7 +494,7 @@ function DeckDialogs({
   readonly state: DialogState;
   readonly decks: readonly DeckNode[];
   readonly onClose: () => void;
-  readonly onCreate: (parentId: string | null, name: string) => void;
+  readonly onCreate: (parentId: string | null, name: string, kind: 'folder' | 'deck') => void;
   readonly onRename: (deck: DeckNode, name: string) => void;
   readonly onMove: (deck: DeckNode, parentId: string | null) => void;
   readonly onSaveSettings: (deck: DeckNode, settings: DeckSettings) => void;
@@ -436,15 +510,21 @@ function DeckDialogs({
       <DeckNameDialog
         open={state.kind === 'create'}
         onOpenChange={onClose}
-        title={
-          state.kind === 'create' && state.parentName
-            ? t('library.createInside', { name: state.parentName })
-            : t('library.createTitle')
-        }
+        title={t(
+          state.kind === 'create' && state.collectionKind === 'folder'
+            ? 'library.newFolder'
+            : 'library.newDeck',
+        )}
         submitLabel={t('library.createSubmit')}
         busy={busy}
         error={createError}
-        onSubmit={(name) => onCreate(state.kind === 'create' ? state.parentId : null, name)}
+        onSubmit={(name) =>
+          onCreate(
+            state.kind === 'create' ? state.parentId : null,
+            name,
+            state.kind === 'create' ? state.collectionKind : 'deck',
+          )
+        }
       />
 
       <DeckNameDialog

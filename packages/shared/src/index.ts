@@ -146,6 +146,8 @@ export {
   deckSchema,
   deckTreeSchema,
   moveDeckSchema,
+  purgeConfirmationSchema,
+  purgeImpactSchema,
   reorderDecksSchema,
   updateDeckSchema,
 } from './api/decks.js';
@@ -155,6 +157,7 @@ export type {
   DeckNode,
   DeletedDeck,
   MoveDeckBody,
+  PurgeImpact,
   ReorderDecksBody,
   UpdateDeckBody,
 } from './api/decks.js';

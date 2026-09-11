@@ -473,7 +473,8 @@ other. Russian uses ты everywhere; the app belongs to one person.
 
 | Concept           | English                        | Русский                            | Never                                 |
 | ----------------- | ------------------------------ | ---------------------------------- | ------------------------------------- |
-| deck (= folder)   | deck                           | набор                              | folder, папка, колода                 |
+| folder            | folder                         | папка                              | колода                                |
+| deck              | deck                           | набор                              | колода                                |
 | note              | note                           | запись                             | заметка, факт                         |
 | card              | card                           | карточка                           | —                                     |
 | review            | review, to review              | повтор, повторить                  | ревью, тренировка                     |
@@ -492,15 +493,27 @@ other. Russian uses ты everywhere; the app belongs to one person.
 | recovery code     | recovery code                  | резервный код                      | код доступа, код восстановления       |
 | direction         | ask both ways                  | спрашивать с двух сторон           | направление, реверс                   |
 
-One word for one thing. A deck can contain decks, so the interface never says folder; nesting is shown
-by indentation, not by a second noun.
+Folders organize folders and decks; decks are leaf study sets containing notes. Folder defaults
+apply to descendant decks without making the folder a study set. Folder body activation navigates;
+only a separate chevron expands a tree. Deck activation opens notes directly, with no chevron.
+At root and in each folder, offer both New folder and New deck.
+
+Tree depth belongs to indentation and connectors, never to the object name. Flat pickers use the clean
+name on the first line and a muted ancestor path on the second line. A note swipe reveals a trash
+action; a separate activation performs recoverable deletion. Every row also has a keyboard-accessible
+menu. Permanent deletion is available only in Deleted, with exact identity, server counts, an
+irreversibility statement and a required acknowledgement checkbox.
+
+Import modes have a selected surface, inset outline, stronger text and a checkmark, plus pressed
+semantics. Examples require confirmation before replacing non-empty input. Distinct import rules use
+separate semantic list items, not a dense paragraph.
 
 ### Copy rules
 
 - Write each language natively. A word-for-word calque is a bug, and so is inventing a folksy
   replacement for a term people already know. 2FA is the name in both languages.
-- A button says what will happen: a verb with its object, every time. A bare verb makes somebody look
-  back at the heading to find out what they are agreeing to.
+- A button names its action. Use a short verb when the immediate context identifies the target, such
+  as Delete / Удалить. Add the object only when it prevents ambiguity.
 - An error says what happened, then what to do. No apology, no exclamation mark. Two sentences at most,
   and the second one is always doable.
 - Outcome, not mechanism. The algorithm is our problem; the person needs to know what it costs them, in

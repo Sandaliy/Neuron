@@ -55,6 +55,8 @@ export const syncRowSchema = z.object({
   rev: z.number().int(),
   /** True when the row is soft deleted, so the client can drop its copy. */
   deleted: z.boolean(),
+  /** True when the soft-delete tombstone is no longer recoverable. */
+  purged: z.boolean(),
   row: z.record(z.string(), z.unknown()),
 });
 
@@ -81,6 +83,7 @@ export const pullSyncResultSchema = z.object({
  * stability would not need to forge a review at all.
  */
 const deckPayload = z.strictObject({
+  kind: z.enum(['folder', 'deck']).optional(),
   name: nameSchema,
   parentId: idSchema.nullish(),
   position: z.number().int().min(0).optional(),
