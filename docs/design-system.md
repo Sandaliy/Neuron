@@ -305,19 +305,25 @@ fill `forwards`, because something on its way out has to stay where it ended unt
   `[data-screen] > *`, so a screen added later gets it by being a screen.
 - Forward navigation enters from the right at 14px, backward from the left. The direction is a spatial
   claim and has to match the hierarchy.
-- Sheets rise from the bottom edge over `--dur-4` with `ease-enter` and leave over `--dur-3` with
-  `ease-exit`. Exits are always faster than entrances.
-- A sheet pushes the screen behind it back to 0.945 with the top edge as the origin. The screen is
-  still there and still theirs.
+- Dialogs appear in place with opacity and scale 0.99 to 1 over `--dur-2`. Closing reverses
+  those endpoints over `--dur-1`. The scrim fades in and out on the same timings.
+- The app background stays stationary at every width. The scrim, glass surface and shadow provide
+  depth without transforming the root or changing the containing block of fixed navigation.
+- Menus use a 2px approach and scale 0.99 from Radix's collision-aware trigger origin. Opening takes
+  `--dur-2`, closing reverses the same endpoints over `--dur-1`, without overshoot.
+- Toasts travel 4px with opacity, opening over `--dur-2` and closing over `--dur-1`. They remain mounted
+  through their exit. On phones they sit 8px above the tab bar, with safe area counted once; with the
+  keyboard open they sit 8px above it. Desktop feedback uses the bottom safe area plus 16px.
 - The card reveal moves 10px and scales .99 to 1 over `--dur-2`. It says the answer was already there.
 - A pushed screen brings its content a beat behind itself: four rows, 26ms apart, then it stops.
 - The focus ring is instant. The halo behind it fades over `--dur-1`.
 - What hangs under an open deck arrives with the reveal. The disclosure has already turned by then, so
   the movement is the answer to it.
 - Something appearing in place rather than from somewhere pops: a chip, a strength bar, `--dur-2` on
-  the spring, from 0.92.
+  the entrance curve, from 0.99.
 - A press answers everywhere, and by less the larger the thing is: a control gives 0.985, a card or a
-  row 0.99, a tab or a segmented cell 0.96. A large thing moving as far as a small one reads as loose.
+  row 0.99. Controls release over `--dur-2` without overshoot; text actions dim to 0.7.
+  Tab and segmented transitions retain their existing motion. A large thing moving as far as a small one reads as loose.
 - The segmented thumb and the tab pill travel over `--dur-3` on the spring, and give a little when the
   group is pressed. At `--dur-1` a thumb has not travelled as far as the eye is concerned, it has
   teleported; the platform's own controls take about this long, and the spring is what makes the
@@ -339,19 +345,20 @@ movement cannot hide a layout change.
 
 The two hardest things about a phone browser, and the two the interface was worst at.
 
-**A `position: fixed` element is placed against the layout viewport**, and on iOS that viewport runs on
-underneath Safari's toolbar. A bar at `bottom: 0` therefore hides behind the toolbar while the toolbar
-is out, and floats far too high once it retracts. `src/lib/viewport.ts` measures the difference between
-the layout viewport and the visual one and publishes it as two variables, because two different things
-need two different answers:
+**A `position: fixed` element is placed against the layout viewport**, and the bottom navigation relies
+on that native Safari positioning. It does not receive a second browser-chrome translation. The viewport
+tracker is concerned with keyboard geometry: it measures the visual viewport only while a normal-scale
+editing control is focused, and publishes the remaining covered bottom area when Safari pans above the
+keyboard. Ordinary document forms are left to the browser's native focus scrolling; only a dialog body
+is scrolled by the app:
 
-| Variable                   | Is                                                        | Used by                                   |
-| -------------------------- | --------------------------------------------------------- | ----------------------------------------- |
-| `--keyboard-inset`         | The gap when it is a keyboard, and zero otherwise         | The padding a full page form reserves     |
-| `--chrome-inset`           | The gap when it is the browser's own furniture, else zero | The tab bar                               |
-| `--visual-viewport-height` | How tall the part on screen actually is                   | The band a dialog is centred in           |
-| `--visual-viewport-top`    | Where the part on screen starts                           | The top edge of that band                 |
-| `data-keyboard` on `html`  | `open` or `closed`                                        | Anything that hides or tightens for a key |
+| Variable                   | Is                                                       | Used by                                   |
+| -------------------------- | -------------------------------------------------------- | ----------------------------------------- |
+| `--keyboard-inset`         | The remaining covered bottom area for a focused keyboard | Dialog and keyboard-aware layout          |
+| `--chrome-inset`           | Always effectively zero for native fixed navigation      | Compatibility variable                    |
+| `--visual-viewport-height` | How tall the part on screen actually is                  | The band a dialog is centred in           |
+| `--visual-viewport-top`    | Where the part on screen starts                          | The top edge of that band                 |
+| `data-keyboard` on `html`  | `open` or `closed`                                       | Anything that hides or tightens for a key |
 
 The tab bar's own offset is `max(safe-area-inset-bottom - 12px, 8px)`, not the safe area plus a gap. A
 phone's home indicator occupies 34 pixels and a floating bar is meant to sit close to it, the way the
@@ -398,10 +405,12 @@ screen and the fields 500 pixels below it. The card is centred with `m-auto` rat
 no scrolling back to it; the room inside contracts while the keyboard is up, and the page reserves the
 keyboard's height underneath so the foot of the form can be scrolled to.
 
-**The tab bar leaves.** It belongs to the bottom of the screen and the keyboard has taken that.
+**The tab bar leaves.** It belongs to the bottom of the screen and the keyboard has taken that. Native
+fixed positioning handles Safari's browser chrome without an additional lift. Blur, resize, pageshow,
+and visibility changes remeasure so stale geometry cannot leave navigation hidden.
 
-These are checked in `tests/keyboard.spec.ts`, which stages a 336 pixel keyboard by setting the three
-variables the tracker sets and then measures where things actually are.
+These are checked in `tests/keyboard.spec.ts`, which stages a 336 pixel keyboard by setting the variables
+the tracker sets and then measures where things actually are.
 
 ---
 

@@ -96,14 +96,36 @@ describe('tracking the visual viewport', () => {
     expect(variables().inset).toBe('0px');
   });
 
-  it('counts the page scrolled up under the keyboard as covered as well', async () => {
+  it('tracks the remaining covered area while the visual viewport pans', async () => {
     const { trackViewport } = await import('./viewport');
 
     stop = trackViewport();
 
     await report({ height: 476, offsetTop: 40 });
 
+    // Panning changes the remaining covered bottom area.
     expect(variables().inset).toBe('296px');
+    expect(document.documentElement.dataset['keyboard']).toBe('open');
+  });
+
+  it('does not reopen the tab bar or reveal the field again while the keyboard pans', async () => {
+    const { trackViewport } = await import('./viewport');
+
+    const field = document.createElement('input');
+    const reveal = vi.fn();
+
+    field.scrollIntoView = reveal;
+    document.body.append(field);
+    field.focus();
+
+    stop = trackViewport();
+
+    await report({ height: 476 });
+    await report({ offsetTop: 240 });
+
+    expect(document.documentElement.dataset['keyboard']).toBe('open');
+    expect(variables().inset).toBe('96px');
+    expect(reveal).not.toHaveBeenCalled();
   });
 
   it('leaves document focus scrolling to the browser', async () => {

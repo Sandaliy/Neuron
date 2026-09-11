@@ -4,8 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-07, while production migration safety is proposed in PR #12 but is not yet active
-on `main`.
+Last updated: 2026-09-08, after production migration safety was delivered through PRs #12 and #13.
 
 ## Now
 
@@ -17,10 +16,12 @@ rows. Five isolated Chromium phone runs at 375 by 812, device scale 2 and CPU th
 verified in production.
 
 The stabilized `main` branch has protected pull-request delivery, required CI and Vercel checks, and
-isolated preview data. It does not yet enforce production migration ordering or schema-aware health. PR
-#12 proposes the owner-only post-`main` migration path, a production build that waits for that migration
-through restricted credentials, schema-aware health, and a deliberately-behind regression. None of that
-mechanism is active until the pull request is merged and delivered.
+isolated preview data. PR #12 and the follow-up safety fix PR #13 are merged. Trusted main-only
+production migration verification is active: the production journal was current after merge, so the
+workflow verified it and skipped migration. Production Vercel compatibility checks use the restricted
+`neuron_app` and `neuron_auth` roles; `/health` and `/db-check` are schema-aware and healthy. The
+owner-only `DATABASE_URL_OWNER` credential remains confined to the protected GitHub
+`production-migrations` environment and is absent from Vercel and runtime environments.
 
 ## Done
 

@@ -33,8 +33,7 @@ import type { ReactNode } from 'react';
  * and the ones in this app now are.
  *
  * The scrim is flat colour and is never blurred, because that would be a second
- * blurred layer. The screen behind goes back to 0.945 with its top edge as the
- * origin: it is still there and still theirs, the dialog is in front of it.
+ * blurred layer. The background stays stationary; the scrim and panel shadow establish depth.
  *
  * `dismissable` is the point of this component. The recovery codes screen shows
  * the only copy of the only way back into an account, and a stray tap on the
@@ -95,7 +94,7 @@ export function Dialog({
         <RadixDialog.Overlay
           className={[
             'fixed inset-0 z-40 bg-scrim',
-            'data-[state=open]:neu-scrim-in data-[state=closed]:opacity-0',
+            'data-[state=open]:neu-scrim-in data-[state=closed]:neu-scrim-out',
           ].join(' ')}
         />
 

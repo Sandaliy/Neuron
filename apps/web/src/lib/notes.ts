@@ -119,15 +119,24 @@ export function useNoteActions() {
   }
 
   /*
-   * A write changes what the library counts and what the list holds, so both
-   * are dropped rather than patched. Editing the cached copy by hand would be
-   * right for the note and wrong for the counts rolled up over three levels of
-   * folder above it.
+   * The server response is enough to reconcile the note itself. Refetching
+   * every active note/list/tree query after each write made one autosave turn
+   * into a second network round trip and re-rendered the editor under the
+   * keyboard. Counts are still marked stale, but only reconciled on the next
+   * screen that needs them.
    */
-  const refresh = () => {
+  const markCollectionStale = () => {
     void Promise.all([
-      client.invalidateQueries({ queryKey: [NOTE_KEY] }),
-      client.invalidateQueries({ queryKey: DECK_TREE_KEY }),
+      client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'], refetchType: 'none' }),
+      client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' }),
+    ]).catch(() => undefined);
+  };
+
+  /** Refreshes browse rows after a confirmed bulk write, without touching an open editor. */
+  const refreshLists = () => {
+    void Promise.all([
+      client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'] }),
+      client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' }),
     ]).catch(() => undefined);
   };
 
@@ -163,13 +172,27 @@ export function useNoteActions() {
 
   const remove = useMutation({
     mutationFn: (id: string) => request<{ deleted: boolean }>(`/notes/${id}`, { method: 'DELETE' }),
-    onSuccess: refresh,
+    onSuccess: (_result, id) => {
+      client.removeQueries({ queryKey: [NOTE_KEY, id], exact: true });
+      client.setQueriesData<NotePages>(
+        { queryKey: [NOTE_KEY, 'list'] },
+        (data) =>
+          data && {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              items: page.items.filter((note) => note.id !== id),
+            })),
+          },
+      );
+      markCollectionStale();
+    },
   });
 
   const restore = useMutation({
     mutationFn: (id: string) =>
       request<RestoreNoteResult>(`/notes/${id}/restore`, { method: 'POST' }),
-    onSuccess: refresh,
+    onSuccess: markCollectionStale,
   });
 
   const setStatus = useMutation({
@@ -229,13 +252,13 @@ export function useNoteActions() {
           );
         }
     },
-    onSettled: refresh,
+    onSettled: refreshLists,
   });
 
   const move = useMutation({
     mutationFn: (input: { readonly ids: readonly string[]; readonly deckId: string }) =>
       request<{ changed: number }>('/notes/move', { method: 'POST', body: input }),
-    onSuccess: refresh,
+    onSuccess: markCollectionStale,
   });
 
   const tag = useMutation({
@@ -244,13 +267,13 @@ export function useNoteActions() {
       readonly add?: readonly string[];
       readonly remove?: readonly string[];
     }) => request<{ changed: number }>('/notes/tags', { method: 'POST', body: input }),
-    onSuccess: refresh,
+    onSuccess: markCollectionStale,
   });
 
   const removeMany = useMutation({
     mutationFn: (ids: readonly string[]) =>
       request<{ deleted: number }>('/notes/delete', { method: 'POST', body: { ids } }),
-    onSuccess: refresh,
+    onSuccess: markCollectionStale,
   });
 
   return { create, update, remove, restore, setStatus, move, tag, removeMany };

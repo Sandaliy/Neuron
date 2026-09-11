@@ -59,7 +59,8 @@ function measure(): void {
     return;
   }
 
-  const covered = Math.max(0, Math.round(window.innerHeight - visual.height - visual.offsetTop));
+  const heightLoss = Math.max(0, Math.round(window.innerHeight - visual.height));
+  const covered = Math.max(0, Math.round(heightLoss - visual.offsetTop));
   const focused = document.activeElement;
   const editing =
     focused instanceof HTMLElement &&
@@ -67,10 +68,7 @@ function measure(): void {
       'input:not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]',
     );
   // Panning changes offsetTop, not keyboard size. Pinch zoom is not a keyboard.
-  const keyboardOpen =
-    editing &&
-    (visual.scale ?? 1) === 1 &&
-    window.innerHeight - visual.height > KEYBOARD_THRESHOLD_PX;
+  const keyboardOpen = editing && (visual.scale ?? 1) === 1 && heightLoss > KEYBOARD_THRESHOLD_PX;
   const root = document.documentElement;
 
   /*
@@ -79,8 +77,11 @@ function measure(): void {
    * screen for no reason.
    */
   const keyboard = keyboardOpen ? covered : 0;
-  const chrome = 0; // Safari already anchors fixed chrome; a second offset doubles its movement.
+  const chrome = 0; // Native fixed navigation already follows Safari's chrome.
   const height = settle(Math.round(visual.height), published.height);
+  // A panned visual viewport only matters to an open keyboard dialog. Leaving
+  // this at zero while Safari's chrome moves avoids a document-wide style write
+  // on every ordinary scroll event.
   const top = settle(Math.max(0, Math.round(visual.offsetTop)), published.top);
 
   if (keyboard !== published.keyboard) {

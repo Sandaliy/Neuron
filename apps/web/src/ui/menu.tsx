@@ -74,12 +74,13 @@ export function Menu({
         <RadixMenu.Portal>
           <RadixMenu.Content
             data-g="panel"
+            data-menu-surface=""
             align="end"
             sideOffset={4}
             collisionPadding={16}
             className={[
               'z-50 flex min-w-[200px] flex-col rounded-18 p-8',
-              'data-[state=open]:neu-panel-in',
+              'data-[state=open]:neu-panel-in data-[state=closed]:neu-menu-out',
             ].join(' ')}
           >
             {children}

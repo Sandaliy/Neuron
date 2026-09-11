@@ -26,13 +26,17 @@ interface Message {
   readonly id: number;
   readonly text: string;
   readonly tone: Tone;
+  readonly open: boolean;
 }
 
 export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
 
   const show = useCallback((text: string, tone: Tone = 'neutral') => {
-    setMessages((current) => [...current, { id: Date.now() + current.length, text, tone }]);
+    setMessages((current) => [
+      ...current,
+      { id: Date.now() + current.length, text, tone, open: true },
+    ]);
   }, []);
 
   const value = useMemo(() => ({ show }), [show]);
@@ -46,9 +50,17 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
           <RadixToast.Root
             key={message.id}
             data-g="toast"
+            open={message.open}
+            onAnimationEnd={(event) => {
+              if (event.target === event.currentTarget && !message.open) {
+                setMessages((current) => current.filter((item) => item.id !== message.id));
+              }
+            }}
             onOpenChange={(open) => {
               if (!open) {
-                setMessages((current) => current.filter((item) => item.id !== message.id));
+                setMessages((current) =>
+                  current.map((item) => (item.id === message.id ? { ...item, open: false } : item)),
+                );
               }
             }}
             className={[
@@ -61,10 +73,10 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
           </RadixToast.Root>
         ))}
 
-        {/* One safe-area-aware offset above native fixed navigation. */}
+        {/* The stylesheet places feedback above the bar or the keyboard. */}
         <RadixToast.Viewport
           data-toasts=""
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col gap-8 p-16 pb-[calc(var(--safe-bottom)+var(--bar-height)+var(--bar-inset)+20px)]"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col gap-8 p-16"
         />
       </RadixToast.Provider>
     </ToastContext.Provider>

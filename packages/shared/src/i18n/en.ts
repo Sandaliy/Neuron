@@ -305,6 +305,8 @@ export const en = {
     'They stop being studied, cards and all. Nothing is removed for thirty days, so this can be taken back.',
   'notes.bulkDeleted': 'Notes deleted: {count}',
   'notes.bulkDone': 'Notes changed: {count}',
+  'notes.moved': 'Notes moved: {count}',
+  'notes.deleted': 'Notes deleted: {count}',
   'notes.bulkTagsTitle': 'Tags for {count} notes',
   'notes.tagsAdd': 'Add these',
   'notes.tagsRemove': 'Remove these',

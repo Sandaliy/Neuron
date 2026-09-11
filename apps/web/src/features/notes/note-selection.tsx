@@ -61,7 +61,7 @@ export function NoteSelectionBar({
   /** Runs one bulk action over the selection, five hundred at a time. */
   async function inChunks(
     run: (chunk: readonly string[]) => Promise<{ [key: string]: unknown }>,
-    message: MessageKey = 'notes.bulkDone',
+    message: MessageKey | 'notes.moved' = 'notes.bulkDone',
   ) {
     if (running.current || ids.length === 0) return;
     running.current = true;
@@ -75,7 +75,7 @@ export function NoteSelectionBar({
       }
       setDialog('none');
       onDone();
-      toast.show(t(message, { count: total }));
+      toast.show(t(message as MessageKey, { count: total }));
     } catch (failure) {
       setDialog('none');
       setError(failure);
@@ -160,7 +160,10 @@ export function NoteSelectionBar({
         busy={busy}
         onClose={() => setDialog('none')}
         onMove={(target) =>
-          void inChunks((chunk) => actions.move.mutateAsync({ ids: chunk, deckId: target }))
+          void inChunks(
+            (chunk) => actions.move.mutateAsync({ ids: chunk, deckId: target }),
+            'notes.moved',
+          )
         }
       />
 

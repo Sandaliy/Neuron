@@ -647,10 +647,7 @@
    * The two halves are not the same length, and that asymmetry is most of what
    * separates a control that feels like a phone's from one that feels like a
    * web page's. Going down is immediate, because the finger is already there
-   * and any delay reads as the app not having noticed. Coming back takes the
-   * screen duration on the spring, so the control settles rather than snapping,
-   * which is what the platform's own controls do and what makes them feel
-   * physical.
+   * and any delay reads as the app not having noticed. Release takes the reveal duration on a curve without overshoot.
    */
   /*
    * Written here rather than as a utility on each component, and that is the
@@ -664,7 +661,7 @@
   [data-tab],
   [data-cell] {
     transition:
-      transform var(--dur-3) var(--ease-spring),
+      transform var(--dur-2) var(--ease-enter),
       background-color var(--dur-1) var(--ease-inout),
       border-color var(--dur-1) var(--ease-inout),
       color var(--dur-1) var(--ease-inout),
@@ -681,7 +678,7 @@
   }
 
   button:active:not([aria-disabled='true']):not(:disabled):not([data-tab]):not([data-cell]) {
-    transform: scale(0.97);
+    transform: scale(0.985);
   }
 
   [data-tab]:active,
@@ -696,12 +693,12 @@
    */
   button[data-tone='text']:active:not(:disabled) {
     transform: none;
-    opacity: 0.55;
+    opacity: 0.7;
   }
 
   button[data-tone='text'] {
     transition:
-      transform var(--dur-3) var(--ease-spring),
+      transform var(--dur-2) var(--ease-enter),
       opacity var(--dur-2) var(--ease-inout);
   }
 
@@ -709,7 +706,7 @@
    * A card or a row answers a press too, and by less than a control does. It is
    * a larger thing, and a large thing moving the same distance reads as loose.
    */
-  [data-row]:active:not(:disabled) {
+  [data-row]:active:not(:disabled):not([aria-disabled='true']):not(:has(button:active)) {
     transform: scale(0.99);
   }
 
@@ -811,7 +808,56 @@
     scroll-padding-block: var(--u-2);
   }
 
-  /* Fixed chrome follows the browser, without a delayed second translation. */
+  /*
+   * The tab bar rides above the browser's own furniture, and it does it on the
+   * compositor.
+   *
+   * `--chrome-inset` is how much of the layout viewport Safari's toolbar is
+   * covering, and it changes every time that toolbar slides in or out, which is
+   * every time the page is scrolled the other way. Written into `bottom` that
+   * was a layout change per step and the bar arrived in visible jumps. `translate`
+   * is a separate property from `transform`, so the lift composes with the
+   * keyboard exit below instead of fighting it, and both are work the compositor
+   * already does.
+   *
+   * The transition is what turns iOS reporting the change in two or three coarse
+   * steps into one glide. The bar is following a toolbar that is itself
+   * animating, so arriving a fraction behind it reads as deliberate, where
+   * teleporting to each reported value reads as a fault.
+   */
+  [data-g='tabbar'] {
+    translate: 0 calc(-1 * var(--chrome-inset));
+    transition:
+      translate var(--dur-3) var(--ease-inout),
+      transform var(--dur-3) var(--ease-exit),
+      opacity var(--dur-2) var(--ease-exit);
+  }
+
+  /* A toast sits above the bar, so it rides on the same lift. */
+  [data-toasts] {
+    translate: 0 calc(-1 * var(--chrome-inset));
+    transition: translate var(--dur-3) var(--ease-inout);
+    padding-bottom: calc(var(--bar-height) + var(--bar-inset) + 8px);
+  }
+
+  @media (min-width: 640px) {
+    [data-toasts] {
+      padding-bottom: calc(var(--safe-bottom) + 16px);
+    }
+  }
+
+  [data-keyboard='open'] [data-toasts] {
+    translate: 0 calc(-1 * var(--keyboard-inset));
+    padding-bottom: 8px;
+  }
+
+  /*
+   * The tab bar goes away while the keyboard is up.
+   *
+   * It belongs to the bottom of the screen and the keyboard has taken that. It
+   * leaves downward, by transform, which is also the direction it will come
+   * back from.
+   */
   [data-keyboard='open'] [data-g='tabbar'] {
     visibility: hidden;
     pointer-events: none;
@@ -906,7 +952,7 @@
 @keyframes neu-panel-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 10px, 0) scale(0.99);
+    transform: scale(0.99);
   }
   to {
     opacity: 1;
@@ -921,7 +967,7 @@
   }
   to {
     opacity: 0;
-    transform: translate3d(0, 6px, 0) scale(0.99);
+    transform: scale(0.99);
   }
 }
 
@@ -965,7 +1011,7 @@
   }
   to {
     opacity: 0;
-    transform: translate3d(0, 10px, 0);
+    transform: translate3d(0, 4px, 0);
   }
 }
 
@@ -973,7 +1019,7 @@
 @keyframes neu-pop {
   from {
     opacity: 0;
-    transform: scale(0.92);
+    transform: scale(0.99);
   }
   to {
     opacity: 1;
@@ -1063,15 +1109,15 @@
 }
 
 @utility neu-scrim-in {
-  animation: neu-fade var(--dur-3) var(--ease-inout) backwards;
+  animation: neu-fade var(--dur-2) var(--ease-inout) backwards;
 }
 
 @utility neu-panel-in {
-  animation: neu-panel-in var(--dur-3) var(--ease-enter) backwards;
+  animation: neu-panel-in var(--dur-2) var(--ease-enter) backwards;
 }
 
 @utility neu-panel-out {
-  animation: neu-panel-out var(--dur-2) var(--ease-exit) forwards;
+  animation: neu-panel-out var(--dur-1) var(--ease-exit) forwards;
 }
 
 @utility neu-reveal {
@@ -1083,7 +1129,7 @@
 }
 
 @utility neu-toast-out {
-  animation: neu-toast-out var(--dur-2) var(--ease-exit) forwards;
+  animation: neu-toast-out var(--dur-1) var(--ease-exit) forwards;
 }
 
 @utility neu-tick {
@@ -1091,7 +1137,7 @@
 }
 
 @utility neu-pop {
-  animation: neu-pop var(--dur-2) var(--ease-spring) backwards;
+  animation: neu-pop var(--dur-2) var(--ease-enter) backwards;
 }
 
 @utility neu-screen-in {
@@ -1191,23 +1237,6 @@
 }
 
 /*
- * A dialog pushes the screen behind it back, with the top edge as the origin.
- * Only on a phone, where the dialog covers most of what is behind it and the
- * push back is what says the screen is still there.
- */
-@layer components {
-  #root main {
-    transition: transform var(--dur-3) var(--ease-enter);
-  }
-
-  @media (max-width: 639px) {
-    [data-dialog='open'] #root main {
-      transform: scale(0.945);
-      transform-origin: top center;
-    }
-  }
-}
-
 /*
  * Reduced motion collapses every duration. States still change, nothing
  * travels. The switch in Appearance sets the attribute by hand and does exactly
@@ -1234,5 +1263,37 @@
     transition-duration: 1ms !important;
     transition-delay: 0ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@utility neu-scrim-out {
+  animation: neu-fade var(--dur-1) var(--ease-exit) reverse forwards;
+}
+
+@keyframes neu-menu-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--menu-offset, -2px), 0) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility neu-menu-in {
+  animation: neu-menu-in var(--dur-2) var(--ease-enter) backwards;
+}
+
+@utility neu-menu-out {
+  animation: neu-menu-in var(--dur-1) var(--ease-exit) reverse forwards;
+}
+
+@layer components {
+  [data-menu-surface] {
+    transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+  }
+  [data-menu-surface][data-side='top'] {
+    --menu-offset: 2px;
   }
 }

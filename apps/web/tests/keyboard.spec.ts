@@ -331,6 +331,7 @@ test.describe('the keyboard', () => {
 
     for (const path of ['/sign-in', '/sign-up', '/recovery']) {
       await page.goto(path);
+      await expect(page.locator('[data-form]')).toBeVisible();
 
       const sizes: number[] = await page.evaluate(() =>
         [...document.querySelectorAll('input, textarea, select')]
