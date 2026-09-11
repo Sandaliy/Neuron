@@ -837,7 +837,7 @@
   [data-toasts] {
     translate: 0 calc(-1 * var(--chrome-inset));
     transition: translate var(--dur-3) var(--ease-inout);
-    padding-bottom: calc(var(--bar-height) + var(--bar-inset) + 8px);
+    padding-bottom: calc(var(--bar-height) + var(--bar-inset) + 10px);
   }
 
   @media (min-width: 640px) {
