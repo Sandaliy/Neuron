@@ -5,17 +5,16 @@ import { useRef, useState } from 'react';
 import {
   IMPORT_FIELDS,
   IMPORT_CHUNK_SIZE,
-  IMPORT_FORMATS,
-  NOTE_TYPES,
   detectFormat,
   noteTermKey,
   parseImport,
+  noteFieldsSchemas,
+  openingCards,
   rowProblems,
   termCounts,
   termOf,
 } from '@neuron/shared';
 import type {
-  DeckNode,
   DuplicateMatch,
   ImportFormat,
   MessageKey,
@@ -26,7 +25,7 @@ import type {
 
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
-import { DECK_TREE_KEY, findDeck, flatten, useDeckTree } from '../../lib/decks';
+import { DECK_TREE_KEY, findDeck, settingsFor, useDeckTree } from '../../lib/decks';
 import { findDuplicates, NOTE_KEY } from '../../lib/notes';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel, Panel } from '../../ui/card';
@@ -36,13 +35,15 @@ import { FormField } from '../../ui/form-field';
 import { Progress } from '../../ui/progress';
 import { Select } from '../../ui/select';
 import { ErrorState } from '../../ui/states';
-import { TextArea } from '../../ui/textarea';
 import { useToast } from '../../ui/toast';
+import { CardPreview } from '../notes/card-preview';
 
 import { createAttempt, groupMatches, planRows, resolveDuplicate } from './import-plan';
+import { ImportSource, fieldLabelKey } from './import-source';
 import { PromptDialog } from './prompt-dialog';
 
 import type { ImportAttempt, Overrides, Resolution } from './import-plan';
+import type { ImportMode } from './import-source';
 
 /** Where the screen is. Each step only exists once the one before it is done. */
 type Stage =
@@ -86,6 +87,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
 
   const [deck, setDeck] = useState(deckId ?? '');
   const [raw, setRaw] = useState('');
+  const [mode, setMode] = useState<ImportMode>('simple');
   const [format, setFormat] = useState<ImportFormat | ''>('');
   const [noteType, setNoteType] = useState<NoteTypeName>('vocab');
   const [columns, setColumns] = useState<readonly string[]>([]);
@@ -222,7 +224,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       // mutations, so mark both stale before the person returns to the deck.
       // Otherwise the destination remounts its pre-import cached page and
       // looks empty until a full reload or the freshness window expires.
-      await Promise.all([
+      await Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: [NOTE_KEY] }),
         queryClient.invalidateQueries({ queryKey: DECK_TREE_KEY }),
       ]);
@@ -261,14 +263,18 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       </header>
 
       {stage.kind === 'source' ? (
-        <Source
+        <ImportSource
           decks={tree}
           deck={deck}
           raw={raw}
-          format={chosenFormat}
+          mode={mode}
+          onMode={setMode}
           noteType={noteType}
           onDeck={setDeck}
-          onRaw={setRaw}
+          onRaw={(value) => {
+            setRaw(value);
+            setColumns([]);
+          }}
           onFormat={setFormat}
           onNoteType={setNoteType}
           onRead={() => void read()}
@@ -277,6 +283,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
 
       {stage.kind === 'preview' ? (
         <Preview
+          deckId={deck}
           parsed={stage.parsed}
           duplicates={duplicates}
           resolution={resolution}
@@ -428,122 +435,9 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
   );
 }
 
-function Source({
-  decks,
-  deck,
-  raw,
-  format,
-  noteType,
-  onDeck,
-  onRaw,
-  onFormat,
-  onNoteType,
-  onRead,
-}: {
-  readonly decks: readonly DeckNode[];
-  readonly deck: string;
-  readonly raw: string;
-  readonly format: ImportFormat;
-  readonly noteType: NoteTypeName;
-  readonly onDeck: (value: string) => void;
-  readonly onRaw: (value: string) => void;
-  readonly onFormat: (value: ImportFormat | '') => void;
-  readonly onNoteType: (value: NoteTypeName) => void;
-  readonly onRead: () => void;
-}) {
-  const t = useTranslate();
-
-  return (
-    <div className="flex flex-col gap-20">
-      <p className="text-14 leading-body text-secondary">{t('import.subtitle')}</p>
-
-      <FormField
-        label={t('import.deck')}
-        {...(deck === '' ? { error: t('note.missingDeck') } : {})}
-      >
-        {(props) => (
-          <Select {...props} value={deck} onChange={(event) => onDeck(event.target.value)}>
-            <option value="">{t('library.notSet')}</option>
-            {flatten(decks).map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {'— '.repeat(entry.path.length) + entry.name}
-              </option>
-            ))}
-          </Select>
-        )}
-      </FormField>
-
-      <FormField label={t('import.paste')}>
-        {(props) => (
-          <TextArea
-            {...props}
-            value={raw}
-            rows={8}
-            spellCheck={false}
-            onChange={(event) => onRaw(event.target.value)}
-          />
-        )}
-      </FormField>
-
-      <label className="flex min-h-44 items-center gap-12 text-14 text-accent">
-        <input
-          type="file"
-          accept=".json,.csv,.tsv,.txt,text/plain"
-          className="max-w-full text-14 text-secondary file:mr-12 file:min-h-44 file:rounded-12 file:border-0 file:bg-fill-neutral file:px-16 file:text-14 file:text-primary"
-          onChange={async (event) => {
-            const file = event.target.files?.[0];
-
-            if (file) {
-              onRaw(await file.text());
-              onFormat('');
-            }
-          }}
-        />
-      </label>
-
-      <div className="grid gap-12 sm:grid-cols-2">
-        <FormField label={t('import.format')}>
-          {(props) => (
-            <Select
-              {...props}
-              value={format}
-              onChange={(event) => onFormat(event.target.value as ImportFormat)}
-            >
-              {IMPORT_FORMATS.map((option) => (
-                <option key={option} value={option}>
-                  {t(`import.format.${option}` as MessageKey)}
-                </option>
-              ))}
-            </Select>
-          )}
-        </FormField>
-
-        <FormField label={t('import.noteType')}>
-          {(props) => (
-            <Select
-              {...props}
-              value={noteType}
-              onChange={(event) => onNoteType(event.target.value as NoteTypeName)}
-            >
-              {NOTE_TYPES.map((option) => (
-                <option key={option} value={option}>
-                  {t(`note.type.${option}` as MessageKey)}
-                </option>
-              ))}
-            </Select>
-          )}
-        </FormField>
-      </div>
-
-      <Button variant="primary" full disabled={raw.trim() === '' || deck === ''} onClick={onRead}>
-        {t('import.read')}
-      </Button>
-    </div>
-  );
-}
-
 /** The table: every row, and what is wrong with it. */
 function Preview({
+  deckId,
   parsed,
   duplicates,
   resolution,
@@ -557,6 +451,7 @@ function Preview({
   onBack,
   onStart,
 }: {
+  readonly deckId: string;
   readonly parsed: ParseResult;
   readonly duplicates: readonly DuplicateMatch[];
   readonly resolution: Resolution;
@@ -572,9 +467,17 @@ function Preview({
 }) {
   const t = useTranslate();
   const decks = useDeckTree();
+  const [showCards, setShowCards] = useState(false);
   const counts = termCounts(parsed.rows);
   const known = groupMatches(duplicates);
   const plan = planRows(parsed, duplicates, resolution, overrides);
+  const firstValid = parsed.rows.find(
+    (row) => rowProblems(row, parsed.noteType, counts).missing.length === 0,
+  );
+  const firstFields = firstValid && noteFieldsSchemas[parsed.noteType].safeParse(firstValid.fields);
+  const cards = firstFields?.success
+    ? openingCards(parsed.noteType, firstFields.data, settingsFor(decks.data ?? [], deckId).ladder)
+    : [];
 
   const problems = parsed.rows.filter((row) => {
     const found = rowProblems(row, parsed.noteType, counts);
@@ -588,7 +491,8 @@ function Preview({
 
   return (
     <div className="flex flex-col gap-20">
-      {parsed.columns && (parsed.format === 'csv' || parsed.format === 'tsv') ? (
+      {parsed.columns &&
+      (parsed.format === 'csv' || parsed.format === 'tsv' || parsed.format === 'anki') ? (
         <div className="flex flex-col gap-8">
           <GroupLabel>{t('import.columns')}</GroupLabel>
 
@@ -608,7 +512,7 @@ function Preview({
                 <option value="">{t('import.columnIgnored')}</option>
                 {IMPORT_FIELDS.map((field) => (
                   <option key={field} value={field}>
-                    {field}
+                    {t(fieldLabelKey(field))}
                   </option>
                 ))}
               </Select>
@@ -632,7 +536,11 @@ function Preview({
           </p>
         ) : undefined}
         {parsed.failures.length > 0 ? (
-          <p className="text-13 text-error">{parsed.failures[0]?.reason}</p>
+          <p role="alert" className="text-14 text-error">
+            {t(parsed.format === 'json' ? 'import.jsonError' : 'import.tableError', {
+              row: parsed.failures[0]?.line ?? 1,
+            })}
+          </p>
         ) : undefined}
       </Panel>
 
@@ -663,6 +571,17 @@ function Preview({
         </FormField>
       ) : undefined}
 
+      {cards.length > 0 && (
+        <details
+          className="rounded-12 border p-16"
+          onToggle={(event) => setShowCards(event.currentTarget.open)}
+        >
+          <summary className="min-h-44 cursor-pointer text-14 text-primary">
+            {t('import.generatedPreview')}
+          </summary>
+          {showCards && <CardPreview cards={cards.map((card) => ({ ...card, change: 'adds' }))} />}
+        </details>
+      )}
       <div className="flex flex-col gap-4">
         <GroupLabel>{t('import.preview')}</GroupLabel>
 
@@ -769,7 +688,11 @@ function PreviewRow({
 
   const notes = [
     problems.missing.length > 0
-      ? t('import.problemMissing', { fields: problems.missing.join(', ') })
+      ? noteType === 'cloze'
+        ? t('import.clozeError')
+        : t('import.problemMissing', {
+            fields: problems.missing.map((field) => t(fieldLabelKey(field))).join(', '),
+          })
       : undefined,
     problems.exampleMisses ? t('import.problemExample') : undefined,
     problems.duplicateInFile ? t('import.problemDuplicateFile') : undefined,

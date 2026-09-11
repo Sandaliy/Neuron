@@ -1,7 +1,13 @@
 import * as RadixMenu from '@radix-ui/react-dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
+
+import { NAVIGATION_EVENT } from '../lib/interactions';
 
 import type { ReactNode } from 'react';
+
+const CloseMenu = createContext(() => undefined as void);
 
 /**
  * The actions belonging to one row.
@@ -36,44 +42,52 @@ export function Menu({
   /** Replaces the three dots, for a menu opened by something else. */
   readonly trigger?: ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const close = () => setOpen(false);
+    window.addEventListener(NAVIGATION_EVENT, close);
+    return () => window.removeEventListener(NAVIGATION_EVENT, close);
+  }, []);
   return (
-    <RadixMenu.Root modal={false}>
-      <RadixMenu.Trigger asChild>
-        {trigger ?? (
-          <button
-            type="button"
-            aria-label={label}
-            /*
-             * The press is stopped from reaching the row underneath. A deck row
-             * is a button that expands the deck, and a menu opened by a press
-             * that also expanded the deck reads as the interface doing two
-             * things it was not asked to do.
-             */
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-            className="flex size-44 shrink-0 items-center justify-center rounded-12 text-tertiary hover:text-primary"
-          >
-            <MoreHorizontal size={20} strokeWidth={1.5} aria-hidden="true" />
-          </button>
-        )}
-      </RadixMenu.Trigger>
+    <CloseMenu.Provider value={() => flushSync(() => setOpen(false))}>
+      <RadixMenu.Root modal={false} open={open} onOpenChange={setOpen}>
+        <RadixMenu.Trigger asChild>
+          {trigger ?? (
+            <button
+              type="button"
+              aria-label={label}
+              /*
+               * The press is stopped from reaching the row underneath. A deck row
+               * is a button that expands the deck, and a menu opened by a press
+               * that also expanded the deck reads as the interface doing two
+               * things it was not asked to do.
+               */
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+              className="flex size-44 shrink-0 items-center justify-center rounded-12 text-tertiary hover:text-primary"
+            >
+              <MoreHorizontal size={20} strokeWidth={1.5} aria-hidden="true" />
+            </button>
+          )}
+        </RadixMenu.Trigger>
 
-      <RadixMenu.Portal>
-        <RadixMenu.Content
-          data-g="panel"
-          data-menu-surface=""
-          align="end"
-          sideOffset={4}
-          collisionPadding={16}
-          className={[
-            'z-50 flex min-w-[200px] flex-col rounded-18 p-8',
-            'data-[state=open]:neu-menu-in data-[state=closed]:neu-menu-out',
-          ].join(' ')}
-        >
-          {children}
-        </RadixMenu.Content>
-      </RadixMenu.Portal>
-    </RadixMenu.Root>
+        <RadixMenu.Portal>
+          <RadixMenu.Content
+            data-g="panel"
+            data-menu-surface=""
+            align="end"
+            sideOffset={4}
+            collisionPadding={16}
+            className={[
+              'z-50 flex min-w-[200px] flex-col rounded-18 p-8',
+              'data-[state=open]:neu-panel-in data-[state=closed]:neu-menu-out',
+            ].join(' ')}
+          >
+            {children}
+          </RadixMenu.Content>
+        </RadixMenu.Portal>
+      </RadixMenu.Root>
+    </CloseMenu.Provider>
   );
 }
 
@@ -91,10 +105,14 @@ export function MenuItem({
   readonly icon?: ReactNode;
   readonly children: ReactNode;
 }) {
+  const close = useContext(CloseMenu);
   return (
     <RadixMenu.Item
       disabled={disabled}
-      onSelect={onSelect}
+      onSelect={() => {
+        close();
+        onSelect();
+      }}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
       className={[

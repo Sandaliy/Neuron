@@ -64,6 +64,13 @@ async function editor(
     }
     return route.fulfill({ json: stored });
   });
+  await page.route('**/api/notes/status', async (route) => {
+    const body = route.request().postDataJSON() as { ids: string[]; status: string };
+    if (control.statusDelay > 0)
+      await new Promise<void>((resolve) => setTimeout(resolve, control.statusDelay));
+    stored = { ...stored, note: { ...stored.note, status: body.status, rev: stored.note.rev + 1 } };
+    return route.fulfill({ json: { changed: body.ids.length } });
+  });
   await page.goto('/notes/conversion');
   await expect(page.getByRole('radiogroup')).toBeVisible();
   return { writes, control, reads: () => reads, stored: () => stored };
@@ -86,11 +93,9 @@ test('marking a note known updates immediately while the server confirms it', as
   const state = await editor(page);
   state.control.statusDelay = 700;
 
-  await page.getByRole('button', { name: 'Note', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Mark as known', exact: true }).click();
+  await page.getByRole('button', { name: 'Mark as known', exact: true }).click();
 
-  await page.getByRole('button', { name: 'Note', exact: true }).click();
-  await expect(page.getByRole('menuitem', { name: 'Study it again', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Study it again', exact: true })).toBeVisible();
   await expect.poll(() => state.stored().note.status).toBe('known');
 });
 

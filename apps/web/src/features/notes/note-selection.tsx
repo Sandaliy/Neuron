@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { BULK_LIMIT } from '@neuron/shared';
-import type { DeckNode } from '@neuron/shared';
+import type { DeckNode, Note, MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
+import { describe } from '../../lib/api';
 import { flatten, useDeckTree } from '../../lib/decks';
 import { useDialogState } from '../../lib/dialog-state';
 import { useNoteActions } from '../../lib/notes';
@@ -27,12 +28,14 @@ import { useToast } from '../../ui/toast';
  */
 export function NoteSelectionBar({
   ids,
+  notes,
   deckId,
   onSelectAll,
   onClear,
   onDone,
 }: {
   readonly ids: readonly string[];
+  readonly notes: readonly Note[];
   /** Which deck the list is showing, so moving offers somewhere else first. */
   readonly deckId?: string;
   readonly onSelectAll: () => void;
@@ -45,7 +48,11 @@ export function NoteSelectionBar({
   const decks = useDeckTree();
   const [dialog, setDialog] = useState<'none' | 'move' | 'tags' | 'delete'>('none');
 
+  const running = useRef(false);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<unknown>();
   const busy =
+    working ||
     actions.setStatus.isPending ||
     actions.move.isPending ||
     actions.tag.isPending ||
@@ -54,69 +61,95 @@ export function NoteSelectionBar({
   /** Runs one bulk action over the selection, five hundred at a time. */
   async function inChunks(
     run: (chunk: readonly string[]) => Promise<{ [key: string]: unknown }>,
-    outcome: 'notes.bulkDone' | 'notes.moved' | 'notes.deleted' = 'notes.bulkDone',
+    message: MessageKey | 'notes.moved' = 'notes.bulkDone',
   ) {
+    if (running.current || ids.length === 0) return;
+    running.current = true;
+    setWorking(true);
+    setError(undefined);
     let total = 0;
-
-    for (let start = 0; start < ids.length; start += BULK_LIMIT) {
-      const answer = await run(ids.slice(start, start + BULK_LIMIT));
-
-      total += Number(answer['changed'] ?? answer['deleted'] ?? 0);
+    try {
+      for (let start = 0; start < ids.length; start += BULK_LIMIT) {
+        const answer = await run(ids.slice(start, start + BULK_LIMIT));
+        total += Number(answer['changed'] ?? answer['deleted'] ?? 0);
+      }
+      setDialog('none');
+      onDone();
+      toast.show(t(message as MessageKey, { count: total }));
+    } catch (failure) {
+      setDialog('none');
+      setError(failure);
+    } finally {
+      running.current = false;
+      setWorking(false);
     }
-
-    setDialog('none');
-    onDone();
-    toast.show(t(outcome, { count: total }));
   }
 
   return (
     <>
-      {/*
-        A bar above the tab bar, which is the second floating layer and the last
-        one allowed. It only exists while something is selected, so the two are
-        never both carrying actions for long.
-      */}
       <div
-        data-g="bar"
-        className="fixed inset-x-16 bottom-[calc(var(--bar-inset)+var(--bar-height)+8px)] z-30 flex flex-wrap items-center gap-8 rounded-24 p-8 sm:mx-auto sm:max-w-[560px]"
+        className="flex flex-col gap-12 rounded-12 border border-accent bg-card p-16"
+        aria-busy={busy}
       >
-        <span className="px-8 text-13 text-primary" data-numeric="">
-          {t('notes.selected', { count: ids.length })}
-        </span>
-
-        <div className="flex flex-1 flex-wrap justify-end gap-4">
-          <Button variant="text" onClick={ids.length === 0 ? onSelectAll : onClear}>
-            {ids.length === 0 ? t('notes.selectAll') : t('notes.clearSelection')}
-          </Button>
-
-          <Button
-            variant="quiet"
-            disabled={ids.length === 0 || busy}
-            onClick={() =>
-              void inChunks((chunk) =>
-                actions.setStatus.mutateAsync({ ids: chunk, status: 'known' }),
-              )
-            }
-          >
-            {t('notes.bulkStatus')}
-          </Button>
-
-          <Button variant="quiet" disabled={ids.length === 0} onClick={() => setDialog('move')}>
-            {t('notes.bulkMove')}
-          </Button>
-
-          <Button variant="quiet" disabled={ids.length === 0} onClick={() => setDialog('tags')}>
-            {t('notes.bulkTags')}
-          </Button>
-
-          <Button
-            variant="destructive"
-            disabled={ids.length === 0}
-            onClick={() => setDialog('delete')}
-          >
-            {t('notes.bulkDelete')}
+        <div className="flex items-center justify-between gap-8">
+          <span className="text-15 text-primary" data-numeric="">
+            {t('notes.selected', { count: ids.length })}
+          </span>
+          <Button variant="quiet" disabled={busy} onClick={onDone}>
+            {t('notes.selectDone')}
           </Button>
         </div>
+        <p className="text-14 text-secondary">{t('notes.selectionHint')}</p>
+        <Button variant="text" disabled={busy} onClick={ids.length === 0 ? onSelectAll : onClear}>
+          {ids.length === 0 ? t('notes.selectAll') : t('notes.clearSelection')}
+        </Button>
+        {ids.length > 0 && (
+          <div className="grid grid-cols-2 gap-8">
+            {notes.some((note) => note.status !== 'known') && (
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void inChunks((chunk) =>
+                    actions.setStatus.mutateAsync({ ids: chunk, status: 'known' }),
+                  )
+                }
+              >
+                {t('notes.bulkStatus')}
+              </Button>
+            )}
+            {notes.some((note) => note.status !== 'active') && (
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void inChunks((chunk) =>
+                    actions.setStatus.mutateAsync({ ids: chunk, status: 'active' }),
+                  )
+                }
+              >
+                {t('notes.bulkActive')}
+              </Button>
+            )}
+            <Button disabled={busy} onClick={() => setDialog('move')}>
+              {t('notes.bulkMove')}
+            </Button>
+            <Button disabled={busy} onClick={() => setDialog('tags')}>
+              {t('notes.bulkTags')}
+            </Button>
+            <Button variant="destructive" disabled={busy} onClick={() => setDialog('delete')}>
+              {t('notes.bulkDelete')}
+            </Button>
+          </div>
+        )}
+        {busy && (
+          <p role="status" className="text-14 text-secondary">
+            {t('note.saving')}
+          </p>
+        )}
+        {error !== undefined && (
+          <p role="alert" className="text-14 text-error">
+            {t(describe(error).key, describe(error).values)} {t('notes.bulkRetryHint')}
+          </p>
+        )}
       </div>
 
       <MoveDialog
@@ -163,7 +196,7 @@ export function NoteSelectionBar({
               full
               busy={busy}
               onClick={() =>
-                void inChunks((chunk) => actions.removeMany.mutateAsync(chunk), 'notes.deleted')
+                void inChunks((chunk) => actions.removeMany.mutateAsync(chunk), 'notes.bulkDeleted')
               }
             >
               {t('notes.bulkDelete')}

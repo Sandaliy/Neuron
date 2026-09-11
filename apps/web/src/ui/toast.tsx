@@ -76,7 +76,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
         {/* The stylesheet places feedback above the bar or the keyboard. */}
         <RadixToast.Viewport
           data-toasts=""
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col gap-8 p-16"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col gap-8 px-16 pt-16"
         />
       </RadixToast.Provider>
     </ToastContext.Provider>

@@ -11,6 +11,7 @@ import { Failure, NotFound } from './app/failure';
 import { PreferencesSync } from './app/preferences-sync';
 import { SessionGate } from './app/session-gate';
 import { Shell } from './app/shell';
+import { resetInteractions } from './lib/interactions';
 
 /*
  * A signed-in shell has to be interactive before a seldom-used screen (the
@@ -290,6 +291,8 @@ export const router = createRouter({
   defaultErrorComponent: ({ error, reset }) => <Failure error={error} reset={reset} />,
   defaultNotFoundComponent: NotFound,
 });
+
+router.subscribe('onBeforeNavigate', resetInteractions);
 
 declare module '@tanstack/react-router' {
   interface Register {

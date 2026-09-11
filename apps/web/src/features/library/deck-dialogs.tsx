@@ -70,7 +70,6 @@ export function DeckNameDialog({
                 value={name}
                 autoComplete="off"
                 enterKeyHint="done"
-                placeholder={t('library.deckNamePlaceholder')}
                 onChange={(event) => setName(event.target.value)}
               />
             )}

@@ -1,22 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-/**
- * The arithmetic behind a sheet that sits above the keyboard.
- *
- * jsdom does no layout, so what is provable here is the number the stylesheet
- * is handed. Where that number puts the sheet was checked in a browser at
- * 375 px: with a 336 px keyboard the sheet's bottom edge moves from 812 to 476,
- * which is the top of the keyboard.
- *
- * Every measurement is taken on the next frame rather than inside the event.
- * iOS fires these several times per frame while its toolbar slides, and each
- * one used to write three custom properties on the root element, which is a
- * style recalculation of the whole document. `frame()` is what the tests wait
- * on, and it is the only thing the batching changed about the behaviour.
- */
 class FakeVisualViewport extends EventTarget {
   height = 812;
   offsetTop = 0;
+  scale = 1;
 }
 
 let visual: FakeVisualViewport;
@@ -35,6 +22,9 @@ beforeEach(() => {
 
   document.documentElement.removeAttribute('style');
   document.body.innerHTML = '';
+  const input = document.createElement('input');
+  document.body.append(input);
+  input.focus();
 });
 
 afterEach(() => {
@@ -42,14 +32,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Lets the batched measurement run. */
 function frame(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve());
   });
 }
 
-/** Reports a new viewport and waits for the document to carry it. */
 async function report(change: { height?: number; offsetTop?: number }): Promise<void> {
   if (change.height !== undefined) {
     visual.height = change.height;
@@ -108,16 +96,15 @@ describe('tracking the visual viewport', () => {
     expect(variables().inset).toBe('0px');
   });
 
-  it('keeps keyboard padding stable while the visual viewport pans', async () => {
+  it('tracks the remaining covered area while the visual viewport pans', async () => {
     const { trackViewport } = await import('./viewport');
 
     stop = trackViewport();
 
     await report({ height: 476, offsetTop: 40 });
 
-    // Panning changes where the visible rectangle is, not how tall the
-    // keyboard is. Changing the page padding here would jump a focused editor.
-    expect(variables().inset).toBe('336px');
+    // Panning changes the remaining covered bottom area.
+    expect(variables().inset).toBe('296px');
     expect(document.documentElement.dataset['keyboard']).toBe('open');
   });
 
@@ -137,11 +124,11 @@ describe('tracking the visual viewport', () => {
     await report({ offsetTop: 240 });
 
     expect(document.documentElement.dataset['keyboard']).toBe('open');
-    expect(variables().inset).toBe('336px');
-    expect(reveal).toHaveBeenCalledTimes(1);
+    expect(variables().inset).toBe('96px');
+    expect(reveal).not.toHaveBeenCalled();
   });
 
-  it('brings the field being typed into back onto the screen', async () => {
+  it('leaves document focus scrolling to the browser', async () => {
     const { trackViewport } = await import('./viewport');
 
     const field = document.createElement('input');
@@ -155,18 +142,10 @@ describe('tracking the visual viewport', () => {
 
     await report({ height: 476 });
 
-    expect(reveal).toHaveBeenCalledWith({ block: 'nearest', behavior: 'auto' });
+    expect(reveal).not.toHaveBeenCalled();
   });
 
-  /**
-   * The whole field, not the control.
-   *
-   * A field is a label, an input, and the sentence underneath that says what is
-   * expected or what is wrong. Revealing the input alone left that sentence
-   * under the keys, which is how "At least 10 characters" ended up half
-   * visible on a phone with the keyboard up.
-   */
-  it('reveals the whole field group rather than the control alone', async () => {
+  it('does not force-scroll a document field group', async () => {
     const { trackViewport } = await import('./viewport');
 
     const group = document.createElement('div');
@@ -184,15 +163,10 @@ describe('tracking the visual viewport', () => {
 
     await report({ height: 476 });
 
-    expect(revealGroup).toHaveBeenCalled();
+    expect(revealGroup).not.toHaveBeenCalled();
     expect(field.scrollIntoView).not.toHaveBeenCalled();
   });
 
-  /**
-   * A sheet is `position: fixed`, and on iOS a fixed element does not reliably
-   * stay put while the page under it is scrolled with the keyboard up. So the
-   * sheet's own body is the only thing allowed to move.
-   */
   it('scrolls the body of a sheet rather than the page behind it', async () => {
     const { trackViewport } = await import('./viewport');
 
@@ -221,15 +195,7 @@ describe('tracking the visual viewport', () => {
     expect(group.scrollIntoView).not.toHaveBeenCalled();
   });
 
-  /**
-   * A full page form is scrolled to its foot, not to the field.
-   *
-   * The action is the last thing in it and the fields are stacked above, so the
-   * bottom of the form is the one view with everything that matters in it. The
-   * page reserves the keyboard's height underneath, so that foot lands exactly
-   * on top of the keys.
-   */
-  it('scrolls a full page form to its foot', async () => {
+  it('does not move a page form to its foot', async () => {
     const { trackViewport } = await import('./viewport');
 
     const form = document.createElement('div');
@@ -254,11 +220,11 @@ describe('tracking the visual viewport', () => {
 
     await report({ height: 476 });
 
-    expect(toFoot).toHaveBeenCalledWith({ block: 'end', behavior: 'auto' });
+    expect(toFoot).not.toHaveBeenCalled();
     expect(group.scrollIntoView).not.toHaveBeenCalled();
   });
 
-  it('falls back to the field when the foot of the form leaves it off screen', async () => {
+  it('does not fight native scrolling for a tall page form', async () => {
     const { trackViewport } = await import('./viewport');
 
     const form = document.createElement('div');
@@ -281,7 +247,7 @@ describe('tracking the visual viewport', () => {
 
     await report({ height: 476 });
 
-    expect(group.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', behavior: 'auto' });
+    expect(group.scrollIntoView).not.toHaveBeenCalled();
   });
 
   it('does not chase a viewport that shrank by a browser bar rather than a keyboard', async () => {
@@ -298,38 +264,27 @@ describe('tracking the visual viewport', () => {
 
     await report({ height: 762 });
 
-    /*
-     * Fifty pixels is a toolbar, not a keyboard. The sheet must not lift itself
-     * by it, and the tab bar must, so the two variables answer differently.
-     */
     expect(variables().inset).toBe('0px');
-    expect(variables().chrome).toBe('50px');
+    expect(variables().chrome).toBe('0px');
     expect(reveal).not.toHaveBeenCalled();
   });
 
-  /**
-   * The jitter the tab bar used to have.
-   *
-   * iOS reports the visual viewport a fraction of a pixel at a time while a
-   * finger is on the glass, and every one of those used to move the bar. A step
-   * under three pixels is not a state change, and the bar stays where it is.
-   */
-  it('ignores a change too small to be the toolbar moving', async () => {
+  it('does not apply a second offset as browser chrome changes', async () => {
     const { trackViewport } = await import('./viewport');
 
     stop = trackViewport();
 
     await report({ height: 762 });
 
-    expect(variables().chrome).toBe('50px');
+    expect(variables().chrome).toBe('0px');
 
     await report({ height: 760 });
 
-    expect(variables().chrome).toBe('50px');
+    expect(variables().chrome).toBe('0px');
 
     await report({ height: 750 });
 
-    expect(variables().chrome).toBe('62px');
+    expect(variables().chrome).toBe('0px');
   });
 
   it('always takes the toolbar having gone entirely', async () => {
@@ -358,7 +313,7 @@ describe('tracking the visual viewport', () => {
     expect(document.documentElement.dataset['keyboard']).toBe('closed');
   });
 
-  it('follows focus moving between fields while the keyboard is already up', async () => {
+  it('preserves native focus scrolling between fields', async () => {
     const { trackViewport } = await import('./viewport');
 
     const first = document.createElement('input');
@@ -376,7 +331,37 @@ describe('tracking the visual viewport', () => {
 
     second.focus();
 
-    expect(reveal).toHaveBeenCalled();
+    expect(reveal).not.toHaveBeenCalled();
+  });
+
+  it('does not hide navigation for stale dimensions after blur', async () => {
+    const { trackViewport } = await import('./viewport');
+    stop = trackViewport();
+    await report({ height: 476, offsetTop: 180 });
+    (document.activeElement as HTMLElement).blur();
+    await frame();
+    expect(document.documentElement.dataset['keyboard']).toBe('closed');
+    expect(variables().inset).toBe('0px');
+  });
+
+  it('keeps keyboard detection stable when Safari pans above the keys', async () => {
+    const { trackViewport } = await import('./viewport');
+    stop = trackViewport();
+    await report({ height: 476, offsetTop: 250 });
+    expect(document.documentElement.dataset['keyboard']).toBe('open');
+    expect(variables().inset).toBe('86px');
+  });
+
+  it('does not mistake pinch zoom or unfocused viewport changes for a keyboard', async () => {
+    const { trackViewport } = await import('./viewport');
+    stop = trackViewport();
+    visual.scale = 2;
+    await report({ height: 406 });
+    expect(variables().inset).toBe('0px');
+    visual.scale = 1;
+    (document.activeElement as HTMLElement).blur();
+    await report({ height: 476 });
+    expect(variables().inset).toBe('0px');
   });
 
   it('starts without complaint on a browser that has no visual viewport', async () => {

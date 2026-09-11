@@ -13,6 +13,8 @@ import type {
 import { request } from './api';
 import { DECK_TREE_KEY } from './decks';
 
+import type { InfiniteData } from '@tanstack/react-query';
+
 /**
  * Notes over the wire.
  *
@@ -22,14 +24,23 @@ import { DECK_TREE_KEY } from './decks';
  */
 
 export const NOTE_KEY = 'notes';
+type NotePages = InfiniteData<{ items: Note[]; nextCursor?: string }>;
 
 /** One note and the cards it currently has. */
 export function useNote(id: string | undefined) {
   return useQuery({
-    queryKey: [NOTE_KEY, id],
-    queryFn: () => request<{ note: Note; cards: Card[] }>(`/notes/${id ?? ''}`),
+    ...noteQuery(id),
+    placeholderData: () => undefined,
     enabled: id !== undefined,
   });
+}
+
+export function noteQuery(id: string | undefined) {
+  return {
+    queryKey: [NOTE_KEY, id],
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      request<{ note: Note; cards: Card[] }>(`/notes/${id ?? ''}`, { signal }),
+  };
 }
 
 /** What the browse screen is asking the api for. */
@@ -64,51 +75,48 @@ export interface NoteInput {
   readonly tags: readonly string[];
 }
 
-type NoteDetail = { note: Note; cards: Card[] };
-type NoteListPage = { items: Note[]; nextCursor?: string };
-type NoteListCache = { pages: readonly NoteListPage[]; pageParams: readonly unknown[] };
-
-/** Applies one confirmed note to every list that already contains it. */
-function replaceInLists(client: ReturnType<typeof useQueryClient>, written: Note): void {
-  client.setQueriesData<NoteListCache>({ queryKey: [NOTE_KEY, 'list'] }, (current) => {
-    if (!current) return current;
-
-    return {
-      ...current,
-      pages: current.pages.map((page) => ({
-        ...page,
-        items: page.items.map((note) =>
-          note.id === written.id
-            ? {
-                ...note,
-                ...written,
-                // The detail endpoint does not calculate list summaries.
-                cardStates: written.cardStates ?? note.cardStates,
-              }
-            : note,
-        ),
-      })),
-    };
-  });
-}
-
-/** Removes a confirmed deletion without briefly bringing the row back on Back. */
-function removeFromLists(client: ReturnType<typeof useQueryClient>, id: string): void {
-  client.setQueriesData<NoteListCache>({ queryKey: [NOTE_KEY, 'list'] }, (current) => {
-    if (!current) return current;
-
-    return {
-      ...current,
-      pages: current.pages.map((page) => ({
-        ...page,
-        items: page.items.filter((note) => note.id !== id),
-      })),
-    };
-  });
-}
-
 export function useNoteActions() {
   const client = useQueryClient();
+
+  function accept(written: { note: Note; cards: Card[] }, created = false) {
+    const pendingStatus = client
+      .getMutationCache()
+      .findAll({ mutationKey: ['note-status'], status: 'pending' })
+      .map((mutation) => mutation.state.variables as { ids: readonly string[]; status: NoteStatus })
+      .find((input) => input.ids.includes(written.note.id));
+    if (pendingStatus)
+      written = { ...written, note: { ...written.note, status: pendingStatus.status } };
+    client.setQueryData([NOTE_KEY, written.note.id], written);
+    for (const [key, data] of client.getQueriesData<NotePages>({ queryKey: [NOTE_KEY, 'list'] })) {
+      if (!data) continue;
+      const params = new URLSearchParams(String(key[2]));
+      const canAppend =
+        created &&
+        (!params.get('deckId') || params.get('deckId') === written.note.deckId) &&
+        (!params.get('sort') || params.get('sort') === 'created') &&
+        !['search', 'status', 'tag', 'source', 'cardState'].some((name) => params.has(name)) &&
+        !data.pages.at(-1)?.nextCursor;
+      const exists = data.pages.some((page) =>
+        page.items.some((note) => note.id === written.note.id),
+      );
+      client.setQueryData<NotePages>(key, {
+        ...data,
+        pages: data.pages.map((page, index) => ({
+          ...page,
+          items: [
+            ...page.items.map((note) =>
+              note.id === written.note.id ? { ...note, ...written.note } : note,
+            ),
+            ...(canAppend && !exists && index === data.pages.length - 1 ? [written.note] : []),
+          ],
+        })),
+      });
+    }
+    // Revalidate on the next visit, without making every keystroke refetch a
+    // thousand rows and the entire deck tree while the keyboard is open.
+    void client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'], refetchType: 'none' });
+    void client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' });
+  }
 
   /*
    * The server response is enough to reconcile the note itself. Refetching
@@ -132,19 +140,20 @@ export function useNoteActions() {
     ]).catch(() => undefined);
   };
 
-  const reconcileWrite = (written: NoteDetail) => {
-    client.setQueryData<NoteDetail>([NOTE_KEY, written.note.id], written);
-    replaceInLists(client, written.note);
-    markCollectionStale();
-  };
-
   const create = useMutation({
     mutationFn: (input: NoteInput & { readonly id: string }) =>
       request<{ note: Note; cards: Card[] }>('/notes', { method: 'POST', body: input }),
-    onSuccess: reconcileWrite,
+    onSuccess: (written) => accept(written, true),
   });
 
   const update = useMutation({
+    scope: { id: 'note-writes' },
+    onMutate: async ({ id }) => {
+      await Promise.all([
+        client.cancelQueries({ queryKey: [NOTE_KEY, id], exact: true }),
+        client.cancelQueries({ queryKey: [NOTE_KEY, 'list'] }),
+      ]);
+    },
     mutationFn: (input: {
       readonly id: string;
       readonly fields?: Record<string, unknown>;
@@ -158,44 +167,24 @@ export function useNoteActions() {
 
       return request<{ note: Note; cards: Card[] }>(`/notes/${id}`, { method: 'PATCH', body });
     },
-    onMutate: (input) => {
-      if (input.status === undefined) {
-        return undefined;
-      }
-
-      const detail = client.getQueryData<NoteDetail>([NOTE_KEY, input.id]);
-      const lists = client.getQueriesData<NoteListCache>({ queryKey: [NOTE_KEY, 'list'] });
-
-      if (detail) {
-        client.setQueryData<NoteDetail>([NOTE_KEY, input.id], {
-          ...detail,
-          note: { ...detail.note, status: input.status },
-        });
-      }
-
-      replaceInLists(client, { id: input.id, status: input.status } as Note);
-
-      return { detail, lists };
-    },
-    onError: (_error, _input, context) => {
-      if (!context) return;
-
-      if (context.detail) {
-        client.setQueryData<NoteDetail>([NOTE_KEY, context.detail.note.id], context.detail);
-      }
-
-      for (const [key, value] of context.lists) {
-        client.setQueryData(key, value);
-      }
-    },
-    onSuccess: reconcileWrite,
+    onSuccess: (written) => accept(written),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => request<{ deleted: boolean }>(`/notes/${id}`, { method: 'DELETE' }),
     onSuccess: (_result, id) => {
       client.removeQueries({ queryKey: [NOTE_KEY, id], exact: true });
-      removeFromLists(client, id);
+      client.setQueriesData<NotePages>(
+        { queryKey: [NOTE_KEY, 'list'] },
+        (data) =>
+          data && {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              items: page.items.filter((note) => note.id !== id),
+            })),
+          },
+      );
       markCollectionStale();
     },
   });
@@ -207,36 +196,63 @@ export function useNoteActions() {
   });
 
   const setStatus = useMutation({
+    mutationKey: ['note-status'],
+    scope: { id: 'note-writes' },
     mutationFn: (input: { readonly ids: readonly string[]; readonly status: NoteStatus }) =>
       request<{ changed: number }>('/notes/status', { method: 'POST', body: input }),
-    onMutate: async (input) => {
-      await client.cancelQueries({ queryKey: [NOTE_KEY, 'list'] });
-
-      const lists = client.getQueriesData<NoteListCache>({ queryKey: [NOTE_KEY, 'list'] });
-      const ids = new Set(input.ids);
-
-      client.setQueriesData<NoteListCache>({ queryKey: [NOTE_KEY, 'list'] }, (current) => {
-        if (!current) return current;
-
-        return {
-          ...current,
-          pages: current.pages.map((page) => ({
-            ...page,
-            items: page.items.map((note) =>
-              ids.has(note.id) ? { ...note, status: input.status } : note,
-            ),
-          })),
-        };
-      });
-
-      return { lists };
+    onMutate: async ({ ids, status }) => {
+      await client.cancelQueries({ queryKey: [NOTE_KEY] });
+      const previous = client.getQueriesData<NotePages>({ queryKey: [NOTE_KEY, 'list'] });
+      const details = ids.map(
+        (id) => [id, client.getQueryData<{ note: Note; cards: Card[] }>([NOTE_KEY, id])] as const,
+      );
+      const selected = new Set(ids);
+      client.setQueriesData<NotePages>(
+        { queryKey: [NOTE_KEY, 'list'] },
+        (data) =>
+          data && {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              items: page.items.map((note) => (selected.has(note.id) ? { ...note, status } : note)),
+            })),
+          },
+      );
+      for (const [id, data] of details)
+        if (data) client.setQueryData([NOTE_KEY, id], { ...data, note: { ...data.note, status } });
+      return { previous, details };
     },
     onError: (_error, _input, context) => {
-      for (const [key, value] of context?.lists ?? []) {
-        client.setQueryData(key, value);
+      const selected = new Set(_input.ids);
+      for (const [key, data] of context?.previous ?? []) {
+        const oldStatus = new Map(
+          data?.pages.flatMap((page) => page.items.map((note) => [note.id, note.status] as const)),
+        );
+        client.setQueryData<NotePages>(
+          key,
+          (current) =>
+            current && {
+              ...current,
+              pages: current.pages.map((page) => ({
+                ...page,
+                items: page.items.map((note) => {
+                  const status = oldStatus.get(note.id);
+                  return selected.has(note.id) && status ? { ...note, status } : note;
+                }),
+              })),
+            },
+        );
       }
+      for (const [id, data] of context?.details ?? [])
+        if (data) {
+          client.setQueryData<{ note: Note; cards: Card[] }>(
+            [NOTE_KEY, id],
+            (current) =>
+              current && { ...current, note: { ...current.note, status: data.note.status } },
+          );
+        }
     },
-    onSuccess: refreshLists,
+    onSettled: refreshLists,
   });
 
   const move = useMutation({

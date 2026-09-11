@@ -46,7 +46,7 @@ for (const theme of ['dark', 'light']) {
     const first = page.getByRole('button', { name: /^Wort 1 word 1/ });
     await expect(first).toBeVisible();
     expect((await first.boundingBox())?.height).toBe(52);
-    await page.getByRole('button', { name: 'Select several', exact: true }).click();
+    await page.getByRole('button', { name: 'Select notes', exact: true }).click();
     await first.focus();
     await page.keyboard.press('Space');
     await expect(first.locator('[data-selected]')).toHaveCount(1);
@@ -129,7 +129,8 @@ test('source filtering and card summaries stay bounded', async ({ page }) => {
   });
 
   await page.goto('/notes?deckId=d1');
-  const source = page.getByRole('textbox', { name: 'Source', exact: true });
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  const source = page.getByRole('textbox', { name: 'Import source name', exact: true });
   await source.fill(' Import A ');
 
   const alphaRow = page.getByRole('button', { name: /^Alpha First source/ });

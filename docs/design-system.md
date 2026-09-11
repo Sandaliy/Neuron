@@ -345,19 +345,20 @@ movement cannot hide a layout change.
 
 The two hardest things about a phone browser, and the two the interface was worst at.
 
-**A `position: fixed` element is placed against the layout viewport**, and on iOS that viewport runs on
-underneath Safari's toolbar. A bar at `bottom: 0` therefore hides behind the toolbar while the toolbar
-is out, and floats far too high once it retracts. `src/lib/viewport.ts` measures the difference between
-the layout viewport and the visual one and publishes it as two variables, because two different things
-need two different answers:
+**A `position: fixed` element is placed against the layout viewport**, and the bottom navigation relies
+on that native Safari positioning. It does not receive a second browser-chrome translation. The viewport
+tracker is concerned with keyboard geometry: it measures the visual viewport only while a normal-scale
+editing control is focused, and publishes the remaining covered bottom area when Safari pans above the
+keyboard. Ordinary document forms are left to the browser's native focus scrolling; only a dialog body
+is scrolled by the app:
 
-| Variable                   | Is                                                        | Used by                                   |
-| -------------------------- | --------------------------------------------------------- | ----------------------------------------- |
-| `--keyboard-inset`         | The gap when it is a keyboard, and zero otherwise         | The padding a full page form reserves     |
-| `--chrome-inset`           | The gap when it is the browser's own furniture, else zero | The tab bar                               |
-| `--visual-viewport-height` | How tall the part on screen actually is                   | The band a dialog is centred in           |
-| `--visual-viewport-top`    | Where the part on screen starts                           | The top edge of that band                 |
-| `data-keyboard` on `html`  | `open` or `closed`                                        | Anything that hides or tightens for a key |
+| Variable                   | Is                                                       | Used by                                   |
+| -------------------------- | -------------------------------------------------------- | ----------------------------------------- |
+| `--keyboard-inset`         | The remaining covered bottom area for a focused keyboard | Dialog and keyboard-aware layout          |
+| `--chrome-inset`           | Always effectively zero for native fixed navigation      | Compatibility variable                    |
+| `--visual-viewport-height` | How tall the part on screen actually is                  | The band a dialog is centred in           |
+| `--visual-viewport-top`    | Where the part on screen starts                          | The top edge of that band                 |
+| `data-keyboard` on `html`  | `open` or `closed`                                       | Anything that hides or tightens for a key |
 
 The tab bar's own offset is `max(safe-area-inset-bottom - 12px, 8px)`, not the safe area plus a gap. A
 phone's home indicator occupies 34 pixels and a floating bar is meant to sit close to it, the way the
@@ -404,10 +405,12 @@ screen and the fields 500 pixels below it. The card is centred with `m-auto` rat
 no scrolling back to it; the room inside contracts while the keyboard is up, and the page reserves the
 keyboard's height underneath so the foot of the form can be scrolled to.
 
-**The tab bar leaves.** It belongs to the bottom of the screen and the keyboard has taken that.
+**The tab bar leaves.** It belongs to the bottom of the screen and the keyboard has taken that. Native
+fixed positioning handles Safari's browser chrome without an additional lift. Blur, resize, pageshow,
+and visibility changes remeasure so stale geometry cannot leave navigation hidden.
 
-These are checked in `tests/keyboard.spec.ts`, which stages a 336 pixel keyboard by setting the three
-variables the tracker sets and then measures where things actually are.
+These are checked in `tests/keyboard.spec.ts`, which stages a 336 pixel keyboard by setting the variables
+the tracker sets and then measures where things actually are.
 
 ---
 

@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Plus, Upload } from 'lucide-react';
@@ -53,25 +53,31 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const [status, setStatus] = useState<NoteStatus | ''>('');
   const [cardState, setCardState] = useState('');
   const [tag, setTag] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
   const [source, setSource] = useState('');
-  const sourceFilter = source.trim();
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
   // A search runs 300 ms after the last keystroke. Every keystroke would be a
   // request per letter over a table scan.
   useEffect(() => {
-    const timer = setTimeout(() => setSearch(typed), 300);
+    const timer = setTimeout(() => {
+      setSearch(typed);
+      setTagFilter(tag.trim());
+      setSourceFilter(source.trim());
+    }, 300);
 
     return () => clearTimeout(timer);
-  }, [typed]);
+  }, [typed, source, tag]);
 
   const query: NoteQuery = {
     ...(deckId === undefined ? {} : { deckId }),
     ...(search === '' ? {} : { search }),
     ...(status === '' ? {} : { status }),
     ...(cardState === '' ? {} : { cardState }),
-    ...(tag === '' ? {} : { tag }),
+    ...(tagFilter === '' ? {} : { tag: tagFilter }),
     ...(sourceFilter === '' ? {} : { source: sourceFilter }),
     sort,
   };
@@ -79,12 +85,14 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const notes = useInfiniteQuery({
     queryKey: [NOTE_KEY, 'list', noteQueryString(query)],
     initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) =>
+    placeholderData: keepPreviousData,
+    queryFn: ({ pageParam, signal }) =>
       request<{ items: Note[]; nextCursor?: string }>(
         `/notes?${noteQueryString(query, {
           limit: String(PAGE),
           ...(pageParam === undefined ? {} : { cursor: pageParam }),
         })}`,
+        { signal },
       ),
     getNextPageParam: (last) => last.nextCursor,
   });
@@ -94,7 +102,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const rows = notes.data?.pages.flatMap((page) => page.items) ?? [];
   const deck = deckId === undefined ? undefined : findDeck(decks.data ?? [], deckId);
   const filtered =
-    search !== '' || status !== '' || cardState !== '' || tag !== '' || sourceFilter !== '';
+    search !== '' || status !== '' || cardState !== '' || tagFilter !== '' || sourceFilter !== '';
 
   /** Every tag on what has been loaded, for the filter to offer. */
   const tags = [...new Set(rows.flatMap((note) => note.tags))].sort();
@@ -105,7 +113,9 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
     setStatus('');
     setCardState('');
     setTag('');
+    setTagFilter('');
     setSource('');
+    setSourceFilter('');
   }
 
   function toggle(id: string) {
@@ -122,7 +132,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
 
   return (
     <section data-screen="" className="flex flex-col gap-16">
-      <header className="flex items-center justify-between gap-12">
+      <header className="flex flex-wrap items-center justify-between gap-12">
         <div className="flex min-w-0 flex-col gap-4">
           <h1 className="truncate font-display text-24 tracking-tight text-primary">
             {deck?.name ?? t('notes.title')}
@@ -153,92 +163,117 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         </div>
       </header>
 
-      <Input
-        type="search"
-        value={typed}
-        aria-label={t('notes.search')}
-        placeholder={t('notes.searchPlaceholder')}
-        enterKeyHint="search"
-        onChange={(event) => setTyped(event.target.value)}
-      />
-
-      <div className="grid grid-cols-2 gap-8 sm:grid-cols-5">
-        <Select
-          value={sort}
-          aria-label={t('notes.sort')}
-          onChange={(event) => setSort(event.target.value as NoteSort)}
-        >
-          {NOTE_SORTS.map((option) => (
-            <option key={option} value={option}>
-              {t(`notes.sort.${option}` as MessageKey)}
-            </option>
-          ))}
-        </Select>
-
-        <Input
-          value={source}
-          aria-label={t('notes.filterSource')}
-          placeholder={t('notes.filterSource')}
-          onChange={(event) => setSource(event.target.value)}
-        />
-
-        <Select
-          value={status}
-          aria-label={t('notes.filterStatus')}
-          onChange={(event) => setStatus(event.target.value as NoteStatus | '')}
-        >
-          <option value="">{t('notes.filterStatus')}</option>
-          {NOTE_STATUSES.map((option) => (
-            <option key={option} value={option}>
-              {t(`note.status.${option}` as MessageKey)}
-            </option>
-          ))}
-        </Select>
-
-        <Select
-          value={cardState}
-          aria-label={t('notes.filterCardState')}
-          onChange={(event) => setCardState(event.target.value)}
-        >
-          <option value="">{t('notes.filterCardState')}</option>
-          {(['new', 'learning', 'review', 'relearning'] as const).map((option) => (
-            <option key={option} value={option}>
-              {t(`cardState.${option}` as MessageKey)}
-            </option>
-          ))}
-        </Select>
-
-        <Select
-          value={tag}
-          aria-label={t('notes.filterTag')}
-          onChange={(event) => setTag(event.target.value)}
-        >
-          <option value="">{t('notes.filterTag')}</option>
-          {tags.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </Select>
-      </div>
-
-      <div className="flex items-center justify-between gap-8">
-        <Button
-          variant="text"
-          onClick={() => {
-            setSelecting(!selecting);
-            setSelected(new Set());
-          }}
-        >
-          {selecting ? t('notes.selectDone') : t('notes.select')}
-        </Button>
-
-        {filtered ? (
-          <Button variant="text" onClick={clearFilters}>
-            {t('notes.clearFilters')}
-          </Button>
-        ) : undefined}
-      </div>
+      {(rows.length > 0 || filtered || typed !== '') && !selecting ? (
+        <div className="flex flex-col gap-12">
+          <Input
+            type="search"
+            value={typed}
+            aria-label={t('notes.search')}
+            placeholder={t('notes.searchPlaceholder')}
+            enterKeyHint="search"
+            onChange={(event) => setTyped(event.target.value)}
+          />
+          <div className="flex items-center gap-8">
+            <div className="min-w-0 flex-1">
+              {' '}
+              <Select
+                value={sort}
+                aria-label={t('notes.sort')}
+                onChange={(event) => setSort(event.target.value as NoteSort)}
+              >
+                {NOTE_SORTS.map((option) => (
+                  <option key={option} value={option}>
+                    {t(`notes.sort.${option}` as MessageKey)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Button
+              variant="quiet"
+              aria-expanded={filtersOpen}
+              onClick={() => setFiltersOpen(!filtersOpen)}
+            >
+              {t('notes.filters')}
+              {filtered ? ' ·' : ''}
+            </Button>
+          </div>
+          {filtersOpen && (
+            <div className="flex flex-col gap-12 rounded-12 border p-16">
+              <p className="text-14 text-secondary">{t('notes.studyFilterHint')}</p>
+              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
+                <Select
+                  value={status}
+                  aria-label={t('notes.filterStatus')}
+                  onChange={(event) => setStatus(event.target.value as NoteStatus | '')}
+                >
+                  <option value="">{t('notes.filterStatus')}</option>
+                  {NOTE_STATUSES.map((option) => (
+                    <option key={option} value={option}>
+                      {t(`note.status.${option}` as MessageKey)}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  value={cardState}
+                  aria-label={t('notes.filterCardState')}
+                  onChange={(event) => setCardState(event.target.value)}
+                >
+                  <option value="">{t('notes.filterCardState')}</option>
+                  {(['new', 'learning', 'review', 'relearning'] as const).map((option) => (
+                    <option key={option} value={option}>
+                      {t(`cardState.${option}` as MessageKey)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <p className="text-14 text-secondary">{t('notes.organizeFilterHint')}</p>
+              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
+                <Input
+                  value={tag}
+                  list="note-tags"
+                  aria-label={t('notes.filterTag')}
+                  placeholder={t('notes.filterTag')}
+                  onChange={(event) => setTag(event.target.value)}
+                />
+                <datalist id="note-tags">
+                  {tags.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
+                <Input
+                  value={source}
+                  aria-label={t('notes.filterSource')}
+                  placeholder={t('notes.filterSource')}
+                  onChange={(event) => setSource(event.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <div className="flex justify-between gap-8">
+            {rows.length > 0 && (
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  setSelecting(true);
+                  setSelected(new Set());
+                }}
+              >
+                {t('notes.select')}
+              </Button>
+            )}
+            {filtered && (
+              <Button variant="text" onClick={clearFilters}>
+                {t('notes.clearFilters')}
+              </Button>
+            )}
+          </div>
+          <p role="status" className="min-h-20 text-13 text-secondary">
+            {notes.isFetching || typed !== search || source.trim() !== sourceFilter
+              ? t('notes.updating')
+              : ''}
+          </p>
+        </div>
+      ) : undefined}
 
       {notes.isPending ? <SkeletonRows rows={8} /> : undefined}
 
@@ -277,10 +312,24 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         )
       ) : undefined}
 
+      {selecting ? (
+        <NoteSelectionBar
+          ids={[...selected]}
+          notes={rows.filter((note) => selected.has(note.id))}
+          {...(deckId === undefined ? {} : { deckId })}
+          onSelectAll={() => setSelected(new Set(rows.map((note) => note.id)))}
+          onClear={() => setSelected(new Set())}
+          onDone={() => {
+            setSelected(new Set());
+            setSelecting(false);
+          }}
+        />
+      ) : undefined}
       {rows.length > 0 ? (
         <VirtualNotes
           rows={rows}
           selecting={selecting}
+          layoutKey={`${selecting}:${filtersOpen}:${filtered}`}
           selected={selected}
           onToggle={toggle}
           onOpen={(id) => void navigate({ to: '/notes/$noteId', params: { noteId: id } })}
@@ -289,19 +338,6 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
             if (notes.hasNextPage && !notes.isFetchingNextPage) {
               void notes.fetchNextPage();
             }
-          }}
-        />
-      ) : undefined}
-
-      {selecting ? (
-        <NoteSelectionBar
-          ids={[...selected]}
-          {...(deckId === undefined ? {} : { deckId })}
-          onSelectAll={() => setSelected(new Set(rows.map((note) => note.id)))}
-          onClear={() => setSelected(new Set())}
-          onDone={() => {
-            setSelected(new Set());
-            setSelecting(false);
           }}
         />
       ) : undefined}
@@ -319,6 +355,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
 function VirtualNotes({
   rows,
   selecting,
+  layoutKey,
   selected,
   onToggle,
   onOpen,
@@ -330,6 +367,7 @@ function VirtualNotes({
   readonly selected: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
   readonly onOpen: (id: string) => void;
+  readonly layoutKey: string;
   readonly hasMore: boolean;
   readonly onNeedMore: () => void;
 }) {
@@ -339,8 +377,13 @@ function VirtualNotes({
   // Where the list starts down the page. The window virtualiser needs it to
   // work out which rows are on screen.
   useEffect(() => {
-    setOffset(list.current?.offsetTop ?? 0);
-  }, [rows.length]);
+    const measure = () =>
+      setOffset(list.current ? list.current.getBoundingClientRect().top + window.scrollY : 0);
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (list.current?.parentElement) observer.observe(list.current.parentElement);
+    return () => observer.disconnect();
+  }, [rows.length, layoutKey, selected.size]);
 
   const virtual = useWindowVirtualizer({
     count: rows.length,
@@ -416,6 +459,7 @@ const NoteRow = memo(function NoteRow({
 
   return (
     <DenseRow
+      selected={selecting ? selected : undefined}
       word={termOf(note.fields)}
       meaning={detail}
       onClick={() => (selecting ? onToggle(note.id) : onOpen(note.id))}

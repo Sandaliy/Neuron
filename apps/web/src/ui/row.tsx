@@ -186,11 +186,13 @@ export function DenseRow({
   meaning,
   trailing,
   onClick,
+  selected,
 }: {
   readonly word: ReactNode;
   readonly meaning: ReactNode;
   readonly trailing?: ReactNode;
   readonly onClick?: () => void;
+  readonly selected?: boolean | undefined;
 }) {
   const content = (
     <>
@@ -210,6 +212,7 @@ export function DenseRow({
     <button
       type="button"
       data-row=""
+      aria-pressed={selected}
       onClick={onClick}
       className="flex h-52 w-full items-center gap-12 px-16 hover:bg-raised"
     >

@@ -1,9 +1,10 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { X } from 'lucide-react';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useTranslate } from '../i18n/locale';
+import { NAVIGATION_EVENT } from '../lib/interactions';
 
 import type { ReactNode } from 'react';
 
@@ -60,6 +61,32 @@ export function Dialog({
 }) {
   const t = useTranslate();
   const content = useRef<HTMLDivElement>(null);
+
+  /*
+   * The screen behind the dialog is not inside this component, so the push back
+   * is an attribute on the document that the stylesheet acts on. Removed on
+   * unmount as well as on close, or a dialog torn down while open would leave
+   * the app scaled down for good.
+   */
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    document.documentElement.dataset['dialog'] = 'open';
+
+    return () => {
+      delete document.documentElement.dataset['dialog'];
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !dismissable || !onOpenChange) return;
+
+    const close = () => onOpenChange(false);
+    window.addEventListener(NAVIGATION_EVENT, close);
+    return () => window.removeEventListener(NAVIGATION_EVENT, close);
+  }, [dismissable, onOpenChange, open]);
 
   return (
     <RadixDialog.Root open={open} {...(dismissable && onOpenChange ? { onOpenChange } : {})}>

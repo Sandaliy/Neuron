@@ -229,17 +229,7 @@
     --visual-viewport-height: 100svh;
     --visual-viewport-top: 0px;
 
-    /*
-     * How much of the layout viewport the browser's own furniture is covering
-     * at the bottom. `src/lib/viewport.ts` keeps it up to date, and it is zero
-     * when the thing covering the page is a keyboard instead.
-     *
-     * A `position: fixed` element is placed against the layout viewport, and on
-     * iOS that viewport extends underneath Safari's toolbar. Anything meant to
-     * sit at the bottom of what a person can actually see has to be lifted by
-     * this much, or it hides behind the toolbar when the toolbar is out and
-     * floats far too high when it is not.
-     */
+    /* Native fixed navigation follows browser chrome without an extra lift. */
     --chrome-inset: 0px;
 
     background-color: var(--bg-canvas);
@@ -847,7 +837,7 @@
   [data-toasts] {
     translate: 0 calc(-1 * var(--chrome-inset));
     transition: translate var(--dur-3) var(--ease-inout);
-    padding-bottom: calc(var(--bar-height) + var(--bar-inset) + 8px);
+    padding-bottom: calc(var(--bar-height) + var(--bar-inset) + 10px);
   }
 
   @media (min-width: 640px) {
@@ -869,9 +859,27 @@
    * back from.
    */
   [data-keyboard='open'] [data-g='tabbar'] {
-    transform: translate3d(0, 140%, 0);
-    opacity: 0;
+    visibility: hidden;
     pointer-events: none;
+  }
+
+  [data-keyboard='open'] [data-toasts] {
+    bottom: var(--keyboard-inset);
+    padding-bottom: var(--u-4);
+  }
+
+  @media (hover: none) {
+    button:active,
+    [data-row]:active,
+    [data-tab]:active,
+    [data-cell]:active {
+      transform: none !important;
+      opacity: 1 !important;
+    }
+    [data-pressed] {
+      opacity: 0.7;
+      transition: none;
+    }
   }
 
   /* A bar gains its edge only once content has passed under it. */
@@ -988,7 +996,7 @@
 @keyframes neu-toast-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 4px, 0);
+    transform: translate3d(0, 4px, 0) scale(0.97);
   }
   to {
     opacity: 1;
@@ -1212,6 +1220,11 @@
 
   [data-screen] > *:nth-child(n + 4) {
     animation-delay: 62ms;
+  }
+
+  /* Editing can begin as soon as fields appear; never move their ancestors. */
+  [data-editor] > * {
+    animation-name: none;
   }
 
   /*
