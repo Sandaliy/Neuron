@@ -61,7 +61,7 @@ when it earns its place, but the interface should not reproduce Anki's configura
 - **Visual system:** semantic tokens, reusable components, centered dialogs, phone viewport handling,
   reduced motion, adaptive glass, a component gallery, and visual regression infrastructure.
 
-## 4. Current milestone: Phase 6
+## 4. Completed milestone: Phase 6
 
 Phase 6 makes the collection writable and gives users a safe path from raw material to validated notes and
 cards. It is the prerequisite for studying real personal vocabulary rather than seeded examples.
@@ -71,22 +71,22 @@ level settings, schemas and conditional editors for three note types, shared car
 bulk APIs, a virtualized note list, chunked imports, format parsing, preview warnings, duplicate lookup,
 import batches and undo, and the canonical card-generation prompt flow.
 
-The unfinished portion includes list performance, complete phone/desktop browser coverage, screenshot
-baselines, direct keyboard checks, and several behavior gaps found during reconciliation: source filtering
-is not exposed in the list, row summaries omit card state, duplicate choices are global rather than per row,
-merge does not yet fill only empty fields, note-type changes from the editor normally fail strict field
-validation, full card-direction controls are absent, and deleted decks/notes lack a working restore path in
-the UI.
+Phase 6 is complete. The original collection, recovery, import, and keyboard flows passed browser checks
+and real-iPhone acceptance. The 5,000-note list meets the 55 fps budget. A real non-production 5,000-note
+import recovered after an intentionally lost response following a committed chunk, leaving complete notes
+and cards, one batch, no duplicates, a usable destination deck, and a truthful undo boundary. The release
+was delivered through the protected pull-request workflow.
 
-Phase 6 is complete when the original note/import acceptance flows work with real material, all destructive
-or history-affecting actions tell the truth, a 5,000-note list meets the 55 fps budget, large imports recover
-from interrupted requests without duplicate rows, note and import screens pass browser and visual checks at
-375 px and 1440 px in both themes, the on-screen keyboard does not hide the active control, all repository
-gates pass, and the milestone is delivered through a pull request.
+Full direction controls are not part of Phase 6. Study-time direction and preset UX belongs with Phase 7;
+progressive direction unlocking and its evidence policy belong with Phase 9.
 
-## 5. Remaining committed roadmap
+### Acceptance evidence
 
-### Milestone 7: Daily study
+- Real iPhone: shipped collection, recovery, import, and keyboard UX passed.
+- Real non-production database: 5,000-note interruption/resume passed with 5,000 notes, 5,000 cards, one
+  import batch, no duplicate live rows, and a usable destination deck.
+
+## 5. Current milestone: Phase 7 Daily Study
 
 **Purpose**
 
@@ -126,6 +126,8 @@ integration, keyboard, browser, and visual coverage.
 
 The exact preset set, gesture vocabulary, browser speech quality, typed-answer tolerance, and undo event
 model require focused design and tests. They should not be frozen from historical planning text.
+
+## 6. Remaining committed roadmap
 
 ### Milestone 8: Offline collection and synchronization
 
@@ -280,7 +282,7 @@ through repeatable checks, and has public documentation that matches the applica
 Mail provider, production region, per-pull-request database automation, supported browser floor, and public
 launch scope should be selected from current costs and actual users at that time.
 
-## 6. Product backlog outside the committed roadmap
+## 7. Product backlog outside the committed roadmap
 
 ### Learning experience
 
@@ -334,7 +336,7 @@ manual and imported notes.
 - Usage accounting, limits, and billing only after a product decision requires them.
 - A deck catalogue, managed generation, or team features only after observed demand.
 
-## 7. Future-commercialisation boundary
+## 8. Future-commercialisation boundary
 
 Engineering worth doing now protects user data and keeps future choices open: portable core logic,
 standards-based Postgres, clear application/package boundaries, tenant isolation, exportable data,
@@ -346,7 +348,7 @@ roles, organization tenancy, audit products, a marketplace, usage metering witho
 multi-region replication, and infrastructure designed for traffic the product does not have. A possible
 future business is a constraint on avoiding traps, not permission to build an imaginary business today.
 
-## 8. Roadmap maintenance policy
+## 9. Roadmap maintenance policy
 
 This order is a working commitment, not an excuse to ignore evidence. A milestone may move when tests
 invalidate an assumption, user testing exposes a blocking UX problem, implementation reveals a prerequisite,

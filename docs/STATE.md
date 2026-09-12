@@ -4,16 +4,16 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-08, after production migration safety was delivered through PRs #12 and #13.
+Last updated: 2026-09-12, after Phase 6 closure on `main`.
 
 ## Now
 
-Phase 6 production recovery is merged to `main`. The release contains writable decks, note editing
-and browsing, shared card planning, chunked imports, and persistent Deleted/Restore UI for soft-deleted
-decks and notes. The 5,000-note list now passes the unchanged 55 fps budget after memoizing unchanged
-rows. Five isolated Chromium phone runs at 375 by 812, device scale 2 and CPU throttling 4 measured
-60.0, 59.3, 60.0, 60.0 and 60.0 fps. The Phase 6 collection and recovery slice is merged and
-verified in production.
+Phase 6 is complete on `main`. The release contains writable decks, note editing and browsing, shared
+card planning, chunked imports, and persistent Deleted/Restore UI for soft-deleted decks and notes. The
+5,000-note list passes the unchanged 55 fps budget, and the shipped collection, recovery, import, and
+keyboard UX passed real-iPhone acceptance. A real non-production 5,000-note import also passed after a
+committed chunk response was intentionally lost: resume produced 5,000 notes and cards, one batch, no
+duplicates, a usable destination deck, and the documented undo boundary remained true.
 
 The stabilized `main` branch has protected pull-request delivery, required CI and Vercel checks, and
 isolated preview data. PR #12 and the follow-up safety fix PR #13 are merged. Trusted main-only
@@ -22,6 +22,7 @@ workflow verified it and skipped migration. Production Vercel compatibility chec
 `neuron_app` and `neuron_auth` roles; `/health` and `/db-check` are schema-aware and healthy. The
 owner-only `DATABASE_URL_OWNER` credential remains confined to the protected GitHub
 `production-migrations` environment and is absent from Vercel and runtime environments.
+Phase 7 Daily Study is the current milestone and immediate next work.
 
 ## Done
 
@@ -35,10 +36,9 @@ owner-only `DATABASE_URL_OWNER` credential remains confined to the protected Git
 
 ## Next
 
-1. Complete real-iPhone acceptance for the merged Phase 6 collection flows.
-2. Continue the remaining Phase 6 direction-control, browser and screenshot coverage, mobile-keyboard
-   acceptance, and large-import acceptance work as separate workstreams and release slices where useful.
-3. Run the full milestone gates when closing Phase 6.
+1. Build the Phase 7 Daily Study session and card reveal flow.
+2. Add response recording, honest intervals, recent-answer undo, and useful study presets.
+3. Cover phone/desktop keyboard, touch, speech fallback, and review-history behavior for the study loop.
 
 ## Open threads
 
@@ -46,28 +46,30 @@ owner-only `DATABASE_URL_OWNER` credential remains confined to the protected Git
   or moving to one database branch per pull request remains a later automation task.
 - The note-list performance fix preserves selection across virtual mounts, refreshed row data and native
   keyboard activation. Targeted browser checks pass in both themes at phone and desktop widths.
-- Phase 6 lacks complete browser and screenshot coverage for notes and imports. Keyboard navigation and
-  the mobile on-screen keyboard still need direct checks.
+- Browser checks and real-iPhone acceptance cover the shipped collection, recovery, import, and keyboard
+  flows.
 - Import duplicates use a default plus row overrides in the bounded preview. Only a unique same-type
   match can merge. Ambiguous or incompatible matches inherit Skip instead of Merge, with visible reasons.
   Merge fills schema-defined blanks and grammar leaves under a write lock, preserves existing metadata,
   cards and reviews, and refuses card removal. In-page Resume reuses the original row IDs and decisions.
   Undo removes batch-created notes/cards only; merged additions stay, as stated in completion and undo copy.
-  Targeted database and browser tests cover these boundaries. Full Phase 6 acceptance remains pending.
+  Targeted database and browser tests cover these boundaries. Large-import interruption/resume acceptance
+  passed against the non-production database at 5,000 notes.
 - Existing-note type conversion uses a separate empty target draft, schema validation and explicit Apply.
   Cancel leaves the saved note unchanged; same-type fields and tags still autosave. Shared reconciliation
   replaces cross-type cards with new IDs and fresh schedules. Answered-card removal requires explicit
   confirmation, with review rows preserved. Real database tests verify rollback of note/cards/revisions;
   focused phone/desktop browser tests cover all target schemas, cancellation, confirmation and retry.
-  Existing notes move only through list selection, and full direction/ladder controls are absent.
+  Existing notes move only through list selection; full direction/ladder controls remain intentionally
+  deferred to the study-time direction and preset UX in Phase 7.
 - The note list exposes exact source filtering and per-row live-card summaries. Persistent Deleted/Restore
   UI now covers soft-deleted decks and notes.
 - Server restore integrity is verified by 22 real-database regression cases. Decks restore individually,
   parent-first. Note restore uses explicit card deletion provenance, preserves schedules and reviews,
   and reports cards left deleted. Historical and independently deleted cards remain deleted. Sync follows
   the same dependency and provenance boundaries. Migration 0011 adds the conservative false default
-  without historical attribution. Broader Phase 6 acceptance and final milestone closure remain pending.
-- `stash@{0}` remains a backup of earlier Phase 6 local work. Keep it until the phase has landed safely.
+  without historical attribution.
+- `stash@{0}` remains a historical backup of earlier Phase 6 local work.
 - The production API is in `iad1` while users and web requests enter through Europe. Region alignment
   remains deferred because the database must move with the API.
 - Mail delivery is disabled. `MAILER=log` is the only configured sender.

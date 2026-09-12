@@ -7,6 +7,7 @@ import type { ImportBatch } from '@neuron/shared';
 import {
   countingRepositories,
   createUser,
+  rawOwnerPool,
   repositoriesFor,
   testDatabase,
 } from '../db/testing/database.js';
@@ -523,4 +524,73 @@ describe.skipIf(!database)('five thousand rows', () => {
     // number that matters is that it does not grow with the number of words.
     expect(queries).toBeLessThan(30);
   }, 300_000);
+
+  it('resumes a five thousand row import after a committed chunk response is lost', async () => {
+    if (!database) {
+      return;
+    }
+
+    const words = Array.from({ length: SIZE }, (_, index) => note(`Interrupted${index}`));
+    const batchId = uuidV7();
+
+    await json(
+      await server.request('/api/imports', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: batchId, deckId, source: 'Interrupted frequency list' }),
+      }),
+      201,
+    );
+
+    const firstChunk = words.slice(0, IMPORT_CHUNK_SIZE);
+    const sendLargeChunk = async (chunk: readonly ReturnType<typeof note>[]) =>
+      json<{ notes: number; cards: number; skipped: number }>(
+        await server.request(`/api/imports/${batchId}/notes`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ notes: chunk }),
+        }),
+        200,
+      );
+
+    await sendLargeChunk(firstChunk);
+
+    // Model the transport failure after the server committed the chunk: the
+    // client retries the same request with the same generated row IDs.
+    await sendLargeChunk(firstChunk);
+
+    for (let index = IMPORT_CHUNK_SIZE; index < words.length; index += IMPORT_CHUNK_SIZE) {
+      await sendLargeChunk(words.slice(index, index + IMPORT_CHUNK_SIZE));
+    }
+
+    const summary = await json<{
+      notes: number;
+      cards: number;
+      reviewedCards: number;
+      import: { id: string };
+    }>(await server.request(`/api/imports/${batchId}`), 200);
+    const batches = await repositories.importBatches.list();
+    const pool = rawOwnerPool(database);
+
+    try {
+      const counts = await pool.query(
+        `select
+           (select count(*) from notes where import_batch_id = $1 and deleted_at is null) as notes,
+           (select count(*) from cards c join notes n on n.id = c.note_id
+             where n.import_batch_id = $1 and c.deleted_at is null) as cards`,
+        [batchId],
+      );
+
+      expect(summary).toMatchObject({ notes: SIZE, cards: SIZE, reviewedCards: 0 });
+      expect(summary.import.id).toBe(batchId);
+      expect(batches.filter((batch) => batch.id === batchId)).toHaveLength(1);
+      expect(Number(counts.rows[0]?.notes)).toBe(SIZE);
+      expect(Number(counts.rows[0]?.cards)).toBe(SIZE);
+      expect(await repositories.decks.byId(deckId)).toBeDefined();
+      expect(await repositories.cards.due({ deckId, now: new Date(), limit: 1 })).toHaveLength(1);
+      expect((await repositories.importBatches.contents(batchId)).reviewedCards).toBe(0);
+    } finally {
+      await pool.end();
+    }
+  }, 600_000);
 });
