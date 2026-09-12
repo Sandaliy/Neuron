@@ -547,8 +547,9 @@ afterwards.
 
 **The browser app is the product surface.** `apps/web` now contains the React application, its shell,
 authentication and recovery flows, writable library, note editor and browse screens, import flow, Today
-screen, settings, and the component gallery. The Phase 6 note and import screens are still unpublished.
-The defined note-list performance budget is verified, while full browser coverage remains incomplete.
+screen, settings, and the component gallery. The Phase 6 note and import screens are shipped and covered
+by maintained browser checks; collection, recovery, import and keyboard flows also passed real-iPhone
+acceptance. The defined note-list performance budget remains verified.
 Vercel rewrites `/api/*` to the
 Hono deployment so session cookies stay on one browser origin. Production uses the production api. A
 preview derives the matching api branch URL from Vercel's generated web branch URL and refuses to build if

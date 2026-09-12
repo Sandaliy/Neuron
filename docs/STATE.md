@@ -38,6 +38,7 @@ Phase 7 Daily Study is the current milestone and immediate next work.
 | 3 to 4.5 | Data model, RLS, repository layer, API, sync, recovery codes, and optional TOTP                |
 | 5        | Web shell, authentication screens, library tree, Today, themes, and two languages              |
 | 5.5      | Design tokens, component gallery, glass and motion rules, phone fixes, and screenshot coverage |
+| 6        | Writable collections, recovery, import, Folder/Deck integrity, and real-device acceptance      |
 
 ## Next
 
@@ -74,7 +75,6 @@ Phase 7 Daily Study is the current milestone and immediate next work.
   and reports cards left deleted. Historical and independently deleted cards remain deleted. Sync follows
   the same dependency and provenance boundaries. Migration 0011 adds the conservative false default
   without historical attribution.
-- `stash@{0}` remains a historical backup of earlier Phase 6 local work.
 - Collection restoration uses explicit deletion operation IDs, never timestamps or revision equality.
   Independently deleted descendants remain deleted. Legacy deletions without provenance restore
   individually. Note restoration retains `deleted_with_note` attribution for Cards. Permanent
