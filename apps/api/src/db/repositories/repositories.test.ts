@@ -48,8 +48,12 @@ describe.skipIf(!database)('the repositories', () => {
 
   describe('the deck tree', () => {
     it('records the ancestors of a deck as it is created', async () => {
-      const root = await repositories.decks.create({ name: 'Languages' });
-      const child = await repositories.decks.create({ name: 'German', parentId: root.id });
+      const root = await repositories.decks.create({ kind: 'folder', name: 'Languages' });
+      const child = await repositories.decks.create({
+        kind: 'folder',
+        name: 'German',
+        parentId: root.id,
+      });
       const grandchild = await repositories.decks.create({ name: 'Lesson 1', parentId: child.id });
 
       expect(root.path).toEqual([]);
@@ -58,10 +62,18 @@ describe.skipIf(!database)('the repositories', () => {
     });
 
     it('rewrites every descendant when a subtree moves', async () => {
-      const oldHome = await repositories.decks.create({ name: 'Old home' });
-      const newHome = await repositories.decks.create({ name: 'New home' });
-      const moving = await repositories.decks.create({ name: 'Moving', parentId: oldHome.id });
-      const child = await repositories.decks.create({ name: 'Child', parentId: moving.id });
+      const oldHome = await repositories.decks.create({ kind: 'folder', name: 'Old home' });
+      const newHome = await repositories.decks.create({ kind: 'folder', name: 'New home' });
+      const moving = await repositories.decks.create({
+        kind: 'folder',
+        name: 'Moving',
+        parentId: oldHome.id,
+      });
+      const child = await repositories.decks.create({
+        kind: 'folder',
+        name: 'Child',
+        parentId: moving.id,
+      });
       const grandchild = await repositories.decks.create({
         name: 'Grandchild',
         parentId: child.id,
@@ -77,9 +89,16 @@ describe.skipIf(!database)('the repositories', () => {
     });
 
     it('rewrites paths when a subtree moves up to the root', async () => {
-      const parent = await repositories.decks.create({ name: 'Parent to leave' });
-      const moving = await repositories.decks.create({ name: 'Going up', parentId: parent.id });
-      const child = await repositories.decks.create({ name: 'Coming along', parentId: moving.id });
+      const parent = await repositories.decks.create({ kind: 'folder', name: 'Parent to leave' });
+      const moving = await repositories.decks.create({
+        kind: 'folder',
+        name: 'Going up',
+        parentId: parent.id,
+      });
+      const child = await repositories.decks.create({
+        name: 'Coming along',
+        parentId: moving.id,
+      });
 
       await repositories.decks.move(moving.id, null);
 
@@ -91,20 +110,24 @@ describe.skipIf(!database)('the repositories', () => {
     });
 
     it('refuses to move a deck into its own child', async () => {
-      const parent = await repositories.decks.create({ name: 'Cycle parent' });
-      const child = await repositories.decks.create({ name: 'Cycle child', parentId: parent.id });
+      const parent = await repositories.decks.create({ kind: 'folder', name: 'Cycle parent' });
+      const child = await repositories.decks.create({
+        kind: 'folder',
+        name: 'Cycle child',
+        parentId: parent.id,
+      });
 
       await expect(repositories.decks.move(parent.id, child.id)).rejects.toThrow(DeckCycle);
     });
 
     it('refuses to move a deck into itself', async () => {
-      const deck = await repositories.decks.create({ name: 'Self move' });
+      const deck = await repositories.decks.create({ kind: 'folder', name: 'Self move' });
 
       await expect(repositories.decks.move(deck.id, deck.id)).rejects.toThrow(DeckCycle);
     });
 
     it('refuses two siblings with the same name, whatever the case', async () => {
-      const parent = await repositories.decks.create({ name: 'Names' });
+      const parent = await repositories.decks.create({ kind: 'folder', name: 'Names' });
 
       await repositories.decks.create({ name: 'Lesson', parentId: parent.id });
 
@@ -114,7 +137,7 @@ describe.skipIf(!database)('the repositories', () => {
     });
 
     it('frees the name again once the deck is deleted', async () => {
-      const parent = await repositories.decks.create({ name: 'Freeing' });
+      const parent = await repositories.decks.create({ kind: 'folder', name: 'Freeing' });
       const first = await repositories.decks.create({ name: 'Repeated', parentId: parent.id });
 
       await repositories.decks.softDelete(first.id);
@@ -125,8 +148,11 @@ describe.skipIf(!database)('the repositories', () => {
     });
 
     it('marks a whole subtree as deleted and stops listing it', async () => {
-      const root = await repositories.decks.create({ name: 'Doomed' });
-      const child = await repositories.decks.create({ name: 'Doomed child', parentId: root.id });
+      const root = await repositories.decks.create({ kind: 'folder', name: 'Doomed' });
+      const child = await repositories.decks.create({
+        name: 'Doomed child',
+        parentId: root.id,
+      });
 
       const marked = await repositories.decks.softDelete(root.id);
 
@@ -149,10 +175,15 @@ describe.skipIf(!database)('the repositories', () => {
 
     it('reads the chain from the root down, for resolving settings', async () => {
       const root = await repositories.decks.create({
+        kind: 'folder',
         name: 'Chain root',
         settings: { maximumNewCardsPerDay: 40 },
       });
-      const middle = await repositories.decks.create({ name: 'Chain middle', parentId: root.id });
+      const middle = await repositories.decks.create({
+        kind: 'folder',
+        name: 'Chain middle',
+        parentId: root.id,
+      });
       const leaf = await repositories.decks.create({ name: 'Chain leaf', parentId: middle.id });
 
       const chain = await repositories.decks.chain(leaf.id);
@@ -215,8 +246,12 @@ describe.skipIf(!database)('the repositories', () => {
     });
 
     it('finds cards due inside a folder, at any depth', async () => {
-      const folder = await repositories.decks.create({ name: 'Deep folder' });
-      const middle = await repositories.decks.create({ name: 'Deep middle', parentId: folder.id });
+      const folder = await repositories.decks.create({ name: 'Deep folder', kind: 'folder' });
+      const middle = await repositories.decks.create({
+        kind: 'folder',
+        name: 'Deep middle',
+        parentId: folder.id,
+      });
       const leaf = await repositories.decks.create({ name: 'Deep leaf', parentId: middle.id });
 
       const note = await repositories.notes.create({

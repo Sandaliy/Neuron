@@ -12,18 +12,14 @@ import {
 
 import type { DeckSettings } from '@neuron/shared';
 
-import { id, withoutNulls } from './columns.js';
+import { id, instant, withoutNulls } from './columns.js';
 import { owned } from './owned.js';
 
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 /**
- * A deck and a folder are the same thing.
- *
- * A deck holding other decks is what a person calls a folder. Studying one
- * means studying everything underneath it, at any depth. Keeping them as one
- * entity is what makes "German / Textbook / Lesson 3" work without deciding in
- * advance which levels are allowed to hold cards.
+ * Folders and leaf study decks share this hierarchy. A folder organizes
+ * descendants; only a deck can own notes and cards.
  */
 
 /** How deep the tree may go. Eight is far past anything anyone organises. */
@@ -34,6 +30,9 @@ export const decks = pgTable(
   {
     id: id(),
     ...owned(),
+    kind: text('kind').$type<'folder' | 'deck'>().notNull().default('deck'),
+    deletionId: uuid('deletion_id'),
+    purgedAt: instant('purged_at'),
     parentId: uuid('parent_id').references((): AnyPgColumn => decks.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     /** Order among siblings. Rewritten for the whole level on a reorder. */
@@ -54,6 +53,11 @@ export const decks = pgTable(
     settings: jsonb('settings').$type<DeckSettings>(),
   },
   (table) => [
+    check('decks_kind_known', sql`${table.kind} in ('folder', 'deck')`),
+    check(
+      'decks_purge_requires_deleted',
+      sql`${table.purgedAt} is null or ${table.deletedAt} is not null`,
+    ),
     /**
      * Two siblings cannot share a name, comparing without regard to case.
      *
@@ -72,7 +76,10 @@ export const decks = pgTable(
       'decks_depth_limit',
       sql`coalesce(array_length(${table.path}, 1), 0) <= ${sql.raw(String(MAX_DEPTH))}`,
     ),
-    check('decks_name_not_blank', sql`length(btrim(${table.name})) > 0`),
+    check(
+      'decks_name_not_blank',
+      sql`${table.purgedAt} is not null or length(btrim(${table.name})) > 0`,
+    ),
     check('decks_rev_not_negative', sql`${table.rev} >= 0`),
   ],
 );

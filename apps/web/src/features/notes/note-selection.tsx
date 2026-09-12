@@ -12,8 +12,8 @@ import { Button } from '../../ui/button';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
-import { Select } from '../../ui/select';
 import { useToast } from '../../ui/toast';
+import { CollectionPicker } from '../library/collection-picker';
 
 /**
  * What a selection can be told to do.
@@ -229,7 +229,7 @@ function MoveDialog({
   readonly onMove: (deckId: string) => void;
 }) {
   const t = useTranslate();
-  const all = flatten(decks);
+  const all = flatten(decks).filter((row) => row.kind === 'deck');
   const [target, setTarget] = useDialogState(
     open,
     all.find((deck) => deck.id !== deckId)?.id ?? all[0]?.id ?? '',
@@ -240,13 +240,7 @@ function MoveDialog({
       <DialogBody>
         <FormField label={t('note.deck')}>
           {(props) => (
-            <Select {...props} value={target} onChange={(event) => setTarget(event.target.value)}>
-              {all.map((deck) => (
-                <option key={deck.id} value={deck.id}>
-                  {'— '.repeat(deck.path.length) + deck.name}
-                </option>
-              ))}
-            </Select>
+            <CollectionPicker {...props} tree={decks} value={target} onChange={setTarget} />
           )}
         </FormField>
       </DialogBody>

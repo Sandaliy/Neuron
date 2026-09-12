@@ -29,7 +29,7 @@ describe.skipIf(!database)('restore integrity boundary', () => {
   }
 
   it('gives separate repository deletes distinct revisions even inside one transaction', async () => {
-    const parent = await repositories.decks.create({ name: 'Revision parent' });
+    const parent = await repositories.decks.create({ kind: 'folder', name: 'Revision parent' });
     const independent = await repositories.decks.create({
       name: 'Earlier child',
       parentId: parent.id,
@@ -50,7 +50,7 @@ describe.skipIf(!database)('restore integrity boundary', () => {
   });
 
   it('does not conflate independent deck deletions delivered in one sync batch', async () => {
-    const parent = await repositories.decks.create({ name: 'Synced parent' });
+    const parent = await repositories.decks.create({ kind: 'folder', name: 'Synced parent' });
     const child = await repositories.decks.create({
       name: 'Synced independent child',
       parentId: parent.id,
@@ -143,7 +143,10 @@ describe.skipIf(!database)('restore integrity boundary', () => {
   });
 
   it('does not restore an independently deleted child when delete timestamps coincide', async () => {
-    const parent = await repositories.decks.create({ name: 'Same timestamp parent' });
+    const parent = await repositories.decks.create({
+      kind: 'folder',
+      name: 'Same timestamp parent',
+    });
     const child = await repositories.decks.create({
       name: 'Independently deleted child',
       parentId: parent.id,
@@ -162,15 +165,17 @@ describe.skipIf(!database)('restore integrity boundary', () => {
   });
 
   it('refuses to restore a child while its parent remains deleted', async () => {
-    const parent = await repositories.decks.create({ name: 'Deleted dependency parent' });
+    const parent = await repositories.decks.create({
+      kind: 'folder',
+      name: 'Deleted dependency parent',
+    });
     const child = await repositories.decks.create({ name: 'Dependent child', parentId: parent.id });
     await repositories.decks.softDelete(parent.id);
 
     await expect(repositories.decks.restore(child.id)).rejects.toThrow();
     expect(await repositories.decks.byId(child.id)).toBeUndefined();
-    expect(await repositories.decks.restore(parent.id)).toBe(1);
-    expect(await repositories.decks.byId(child.id)).toBeUndefined();
-    expect(await repositories.decks.restore(child.id)).toBe(1);
+    expect(await repositories.decks.restore(parent.id)).toBe(2);
+    expect(await repositories.decks.restore(child.id)).toBe(0);
     const restored = await repositories.decks.byId(child.id);
     expect(restored?.parentId).toBe(parent.id);
     expect(restored?.path).toEqual(child.path);
@@ -375,8 +380,18 @@ describe.skipIf(!database)('restore integrity boundary', () => {
     const { card } = await fixture('Private provenance');
     const server = testServer(database!, 'restore-integrity-boundary');
     const pull = await server.request('/api/sync?since=0');
-    const body = (await pull.json()) as { changes: { row: Record<string, unknown> }[] };
-    expect(body.changes.every((r) => !('deletedWithNote' in r.row))).toBe(true);
+    const body = (await pull.json()) as {
+      changes: { row: Record<string, unknown>; purged: boolean }[];
+    };
+    expect(
+      body.changes.every(
+        (r) =>
+          !('deletedWithNote' in r.row) &&
+          !('deletionId' in r.row) &&
+          !('purgedAt' in r.row) &&
+          r.purged === false,
+      ),
+    ).toBe(true);
     const push = await server.request('/api/sync', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -444,7 +459,14 @@ describe.skipIf(!database)('restore integrity boundary', () => {
 
   it('sync refuses restoration under deleted dependencies, including attempts to relocate', async () => {
     const { deck, note, card } = await fixture('Sync dependencies');
-    const child = await repositories.decks.create({ name: 'Sync child', parentId: deck.id });
+    const parent = await repositories.decks.create({
+      name: 'Sync dependency folder',
+      kind: 'folder',
+    });
+    await repositories.decks.move(deck.id, parent.id);
+    const child = await repositories.decks.create({ name: 'Sync child', parentId: parent.id });
+    await repositories.decks.softDelete(child.id);
+    await repositories.decks.softDelete(parent.id);
     await repositories.notes.softDelete(note.id);
     await repositories.decks.softDelete(deck.id);
     const rev = await repositories.sync.revision();
@@ -478,7 +500,7 @@ describe.skipIf(!database)('restore integrity boundary', () => {
     });
     expect(await repositories.cards.byId(card.id)).toBeUndefined();
     const restored = await push([
-      { entity: 'decks', id: deck.id, updatedAt: new Date(Date.now() + 2000).toISOString() },
+      { entity: 'decks', id: parent.id, updatedAt: new Date(Date.now() + 2000).toISOString() },
     ]);
     expect(restored.status).toBe(200);
     expect(await repositories.decks.byId(child.id)).toBeUndefined();
@@ -487,7 +509,7 @@ describe.skipIf(!database)('restore integrity boundary', () => {
     ]);
     expect(childRestore.status).toBe(200);
     expect((await repositories.decks.byId(child.id))?.path).toEqual(child.path);
-    expect((await repositories.decks.byId(child.id))?.parentId).toBe(deck.id);
+    expect((await repositories.decks.byId(child.id))?.parentId).toBe(parent.id);
   });
 
   it('sync cannot create or move a live entity under a deleted deck', async () => {
@@ -520,7 +542,12 @@ describe.skipIf(!database)('restore integrity boundary', () => {
     expect(
       (
         await push([
-          { entity: 'decks', id: parentId, updatedAt: at, data: { name: 'Sync path parent' } },
+          {
+            entity: 'decks',
+            id: parentId,
+            updatedAt: at,
+            data: { name: 'Sync path parent', kind: 'folder' },
+          },
           {
             entity: 'decks',
             id: childId,
@@ -544,8 +571,8 @@ describe.skipIf(!database)('restore integrity boundary', () => {
       ).status,
     ).toBe(200);
     expect(await repositories.decks.byId(childId)).toBeUndefined();
-    expect(await repositories.decks.restore(parentId)).toBe(1);
-    expect(await repositories.decks.byId(childId)).toBeUndefined();
+    expect(await repositories.decks.restore(parentId)).toBe(2);
+    expect(await repositories.decks.byId(childId)).toBeDefined();
   });
 
   it('import undo marks only live cards belonging to the notes it deletes', async () => {
@@ -633,7 +660,7 @@ describe.skipIf(!database)('restore integrity boundary', () => {
   });
 
   it('deletion follows legacy parent links even when their materialized paths are incomplete', async () => {
-    const parent = await repositories.decks.create({ name: 'Legacy tree parent' });
+    const parent = await repositories.decks.create({ kind: 'folder', name: 'Legacy tree parent' });
     const child = await repositories.decks.create({
       name: 'Legacy tree child',
       parentId: parent.id,
@@ -650,15 +677,19 @@ describe.skipIf(!database)('restore integrity boundary', () => {
     expect(refused.status).toBe(409);
     expect(await refused.json()).toMatchObject({ error: { code: 'restore_dependency' } });
     const restored = await server.request(`/api/decks/${parent.id}/restore`, { method: 'POST' });
-    expect(await restored.json()).toEqual({ restored: 1 });
-    expect(await repositories.decks.byId(child.id)).toBeUndefined();
+    expect(await restored.json()).toEqual({ restored: 2 });
+    expect(await repositories.decks.byId(child.id)).toBeDefined();
   });
 
   it('sync updates hierarchy paths on moves and refuses cycles without partial writes', async () => {
-    const parent = await repositories.decks.create({ name: 'Moving sync parent' });
-    const destination = await repositories.decks.create({ name: 'Moving sync destination' });
+    const parent = await repositories.decks.create({ kind: 'folder', name: 'Moving sync parent' });
+    const destination = await repositories.decks.create({
+      kind: 'folder',
+      name: 'Moving sync destination',
+    });
     const child = await repositories.decks.create({
       name: 'Moving sync child',
+      kind: 'folder',
       parentId: parent.id,
     });
     const at = new Date(Date.now() + 1000).toISOString();

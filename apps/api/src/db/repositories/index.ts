@@ -3,6 +3,7 @@ import { cardRepository } from './cards.js';
 import { deckRepository } from './decks.js';
 import { noteTypeRepository } from './note-types.js';
 import { noteRepository } from './notes.js';
+import { purgeRepository } from './purge.js';
 import { reviewRepository } from './reviews.js';
 import { nameUser, transactionRunner } from './session.js';
 import { importBatchRepository, presetRepository } from './study.js';
@@ -35,6 +36,7 @@ import type { SyncRepository } from './sync.js';
  */
 
 export interface Repositories {
+  readonly purge: ReturnType<typeof purgeRepository>;
   readonly decks: DeckRepository;
   readonly notes: NoteRepository;
   readonly noteTypes: NoteTypeRepository;
@@ -56,6 +58,7 @@ export interface Repositories {
 
 function build(db: Database, userId: string, run: Runner): Repositories {
   return {
+    purge: purgeRepository(userId, run),
     decks: deckRepository(userId, run),
     notes: noteRepository(userId, run),
     noteTypes: noteTypeRepository(userId, run),

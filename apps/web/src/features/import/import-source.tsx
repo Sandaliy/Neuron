@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react';
 import { useState } from 'react';
 
 import {
@@ -11,12 +12,14 @@ import {
 import type { DeckNode, ImportFormat, MessageKey, NoteTypeName } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
-import { flatten, settingsFor } from '../../lib/decks';
+import { settingsFor } from '../../lib/decks';
 import { Button } from '../../ui/button';
+import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
 import { Select } from '../../ui/select';
 import { TextArea } from '../../ui/textarea';
+import { CollectionPicker } from '../library/collection-picker';
 import { CardPreview } from '../notes/card-preview';
 
 export type ImportMode = 'simple' | 'table' | 'json' | 'file';
@@ -59,6 +62,7 @@ export function ImportSource({
   const [appendError, setAppendError] = useState(false);
   const [reading, setReading] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [confirmExample, setConfirmExample] = useState(false);
   const leftField = noteType === 'vocab' ? 'term' : noteType === 'basic' ? 'front' : 'text';
   const rightField = noteType === 'vocab' ? 'translation' : 'back';
   const exampleFields =
@@ -79,6 +83,12 @@ export function ImportSource({
   const exampleCards = valid.success
     ? openingCards(noteType, valid.data, settingsFor(decks, deck).ladder)
     : [];
+
+  function insertExample() {
+    onRaw(example ?? '');
+    onFormat(mode === 'json' ? 'json' : '');
+    setConfirmExample(false);
+  }
 
   function append() {
     const parsed = parseImport(raw, detectFormat(raw), { noteType });
@@ -139,16 +149,7 @@ export function ImportSource({
         label={t('import.deck')}
         {...(deck === '' ? { error: t('note.missingDeck') } : {})}
       >
-        {(props) => (
-          <Select {...props} value={deck} onChange={(event) => onDeck(event.target.value)}>
-            <option value="">{t('library.notSet')}</option>
-            {flatten(decks).map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {'— '.repeat(entry.path.length) + entry.name}
-              </option>
-            ))}
-          </Select>
-        )}
+        {(props) => <CollectionPicker {...props} tree={decks} value={deck} onChange={onDeck} />}
       </FormField>
       <div
         className="grid grid-cols-2 gap-8 sm:grid-cols-4"
@@ -159,12 +160,14 @@ export function ImportSource({
           <Button
             key={value}
             aria-pressed={mode === value}
-            className={mode === value ? 'border-accent bg-selected text-primary' : ''}
+            variant={mode === value ? 'quiet' : 'text'}
+            className={mode === value ? 'ring-2 ring-inset ring-accent font-semibold' : ''}
             onClick={() => {
               onMode(value);
               onFormat(value === 'json' ? 'json' : '');
             }}
           >
+            {mode === value && <Check size={16} aria-hidden="true" />}
             {t(`import.mode.${value}`)}
           </Button>
         ))}
@@ -277,18 +280,47 @@ export function ImportSource({
         <CardPreview cards={exampleCards.map((card) => ({ ...card, change: 'adds' }))} />
         <Button
           onClick={() => {
-            onRaw(example ?? '');
-            onFormat(mode === 'json' ? 'json' : '');
+            if (raw.trim()) setConfirmExample(true);
+            else insertExample();
           }}
         >
           {t('import.useExample')}
         </Button>
       </details>
+      <Dialog
+        open={confirmExample}
+        onOpenChange={setConfirmExample}
+        title={t('import.replaceTitle')}
+      >
+        <DialogBody>
+          <p className="text-14 text-secondary">{t('import.replaceBody')}</p>
+        </DialogBody>
+        <DialogFooter>
+          <Button full variant="primary" onClick={insertExample}>
+            {t('import.replaceConfirm')}
+          </Button>
+          <Button full variant="text" onClick={() => setConfirmExample(false)}>
+            {t('common.cancel')}
+          </Button>
+        </DialogFooter>
+      </Dialog>
       <details className="rounded-12 border p-16">
         <summary className="min-h-44 cursor-pointer text-14 text-primary">
           {t('import.supportedFields')}
         </summary>
-        <p className="py-12 text-14 text-secondary">{t('import.structuredHelp')}</p>
+        <ul className="flex flex-col gap-8 py-12 text-14 text-secondary">
+          {(
+            [
+              'requiredVocab',
+              'requiredBasic',
+              'requiredCloze',
+              'fieldNamesHelp',
+              'extraFieldsHelp',
+            ] as const
+          ).map((key) => (
+            <li key={key}>{t(`import.${key}`)}</li>
+          ))}
+        </ul>
         <dl className="grid grid-cols-2 gap-8 text-13">
           {IMPORT_FIELDS.map((field) => (
             <div key={field}>
@@ -297,7 +329,32 @@ export function ImportSource({
             </div>
           ))}
         </dl>
-        <p className="py-12 text-14 text-secondary">{t('import.grammarHelp')}</p>
+        <p className="pt-12 text-14 text-secondary">{t('import.grammarFields')}</p>
+        <ul className="grid grid-cols-2 gap-8 py-12 font-mono text-13 text-secondary">
+          {[
+            'article',
+            'plural',
+            'gender',
+            'praeteritum',
+            'partizip2',
+            'auxiliary',
+            'separable',
+            'case',
+            'reflexive',
+            'comparative',
+            'superlative',
+            'variant',
+            'irregular',
+            'uncountable',
+          ].map((field) => (
+            <li key={field}>{field}</li>
+          ))}
+        </ul>
+        <ul className="flex flex-col gap-8 py-12 text-14 text-secondary">
+          {(['grammarBoolean', 'grammarValues', 'partOfSpeechHelp'] as const).map((key) => (
+            <li key={key}>{t(`import.${key}`)}</li>
+          ))}
+        </ul>
         <pre className="overflow-x-auto text-13 text-secondary">
           {JSON.stringify(
             {

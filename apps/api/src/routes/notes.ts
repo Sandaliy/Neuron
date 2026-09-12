@@ -13,6 +13,7 @@ import {
   listNotesSchema,
   normaliseTerm,
   noteTermKey,
+  purgeConfirmationSchema,
   mergeNoteFields,
   termOf,
   parseNoteFields,
@@ -81,7 +82,7 @@ export function noteRoutes(): Hono<RequestBindings> {
     return context.json({
       notes: deleted.map((note) => {
         const deck = decksById.get(note.deckId);
-        const chain = deck ? [...deck.path, deck.id] : [];
+        const chain = deck ? [...ancestorChain(deck, decksById).map((row) => row.id), deck.id] : [];
 
         return {
           ...serialiseNote(note, typeNames),
@@ -332,7 +333,38 @@ export function noteRoutes(): Hono<RequestBindings> {
     return context.json(await repositoriesOf(context).notes.restore(id));
   });
 
+  routes.get('/:id/purge-impact', async (context) => {
+    const { id } = readParams(context, idParamSchema);
+    return context.json(await repositoriesOf(context).purge.impact('notes', id));
+  });
+  routes.post('/:id/purge', async (context) => {
+    const { id } = readParams(context, idParamSchema);
+    await readBody(context, purgeConfirmationSchema);
+    return context.json(await repositoriesOf(context).purge.remove('notes', id));
+  });
+
   return routes;
+}
+
+/** Uses parent links so a stale cached path cannot hide a note's location. */
+function ancestorChain(
+  row: { readonly parentId: string | null },
+  byId: ReadonlyMap<string, { readonly parentId: string | null; readonly name: string }>,
+) {
+  const chain: { readonly parentId: string | null; readonly name: string; readonly id: string }[] =
+    [];
+  const seen = new Set<string>();
+  let parentId = row.parentId;
+
+  while (parentId !== null && !seen.has(parentId) && seen.size < 8) {
+    seen.add(parentId);
+    const parent = byId.get(parentId);
+    if (!parent) break;
+    chain.unshift({ ...parent, id: parentId });
+    parentId = parent.parentId;
+  }
+
+  return chain;
 }
 
 /**

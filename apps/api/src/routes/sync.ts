@@ -31,14 +31,26 @@ function presentRow(change: SyncRow) {
     // user_id is on every row in the database and on nothing that leaves it. A
     // client that had to be told whose data it was reading would be a client
     // that could ask for somebody else's.
-    if (key === 'userId' || key === 'deletedWithNote') {
+    if (
+      key === 'userId' ||
+      key === 'deletedWithNote' ||
+      key === 'deletionId' ||
+      key === 'purgedAt'
+    ) {
       continue;
     }
 
     row[key] = value instanceof Date ? value.toISOString() : value;
   }
 
-  return { entity: change.entity, id: change.id, rev: change.rev, deleted: change.deleted, row };
+  return {
+    entity: change.entity,
+    id: change.id,
+    rev: change.rev,
+    deleted: change.deleted,
+    purged: change.row['purgedAt'] instanceof Date,
+    row,
+  };
 }
 
 /** Turns a validated change into what the repository takes. */

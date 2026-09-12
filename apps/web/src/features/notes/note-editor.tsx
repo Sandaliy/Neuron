@@ -41,6 +41,7 @@ import { ErrorState, SkeletonRows } from '../../ui/states';
 import { Switch } from '../../ui/switch';
 import { TextArea } from '../../ui/textarea';
 import { useToast } from '../../ui/toast';
+import { CollectionPicker } from '../library/collection-picker';
 
 import { CardPreview } from './card-preview';
 
@@ -134,7 +135,9 @@ function Editor({
   const navigate = useNavigate();
   const actions = useNoteActions();
 
-  const [deck, setDeck] = useState(note?.deckId ?? deckId ?? flatten(decks)[0]?.id ?? '');
+  const [deck, setDeck] = useState(
+    note?.deckId ?? deckId ?? flatten(decks).find((row) => row.kind === 'deck')?.id ?? '',
+  );
   const [storedType, setNoteType] = useState<NoteTypeName>(note?.noteType ?? 'vocab');
   const [storedFields, setFields] = useState<Record<string, unknown>>(note?.fields ?? {});
   const [tags, setTags] = useState((note?.tags ?? []).join(', '));
@@ -485,20 +488,7 @@ function Editor({
           label={t('note.deck')}
           {...(deck === '' ? { error: t('note.missingDeck') } : {})}
         >
-          {(props) => (
-            <Select
-              {...props}
-              value={deck}
-              disabled={note !== undefined}
-              onChange={(event) => setDeck(event.target.value)}
-            >
-              {flatten(decks).map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {'— '.repeat(entry.path.length) + entry.name}
-                </option>
-              ))}
-            </Select>
-          )}
+          {(props) => <CollectionPicker {...props} tree={decks} value={deck} onChange={setDeck} />}
         </FormField>
 
         {sections.map((section) => (

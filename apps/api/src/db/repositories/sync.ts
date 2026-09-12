@@ -23,7 +23,15 @@ import {
 
 import { DeckCycle } from './decks.js';
 import { UnknownNoteType } from './notes.js';
-import { requireLiveDeck, restoreNote, RestoreDependency, softDeleteDeck } from './restoration.js';
+import {
+  requireLiveDeck,
+  restoreDeck,
+  restoreNote,
+  RestoreDependency,
+  rewriteDeckSubtree,
+  softDeleteDeck,
+  InvalidCollectionKind,
+} from './restoration.js';
 import { nextRev } from './session.js';
 
 import type { Runner, Tx } from './session.js';
@@ -147,12 +155,21 @@ async function changedRows(
 ): Promise<SyncRow[]> {
   const table = READABLE[entity];
 
-  const rows = (await tx
+  let rows = (await tx
     .select()
     .from(table)
     .where(and(eq(table.userId, userId), gt(table.rev, since)))
     .orderBy(asc(table.rev))
     .limit(limit + 1)) as unknown as Record<string, unknown>[];
+
+  if (rows.length > limit) {
+    const boundary = Number(rows.at(-1)?.['rev']);
+    rows = (await tx
+      .select()
+      .from(table)
+      .where(and(eq(table.userId, userId), gt(table.rev, since), sql`${table.rev} <= ${boundary}`))
+      .orderBy(asc(table.rev))) as unknown as Record<string, unknown>[];
+  }
 
   return rows.map((row) => ({
     entity,
@@ -168,6 +185,7 @@ async function changedRows(
 
 /** What a pushed deck carries. */
 interface DeckPayload {
+  kind?: unknown;
   name?: unknown;
   parentId?: unknown;
   position?: unknown;
@@ -333,6 +351,16 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
 
             const existing = await currentRow(tx, userId, entity, change.id);
 
+            if (existing?.['purgedAt'] instanceof Date) {
+              conflicts.push({
+                entity,
+                id: change.id,
+                reason: 'deleted_remotely',
+                keptRev: Number(existing['rev']),
+              });
+              continue;
+            }
+
             if (existing) {
               const theirs = existing['updatedAt'];
               const kept = theirs instanceof Date ? theirs : new Date(0);
@@ -390,12 +418,7 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
                 continue;
               }
               if (entity === 'decks') {
-                const parentId = existing['parentId'] as string | null;
-                if (parentId !== null) await requireLiveDeck(tx, userId, parentId);
-                await tx
-                  .update(decks)
-                  .set({ deletedAt: null, updatedAt, rev })
-                  .where(and(eq(decks.userId, userId), eq(decks.id, change.id)));
+                await restoreDeck(tx, userId, change.id, rev, updatedAt);
                 applied.push({ entity, id: change.id });
                 continue;
               }
@@ -543,13 +566,18 @@ async function writeRow(input: WriteRow): Promise<void> {
   switch (input.entity) {
     case 'decks': {
       const payload = input.data as DeckPayload;
+      const current = exists ? await currentRow(input.tx, userId, 'decks', id) : undefined;
+      const kind = payload.kind ?? current?.['kind'] ?? 'deck';
+      if ((kind !== 'folder' && kind !== 'deck') || (current && kind !== current['kind']))
+        throw new InvalidCollectionKind();
       const parentId = (payload.parentId as string | null | undefined) ?? null;
       let path: string[] = [];
       if (parentId !== null) {
-        path = await requireLiveDeck(input.tx, userId, parentId);
+        path = await requireLiveDeck(input.tx, userId, parentId, 'folder');
         if (parentId === id || path.includes(id) || path.length > 8) throw new DeckCycle();
       }
       const columns = {
+        kind: kind as 'folder' | 'deck',
         name: String(payload.name ?? '').trim(),
         parentId,
         path,
@@ -559,17 +587,7 @@ async function writeRow(input: WriteRow): Promise<void> {
 
       if (exists) {
         // Keep descendants' materialized paths consistent with a live parent's move.
-        await input.tx
-          .update(decks)
-          .set({
-            path: sql`array[${sql.join(
-              [...path, id].map((ancestor) => sql`${ancestor}`),
-              sql`, `,
-            )}]::uuid[] || ${decks.path}[(array_position(${decks.path}, ${id}::uuid) + 1):]`,
-            updatedAt,
-            rev,
-          })
-          .where(and(eq(decks.userId, userId), sql`${decks.path} @> array[${id}]::uuid[]`));
+        await rewriteDeckSubtree(input.tx, userId, id, path, rev, updatedAt);
         await input.tx
           .update(decks)
           .set({ ...columns, ...base })
@@ -585,7 +603,7 @@ async function writeRow(input: WriteRow): Promise<void> {
 
     case 'notes': {
       const payload = input.data as NotePayload;
-      await requireLiveDeck(input.tx, userId, payload.deckId as string);
+      await requireLiveDeck(input.tx, userId, payload.deckId as string, 'deck');
       const type = payload.noteType as NoteTypeName;
       const columns = {
         deckId: payload.deckId as string,
@@ -604,6 +622,10 @@ async function writeRow(input: WriteRow): Promise<void> {
           .set({ ...columns, ...base })
           .where(and(eq(notes.userId, userId), eq(notes.id, id)));
 
+        await input.tx
+          .update(cards)
+          .set({ deckId: columns.deckId, updatedAt, rev })
+          .where(and(eq(cards.userId, userId), eq(cards.noteId, id)));
         return;
       }
 
@@ -625,7 +647,7 @@ async function writeRow(input: WriteRow): Promise<void> {
         .where(and(eq(cards.userId, userId), eq(cards.id, id)))
         .limit(1);
       if (!parent || parent.deletedAt !== null) throw new RestoreDependency();
-      await requireLiveDeck(input.tx, userId, parent.deckId);
+      await requireLiveDeck(input.tx, userId, parent.deckId, 'deck');
 
       await input.tx
         .update(cards)
@@ -662,6 +684,7 @@ async function writeRow(input: WriteRow): Promise<void> {
     }
 
     case 'importBatches': {
+      await requireLiveDeck(input.tx, userId, input.data['deckId'] as string, 'deck');
       const undoneAt = input.data['undoneAt'];
       const columns = {
         deckId: input.data['deckId'] as string,

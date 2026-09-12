@@ -14,6 +14,11 @@ card planning, chunked imports, and persistent Deleted/Restore UI for soft-delet
 keyboard UX passed real-iPhone acceptance. A real non-production 5,000-note import also passed after a
 committed chunk response was intentionally lost: resume produced 5,000 notes and cards, one batch, no
 duplicates, a usable destination deck, and the documented undo boundary remained true.
+The completed collection release also separates organizational Folders from leaf study Decks. Migration
+0012 preserves legacy mixed nodes as same-ID Folders and moves their own Notes into deterministic
+same-named child Decks while retaining Note, Card, and Review IDs and history. Server-owned deletion
+operations govern subtree recovery; permanent deletion retains immutable Reviews and history-safe
+tombstones. Library, destination pickers, Deleted, and import copy use the new model.
 
 The stabilized `main` branch has protected pull-request delivery, required CI and Vercel checks, and
 isolated preview data. PR #12 and the follow-up safety fix PR #13 are merged. Trusted main-only
@@ -36,9 +41,18 @@ Phase 7 Daily Study is the current milestone and immediate next work.
 
 ## Next
 
+<<<<<<< HEAD
 1. Build the Phase 7 Daily Study session and card reveal flow.
 2. Add response recording, honest intervals, recent-answer undo, and useful study presets.
 3. Cover phone/desktop keyboard, touch, speech fallback, and review-history behavior for the study loop.
+=======
+1. Review and commit the collection integrity work, then open a protected PR.
+2. After merge, run migration 0012 through the production workflow and verify compatibility.
+3. Complete real-iPhone acceptance for collection, recovery, import and keyboard flows.
+4. Continue the remaining Phase 6 direction-control, browser and screenshot coverage, mobile-keyboard
+   acceptance, and large-import acceptance work as separate workstreams and release slices where useful.
+5. Run the full milestone gates when closing Phase 6.
+>>>>>>> origin/main
 
 ## Open threads
 
@@ -70,19 +84,26 @@ Phase 7 Daily Study is the current milestone and immediate next work.
   the same dependency and provenance boundaries. Migration 0011 adds the conservative false default
   without historical attribution.
 - `stash@{0}` remains a historical backup of earlier Phase 6 local work.
+- Collection restoration uses explicit deletion operation IDs, never timestamps or revision equality.
+  Independently deleted descendants remain deleted. Legacy deletions without provenance restore
+  individually. Note restoration retains `deleted_with_note` attribution for Cards. Permanent
+  deletion prevents restoration through repositories and sync without rewriting Reviews.
+- `stash@{0}` remains a historical backup of earlier Phase 6 local work.
 - The production API is in `iad1` while users and web requests enter through Europe. Region alignment
   remains deferred because the database must move with the API.
 - Mail delivery is disabled. `MAILER=log` is the only configured sender.
 - `sync_conflicts` records losing versions but the web app has no recovery screen.
 - The production web bundle is about 596 KB before gzip. Code splitting remains deferred.
 - Dependency alerts include `nanoid` 3.3.17 and the Drizzle tooling version of `esbuild`.
+- `drizzle-kit check` could not run locally because Node returned `uv_os_get_passwd ENOMEM`; the
+  escalation retry was rejected by automatic approval review. Migration tests and generated snapshot pass.
 
 ## Decisions
 
 | Date       | Decision                                                                     | Why                                                                                                           |
 | ---------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | 2026-08    | Keep scheduling pure and deterministic in `packages/core`                    | Browser and server projections must match while offline                                                       |
-| 2026-08    | Treat a deck and folder as one entity                                        | Studying a parent includes its subtree                                                                        |
+| 2026-09-11 | Distinguish Folders and leaf Decks in the existing hierarchy                 | Folders organize and provide defaults; only Decks own Notes.                                                  |
 | 2026-08    | Keep reviews append only                                                     | Card state can be rebuilt from the review log                                                                 |
 | 2026-08    | Require user context in repositories and RLS in Postgres                     | User isolation must survive a route bug                                                                       |
 | 2026-08    | Use recovery codes and optional TOTP without Google sign in                  | The current product has no mail or social identity provider                                                   |

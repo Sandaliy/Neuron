@@ -99,12 +99,14 @@ export function moveProblem(
   decks: readonly DeckNode[],
   moving: string,
   target: string | null,
-): 'self' | 'descendant' | 'same' | undefined {
+): 'self' | 'descendant' | 'same' | 'deck' | undefined {
   const deck = findDeck(decks, moving);
 
   if (!deck) {
     return undefined;
   }
+
+  if (target !== null && findDeck(decks, target)?.kind !== 'folder') return 'deck';
 
   if (target === moving) {
     return 'self';
@@ -132,12 +134,12 @@ export function useDeckActions() {
   };
 
   const create = useMutation({
-    mutationFn: (input: { name: string; parentId: string | null }) =>
+    mutationFn: (input: { name: string; parentId: string | null; kind: 'folder' | 'deck' }) =>
       request<{ deck: Deck }>('/decks', {
         method: 'POST',
         // The id is generated here rather than by the server, so that a retry
         // after a timeout that actually landed does not make a second deck.
-        body: { id: uuidV7(), name: input.name, parentId: input.parentId },
+        body: { id: uuidV7(), ...input },
       }),
     onSuccess: refresh,
   });

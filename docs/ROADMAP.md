@@ -39,7 +39,7 @@ when it earns its place, but the interface should not reproduce Anki's configura
   motion, and non-color cues are part of completion.
 - **Performance is behavior.** Large decks, long lists, glass, and motion must stay within measured phone
   budgets. Visual effects yield when they make interaction worse.
-- **Clean product language.** A deck is also a folder, a note is a fact, and a card is one way to test it.
+- **Clean product language.** Folders organize leaf decks, a note is a fact, and a card is one way to test it.
   Terms should remain stable in English and Russian.
 - **Extensibility without premature complexity.** Preserve boundaries that are costly to retrofit. Do not
   build billing, enterprise, collaboration, or speculative scale systems before they are needed.
@@ -76,6 +76,9 @@ and real-iPhone acceptance. The 5,000-note list meets the 55 fps budget. A real 
 import recovered after an intentionally lost response following a committed chunk, leaving complete notes
 and cards, one batch, no duplicates, a usable destination deck, and a truthful undo boundary. The release
 was delivered through the protected pull-request workflow.
+The current coherent release slice also establishes explicit folders and leaf decks, operation-scoped
+subtree recovery, permanent deletion that preserves review history, accessible note deletion, and the
+English/Russian copy and import refinements. Migration, sync, and recovery integrity remain release gates.
 
 Full direction controls are not part of Phase 6. Study-time direction and preset UX belongs with Phase 7;
 progressive direction unlocking and its evidence policy belong with Phase 9.

@@ -70,11 +70,7 @@ const PRONOUN = /(?<!\p{L})(?:вы|вас|вам|вами|ваш(?:а|е|и|ег
 const IMPERATIVE = /(?<!\p{L})[а-яё]{2,}(?:йте|ите|ьте)(?!\p{L})/iu;
 const CALQUE = /в два шага|двухэтапн|двухшагов/iu;
 
-// A button whose label is a bare verb says nothing about what it changes.
-const BARE_VERB_EN =
-  /^(save|cancel|continue|retry|try again|turn on|turn off|enable|disable|remove|delete|close|copy|download|send|submit|confirm|next|back|ok)$/i;
-const BARE_VERB_RU =
-  /^(сохранить|отмена|отменить|продолжить|повторить|включить|выключить|удалить|закрыть|скопировать|скачать|отправить|подтвердить|далее|назад|выйти)$/i;
+// Short action verbs are valid when their target is clear in context.
 
 // An error that names a problem and no way forward.
 const ACTIONABLE =
@@ -110,13 +106,6 @@ const rows = keys.map((key) => {
     if (PRONOUN.test(r) || IMPERATIVE.test(r)) flags.push('form-of-address');
     if (CALQUE.test(r)) flags.push('calque');
 
-    const buttonish =
-      /\.(submit|enable|disable|confirm|copy|download|regenerate|resend|retry|save|cancel|continue|signOut|setUp)$/.test(
-        key,
-      ) || /^common\./.test(key);
-    if (buttonish && (BARE_VERB_EN.test(e.trim()) || BARE_VERB_RU.test(r.trim())))
-      flags.push('bare-verb-label');
-
     if (
       key.startsWith('error.') ||
       /\.(invalid|failed|exhausted|unavailable|reused|tooShort|tooLong|tooCommon|closed)$/.test(key)
@@ -133,7 +122,6 @@ function family(flag) {
   if (flag.startsWith('length-')) return 'length';
   if (flag.startsWith('sentences-')) return 'sentences';
   if (flag === 'placeholders-differ') return 'placeholders';
-  if (flag === 'bare-verb-label') return 'bare-verb';
   return flag;
 }
 
@@ -211,7 +199,6 @@ const meanings = {
   placeholders: 'The two carry different placeholders. One of them will render a literal brace.',
   'form-of-address': 'Russian addresses the reader as вы. This project uses ты.',
   calque: 'A phrase translated word for word out of English. Nobody says it in Russian.',
-  'bare-verb': 'A control whose label is a verb and nothing else. It does not say what it affects.',
   'no-next-step': 'An error or refusal that names the problem without saying what to do about it.',
   'only-en': 'Exists in English only.',
   'only-ru': 'Exists in Russian only.',

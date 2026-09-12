@@ -164,6 +164,8 @@ const todayRoute = createRoute({
 const libraryRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/library',
+  validateSearch: (search: Record<string, unknown>): { folderId?: string } =>
+    typeof search['folderId'] === 'string' ? { folderId: search['folderId'] } : {},
   component: LibraryScreen,
 });
 

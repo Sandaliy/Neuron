@@ -93,25 +93,22 @@ export function Row(props: RowShape) {
 
   if (interactiveTrailing) {
     return (
-      <div
-        role="button"
-        tabIndex={disabled ? -1 : 0}
-        data-row=""
-        {...(standalone ? { 'data-g': 'row' } : {})}
-        {...drag}
-        aria-expanded={expanded}
-        aria-disabled={disabled || undefined}
-        onClick={disabled ? undefined : onClick}
-        onKeyDown={(event) => {
-          if (disabled) return;
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            onClick();
-          }
-        }}
-        className={shell}
-      >
-        {body(props)}
+      <div {...(standalone ? { 'data-g': 'row' } : {})} {...drag} className={shell}>
+        {props.leading}
+        <button
+          type="button"
+          data-row=""
+          disabled={disabled}
+          aria-expanded={expanded}
+          onClick={onClick}
+          className="flex min-h-44 min-w-0 flex-1 items-center text-left"
+        >
+          {body({
+            title: props.title,
+            ...(props.subtitle === undefined ? {} : { subtitle: props.subtitle }),
+          })}
+        </button>
+        {props.trailing}
       </div>
     );
   }
@@ -135,8 +132,8 @@ export function Row(props: RowShape) {
 /**
  * A row in a deck tree, with its disclosure.
  *
- * Nesting is indentation and a hairline, never a second noun: a deck can
- * contain decks, so the interface never says folder.
+ * Nesting is indentation and a hairline. The caller decides whether the row
+ * represents a folder or a leaf deck.
  */
 export function TreeRow({
   expandable = false,

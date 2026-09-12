@@ -13,6 +13,8 @@ import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
 import { Select } from '../../ui/select';
 
+import { collectionPath } from './collection-picker';
+
 import type { FormEvent } from 'react';
 
 /**
@@ -120,6 +122,7 @@ export function MoveDeckDialog({
     self: 'library.moveSelf',
     descendant: 'library.moveDescendant',
     same: 'library.moveSame',
+    deck: 'library.moveDeckInvalid',
   };
 
   const chosen = moveProblem(decks, deck.id, target);
@@ -144,21 +147,24 @@ export function MoveDeckDialog({
               })}
         />
 
-        {flatten(decks).map((entry) => {
-          const problem = moveProblem(decks, deck.id, entry.id);
+        {flatten(decks)
+          .filter((entry) => entry.kind === 'folder')
+          .map((entry) => {
+            const problem = moveProblem(decks, deck.id, entry.id);
 
-          return (
-            <TargetRow
-              key={entry.id}
-              label={entry.name}
-              depth={entry.path.length + 1}
-              selected={target === entry.id}
-              {...(problem === undefined
-                ? { onSelect: () => setTarget(entry.id) }
-                : { reason: t(problems[problem] ?? 'library.moveSame') })}
-            />
-          );
-        })}
+            return (
+              <TargetRow
+                key={entry.id}
+                label={entry.name}
+                depth={0}
+                path={collectionPath(decks, entry)}
+                selected={target === entry.id}
+                {...(problem === undefined
+                  ? { onSelect: () => setTarget(entry.id) }
+                  : { reason: t(problems[problem] ?? 'library.moveSame') })}
+              />
+            );
+          })}
       </DialogBody>
 
       <DialogFooter>
@@ -179,12 +185,14 @@ export function MoveDeckDialog({
 /** One possible home for a deck, at its depth in the tree. */
 function TargetRow({
   label,
+  path,
   depth,
   selected,
   reason,
   onSelect,
 }: {
   readonly label: string;
+  readonly path?: string;
   readonly depth: number;
   readonly selected: boolean;
   /** Why this one cannot be chosen. Present means it is disabled. */
@@ -211,6 +219,7 @@ function TargetRow({
     >
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-14 text-primary">{label}</span>
+        {path && <span className="truncate text-12 text-tertiary">{path}</span>}
         {reason ? <span className="truncate text-12 text-tertiary">{reason}</span> : undefined}
       </span>
 
@@ -263,7 +272,9 @@ export function DeckSettingsDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={t('library.settings')}
-      description={t('library.settingsSubtitle')}
+      description={t(
+        deck.kind === 'folder' ? 'library.folderSettings' : 'library.settingsSubtitle',
+      )}
     >
       <DialogBody>
         <LanguageField
@@ -326,6 +337,7 @@ function LanguageField({
   onChange,
 }: {
   readonly label: string;
+  readonly path?: string;
   readonly value: LanguageCode | undefined;
   readonly inherited: LanguageCode | undefined;
   readonly onChange: (value: LanguageCode | undefined) => void;
