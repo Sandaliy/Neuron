@@ -41,18 +41,9 @@ Phase 7 Daily Study is the current milestone and immediate next work.
 
 ## Next
 
-<<<<<<< HEAD
 1. Build the Phase 7 Daily Study session and card reveal flow.
 2. Add response recording, honest intervals, recent-answer undo, and useful study presets.
 3. Cover phone/desktop keyboard, touch, speech fallback, and review-history behavior for the study loop.
-=======
-1. Review and commit the collection integrity work, then open a protected PR.
-2. After merge, run migration 0012 through the production workflow and verify compatibility.
-3. Complete real-iPhone acceptance for collection, recovery, import and keyboard flows.
-4. Continue the remaining Phase 6 direction-control, browser and screenshot coverage, mobile-keyboard
-   acceptance, and large-import acceptance work as separate workstreams and release slices where useful.
-5. Run the full milestone gates when closing Phase 6.
->>>>>>> origin/main
 
 ## Open threads
 
