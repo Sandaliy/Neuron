@@ -1,6 +1,5 @@
 import { useState } from 'react';
 
-
 import { DEFAULT_ANSWER_SECONDS } from '@neuron/core';
 import type { DeckNode } from '@neuron/shared';
 

@@ -497,7 +497,10 @@ const NoteRow = memo(function NoteRow({
       : typeof note.fields['back'] === 'string'
         ? note.fields['back']
         : note.tags.join(', ');
-  const detail = selecting && note.status !== 'active' ? `${meaning} ${t(`note.status.${note.status}`)}` : meaning;
+  const detail =
+    selecting && note.status !== 'active'
+      ? `${meaning} ${t(`note.status.${note.status}`)}`
+      : meaning;
   const [drag, setDrag] = useState(0);
 
   return (
