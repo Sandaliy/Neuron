@@ -86,7 +86,7 @@ objects, which is what stops it drifting away from the code.
 | `decks.ts`   | Deck shapes, the tree with its counts, create, update, move, reorder          |
 | `notes.ts`   | Note shapes, the browse query, create, update, bulk status                    |
 | `cards.ts`   | Card shapes, the due query, unlocking a direction                             |
-| `study.ts`   | Presets and imports                                                           |
+| `study.ts`   | Daily Study session requests/results, presets, and imports                    |
 | `reviews.ts` | Submitting an answer, one or a batch, and what comes back                     |
 | `sync.ts`    | The revision stream, and what a client may push for each kind of row          |
 | `account.ts` | Who is signed in, preferences, and leaving                                    |
@@ -151,7 +151,7 @@ middleware put on the request, and answers only in the shape `src/errors.ts` dec
 | `decks.ts`   | The tree with its counts, create, rename, settings, move, reorder, soft delete, restore                   |
 | `notes.ts`   | Browse with filters and a cursor, create with its opening cards, edit, move, bulk status, delete, restore |
 | `cards.ts`   | What is due, suspend, unsuspend, reset, and opening a direction under `/notes/:id/cards`                  |
-| `study.ts`   | Presets, and imports that can be taken back whole                                                         |
+| `study.ts`   | Daily Study session construction, presets, and imports that can be taken back whole                       |
 | `reviews.ts` | `POST /reviews` and the batch form. The hot path, and the one that recomputes rather than believes        |
 | `sync.ts`    | `GET /sync` by revision, `POST /sync` as one transaction                                                  |
 | `account.ts` | Who is signed in, preferences, and leaving                                                                |
@@ -250,7 +250,10 @@ the api anywhere in browser code would cost the session cookie.
 | `settings/totp.tsx`        | Enrollment in three steps that cannot be skipped, and removal                                   |
 | `library/library.tsx`      | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
 | `library/deck-dialogs.tsx` | Deck naming, safe move picker and inherited language/level settings                             |
+| `library/collection-picker.tsx` | Hierarchy-aware deck destination picker                                                   |
+| `library/collection-path.tsx`   | Navigable folder/deck path chips on collection-scoped screens                             |
 | `today/today.tsx`          | What is due, what is new, and the estimate that says "about"                                    |
+| `today/study.tsx`          | Daily Study reveal, interval previews, verified answers, retries, and completion                |
 | `notes/note-list.tsx`      | Virtualized note browse, search, filters, sorts and selection                                   |
 | `notes/note-editor.tsx`    | Explicit create, autosaving edit, conditional fields and card preview                           |
 | `notes/note-selection.tsx` | Bulk known, move, tag and delete actions                                                        |

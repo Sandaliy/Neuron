@@ -41,6 +41,7 @@ import { ErrorState, SkeletonRows } from '../../ui/states';
 import { Switch } from '../../ui/switch';
 import { TextArea } from '../../ui/textarea';
 import { useToast } from '../../ui/toast';
+import { CollectionPath } from '../library/collection-path';
 import { CollectionPicker } from '../library/collection-picker';
 
 import { CardPreview } from './card-preview';
@@ -432,6 +433,7 @@ function Editor({
           ) : undefined}
         </div>
       </header>
+      <CollectionPath tree={decks} id={deck} />
 
       {note && !conversion && (
         <div className="flex min-h-44 items-center justify-between gap-12">
@@ -484,12 +486,34 @@ function Editor({
           )}
         </FormField>
 
-        <FormField
-          label={t('note.deck')}
-          {...(deck === '' ? { error: t('note.missingDeck') } : {})}
-        >
-          {(props) => <CollectionPicker {...props} tree={decks} value={deck} onChange={setDeck} />}
-        </FormField>
+        {!note &&
+          (deckId ? (
+            <details>
+              <summary className="min-h-44 cursor-pointer text-14 text-secondary">
+                {t('collection.changeDestination')}
+              </summary>{' '}
+              <FormField
+                label={t('note.deck')}
+                {...(deck === '' ? { error: t('note.missingDeck') } : {})}
+              >
+                {(props) => (
+                  <CollectionPicker {...props} tree={decks} value={deck} onChange={setDeck} />
+                )}
+              </FormField>
+            </details>
+          ) : (
+            <>
+              {' '}
+              <FormField
+                label={t('note.deck')}
+                {...(deck === '' ? { error: t('note.missingDeck') } : {})}
+              >
+                {(props) => (
+                  <CollectionPicker {...props} tree={decks} value={deck} onChange={setDeck} />
+                )}
+              </FormField>
+            </>
+          ))}
 
         {sections.map((section) => (
           <fieldset

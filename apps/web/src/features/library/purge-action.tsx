@@ -37,15 +37,42 @@ export function PurgeAction({
     staleTime: 0,
   });
   const purge = useMutation({
+    mutationKey: ['purge'],
+    onMutate: async () => {
+      setOpen(false);
+      const key = [target, 'deleted'];
+      await client.cancelQueries({ queryKey: key });
+      const previous = client.getQueryData<Record<string, { id: string }[]>>(key);
+      client.setQueryData(
+        key,
+        previous && { ...previous, [target]: previous[target]?.filter((row) => row.id !== id) },
+      );
+      return { previous, key };
+    },
     mutationFn: () =>
       request<Impact>(`/${target}/${id}/purge`, { method: 'POST', body: { confirmed: true } }),
-    onSuccess: async () => {
+    onSuccess: () => {
       setOpen(false);
       toast.show(t('deleted.permanentDone'));
-      await Promise.all([
-        client.invalidateQueries({ queryKey: ['decks'] }),
-        client.invalidateQueries({ queryKey: ['notes'] }),
-      ]);
+    },
+    onError: (error, _input, context) => {
+      const row = context?.previous?.[target]?.find((item) => item.id === id);
+      if (row && context)
+        client.setQueryData<Record<string, { id: string }[]>>(
+          context.key,
+          (current) =>
+            current && {
+              ...current,
+              [target]: [...(current[target] ?? []).filter((item) => item.id !== id), row],
+            },
+        );
+      toast.show(t(describe(error).key, describe(error).values), 'danger');
+    },
+    onSettled: () => {
+      if (client.isMutating({ mutationKey: ['purge'] }) === 1) {
+        void client.invalidateQueries({ queryKey: ['decks'] });
+        void client.invalidateQueries({ queryKey: ['notes'] });
+      }
     },
   });
   const error = purge.error ?? impact.error;
@@ -53,8 +80,7 @@ export function PurgeAction({
   return (
     <>
       <Button
-        variant="text"
-        className="text-error"
+        variant="destructive"
         onClick={() => {
           setChecked(false);
           purge.reset();

@@ -369,15 +369,30 @@ measurement, below.
 
 ## The session
 
-The last step, and the only one anybody sees. Reviews first, new cards filling
-what is left. New cards spread through the first two thirds rather than blocked
-at the front, since a wall of unfamiliar cards at the start is where sessions get
-abandoned and the last third is where attention is thinnest. Never two cards of
-one note in a session, because the second would be a hint rather than a test.
-Never three cards above difficulty 8 in a row. Overdue cards mixed in rather than
-piled at the front. And the session ends on a whole card, even if that goes a
-little over, because stopping mid card to respect a budget to the second would be
-worse than twenty seconds of overshoot.
+The last step, and the only one anybody sees. A sitting uses the normal daily
+minutes as its default, but may take a one-off time amount without changing that
+plan. Reviews first, new cards filling what is left. Automatic admission follows
+the forecast and backlog throttle. The session contract reports both that
+automatic decision and whether an intentional one-off override can admit new
+material; overriding does not rewrite scheduler state or create a daily quota.
+
+New cards follow stable due/id order and are spread through the first two thirds
+rather than blocked at the front, since a wall of unfamiliar cards at the start
+is where sessions get abandoned and the last third is where attention is
+thinnest. Never two cards of one note in the first-appearance plan, because the
+second would be a hint rather than a test. Never three cards above difficulty 8
+in a row. Overdue cards mixed in rather than piled at the front. And the session
+ends on a whole card, even if that goes a little over, because stopping mid card
+to respect a budget to the second would be worse than twenty seconds of
+overshoot.
+
+Learning and relearning cards that become due again remain in a separate retry
+pool. While planned cards still await their first appearance, an eligible retry
+may follow a planned card but never another retry. Once first appearances are
+exhausted, retries run in stable due/id order. The caller supplies the clock and
+elapsed session time. If time ends first, the retry stays at the due time FSRS
+gave it for a later session; session construction never shortens an interval to
+force it back in.
 
 ## What the simulator measured
 

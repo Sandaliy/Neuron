@@ -159,9 +159,17 @@ export {
 export {
   DEFAULT_SESSION_PRESET,
   buildSession,
+  createSessionQueue,
+  queueSessionRetry,
+  takeNextSessionCard,
+  type NewCardMode,
   type Session,
+  type SessionNewCardDecision,
   type SessionPreset,
+  type SessionQueue,
+  type SessionQueueStep,
   type SessionRequest,
+  type SessionStopReason,
 } from './workload/session.js';
 
 export { freshCard, reviewCard, type CardShape } from './workload/cards.js';

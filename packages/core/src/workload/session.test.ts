@@ -7,7 +7,12 @@ import { MS_PER_DAY } from '../time/day.js';
 import { createBudget } from './budget.js';
 import { freshCard, reviewCard } from './cards.js';
 import { createWorkloadConfig } from './config.js';
-import { buildSession } from './session.js';
+import {
+  buildSession,
+  createSessionQueue,
+  queueSessionRetry,
+  takeNextSessionCard,
+} from './session.js';
 
 import type { WorkloadCard } from './types.js';
 
@@ -107,6 +112,21 @@ describe('filling the time available', () => {
     expect(session.estimatedMinutes).toBeLessThan(2.2);
   });
 
+  it('uses one-off minutes without changing the daily planning budget', () => {
+    const session = buildSession({
+      cards: dueToday(500),
+      budget,
+      config,
+      now: NOW,
+      rng: rng(),
+      oneOffMinutes: 3,
+      preset: { minutes: null, allowNewCards: false },
+    });
+
+    expect(session.budgetMinutes).toBe(3);
+    expect(budget.minutesByWeekday).toEqual([20, 20, 20, 20, 20, 20, 20]);
+  });
+
   it('says how long it will take before it starts', () => {
     const session = buildSession({
       cards: dueToday(30),
@@ -190,6 +210,22 @@ describe('the rules about order', () => {
     expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(2);
   });
 
+  it('keeps review priority while new cards fill only remaining time', () => {
+    const session = buildSession({
+      cards: [...dueToday(5), ...untouched(20)],
+      budget,
+      config,
+      now: NOW,
+      rng: rng(),
+      oneOffMinutes: 1,
+      marginalCost: 0.01,
+    });
+
+    expect(session.reviewCount).toBe(5);
+    expect(session.newCount).toBeGreaterThan(0);
+    expect(session.cards.filter((card) => card.scheduling.state !== 'new')).toHaveLength(5);
+  });
+
   it('mixes overdue cards in rather than putting them all at the front', () => {
     const session = buildSession({
       cards: [...overdue(50), ...dueToday(50)],
@@ -249,6 +285,69 @@ describe('what the session says about itself', () => {
     expect(session.backlog.active).toBe(true);
     expect(session.newCount).toBe(0);
     expect(session.newCards.reason).toBe('backlogActive');
+    expect(session.newCards.overrideAvailable).toBe(false);
+  });
+
+  it('distinguishes an automatic backlog stop from an intentional override', () => {
+    const backlog = { active: true, overdueCount: 100, overdueMinutes: 50, budgetMinutes: 20 };
+    const automatic = buildSession({
+      cards: untouched(20),
+      budget,
+      config,
+      now: NOW,
+      rng: rng(),
+      oneOffMinutes: 2,
+      marginalCost: 0.3,
+      backlog,
+    });
+    const overridden = buildSession({
+      cards: untouched(20),
+      budget,
+      config,
+      now: NOW,
+      rng: rng(),
+      oneOffMinutes: 2,
+      newCardMode: 'override',
+      marginalCost: 0.3,
+      backlog,
+    });
+
+    expect(automatic.newCards).toMatchObject({
+      admitted: 0,
+      reason: 'backlogActive',
+      overrideAvailable: true,
+      limitedBy: 'automaticPolicy',
+    });
+    expect(overridden.newCards).toMatchObject({
+      admitted: 20,
+      mode: 'override',
+      reason: 'backlogActive',
+      overrideAvailable: false,
+    });
+  });
+
+  it('uses stable new-card order instead of collection traversal order', () => {
+    const cards = untouched(12);
+    const first = buildSession({
+      cards,
+      budget,
+      config,
+      now: NOW,
+      rng: createSeededRandom(1),
+      oneOffMinutes: 1,
+      newCardMode: 'override',
+    });
+    const second = buildSession({
+      cards: [...cards].reverse(),
+      budget,
+      config,
+      now: NOW,
+      rng: createSeededRandom(999),
+      oneOffMinutes: 1,
+      newCardMode: 'override',
+    });
+
+    expect(second.cards.map((card) => card.id)).toEqual(first.cards.map((card) => card.id));
   });
 
   it('counts what it holds', () => {
@@ -278,5 +377,89 @@ describe('what the session says about itself', () => {
     const tuesday = buildSession({ cards, budget, config, now: NOW, rng: createSeededRandom(2) });
 
     expect(tuesday.cards.map((card) => card.id)).not.toEqual(monday.cards.map((card) => card.id));
+  });
+});
+
+describe('the retry pool', () => {
+  function relearning(card: WorkloadCard, due = NOW): WorkloadCard {
+    return {
+      ...card,
+      scheduling: {
+        state: 'relearning',
+        stability: 0.2,
+        difficulty: 9,
+        due,
+        lastReview: NOW,
+        reps: 2,
+        lapses: 1,
+        learningStep: 0,
+      },
+    };
+  }
+
+  it('does not let many eligible retries starve unseen planned cards', () => {
+    const session = buildSession({
+      cards: dueToday(30),
+      budget,
+      config,
+      now: NOW,
+      rng: rng(),
+      oneOffMinutes: 3,
+      newCardMode: 'exclude',
+    });
+    let queue = createSessionQueue(session);
+
+    for (const card of dueToday(100).map((entry) => relearning(entry))) {
+      queue = queueSessionRetry(queue, card);
+    }
+
+    const sources: string[] = [];
+
+    for (let index = 0; index < 20; index += 1) {
+      const step = takeNextSessionCard(queue, NOW, index * 1000, 3);
+
+      expect(step.card).not.toBeNull();
+      if (step.card === null) break;
+      sources.push(step.source);
+      queue = step.queue;
+    }
+
+    expect(sources).toEqual(
+      Array.from({ length: 20 }, (_entry, index) => (index % 2 === 0 ? 'planned' : 'retry')),
+    );
+    expect(queue.planned).toHaveLength(session.cards.length - 10);
+  });
+
+  it('leaves a retry due for later when session time ends first', () => {
+    const session = buildSession({
+      cards: dueToday(2),
+      budget,
+      config,
+      now: NOW,
+      rng: rng(),
+      oneOffMinutes: 0.1,
+      newCardMode: 'exclude',
+    });
+    const first = takeNextSessionCard(createSessionQueue(session), NOW, 0, 0.1);
+
+    expect(first.card).not.toBeNull();
+    if (first.card === null) return;
+
+    const retry = relearning(first.card);
+    const queued = queueSessionRetry(first.queue, retry);
+    const stopped = takeNextSessionCard(queued, NOW, 6000, 0.1);
+
+    expect(stopped).toMatchObject({ card: null, reason: 'timeEnded' });
+    expect(stopped.queue.retries[0]?.scheduling.due).toEqual(retry.scheduling.due);
+  });
+
+  it('waits for a future retry without changing its FSRS due time', () => {
+    const future = new Date(NOW.getTime() + 10 * 60_000);
+    const retry = relearning(dueToday(1)[0]!, future);
+    const queue = queueSessionRetry({ planned: [], retries: [], retryMayRun: false }, retry);
+    const step = takeNextSessionCard(queue, NOW, 0, 20);
+
+    expect(step).toMatchObject({ card: null, reason: 'retryNotDue' });
+    expect(step.queue.retries[0]?.scheduling.due).toEqual(future);
   });
 });

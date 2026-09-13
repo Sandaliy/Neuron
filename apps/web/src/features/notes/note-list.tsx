@@ -18,6 +18,7 @@ import { DenseRow } from '../../ui/row';
 import { Select } from '../../ui/select';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
+import { CollectionPath } from '../library/collection-path';
 
 import { NoteSelectionBar } from './note-selection';
 
@@ -47,13 +48,18 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const t = useTranslate();
   const toast = useToast();
   const { mutateAsync: deleteNote } = useNoteActions().remove;
+  const deleting = useRef(new Set<string>());
   const removeNote = useCallback(
     async (id: string) => {
+      if (deleting.current.has(id)) return;
+      deleting.current.add(id);
       try {
         await deleteNote(id);
         toast.show(t('note.deleted'));
       } catch (error) {
         toast.show(t(describe(error).key, describe(error).values));
+      } finally {
+        deleting.current.delete(id);
       }
     },
     [deleteNote, toast, t],
@@ -176,6 +182,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           </Button>
         </div>
       </header>
+      <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
 
       {(rows.length > 0 || filtered || typed !== '') && !selecting ? (
         <div className="flex flex-col gap-12">
@@ -212,7 +219,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
             </Button>
           </div>
           {filtersOpen && (
-            <div className="flex flex-col gap-12 rounded-12 border p-16">
+            <div className="flex flex-col gap-12 rounded-12 border border-default p-16">
               <p className="text-14 text-secondary">{t('notes.studyFilterHint')}</p>
               <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
                 <Select
@@ -423,7 +430,12 @@ function VirtualNotes({
   }, [hasMore, last, rows.length, onNeedMore]);
 
   return (
-    <div ref={list} data-g="card" data-rows="" className="overflow-hidden rounded-24 border">
+    <div
+      ref={list}
+      data-g="card"
+      data-rows=""
+      className="overflow-hidden rounded-24 border border-glass"
+    >
       <div className="relative w-full" style={{ height: `${virtual.getTotalSize()}px` }}>
         {items.map((item) => {
           const note = rows[item.index];
@@ -485,19 +497,22 @@ const NoteRow = memo(function NoteRow({
       : typeof note.fields['back'] === 'string'
         ? note.fields['back']
         : note.tags.join(', ');
-  const detail = note.status === 'known' ? `${meaning} · ${t('note.status.known')}` : meaning;
+  const detail = selecting && note.status !== 'active' ? `${meaning} ${t(`note.status.${note.status}`)}` : meaning;
+  const [drag, setDrag] = useState(0);
 
   return (
     <div
-      className="relative h-52 overflow-hidden"
+      className="relative h-52 select-none overflow-hidden"
       style={{ touchAction: 'pan-y' }}
       onPointerDown={(event) => {
         swallowClick.current = false;
+        if (!revealed) onReveal(null);
         if (!selecting && event.pointerType === 'touch')
           gesture.current = { x: event.clientX, y: event.clientY };
       }}
       onPointerCancel={() => {
         gesture.current = null;
+        setDrag(0);
       }}
       onPointerMove={(event) => {
         const start = gesture.current;
@@ -506,15 +521,21 @@ const NoteRow = memo(function NoteRow({
         const dy = event.clientY - start.y;
         if (Math.abs(dy) > 16) {
           gesture.current = null;
+          setDrag(0);
           return;
         }
-        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 2) {
-          onReveal(dx < 0 ? note.id : null);
+        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 2) {
+          setDrag(Math.min(0, dx));
           swallowClick.current = true;
-          gesture.current = null;
         }
       }}
       onPointerUp={() => {
+        if (drag < -120) {
+          onReveal(null);
+          onRemove(note.id);
+        } else if (drag < -40) onReveal(note.id);
+        else if (drag !== 0) onReveal(null);
+        setDrag(0);
         gesture.current = null;
       }}
       onClickCapture={(event) => {
@@ -525,12 +546,12 @@ const NoteRow = memo(function NoteRow({
         }
       }}
     >
-      {revealed && (
+      {(revealed || drag < 0) && (
         <button
           type="button"
           aria-label={t('note.delete')}
           data-swipe-action=""
-          className="absolute inset-y-0 right-0 flex w-64 items-center justify-center bg-fill-error-quiet text-error"
+          className="absolute inset-y-0 right-0 flex w-64 items-center justify-center bg-fill-error-quiet text-error active:opacity-70"
           onClick={() => {
             onReveal(null);
             onRemove(note.id);
@@ -541,7 +562,10 @@ const NoteRow = memo(function NoteRow({
       )}
       <div
         className="flex h-52 bg-base transition-transform dur-reveal"
-        style={{ transform: revealed ? 'translateX(-64px)' : undefined }}
+        style={{
+          transform: `translateX(${drag || (revealed ? -64 : 0)}px)`,
+          transition: drag ? 'none' : undefined,
+        }}
       >
         <DenseRow
           selected={selecting ? selected : undefined}
@@ -560,17 +584,19 @@ const NoteRow = memo(function NoteRow({
                   selected ? 'border-accent bg-fill-accent' : 'border-default',
                 ].join(' ')}
               />
+            ) : note.status !== 'active' ? (
+              <Chip tone="due">{t(`note.status.${note.status}`)}</Chip>
             ) : (
               <CardStateSummary counts={note.cardStates} />
             )
           }
         />
-        {!selecting && (
+        {!selecting && !revealed && drag === 0 && (
           <button
             type="button"
             aria-label={t('note.delete')}
             title={t('note.delete')}
-            className="flex size-44 shrink-0 items-center justify-center self-center rounded-12 text-tertiary hover:text-error"
+            className="flex size-44 shrink-0 items-center justify-center self-center rounded-12 text-tertiary hover:text-error active:bg-fill-error-quiet active:scale-95"
             onClick={() => {
               onReveal(null);
               onRemove(note.id);

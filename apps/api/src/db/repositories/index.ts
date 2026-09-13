@@ -103,7 +103,7 @@ export { toSchedulingState } from './mapping.js';
 export { MAX_CLOCK_SKEW_MS } from './sync.js';
 
 export type { AccountRow, UpdatePreferences } from './account.js';
-export type { CardRow, CreateCard, DeckCount, DueQuery } from './cards.js';
+export type { CardRow, CreateCard, DeckCount, DueQuery, SessionCardsQuery } from './cards.js';
 export type { CreateDeck, DeckRow } from './decks.js';
 export type { NoteTypeRow } from './note-types.js';
 export type { CreateNote, ListNotes, NotePage, NoteRow } from './notes.js';

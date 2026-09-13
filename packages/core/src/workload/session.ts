@@ -82,6 +82,13 @@ export interface SessionRequest {
   readonly rng: RandomSource;
   /** How long the session should be. Defaults to the day's budget. */
   readonly preset?: SessionPreset;
+  /**
+   * A one-off amount for this sitting. It changes this session only and takes
+   * precedence over the preset and the long-term daily plan.
+   */
+  readonly oneOffMinutes?: number;
+  /** How new material is handled for this sitting. */
+  readonly newCardMode?: NewCardMode;
   /** The forecast, so the throttle can see whether there is room. */
   readonly load?: readonly DailyLoad[];
   /** The review log, read for answer speed and for carry over. */
@@ -109,8 +116,49 @@ export interface Session {
   /** Whether a backlog is being worked through. */
   readonly backlog: BacklogState;
   /** What the throttle decided about new cards, and why. */
-  readonly newCards: NewCardDecision;
+  readonly newCards: SessionNewCardDecision;
 }
+
+/** Whether this sitting follows, declines, or intentionally overrides the throttle. */
+export type NewCardMode = 'automatic' | 'exclude' | 'override';
+
+/** The throttle decision together with what this particular session did with it. */
+export interface SessionNewCardDecision extends NewCardDecision {
+  readonly mode: NewCardMode;
+  /** How many new cards were actually placed in this session. */
+  readonly admitted: number;
+  /**
+   * True when automatic policy held material back but this session still had
+   * both time and unseen cards, so an intentional one-off override can help.
+   */
+  readonly overrideAvailable: boolean;
+  /** The immediate reason this sitting did not admit every available new card. */
+  readonly limitedBy: 'automaticPolicy' | 'excluded' | 'noRemainingTime' | 'noNewCards' | null;
+}
+
+/** The mutable-looking but immutable queue used while a session is in progress. */
+export interface SessionQueue {
+  readonly planned: readonly WorkloadCard[];
+  readonly retries: readonly WorkloadCard[];
+  /** A retry may follow a planned card, but never another retry while plans remain. */
+  readonly retryMayRun: boolean;
+}
+
+/** Why asking the queue for another card did not produce one. */
+export type SessionStopReason = 'timeEnded' | 'complete' | 'retryNotDue';
+
+/** One card taken from a session queue, or the reason there is none. */
+export type SessionQueueStep =
+  | {
+      readonly card: WorkloadCard;
+      readonly source: 'planned' | 'retry';
+      readonly queue: SessionQueue;
+    }
+  | {
+      readonly card: null;
+      readonly reason: SessionStopReason;
+      readonly queue: SessionQueue;
+    };
 
 /** A card with the two numbers the builder sorts and fills on. */
 interface Candidate {
@@ -180,6 +228,15 @@ function fill(candidates: readonly Candidate[], minutes: number): Candidate[] {
   }
 
   return taken;
+}
+
+/** Stable creation order for new cards, independent of collection traversal order. */
+function orderNewCards(cards: readonly WorkloadCard[]): WorkloadCard[] {
+  return [...cards].sort(
+    (left, right) =>
+      left.scheduling.due.getTime() - right.scheduling.due.getTime() ||
+      left.id.localeCompare(right.id),
+  );
 }
 
 /**
@@ -315,9 +372,14 @@ export function buildSession(request: SessionRequest): Session {
   const backlog = request.backlog ?? detectBacklog(cards, budget, config, now, times);
 
   const budgetMinutes =
+    request.oneOffMinutes ??
     preset.minutes ??
     budgetFor(now, budget, config.scheduler) +
       carryOverMinutes(logs, budget, config.scheduler, now);
+
+  if (!Number.isFinite(budgetMinutes) || budgetMinutes < 0) {
+    throw new RangeError(`session minutes must be zero or more, got ${budgetMinutes}.`);
+  }
 
   const due = cards.filter(
     (card) =>
@@ -352,15 +414,26 @@ export function buildSession(request: SessionRequest): Session {
   const decision = newCardAllowance(request.load ?? [], budget, marginalCost, config, now, backlog);
 
   const roomLeft = Math.max(budgetMinutes - reviewMinutes, 0);
-  const fresh = preset.allowNewCards
-    ? fill(
-        cards
-          .filter((card) => card.scheduling.state === 'new')
-          .map((card) => candidateFor(card, times, today, config))
-          .slice(0, decision.allowed),
-        roomLeft,
-      )
-    : [];
+  const mode: NewCardMode = request.newCardMode ?? (preset.allowNewCards ? 'automatic' : 'exclude');
+  const reviewNotes = new Set(reviews.map((entry) => entry.card.noteId));
+  const newCandidates = orderNewCards(
+    cards.filter((card) => card.scheduling.state === 'new' && !reviewNotes.has(card.noteId)),
+  ).map((card) => candidateFor(card, times, today, config));
+  const automaticFresh = fill(newCandidates.slice(0, decision.allowed), roomLeft);
+  const overrideFresh = fill(newCandidates, roomLeft);
+  const fresh = mode === 'exclude' ? [] : mode === 'override' ? overrideFresh : automaticFresh;
+  const limitedBy: SessionNewCardDecision['limitedBy'] =
+    mode === 'exclude'
+      ? 'excluded'
+      : newCandidates.length === 0
+        ? 'noNewCards'
+        : roomLeft <= 0
+          ? 'noRemainingTime'
+          : mode === 'automatic' && automaticFresh.length < overrideFresh.length
+            ? 'automaticPolicy'
+            : fresh.length < newCandidates.length
+              ? 'noRemainingTime'
+              : null;
 
   const session = breakUpHardRuns(weaveNewCards(reviews, fresh));
 
@@ -383,6 +456,92 @@ export function buildSession(request: SessionRequest): Session {
     reviewCount: finalOrder.filter((entry) => entry.card.scheduling.state !== 'new').length,
     newCount: finalOrder.filter((entry) => entry.card.scheduling.state === 'new').length,
     backlog,
-    newCards: decision,
+    newCards: {
+      ...decision,
+      mode,
+      admitted: finalOrder.filter((entry) => entry.card.scheduling.state === 'new').length,
+      overrideAvailable: mode === 'automatic' && overrideFresh.length > automaticFresh.length,
+      limitedBy,
+    },
+  };
+}
+
+/** Starts the in-session queue from the first-appearance plan. */
+export function createSessionQueue(session: Session): SessionQueue {
+  return { planned: session.cards, retries: [], retryMayRun: false };
+}
+
+/**
+ * Adds a server-verified card state to the retry pool without changing its due
+ * time. Only learning and relearning cards can return inside one sitting.
+ */
+export function queueSessionRetry(queue: SessionQueue, card: WorkloadCard): SessionQueue {
+  if (card.scheduling.state !== 'learning' && card.scheduling.state !== 'relearning') {
+    return queue;
+  }
+
+  return {
+    ...queue,
+    retries: [...queue.retries.filter((entry) => entry.id !== card.id), card].sort(
+      (left, right) =>
+        left.scheduling.due.getTime() - right.scheduling.due.getTime() ||
+        left.id.localeCompare(right.id),
+    ),
+  };
+}
+
+/**
+ * Takes the next card without letting retries monopolize a large session.
+ *
+ * While first appearances remain, at most one eligible retry may follow a
+ * planned card. Once all planned work has appeared, eligible retries run in
+ * due/id order. The caller supplies both clock and elapsed time, keeping this
+ * pure and making a card already in progress the unit at which time stops.
+ */
+export function takeNextSessionCard(
+  queue: SessionQueue,
+  now: Date,
+  elapsedMs: number,
+  budgetMinutes: number,
+): SessionQueueStep {
+  if (elapsedMs >= budgetMinutes * SECONDS_PER_MINUTE * 1000) {
+    return { card: null, reason: 'timeEnded', queue };
+  }
+
+  const eligibleRetry = queue.retries.findIndex(
+    (card) => card.scheduling.due.getTime() <= now.getTime(),
+  );
+  const takeRetry = eligibleRetry >= 0 && (queue.planned.length === 0 || queue.retryMayRun);
+
+  if (takeRetry) {
+    const card = queue.retries[eligibleRetry];
+
+    if (card !== undefined) {
+      return {
+        card,
+        source: 'retry',
+        queue: {
+          planned: queue.planned,
+          retries: queue.retries.filter((_entry, index) => index !== eligibleRetry),
+          retryMayRun: queue.planned.length === 0,
+        },
+      };
+    }
+  }
+
+  const [card, ...planned] = queue.planned;
+
+  if (card !== undefined) {
+    return {
+      card,
+      source: 'planned',
+      queue: { planned, retries: queue.retries, retryMayRun: true },
+    };
+  }
+
+  return {
+    card: null,
+    reason: queue.retries.length > 0 ? 'retryNotDue' : 'complete',
+    queue,
   };
 }

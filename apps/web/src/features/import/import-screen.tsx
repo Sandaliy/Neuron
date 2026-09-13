@@ -36,6 +36,7 @@ import { Progress } from '../../ui/progress';
 import { Select } from '../../ui/select';
 import { ErrorState } from '../../ui/states';
 import { useToast } from '../../ui/toast';
+import { CollectionPath } from '../library/collection-path';
 import { CardPreview } from '../notes/card-preview';
 
 import { createAttempt, groupMatches, planRows, resolveDuplicate } from './import-plan';
@@ -261,9 +262,11 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
           {t('import.copyPrompt')}
         </Button>
       </header>
+      <CollectionPath tree={tree} id={deck} />
 
       {stage.kind === 'source' ? (
         <ImportSource
+          scoped={deckId !== undefined}
           decks={tree}
           deck={deck}
           raw={raw}
@@ -573,7 +576,7 @@ function Preview({
 
       {cards.length > 0 && (
         <details
-          className="rounded-12 border p-16"
+          className="rounded-12 border border-default p-16"
           onToggle={(event) => setShowCards(event.currentTarget.open)}
         >
           <summary className="min-h-44 cursor-pointer text-14 text-primary">
@@ -585,7 +588,11 @@ function Preview({
       <div className="flex flex-col gap-4">
         <GroupLabel>{t('import.preview')}</GroupLabel>
 
-        <div data-g="card" data-rows="" className="flex flex-col overflow-hidden rounded-24 border">
+        <div
+          data-g="card"
+          data-rows=""
+          className="flex flex-col overflow-hidden rounded-24 border border-glass"
+        >
           {shown.map((row) => {
             const matches = known.get(noteTermKey(row.fields)) ?? [];
             const decision = resolveDuplicate(

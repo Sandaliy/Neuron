@@ -66,9 +66,9 @@ for (const theme of ['dark', 'light']) {
 
     await page.getByRole('button', { name: 'Already know these', exact: true }).click();
     await statusRequest;
-    await expect(page.getByRole('button', { name: /^Wort 1 word 1 · Known/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Wort 1 word 1 Known/ })).toBeVisible();
     confirmStatus();
-    const updated = page.getByRole('button', { name: /^Updated word Updated meaning · Known/ });
+    const updated = page.getByRole('button', { name: /^Updated word Updated meaning Known/ });
     await expect(updated).toBeVisible();
     await expect(first).toHaveCount(0);
     await updated.focus();

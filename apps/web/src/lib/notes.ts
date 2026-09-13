@@ -171,6 +171,46 @@ export function useNoteActions() {
   });
 
   const remove = useMutation({
+    onMutate: async (id: string) => {
+      await client.cancelQueries({ queryKey: [NOTE_KEY, 'list'] });
+      const previous = client.getQueriesData<NotePages>({ queryKey: [NOTE_KEY, 'list'] });
+      client.setQueriesData<NotePages>(
+        { queryKey: [NOTE_KEY, 'list'] },
+        (data) =>
+          data && {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              items: page.items.filter((note) => note.id !== id),
+            })),
+          },
+      );
+      return { previous };
+    },
+    onError: (_error, id, context) => {
+      for (const [key, previous] of context?.previous ?? []) {
+        const pageIndex =
+          previous?.pages.findIndex((page) => page.items.some((note) => note.id === id)) ?? -1;
+        const oldPage = previous?.pages[pageIndex];
+        const index = oldPage?.items.findIndex((note) => note.id === id) ?? -1;
+        const note = oldPage?.items[index];
+        if (!note) continue;
+        client.setQueryData<NotePages>(
+          key,
+          (current) =>
+            current && {
+              ...current,
+              pages: current.pages.map((page, at) => {
+                if (at !== pageIndex || page.items.some((row) => row.id === id)) return page;
+                const items = [...page.items];
+                items.splice(index, 0, note);
+                return { ...page, items };
+              }),
+            },
+        );
+      }
+      markCollectionStale();
+    },
     mutationFn: (id: string) => request<{ deleted: boolean }>(`/notes/${id}`, { method: 'DELETE' }),
     onSuccess: (_result, id) => {
       client.removeQueries({ queryKey: [NOTE_KEY, id], exact: true });

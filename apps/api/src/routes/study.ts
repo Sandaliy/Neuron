@@ -1,25 +1,123 @@
 import { Hono } from 'hono';
 
 import {
+  buildSession,
+  createBudget,
+  createSchedulerConfig,
+  createSeededRandom,
+  createWorkloadConfig,
+  dayIndexOf,
+  forecast,
+} from '@neuron/core';
+import type { WorkloadCard } from '@neuron/core';
+import {
   createImportSchema,
   createPresetSchema,
+  dailyStudySessionRequestSchema,
   idParamSchema,
   importChunkSchema,
   openingCards,
+  resolveDeckSettings,
   updatePresetSchema,
 } from '@neuron/shared';
-import type { NoteFields, NoteStatus, NoteTypeName } from '@neuron/shared';
+import type { DeckSettings, NoteFields, NoteStatus, NoteTypeName } from '@neuron/shared';
 
 import { repositoriesOf } from '../context.js';
+import { toSchedulingState } from '../db/repositories/index.js';
 import { ApiError } from '../errors.js';
 import { settingsForDeck } from '../note-cards.js';
-import { serialiseImportBatch, serialisePreset } from '../serialise.js';
+import { serialiseCard, serialiseImportBatch, serialisePreset } from '../serialise.js';
 import { readBody, readParams } from '../validation.js';
 
 import { parseFields } from './notes.js';
 
 import type { RequestBindings } from '../context.js';
 import type { Repositories } from '../db/repositories/index.js';
+
+/** Builds a Daily Study plan without persisting a session or changing settings. */
+export function dailyStudyRoutes(): Hono<RequestBindings> {
+  const routes = new Hono<RequestBindings>();
+
+  routes.post('/session', async (context) => {
+    const body = await readBody(context, dailyStudySessionRequestSchema);
+    const repositories = repositoriesOf(context);
+    const account = await repositories.account.read();
+    const deckChain: DeckSettings[] = [];
+
+    if (body.deckId !== undefined) {
+      if (!(await repositories.decks.byId(body.deckId))) {
+        throw new ApiError('not_found');
+      }
+
+      deckChain.push(
+        ...(await repositories.decks.chain(body.deckId)).map(
+          (deck) => (deck.settings ?? {}) as DeckSettings,
+        ),
+      );
+    }
+
+    const settings = resolveDeckSettings([account.settings, ...deckChain]);
+    const scheduler = createSchedulerConfig({
+      timezone: account.timezone,
+      dayCutoffHour: account.dayCutoffHour,
+      desiredRetention: settings.targetRetention,
+    });
+    const budget = createBudget({
+      minutesByWeekday: settings.budgetMinutes,
+      allowCarryOver: settings.allowCarryOver,
+    });
+    const config = createWorkloadConfig({
+      scheduler,
+      budget,
+      maximumNewCardsPerDay: settings.maximumNewCardsPerDay,
+    });
+    const now = new Date();
+    const rows = await repositories.cards.forSession(
+      body.deckId === undefined ? {} : { deckId: body.deckId },
+    );
+    const cards: WorkloadCard[] = rows.map((row) => ({
+      id: row.id,
+      noteId: row.noteId,
+      direction: row.direction as WorkloadCard['direction'],
+      scheduling: toSchedulingState(row),
+    }));
+    const logs = await repositories.reviews.workload();
+    const load = forecast({ cards, config, now, logs });
+    const session = buildSession({
+      cards,
+      budget,
+      config,
+      now,
+      logs,
+      load,
+      rng: createSeededRandom(sessionSeed(account.id, body.deckId, dayIndexOf(now, scheduler))),
+      ...(body.minutes === undefined ? {} : { oneOffMinutes: body.minutes }),
+      newCardMode: body.newCards,
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+
+    return context.json({
+      ...session,
+      cards: session.cards.flatMap((card) => {
+        const row = byId.get(card.id);
+        return row === undefined ? [] : [serialiseCard(row)];
+      }),
+    });
+  });
+
+  return routes;
+}
+
+/** Stable per-user, per-scope, per-calendar-day seed for review tie breaking. */
+function sessionSeed(userId: string, deckId: string | undefined, day: number): number {
+  let seed = 0;
+
+  for (const character of `${userId}:${deckId ?? 'all'}:${day}`) {
+    seed = (Math.imul(seed, 31) + character.charCodeAt(0)) | 0;
+  }
+
+  return seed >>> 0;
+}
 
 /** Saved ways of studying. */
 export function presetRoutes(): Hono<RequestBindings> {

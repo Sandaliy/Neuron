@@ -8,6 +8,8 @@ import {
   createImportSchema,
   createNoteSchema,
   createPresetSchema,
+  dailyStudySessionRequestSchema,
+  dailyStudySessionSchema,
   deletedDeckListSchema,
   deletedDeckSchema,
   deletedNoteListSchema,
@@ -75,6 +77,8 @@ const registry: Record<string, z.ZodType> = {
   UnlockDirection: unlockDirectionSchema,
   StudyPreset: studyPresetSchema,
   CreatePreset: createPresetSchema,
+  DailyStudySessionRequest: dailyStudySessionRequestSchema,
+  DailyStudySession: dailyStudySessionSchema,
   UpdatePreset: updatePresetSchema,
   CreateImport: createImportSchema,
   SubmitReview: submitReviewSchema,
@@ -385,6 +389,13 @@ export function openApiDocument(baseUrl: string) {
           summary: 'Create a preset',
           requestBody: body('CreatePreset'),
           responses: { 201: answer('The preset'), ...commonErrors },
+        },
+      },
+      '/study/session': {
+        post: {
+          summary: 'Build a time-based Daily Study session without changing the daily plan',
+          requestBody: body('DailyStudySessionRequest'),
+          responses: { 200: answer('The session plan', 'DailyStudySession'), ...commonErrors },
         },
       },
       '/presets/{id}': {

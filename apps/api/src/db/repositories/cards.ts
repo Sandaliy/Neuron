@@ -38,6 +38,11 @@ export interface DueQuery {
   readonly deckId?: string;
 }
 
+export interface SessionCardsQuery {
+  /** Restrict to one deck or folder and everything below it. */
+  readonly deckId?: string;
+}
+
 /** How much work one deck is holding, before the tree is rolled up. */
 export interface DeckCount {
   readonly deckId: string;
@@ -54,6 +59,8 @@ export interface CardRepository {
   forNote: (noteId: string) => Promise<CardRow[]>;
   /** The query the application runs on every open. */
   due: (query: DueQuery) => Promise<CardRow[]>;
+  /** Every live, unsuspended card needed for planning and forecasting a session. */
+  forSession: (query: SessionCardsQuery) => Promise<CardRow[]>;
   /**
    * What each deck is holding, in one statement for the whole collection.
    *
@@ -231,6 +238,15 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
       return run(async (tx) => {
         const limit = query.limit ?? DEFAULT_DUE_LIMIT;
         const ready = and(
+          inArray(
+            cards.noteId,
+            tx
+              .select({ id: notes.id })
+              .from(notes)
+              .where(
+                and(eq(notes.userId, userId), eq(notes.status, 'active'), isNull(notes.deletedAt)),
+              ),
+          ),
           eq(cards.userId, userId),
           isNull(cards.deletedAt),
           isNull(cards.suspendedAt),
@@ -265,6 +281,46 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
       });
     },
 
+    async forSession(query) {
+      return run(async (tx) => {
+        const live = and(
+          inArray(
+            cards.noteId,
+            tx
+              .select({ id: notes.id })
+              .from(notes)
+              .where(
+                and(eq(notes.userId, userId), eq(notes.status, 'active'), isNull(notes.deletedAt)),
+              ),
+          ),
+          eq(cards.userId, userId),
+          isNull(cards.deletedAt),
+          isNull(cards.suspendedAt),
+        );
+
+        if (query.deckId === undefined) {
+          return tx.select().from(cards).where(live).orderBy(asc(cards.due), asc(cards.id));
+        }
+
+        const under = tx
+          .select({ id: decks.id })
+          .from(decks)
+          .where(
+            and(
+              eq(decks.userId, userId),
+              isNull(decks.deletedAt),
+              sql`(${decks.id} = ${query.deckId} or ${decks.path} @> array[${query.deckId}]::uuid[])`,
+            ),
+          );
+
+        return tx
+          .select()
+          .from(cards)
+          .where(and(live, inArray(cards.deckId, under)))
+          .orderBy(asc(cards.due), asc(cards.id));
+      });
+    },
+
     async countsByDeck(now) {
       return run(async (tx) => {
         const rows = await tx
@@ -274,7 +330,26 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
             fresh: sql<number>`count(*) filter (where ${cards.state} = 'new')::int`,
           })
           .from(cards)
-          .where(and(eq(cards.userId, userId), isNull(cards.deletedAt), isNull(cards.suspendedAt)))
+          .where(
+            and(
+              eq(cards.userId, userId),
+              isNull(cards.deletedAt),
+              isNull(cards.suspendedAt),
+              inArray(
+                cards.noteId,
+                tx
+                  .select({ id: notes.id })
+                  .from(notes)
+                  .where(
+                    and(
+                      eq(notes.userId, userId),
+                      eq(notes.status, 'active'),
+                      isNull(notes.deletedAt),
+                    ),
+                  ),
+              ),
+            ),
+          )
           .groupBy(cards.deckId);
 
         return rows;

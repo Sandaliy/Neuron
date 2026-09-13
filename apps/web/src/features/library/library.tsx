@@ -26,6 +26,7 @@ import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
 import { TreeChildren, Row } from '../../ui/row';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
+import { CollectionPath } from '../library/collection-path';
 
 import { DeckNameDialog, DeckSettingsDialog, MoveDeckDialog } from './deck-dialogs';
 
@@ -100,7 +101,7 @@ export function LibraryScreen() {
           {folder?.name ?? t('library.title')}
         </h1>
 
-        <div className="flex flex-wrap items-center gap-8">
+        <div className="flex flex-wrap items-center justify-end gap-8">
           {folder && (
             <Button
               variant="text"
@@ -117,6 +118,14 @@ export function LibraryScreen() {
           )}
           <Button
             variant="quiet"
+            className="size-44 px-12"
+            aria-label={t('deleted.title')}
+            onClick={() => void navigate({ to: '/library/deleted' })}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+          </Button>
+          <Button
+            variant="quiet"
             onClick={() =>
               setDialog({ kind: 'create', collectionKind: 'folder', parentId: folder?.id ?? null })
             }
@@ -124,13 +133,10 @@ export function LibraryScreen() {
             <Folder size={16} aria-hidden="true" />
             {t('library.newFolder')}
           </Button>
-          <Button variant="quiet" onClick={() => void navigate({ to: '/library/deleted' })}>
-            <Trash2 size={16} strokeWidth={1.5} aria-hidden="true" />
-            {t('deleted.title')}
-          </Button>
+
           <Button
             variant="primary"
-            className="order-first"
+            className="px-12"
             onClick={() =>
               setDialog({ kind: 'create', collectionKind: 'deck', parentId: folder?.id ?? null })
             }
@@ -140,6 +146,7 @@ export function LibraryScreen() {
           </Button>
         </div>
       </header>
+      <CollectionPath tree={tree} id={folderId ?? ''} />
 
       {decks.isPending ? <SkeletonRows rows={5} /> : undefined}
 
@@ -264,6 +271,7 @@ function Deck({
   readonly onAct: (state: DialogState) => void;
 }) {
   const t = useTranslate();
+  const toast = useToast();
   const [over, setOver] = useState(false);
 
   const hasChildren = deck.kind === 'folder' && deck.children.length > 0;
@@ -283,7 +291,9 @@ function Deck({
     order[index] = displaced;
     order[target] = moving;
 
-    void actions.reorder.mutateAsync({ parentId: deck.parentId, order });
+    void actions.reorder
+      .mutateAsync({ parentId: deck.parentId, order })
+      .catch((error) => toast.show(t(describe(error).key, describe(error).values), 'danger'));
   }
 
   /**
@@ -294,16 +304,27 @@ function Deck({
    * so a drop that cannot work does nothing rather than being refused after the
    * fact.
    */
-  function drop(movingId: string) {
+  async function drop(movingId: string, position: 'before' | 'inside' | 'after') {
     setOver(false);
-
-    if (moveProblem(tree, movingId, deck.id) === undefined) {
-      void actions.move.mutateAsync({ id: movingId, parentId: deck.id });
+    const moving = findDeck(tree, movingId);
+    if (!moving || movingId === deck.id) return;
+    const parentId = position === 'inside' ? deck.id : deck.parentId;
+    if (moving.parentId !== parentId && moveProblem(tree, movingId, parentId) !== undefined) return;
+    try {
+      if (moving.parentId !== parentId) await actions.move.mutateAsync({ id: movingId, parentId });
+      if (position !== 'inside') {
+        const order = siblings.filter((item) => item.id !== movingId).map((item) => item.id);
+        const at = order.indexOf(deck.id) + (position === 'after' ? 1 : 0);
+        order.splice(at, 0, movingId);
+        await actions.reorder.mutateAsync({ parentId, order });
+      }
+    } catch (error) {
+      toast.show(t(describe(error).key, describe(error).values), 'danger');
     }
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex select-none flex-col gap-8">
       <div
         className={over ? 'rounded-12 outline-2 outline-accent' : undefined}
         {...(POINTER_FINE
@@ -315,7 +336,17 @@ function Deck({
               onDragLeave: () => setOver(false),
               onDrop: (event) => {
                 event.preventDefault();
-                drop(event.dataTransfer.getData('text/deck'));
+                event.stopPropagation();
+                const box = event.currentTarget.getBoundingClientRect();
+                const fraction = (event.clientY - box.top) / box.height;
+                void drop(
+                  event.dataTransfer.getData('text/deck'),
+                  fraction < 0.25
+                    ? 'before'
+                    : fraction > 0.75 || deck.kind === 'deck'
+                      ? 'after'
+                      : 'inside',
+                );
               },
             }
           : {})}
