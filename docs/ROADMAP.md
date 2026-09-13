@@ -66,10 +66,10 @@ when it earns its place, but the interface should not reproduce Anki's configura
 Phase 6 makes the collection writable and gives users a safe path from raw material to validated notes and
 cards. It is the prerequisite for studying real personal vocabulary rather than seeded examples.
 
-The completed portion on the active branch includes writable deck operations, inherited language and
-level settings, schemas and conditional editors for three note types, shared card planning, note browse and
-bulk APIs, a virtualized note list, chunked imports, format parsing, preview warnings, duplicate lookup,
-import batches and undo, and the canonical card-generation prompt flow.
+Phase 6 delivered writable deck operations, inherited language and level settings, schemas and conditional
+editors for three note types, shared card planning, note browse and bulk APIs, a virtualized note list,
+chunked imports, format parsing, preview warnings, duplicate lookup, import batches and undo, and the
+canonical card-generation prompt flow.
 
 Phase 6 is complete. The original collection, recovery, import, and keyboard flows passed browser checks
 and real-iPhone acceptance. The 5,000-note list meets the 55 fps budget. A real non-production 5,000-note
