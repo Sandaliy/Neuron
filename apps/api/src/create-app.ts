@@ -25,7 +25,7 @@ import { cardRoutes, unlockRoute } from './routes/cards.js';
 import { deckRoutes } from './routes/decks.js';
 import { noteRoutes } from './routes/notes.js';
 import { reviewRoutes } from './routes/reviews.js';
-import { importRoutes, presetRoutes } from './routes/study.js';
+import { dailyStudyRoutes, importRoutes, presetRoutes } from './routes/study.js';
 import { syncRoutes } from './routes/sync.js';
 
 import type { RequestBindings, ServerParts } from './context.js';
@@ -268,6 +268,7 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
     '/notes',
     '/cards',
     '/presets',
+    '/study',
     '/imports',
     '/reviews',
     '/account',
@@ -298,6 +299,7 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
   api.route('/notes', unlockRoute());
   api.route('/cards', cardRoutes());
   api.route('/presets', presetRoutes());
+  api.route('/study', dailyStudyRoutes());
   api.route('/imports', importRoutes());
   api.route('/reviews', reviewRoutes());
   api.route('/sync', syncRoutes());

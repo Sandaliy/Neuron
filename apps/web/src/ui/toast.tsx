@@ -33,17 +33,14 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
 
   const show = useCallback((text: string, tone: Tone = 'neutral') => {
-    setMessages((current) => [
-      ...current,
-      { id: Date.now() + current.length, text, tone, open: true },
-    ]);
+    setMessages((current) => [{ id: Date.now() + current.length, text, tone, open: true }]);
   }, []);
 
   const value = useMemo(() => ({ show }), [show]);
 
   return (
     <ToastContext.Provider value={value}>
-      <RadixToast.Provider swipeDirection="down" duration={5000}>
+      <RadixToast.Provider swipeDirection="down" duration={2200}>
         {children}
 
         {messages.map((message) => (

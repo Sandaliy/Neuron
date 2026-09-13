@@ -7,6 +7,27 @@ import type { Messages } from './en.js';
  * compilation error rather than a blank space on somebody's screen.
  */
 export const ru: Messages = {
+  'study.waitForSave': 'Дождись сохранения ответов или повтори неудавшееся сохранение.',
+  'study.minutes': 'Время на этот подход',
+  'study.defaultTime': 'Ежедневный план',
+  'study.oneOff': 'Только для этого подхода. Ежедневный план не изменится.',
+  'study.saveFailed': 'Не удалось подтвердить ответ. Повтори сохранение, чтобы продолжить.',
+  'study.answered': 'Ответов: {count}',
+  'study.unavailable': 'Карточка недоступна',
+  'study.unavailableBody': 'Вернись на Сегодня и начни новый подход.',
+  'study.again': 'Снова',
+  'study.hard': 'Трудно',
+  'study.good': 'Хорошо',
+  'study.easy': 'Легко',
+  'study.intervalMinutes': '{count} мин',
+  'study.intervalDays': '{count} дн',
+  'study.reveal': 'Показать ответ',
+  'study.complete': 'Подход завершён',
+  'study.retryLater': 'Оставшиеся карточки пока не пора повторять. Вернись немного позже.',
+  'study.finish': 'Завершить',
+  'study.continue': 'Продолжить',
+  'collection.changeDestination': 'Изменить место',
+  'import.noFile': 'Файл не выбран',
   'auth.register.title': 'Создать аккаунт',
   'auth.register.submit': 'Создать аккаунт',
   'auth.register.closed':
@@ -140,7 +161,6 @@ export const ru: Messages = {
   'today.estimateHint':
     'Посчитано по обычному времени ответа. Станет настоящим измерением, когда наберётся несколько дней ответов.',
   'today.study': 'Учить',
-  'today.studyLater': 'Экран занятия ещё не готов. Он появится на седьмом этапе.',
   'today.emptyTitle': 'Ничего не ждёт',
   'today.emptyBody': 'Карточки появятся здесь в тот день, когда придёт их черёд.',
 
@@ -376,6 +396,7 @@ export const ru: Messages = {
   'import.exampleMeaning': 'учить',
   'import.exampleHouse': 'дом',
   'import.chooseFile': 'Выбрать файл',
+  'import.fileLabel': 'Файл',
   'import.fileSupport':
     'TXT, CSV, TSV или JSON до 10 МБ. В Anki выбери экспорт записей в обычный текст.',
   'import.fileError': 'Не удалось прочитать файл. Выбери TXT, CSV, TSV или JSON до 10 МБ.',

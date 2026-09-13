@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { noteTypeSchema } from '../note-types.js';
 
+import { cardSchema } from './cards.js';
 import { idSchema, nameSchema } from './common.js';
 import { createNoteSchema } from './notes.js';
 
@@ -21,6 +22,51 @@ export const studyPresetSchema = z.object({
 });
 
 export type StudyPreset = z.infer<typeof studyPresetSchema>;
+
+/** The only Daily Study choices needed to build the first-appearance plan. */
+export const dailyStudySessionRequestSchema = z.strictObject({
+  /** Omit to study the whole collection. A folder includes its descendants. */
+  deckId: idSchema.optional(),
+  /** A one-off sitting length. It never writes the user's normal daily plan. */
+  minutes: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 60)
+    .optional(),
+  /** Override is intentional and local to this request. */
+  newCards: z.enum(['automatic', 'exclude', 'override']).default('automatic'),
+});
+
+export const newCardAdmissionSchema = z.object({
+  mode: z.enum(['automatic', 'exclude', 'override']),
+  admitted: z.number().int().min(0),
+  /** The automatic allowance remains visible even when override was requested. */
+  allowed: z.number().int().min(0),
+  headroomMinutes: z.number(),
+  marginalCost: z.number().min(0),
+  reason: z.enum(['withinBudget', 'forecastOverBudget', 'backlogActive', 'dailyCapReached']),
+  overrideAvailable: z.boolean(),
+  limitedBy: z.enum(['automaticPolicy', 'excluded', 'noRemainingTime', 'noNewCards']).nullable(),
+});
+
+export const dailyStudySessionSchema = z.object({
+  cards: z.array(cardSchema),
+  estimatedMinutes: z.number().min(0),
+  budgetMinutes: z.number().min(0),
+  reviewCount: z.number().int().min(0),
+  newCount: z.number().int().min(0),
+  backlog: z.object({
+    active: z.boolean(),
+    overdueCount: z.number().int().min(0),
+    overdueMinutes: z.number().min(0),
+    budgetMinutes: z.number().min(0),
+  }),
+  newCards: newCardAdmissionSchema,
+});
+
+export type DailyStudySessionRequest = z.infer<typeof dailyStudySessionRequestSchema>;
+export type DailyStudySession = z.infer<typeof dailyStudySessionSchema>;
 
 export const createPresetSchema = z.strictObject({
   id: idSchema.optional(),

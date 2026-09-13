@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-12, after Phase 6 closure on `main`.
+Last updated: 2026-09-13, after the first Phase 7 Daily Study and collection UX slice.
 
 ## Now
 
@@ -27,7 +27,13 @@ workflow verified it and skipped migration. Production Vercel compatibility chec
 `neuron_app` and `neuron_auth` roles; `/health` and `/db-check` are schema-aware and healthy. The
 owner-only `DATABASE_URL_OWNER` credential remains confined to the protected GitHub
 `production-migrations` environment and is absent from Vercel and runtime environments.
-Phase 7 Daily Study is the current milestone and immediate next work.
+Phase 7 Daily Study is the current milestone. Its backend/core session foundation provides a
+deterministic time-based first-appearance plan, workload-backed and explainable new-card admission,
+an explicit one-off override that does not change long-term settings, and a fair due-preserving retry
+pool. The first usable Study loop now runs from Today through reveal, four interval previews, verified
+review submission, retry recovery, and completion. The same release slice makes Known notes leave study
+counts, adds collection paths and hierarchy-aware pickers, and repairs the directly affected note,
+Deleted, import, and collection interactions for phone use.
 
 ## Done
 
@@ -42,9 +48,9 @@ Phase 7 Daily Study is the current milestone and immediate next work.
 
 ## Next
 
-1. Build the Phase 7 Daily Study session and card reveal flow.
-2. Add response recording, honest intervals, recent-answer undo, and useful study presets.
-3. Cover phone/desktop keyboard, touch, speech fallback, and review-history behavior for the study loop.
+1. Add the remaining intentionally deferred Phase 7 study choices: recent-answer undo and useful presets.
+2. Cover review-history presentation and the remaining desktop/phone study acceptance paths.
+3. Continue Phase 7 direction and accessibility work without weakening the session fairness contract.
 
 ## Open threads
 

@@ -1,5 +1,4 @@
-import { Check } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import {
   IMPORT_FIELDS,
@@ -32,6 +31,7 @@ export function fieldLabelKey(field: string): MessageKey {
 
 export function ImportSource({
   decks,
+  scoped = false,
   deck,
   raw,
   noteType,
@@ -43,6 +43,7 @@ export function ImportSource({
   onNoteType,
   onRead,
 }: {
+  readonly scoped?: boolean;
   readonly decks: readonly DeckNode[];
   readonly deck: string;
   readonly raw: string;
@@ -56,6 +57,7 @@ export function ImportSource({
   readonly onRead: () => void;
 }) {
   const t = useTranslate();
+  const fileInput = useRef<HTMLInputElement>(null);
   const [left, setLeft] = useState('');
   const [right, setRight] = useState('');
   const [fileError, setFileError] = useState(false);
@@ -83,6 +85,16 @@ export function ImportSource({
   const exampleCards = valid.success
     ? openingCards(noteType, valid.data, settingsFor(decks, deck).ladder)
     : [];
+
+  function chooseFile() {
+    const input = fileInput.current;
+    if (!input) return;
+
+    // `showPicker` keeps the browser's user-activation requirement explicit;
+    // the click fallback covers Safari and older embedded browsers.
+    if (typeof input.showPicker === 'function') input.showPicker();
+    else input.click();
+  }
 
   function insertExample() {
     onRaw(example ?? '');
@@ -145,29 +157,43 @@ export function ImportSource({
   return (
     <div className="flex flex-col gap-20">
       <p className="text-14 text-secondary">{t('import.subtitle')}</p>
-      <FormField
-        label={t('import.deck')}
-        {...(deck === '' ? { error: t('note.missingDeck') } : {})}
-      >
-        {(props) => <CollectionPicker {...props} tree={decks} value={deck} onChange={onDeck} />}
-      </FormField>
-      <div
-        className="grid grid-cols-2 gap-8 sm:grid-cols-4"
-        role="group"
-        aria-label={t('import.mode')}
-      >
+      {scoped && deck ? (
+        <details>
+          <summary className="min-h-44 cursor-pointer text-14 text-secondary">
+            {t('collection.changeDestination')}
+          </summary>{' '}
+          <FormField
+            label={t('import.deck')}
+            {...(deck === '' ? { error: t('note.missingDeck') } : {})}
+          >
+            {(props) => <CollectionPicker {...props} tree={decks} value={deck} onChange={onDeck} />}
+          </FormField>
+        </details>
+      ) : (
+        <>
+          {' '}
+          <FormField
+            label={t('import.deck')}
+            {...(deck === '' ? { error: t('note.missingDeck') } : {})}
+          >
+            {(props) => <CollectionPicker {...props} tree={decks} value={deck} onChange={onDeck} />}
+          </FormField>
+        </>
+      )}
+      <div className="grid grid-cols-2 gap-8" role="group" aria-label={t('import.mode')}>
         {(['simple', 'table', 'json', 'file'] as const).map((value) => (
           <Button
             key={value}
             aria-pressed={mode === value}
-            variant={mode === value ? 'quiet' : 'text'}
-            className={mode === value ? 'ring-2 ring-inset ring-accent font-semibold' : ''}
+            variant="quiet"
+            className={
+              mode === value ? 'bg-selected border-strong text-primary font-semibold' : 'bg-sunken'
+            }
             onClick={() => {
               onMode(value);
               onFormat(value === 'json' ? 'json' : '');
             }}
           >
-            {mode === value && <Check size={16} aria-hidden="true" />}
             {t(`import.mode.${value}`)}
           </Button>
         ))}
@@ -189,7 +215,7 @@ export function ImportSource({
         )}
       </FormField>
       {mode === 'simple' && (
-        <div className="flex flex-col gap-12 rounded-12 border p-16">
+        <div className="flex flex-col gap-12 rounded-12 border border-default p-16">
           <FormField label={t(fieldLabelKey(leftField))}>
             {(props) => (
               <Input {...props} value={left} onChange={(event) => setLeft(event.target.value)} />
@@ -222,41 +248,43 @@ export function ImportSource({
       {noteType === 'cloze' && <p className="text-14 text-secondary">{t('import.clozeHelp')}</p>}
       {mode === 'file' && (
         <FormField
-          label={t('import.chooseFile')}
+          label={t('import.fileLabel')}
           hint={t('import.fileSupport')}
           error={fileError ? t('import.fileError') : undefined}
         >
           {(props) => (
-            <input
-              {...props}
-              type="file"
-              accept=".json,.csv,.tsv,.txt,text/plain"
-              className="min-h-44 max-w-full text-16"
-              onChange={async (event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                setFileError(false);
-                setReading(true);
-                try {
-                  if (!/\.(json|csv|tsv|txt)$/i.test(file.name) || file.size > 10 * 1024 * 1024)
-                    throw new Error('unsupported file');
-                  onRaw(await file.text());
-                  onFormat('');
-                  setFileName(file.name);
-                } catch {
-                  setFileError(true);
-                } finally {
-                  setReading(false);
-                }
-              }}
-            />
+            <>
+              <Button onClick={chooseFile}>{t('import.chooseFile')}</Button>
+              <p role="status" className="break-all text-14 text-secondary">
+                {fileName || t('import.noFile')}
+              </p>
+              <input
+                {...props}
+                ref={fileInput}
+                type="file"
+                accept=".json,.csv,.tsv,.txt,text/plain"
+                className="sr-only"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  setFileError(false);
+                  setReading(true);
+                  try {
+                    if (!/\.(json|csv|tsv|txt)$/i.test(file.name) || file.size > 10 * 1024 * 1024)
+                      throw new Error('unsupported file');
+                    onRaw(await file.text());
+                    onFormat('');
+                    setFileName(file.name);
+                  } catch {
+                    setFileError(true);
+                  } finally {
+                    setReading(false);
+                  }
+                }}
+              />
+            </>
           )}
         </FormField>
-      )}
-      {fileName && mode === 'file' && (
-        <p role="status" className="text-14 text-secondary">
-          {fileName}
-        </p>
       )}
       <FormField label={t('import.paste')} hint={t('import.previewHint')}>
         {(props) => (
@@ -272,7 +300,7 @@ export function ImportSource({
           />
         )}
       </FormField>
-      <details className="rounded-12 border p-16">
+      <details className="rounded-12 border border-default p-16">
         <summary className="min-h-44 cursor-pointer text-14 text-primary">
           {t('import.example')}
         </summary>
@@ -304,7 +332,7 @@ export function ImportSource({
           </Button>
         </DialogFooter>
       </Dialog>
-      <details className="rounded-12 border p-16">
+      <details className="rounded-12 border border-default p-16">
         <summary className="min-h-44 cursor-pointer text-14 text-primary">
           {t('import.supportedFields')}
         </summary>

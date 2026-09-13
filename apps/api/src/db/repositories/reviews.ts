@@ -7,6 +7,7 @@ import type {
   SchedulerConfig,
   ReviewLog,
   SchedulingState,
+  WorkloadReview,
 } from '@neuron/core';
 import { uuidV7 } from '@neuron/shared';
 
@@ -75,6 +76,8 @@ export interface ReviewRepository {
   forCard: (cardId: string) => Promise<ReviewLog[]>;
   /** All historical answers, including those before a card reset. */
   countForCards: (cardIds: readonly string[]) => Promise<number>;
+  /** Historical answers with card direction, for workload forecasting. */
+  workload: () => Promise<WorkloadReview[]>;
   /** Rebuilds a card's state from its log, without writing anything. */
   rebuild: (cardId: string) => Promise<SchedulingState>;
   /** Appends entries whose scheduling was already decided elsewhere. */
@@ -270,6 +273,23 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
           .from(reviews)
           .where(and(eq(reviews.userId, userId), inArray(reviews.cardId, [...cardIds])));
         return row?.total ?? 0;
+      });
+    },
+
+    async workload() {
+      return run(async (tx) => {
+        const rows = await tx
+          .select({ review: reviews, direction: cards.direction })
+          .from(reviews)
+          .innerJoin(cards, and(eq(cards.userId, userId), eq(cards.id, reviews.cardId)))
+          .where(eq(reviews.userId, userId))
+          .orderBy(asc(reviews.reviewedAt), asc(reviews.id));
+
+        return rows.map(({ review: row, direction }) => ({
+          ...toReviewLog(row),
+          cardId: row.cardId,
+          direction: direction as WorkloadReview['direction'],
+        }));
       });
     },
 

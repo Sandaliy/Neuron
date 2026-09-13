@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { ArrowLeft, ChevronRight, Folder } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { termOf } from '@neuron/shared';
 import type { DeletedDeck, DeletedNote } from '@neuron/shared';
@@ -11,7 +11,7 @@ import { useDeckActions } from '../../lib/decks';
 import { useNoteActions } from '../../lib/notes';
 import { useDeletedDecks, useDeletedNotes } from '../../lib/recovery';
 import { Button } from '../../ui/button';
-import { DenseRow, Row, TreeChildren } from '../../ui/row';
+import { Row, TreeChildren } from '../../ui/row';
 import { Segmented } from '../../ui/segmented';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
@@ -169,13 +169,21 @@ function DeletedNoteList() {
   const toast = useToast();
   const deleted = useDeletedNotes();
   const actions = useNoteActions();
+  const pending = useRef(new Set<string>());
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, unknown>>({});
 
   async function restore(note: DeletedNote) {
+    if (pending.current.has(note.id)) return;
+    pending.current.add(note.id);
+    setHidden(new Set(pending.current));
     setErrors((current) => ({ ...current, [note.id]: undefined }));
     try {
       const result = await actions.restore.mutateAsync(note.id);
-      await deleted.refetch();
+      const refreshed = await deleted.refetch();
+      if (refreshed.error) throw refreshed.error;
+      pending.current.delete(note.id);
+      setHidden(new Set(pending.current));
       if (result.restored) {
         toast.show(
           result.cardsRemainingDeleted > 0
@@ -184,6 +192,8 @@ function DeletedNoteList() {
         );
       }
     } catch (error) {
+      pending.current.delete(note.id);
+      setHidden(new Set(pending.current));
       setErrors((current) => ({ ...current, [note.id]: error }));
     }
   }
@@ -206,44 +216,39 @@ function DeletedNoteList() {
 
   return (
     <div className="flex flex-col gap-8">
-      {deleted.data?.map((note) => {
-        const error = errors[note.id];
-        const blocked = !note.deckLive;
-        return (
-          <div key={note.id} className="flex flex-col gap-8 rounded-12 border">
-            <DenseRow
-              word={termOf(note.fields)}
-              meaning={note.deckPath.at(-1) || t('deleted.unknownDeck')}
-              trailing={
-                <Button
-                  variant="quiet"
-                  busy={actions.restore.isPending && actions.restore.variables === note.id}
-                  disabled={blocked}
-                  onClick={() => void restore(note)}
-                >
+      {deleted.data
+        ?.filter((note) => !hidden.has(note.id))
+        .map((note) => {
+          const error = errors[note.id];
+          const blocked = !note.deckLive;
+          return (
+            <div
+              key={note.id}
+              className="flex flex-col gap-12 rounded-12 border border-subtle bg-card p-12"
+            >
+              <div className="flex min-w-0 flex-col gap-4">
+                <p className="truncate text-15 text-primary">{termOf(note.fields)}</p>
+                <p className="truncate text-12 text-secondary">
+                  {note.deckPath.join(' / ') || t('deleted.unknownDeck')}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-8">
+                <Button disabled={blocked} onClick={() => void restore(note)}>
                   {t('deleted.restore')}
                 </Button>
-              }
-            />
-            {note.deckPath.length > 1 && (
-              <p className="px-16 text-12 text-secondary">
-                {note.deckPath.slice(0, -1).join(' / ')}
-              </p>
-            )}
-            <div className="px-12">
-              <PurgeAction target="notes" id={note.id} name={termOf(note.fields)} />
+                <PurgeAction target="notes" id={note.id} name={termOf(note.fields)} />
+              </div>
+              {blocked ? (
+                <p className="px-16 pb-8 text-12 text-error">{t('deleted.deckRequired')}</p>
+              ) : undefined}
+              {error ? (
+                <p role="alert" className="px-16 pb-8 text-12 text-error">
+                  {t(describe(error).key, describe(error).values)}
+                </p>
+              ) : undefined}
             </div>
-            {blocked ? (
-              <p className="px-16 pb-8 text-12 text-error">{t('deleted.deckRequired')}</p>
-            ) : undefined}
-            {error ? (
-              <p role="alert" className="px-16 pb-8 text-12 text-error">
-                {t(describe(error).key, describe(error).values)}
-              </p>
-            ) : undefined}
-          </div>
-        );
-      })}
+          );
+        })}
     </div>
   );
 }

@@ -90,7 +90,7 @@ for (const locale of ['en', 'ru'] as const)
         exact: true,
       });
       await expect(list).toHaveAttribute('aria-pressed', 'true');
-      await expect(list.locator('svg')).toBeVisible();
+      await expect(list).toHaveClass(/bg-selected/);
       await page.getByRole('button', { name: 'JSON', exact: true }).click();
       await expect(page.getByRole('button', { name: 'JSON', exact: true })).toHaveAttribute(
         'aria-pressed',
@@ -114,6 +114,9 @@ for (const locale of ['en', 'ru'] as const)
         .getByRole('button', { name: locale === 'en' ? 'Cancel' : 'Отмена', exact: true })
         .click();
       await expect(input).toHaveValue('Keep my pasted material');
+      await page
+        .getByText(locale === 'en' ? 'Change destination' : 'Изменить место', { exact: true })
+        .click();
       await page
         .getByRole('button', {
           name: locale === 'en' ? 'Import into' : 'Импортировать в',
@@ -179,9 +182,7 @@ for (const locale of ['en', 'ru'] as const)
     });
   }
 
-test('swipe only reveals deletion, one row at a time, with an accessible button fallback', async ({
-  page,
-}) => {
+test('partial swipe reveals one action with an accessible button fallback', async ({ page }) => {
   await setup(page, 'en', 'dark');
   let removed = 0;
   await page.route('**/api/notes/n1', (route) => {
@@ -283,7 +284,58 @@ test('restore returns a nested deck and notes disclose a blocked dependency', as
     .getByText('Notes', { exact: true })
     .click();
   await expect(page.getByText('lernen', { exact: true })).toBeVisible();
-  await expect(page.getByText('B1', { exact: true })).toBeVisible();
-  await expect(page.getByText('German', { exact: true })).toBeVisible();
+  await expect(page.getByText('German / B1', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Restore', exact: true })).toBeDisabled();
+});
+
+test('committed swipe removes immediately and failure restores the row', async ({ page }) => {
+  await setup(page, 'en', 'dark');
+  let release!: () => void;
+  const barrier = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let requests = 0;
+  await page.route('**/api/notes/n1', async (route) => {
+    requests++;
+    await barrier;
+    await route.fulfill({ status: 500, json: { error: { code: 'internal_error' } } });
+  });
+  await page.goto('/notes?deckId=leaf');
+  const row = page.getByRole('button', { name: /lernen/ }).first();
+  try {
+    await row.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 300, clientY: 150 });
+    await row.dispatchEvent('pointermove', { pointerType: 'touch', clientX: 100, clientY: 151 });
+    await row.dispatchEvent('pointerup', { pointerType: 'touch' });
+    await expect(row).toHaveCount(0);
+  } finally {
+    release();
+  }
+  await expect(row).toBeVisible();
+  expect(requests).toBe(1);
+  await expect(page.locator('[data-toasts]')).toContainText(
+    /Something went wrong|Try again|try again/,
+  );
+});
+
+test('file chooser shows one filename and scoped breadcrumbs remain compact', async ({ page }) => {
+  await setup(page, 'en', 'dark');
+  await page.goto('/import?deckId=leaf');
+  const path = page.getByRole('navigation', { name: 'Deck', exact: true });
+  await expect(path.getByRole('button', { name: 'German', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Import into', exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'File', exact: true }).click();
+  await expect(page.getByText('No file selected', { exact: true })).toBeVisible();
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose file', exact: true }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
+    name: 'words.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('word — meaning'),
+  });
+  await expect(page.getByText('words.txt', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('No file selected', { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await path.getByRole('button', { name: 'German', exact: true }).click();
+  await expect(page).toHaveURL(/folderId=folder/);
 });
