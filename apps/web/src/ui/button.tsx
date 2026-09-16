@@ -63,6 +63,8 @@ const PADDED: Record<ButtonVariant, boolean> = {
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** Stacked label and secondary detail, such as a study rating and interval. */
+  readonly layout?: 'inline' | 'stacked';
   readonly variant?: ButtonVariant;
   /** Fills the width of its container. The default on a phone form. */
   readonly full?: boolean;
@@ -87,6 +89,7 @@ export function Button({
   variant = 'quiet',
   full = false,
   busy = false,
+  layout = 'inline',
   disabled,
   className = '',
   children,
@@ -123,7 +126,9 @@ export function Button({
         The label stays where it is and turns transparent, so a button that
         starts waiting does not change width and move everything under it.
       */}
-      <span className={`inline-flex items-center justify-center gap-8 ${busy ? 'invisible' : ''}`}>
+      <span
+        className={`inline-flex min-w-0 items-center justify-center ${layout === 'stacked' ? 'flex-col gap-4' : 'gap-8'} ${busy ? 'invisible' : ''}`}
+      >
         {children}
       </span>
 

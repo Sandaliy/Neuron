@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 
-import { submitReviewBatchSchema, submitReviewSchema } from '@neuron/shared';
+import { submitReviewBatchSchema, submitReviewSchema, undoReviewSchema } from '@neuron/shared';
 import type { SubmitReviewBody } from '@neuron/shared';
 
 import { repositoriesOf } from '../context.js';
@@ -141,6 +141,11 @@ function present(result: Applied) {
 
 export function reviewRoutes(): Hono<RequestBindings> {
   const routes = new Hono<RequestBindings>();
+  routes.post('/undo', async (context) => {
+    const body = await readBody(context, undoReviewSchema);
+    const card = await repositoriesOf(context).reviews.undo(body.reviewId, body.id);
+    return context.json({ card: serialiseCard(card) });
+  });
 
   routes.post('/', async (context) => {
     const body = await readBody(context, submitReviewSchema);

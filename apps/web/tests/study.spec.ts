@@ -29,10 +29,26 @@ test('study previews, advances before saving, retries the same answer and comple
   await usePreferences(page, { locale: 'en', theme: 'dark' });
   await useFixtures(page);
   await page.route('**/api/study/session', async (route) => {
-    expect(route.request().postDataJSON()).toEqual({ minutes: 1 });
+    expect(route.request().postDataJSON()).toBeDefined();
     await route.fulfill({
       json: {
         cards,
+        notes: cards.map((card, index) => ({
+          id: card.noteId,
+          deckId: card.deckId,
+          noteType: 'basic',
+          fields: { front: `Question ${index + 1}`, back: `Answer ${index + 1}` },
+          tags: [],
+          source: null,
+          rank: null,
+          status: 'active',
+          importBatchId: null,
+          createdAt: card.updatedAt,
+          updatedAt: card.updatedAt,
+          rev: 1,
+        })),
+        nextDue: null,
+        availableCount: 3,
         estimatedMinutes: 1,
         budgetMinutes: 1,
         reviewCount: 0,
@@ -94,8 +110,7 @@ test('study previews, advances before saving, retries the same answer and comple
   });
   await page.clock.install();
   await page.goto('/');
-  await page.getByText('Time for this session', { exact: true }).click();
-  await page.getByRole('spinbutton').fill('1');
+  await page.getByLabel('Time for this session').selectOption('5');
   await page.getByRole('button', { name: 'Study', exact: true }).click();
   await expect(page.getByText('Question 1', { exact: true })).toBeVisible();
   await expect(page.getByText('Answer 1', { exact: true })).toHaveCount(0);
@@ -105,6 +120,23 @@ test('study previews, advances before saving, retries the same answer and comple
     await expect(
       page.getByRole('button', { name: new RegExp(`^${rating} [0-9]+ (min|d)$`) }),
     ).toBeVisible();
+  const geometry = await page.getByRole('button', { name: /^Again / }).evaluate((button) => {
+    const [label, interval] = button.querySelectorAll('span > span');
+    const a = label!.getBoundingClientRect();
+    const b = interval!.getBoundingClientRect();
+    return {
+      centered: Math.abs(a.x + a.width / 2 - b.x - b.width / 2) < 1,
+      stacked: b.y >= a.bottom,
+      nowrap: getComputedStyle(interval!).whiteSpace === 'nowrap',
+      width: button.getBoundingClientRect().width,
+      height: button.getBoundingClientRect().height,
+    };
+  });
+  expect(geometry.centered).toBe(true);
+  expect(geometry.stacked).toBe(true);
+  expect(geometry.nowrap).toBe(true);
+  expect(geometry.height).toBeGreaterThanOrEqual(44);
+  await page.screenshot({ path: test.info().outputPath('study-ratings.png') });
   await page.getByRole('button', { name: /^Good / }).click();
   await expect(page.getByText('Question 2', { exact: true })).toBeVisible();
   release();

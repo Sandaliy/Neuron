@@ -44,6 +44,37 @@ describe.skipIf(!database)('collection kinds and irreversible recovery boundary'
     return (await repo.sync.pull(0, 1000)).changes;
   }
 
+  it('moves to an exact sibling position atomically and rolls back invalid anchors', async () => {
+    const left = await repo.decks.create({ name: uuidV7(), kind: 'folder' });
+    const right = await repo.decks.create({ name: uuidV7(), kind: 'folder' });
+    const moving = await repo.decks.create({ name: 'Moving', parentId: left.id });
+    const leftFirst = await repo.decks.create({ name: 'Left first', parentId: left.id });
+    const leftLast = await repo.decks.create({ name: 'Left last', parentId: left.id });
+    const first = await repo.decks.create({ name: 'First', parentId: right.id });
+    const last = await repo.decks.create({ name: 'Last', parentId: right.id });
+    await repo.decks.move(leftLast.id, left.id, leftFirst.id);
+    expect(
+      (await repo.decks.list())
+        .filter((row) => row.parentId === left.id)
+        .sort((a, b) => a.position - b.position)
+        .map((row) => row.id),
+    ).toEqual([moving.id, leftLast.id, leftFirst.id]);
+    await repo.decks.move(moving.id, right.id, last.id);
+    expect(
+      (await repo.decks.list())
+        .filter((row) => row.parentId === right.id)
+        .sort((a, b) => a.position - b.position)
+        .map((row) => row.id),
+    ).toEqual([first.id, moving.id, last.id]);
+    const before = await repo.decks.byId(moving.id);
+    const revision = await repo.sync.revision();
+    await expect(repo.decks.move(moving.id, left.id, last.id)).rejects.toThrow();
+    expect(await repo.decks.byId(moving.id)).toEqual(before);
+    expect(await repo.sync.revision()).toBe(revision);
+    await repo.decks.move(moving.id, null, right.id);
+    expect(await repo.decks.byId(moving.id)).toMatchObject({ parentId: null, path: [] });
+  });
+
   it('permits mixed root kinds and rejects deck parents and folder-owned notes', async () => {
     const { folder, deck, note } = await fixture();
     const revision = await repo.sync.revision();

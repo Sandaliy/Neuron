@@ -5,7 +5,6 @@ import type { DeckNode } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { flatten } from '../../lib/decks';
-import { Button } from '../../ui/button';
 
 export function CollectionPath({
   tree,
@@ -23,11 +22,15 @@ export function CollectionPath({
   return (
     <nav
       aria-label={t('note.deck')}
-      className="flex min-w-0 max-w-full items-center gap-4 overflow-x-auto pb-4"
+      className="flex min-w-0 max-w-full items-center gap-4 overflow-x-auto pb-4 text-12 text-tertiary"
     >
-      <Button className="shrink-0 px-12" onClick={() => void navigate({ to: '/library' })}>
+      <button
+        type="button"
+        className="flex min-h-44 shrink-0 items-center whitespace-nowrap px-4 text-secondary hover:text-primary"
+        onClick={() => void navigate({ to: '/library' })}
+      >
         {t('library.title')}
-      </Button>
+      </button>
       {ids.map((key) => {
         const row = all.find((entry) => entry.id === key);
         if (!row) return null;
@@ -35,18 +38,21 @@ export function CollectionPath({
         return (
           <span key={key} className="flex shrink-0 items-center gap-4">
             <ChevronRight size={12} aria-hidden="true" />
-            <Button
+            <button
+              type="button"
               aria-current={key === id ? 'location' : undefined}
-              className={row.kind === 'deck' ? 'border-accent px-12 text-accent' : 'px-12'}
+              className={`flex min-h-44 shrink-0 items-center whitespace-nowrap px-4 text-secondary hover:text-primary ${key === id ? 'text-accent' : ''}`}
               onClick={() =>
                 void (row.kind === 'folder'
                   ? navigate({ to: '/library', search: { folderId: key } })
                   : navigate({ to: '/notes', search: { deckId: key } }))
               }
             >
-              <Icon size={14} aria-hidden="true" />
-              {row.name}
-            </Button>
+              <span className="flex items-center gap-4">
+                <Icon size={14} aria-hidden="true" />
+                {row.name}
+              </span>
+            </button>
           </span>
         );
       })}

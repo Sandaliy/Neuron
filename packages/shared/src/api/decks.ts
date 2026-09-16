@@ -36,12 +36,15 @@ export interface DeckNode extends Deck {
   readonly due: number;
   /** Cards never answered, this deck and everything under it. */
   readonly fresh: number;
+  /** The next future card in this subtree, when one exists. */
+  readonly nextDue?: string | null | undefined;
 }
 
 export const deckNodeSchema: z.ZodType<DeckNode> = deckSchema
   .extend({
     due: z.number().int().min(0),
     fresh: z.number().int().min(0),
+    nextDue: z.string().nullable().optional(),
     children: z.lazy(() => z.array(deckNodeSchema)),
   })
   .describe('A deck and its subtree, with the counts rolled up');
@@ -82,6 +85,8 @@ export const updateDeckSchema = z
   );
 
 export const moveDeckSchema = z.strictObject({
+  /** Exact insertion anchor; null or omitted appends at this level. */
+  beforeId: idSchema.nullish(),
   /** Null moves the deck to the root. */
   parentId: idSchema.nullable(),
 });

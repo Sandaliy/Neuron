@@ -43,7 +43,11 @@ export interface DeckRepository {
   chain: (id: string) => Promise<DeckRow[]>;
   rename: (id: string, name: string) => Promise<DeckRow | undefined>;
   updateSettings: (id: string, settings: DeckSettings | null) => Promise<DeckRow | undefined>;
-  move: (id: string, parentId: string | null) => Promise<DeckRow | undefined>;
+  move: (
+    id: string,
+    parentId: string | null,
+    beforeId?: string | null,
+  ) => Promise<DeckRow | undefined>;
   /**
    * Rewrites the order of one level.
    *
@@ -264,7 +268,7 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
       });
     },
 
-    async move(id, parentId) {
+    async move(id, parentId, beforeId = null) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
         const deck = await loadDeck(tx, userId, id);
@@ -291,6 +295,30 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
           .where(and(eq(decks.userId, userId), eq(decks.id, id)))
           .returning();
 
+        const siblings = await tx
+          .select()
+          .from(decks)
+          .where(
+            and(
+              eq(decks.userId, userId),
+              isNull(decks.deletedAt),
+              parentId === null ? isNull(decks.parentId) : eq(decks.parentId, parentId),
+            ),
+          )
+          .orderBy(asc(decks.position), asc(decks.id));
+        const ordered = siblings.filter((item) => item.id !== id);
+        const at =
+          beforeId === null ? ordered.length : ordered.findIndex((item) => item.id === beforeId);
+        if (at < 0) throw new DeckNotFound(beforeId!);
+        if (!row) throw new DeckNotFound(id);
+        ordered.splice(at, 0, row);
+        for (const [position, sibling] of ordered.entries()) {
+          await tx
+            .update(decks)
+            .set({ position, updatedAt: now, rev })
+            .where(and(eq(decks.userId, userId), eq(decks.id, sibling.id)));
+        }
+        row.position = at;
         return row;
       });
     },

@@ -26,7 +26,12 @@ import { repositoriesOf } from '../context.js';
 import { toSchedulingState } from '../db/repositories/index.js';
 import { ApiError } from '../errors.js';
 import { settingsForDeck } from '../note-cards.js';
-import { serialiseCard, serialiseImportBatch, serialisePreset } from '../serialise.js';
+import {
+  serialiseCard,
+  serialiseImportBatch,
+  serialisePreset,
+  serialiseNote,
+} from '../serialise.js';
 import { readBody, readParams } from '../validation.js';
 
 import { parseFields } from './notes.js';
@@ -81,10 +86,15 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       direction: row.direction as WorkloadCard['direction'],
       scheduling: toSchedulingState(row),
     }));
+    const supported = cards.filter(
+      (card) =>
+        card.direction !== 'listening' &&
+        (body.direction === undefined || card.direction === body.direction),
+    );
     const logs = await repositories.reviews.workload();
-    const load = forecast({ cards, config, now, logs });
+    const load = forecast({ cards: supported, config, now, logs });
     const session = buildSession({
-      cards,
+      cards: supported,
       budget,
       config,
       now,
@@ -95,9 +105,22 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       newCardMode: body.newCards,
     });
     const byId = new Map(rows.map((row) => [row.id, row]));
+    const [notes, typeNames] = await Promise.all([
+      repositories.notes.byIds(session.cards.map((card) => card.noteId)),
+      repositories.noteTypes.namesById(),
+    ]);
 
     return context.json({
       ...session,
+      availableCount: supported.filter(
+        (card) => card.scheduling.state === 'new' || card.scheduling.due <= now,
+      ).length,
+      nextDue:
+        supported
+          .filter((card) => card.scheduling.state !== 'new' && card.scheduling.due > now)
+          .map((card) => card.scheduling.due.toISOString())
+          .sort()[0] ?? null,
+      notes: notes.map((note) => serialiseNote(note, typeNames)),
       cards: session.cards.flatMap((card) => {
         const row = byId.get(card.id);
         return row === undefined ? [] : [serialiseCard(row)];

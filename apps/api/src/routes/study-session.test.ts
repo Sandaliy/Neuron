@@ -74,6 +74,62 @@ describe.skipIf(!database)('POST /study/session', () => {
     await build({ deckId, minutes: 0 }, 400);
   });
 
+  it('applies recognition and recall choices to the actual session', async () => {
+    const note = await repositories.notes.create({
+      deckId,
+      noteType: 'basic',
+      fields: { front: 'Direction', back: 'Observable' },
+    });
+    await repositories.cards.create({
+      noteId: note.id,
+      direction: 'recall',
+      due: new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+    const recognition = await build({ deckId, direction: 'recognition', newCards: 'override' });
+    const recall = await build({ deckId, direction: 'recall', newCards: 'override' });
+
+    expect(recognition.cards.length).toBeGreaterThan(0);
+    expect(recognition.cards.every((card) => card.direction === 'recognition')).toBe(true);
+    expect(recall.cards).toHaveLength(1);
+    expect(recall.cards[0]?.direction).toBe('recall');
+  });
+
+  it.each(['deck', 'folder'] as const)(
+    'excludes a deleted %s from global sessions and counts, and restores eligibility',
+    async (kind) => {
+      const folder = await repositories.decks.create({
+        name: `Eligibility ${kind}`,
+        kind: 'folder',
+      });
+      const deck = await repositories.decks.create({ name: 'Child', parentId: folder.id });
+      const note = await repositories.notes.create({
+        deckId: deck.id,
+        noteType: 'basic',
+        fields: { front: 'Live dependency', back: 'Required' },
+      });
+      const card = await repositories.cards.create({
+        noteId: note.id,
+        direction: 'recognition',
+        due: new Date('2026-01-01'),
+      });
+      const target = kind === 'deck' ? deck.id : folder.id;
+      expect((await build({ newCards: 'override' })).cards.map((row) => row.id)).toContain(card.id);
+      await repositories.decks.softDelete(target);
+      expect((await build({ newCards: 'override' })).cards.map((row) => row.id)).not.toContain(
+        card.id,
+      );
+      expect(
+        (await repositories.cards.due({ now: new Date() })).map((row) => row.id),
+      ).not.toContain(card.id);
+      expect(
+        (await repositories.cards.countsByDeck(new Date())).map((row) => row.deckId),
+      ).not.toContain(deck.id);
+      await repositories.decks.restore(target);
+      expect((await build({ newCards: 'override' })).cards.map((row) => row.id)).toContain(card.id);
+    },
+  );
+
   it('excludes Known notes from counts and sessions without resetting their cards', async () => {
     const deck = await repositories.decks.create({ name: 'Known participation' });
     const note = await repositories.notes.create({

@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-13, after the first Phase 7 Daily Study and collection UX slice.
+Last updated: 2026-09-16, after the Phase 7 phone stabilization slice.
 
 ## Now
 
@@ -30,10 +30,12 @@ owner-only `DATABASE_URL_OWNER` credential remains confined to the protected Git
 Phase 7 Daily Study is the current milestone. Its backend/core session foundation provides a
 deterministic time-based first-appearance plan, workload-backed and explainable new-card admission,
 an explicit one-off override that does not change long-term settings, and a fair due-preserving retry
-pool. The first usable Study loop now runs from Today through reveal, four interval previews, verified
-review submission, retry recovery, and completion. The same release slice makes Known notes leave study
-counts, adds collection paths and hierarchy-aware pickers, and repairs the directly affected note,
-Deleted, import, and collection interactions for phone use.
+pool. Study now plans visibly from one-off time and recognition/recall choices, keeps reveal and advance
+local after the plan arrives, offers append-only recent-answer Undo, and ends with a useful summary.
+Practice provides configurable front/back rounds without Review or schedule writes. The collection slice
+adds atomic exact-position touch/mouse placement, committed swipe deletion, targeted rapid recovery,
+compact headers and navigation paths, and live-dependency filtering so deleted collections cannot enter
+Today or Study.
 
 ## Done
 
@@ -48,9 +50,9 @@ Deleted, import, and collection interactions for phone use.
 
 ## Next
 
-1. Add the remaining intentionally deferred Phase 7 study choices: recent-answer undo and useful presets.
-2. Cover review-history presentation and the remaining desktop/phone study acceptance paths.
-3. Continue Phase 7 direction and accessibility work without weakening the session fairness contract.
+1. Re-run the gesture-heavy acceptance pass on the physical iPhone and production domain after preview delivery.
+2. Add the intentionally deferred rich drill families, typed production tolerance, listening and speech work.
+3. Continue review-history presentation and accessibility work without weakening session fairness or replay.
 
 ## Open threads
 
@@ -93,7 +95,8 @@ Deleted, import, and collection interactions for phone use.
 - The production web bundle is about 596 KB before gzip. Code splitting remains deferred.
 - Dependency alerts include `nanoid` 3.3.17 and the Drizzle tooling version of `esbuild`.
 - `drizzle-kit check` could not run locally because Node returned `uv_os_get_passwd ENOMEM`; the
-  escalation retry was rejected by automatic approval review. Migration tests and generated snapshot pass.
+  escalation retry was rejected by automatic approval review. The generated journal and snapshot chain
+  is internally consistent; the real-database migration suite still requires a throwaway test database.
 
 ## Decisions
 
@@ -108,6 +111,7 @@ Deleted, import, and collection interactions for phone use.
 | 2026-08    | Keep reusable visual contracts, docs, mockup, gallery, and code aligned      | Global design references should describe the reusable system, not every screen-level adjustment               |
 | 2026-08    | Use one Playwright worker                                                    | Frame-rate tests must not compete for the measured CPU                                                        |
 | 2026-09-03 | Protect `main` and deliver production changes through `work/*` pull requests | Production must receive only checked changes                                                                  |
+| 2026-09-16 | Represent recent Undo as an append-only cancellation event                   | Canonical replay removes the target while preserving every later immutable answer                             |
 | 2026-09-03 | Keep the prompt in `docs/card-generation-prompt.md`                          | It defines the product contract used by all three card generation modes                                       |
 | 2026-09-03 | Run screenshot CI on Windows                                                 | The committed baselines use the same system fonts as the Windows runner                                       |
 | 2026-09-03 | Use one empty, long-lived Neon Preview database                              | Preview work must never read or write production user data                                                    |

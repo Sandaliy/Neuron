@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "reviews_cancellation_once" ON "reviews" USING btree ("user_id","cancels_review_id");--> statement-breakpoint
+ALTER TABLE "reviews" ADD CONSTRAINT "reviews_cancellation_not_self" CHECK ("reviews"."cancels_review_id" is null or "reviews"."cancels_review_id" <> "reviews"."id");

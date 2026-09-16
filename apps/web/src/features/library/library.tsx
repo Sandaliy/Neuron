@@ -17,10 +17,11 @@ import type { DeckNode, DeckSettings } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
-import { findDeck, moveProblem, useDeckActions, useDeckTree } from '../../lib/decks';
+import { findDeck, useDeckActions, useDeckTree } from '../../lib/decks';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
 import { Button } from '../../ui/button';
 import { Chip } from '../../ui/chip';
+import { CollectionHeader } from '../../ui/collection-header';
 import { Dialog, DialogFooter } from '../../ui/dialog';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
 import { TreeChildren, Row } from '../../ui/row';
@@ -28,9 +29,8 @@ import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
 
+import { CollectionDrag, CollectionHandle, CollectionDrop } from './collection-drag';
 import { DeckNameDialog, DeckSettingsDialog, MoveDeckDialog } from './deck-dialogs';
-
-import type { DragEvent } from 'react';
 
 /**
  * The library, now writable.
@@ -42,11 +42,10 @@ import type { DragEvent } from 'react';
  * Nesting is indentation and a hairline. Folders organize descendants; leaf
  * decks open their notes directly.
  *
- * Moving is the part that usually gets built badly. Dragging on a touch screen
- * fights with scrolling and misfires, so the way to move a deck is an action
- * that opens a picker, on every device. Dragging exists as well, and only where
- * there is a mouse: `matchMedia('(pointer: fine)')`, asked once. It is never
- * the only way to do anything.
+ * Moving is the part that usually gets built badly. The grip is the only part
+ * that owns a pointer, so dragging it does not steal the page's normal vertical
+ * scroll. The action menu remains available on every row for keyboard and
+ * pointer users who prefer an explicit picker.
  */
 export function LibraryScreen() {
   const t = useTranslate();
@@ -95,146 +94,149 @@ export function LibraryScreen() {
   }
 
   return (
-    <section data-screen="" className="flex flex-col gap-20">
-      <header className="flex flex-col gap-12 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-24 tracking-tight text-primary">
-          {folder?.name ?? t('library.title')}
-        </h1>
+    <CollectionDrag tree={tree} actions={actions}>
+      <section data-screen="" className="flex flex-col gap-20">
+        <CollectionHeader
+          title={folder?.name ?? t('library.title')}
+          actions={
+            <>
+              {folder && (
+                <Button
+                  variant="text"
+                  aria-label={t('common.back')}
+                  onClick={() =>
+                    void navigate({
+                      to: '/library',
+                      search: folder.parentId ? { folderId: folder.parentId } : {},
+                    })
+                  }
+                >
+                  <ArrowLeft size={18} />
+                </Button>
+              )}
+              <Button
+                variant="quiet"
+                className="size-44 px-12"
+                aria-label={t('deleted.title')}
+                onClick={() => void navigate({ to: '/library/deleted' })}
+              >
+                <Trash2 size={16} aria-hidden="true" />
+              </Button>
+              <Button
+                variant="quiet"
+                onClick={() =>
+                  setDialog({
+                    kind: 'create',
+                    collectionKind: 'folder',
+                    parentId: folder?.id ?? null,
+                  })
+                }
+              >
+                <Folder size={16} aria-hidden="true" />
+                <span className="sr-only sm:not-sr-only">{t('library.newFolder')}</span>
+              </Button>
 
-        <div className="flex flex-wrap items-center justify-end gap-8">
-          {folder && (
-            <Button
-              variant="text"
-              aria-label={t('common.back')}
-              onClick={() =>
-                void navigate({
-                  to: '/library',
-                  search: folder.parentId ? { folderId: folder.parentId } : {},
-                })
-              }
-            >
-              <ArrowLeft size={18} />
-            </Button>
-          )}
-          <Button
-            variant="quiet"
-            className="size-44 px-12"
-            aria-label={t('deleted.title')}
-            onClick={() => void navigate({ to: '/library/deleted' })}
-          >
-            <Trash2 size={16} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="quiet"
-            onClick={() =>
-              setDialog({ kind: 'create', collectionKind: 'folder', parentId: folder?.id ?? null })
-            }
-          >
-            <Folder size={16} aria-hidden="true" />
-            {t('library.newFolder')}
-          </Button>
+              <Button
+                variant="primary"
+                className="px-12"
+                onClick={() =>
+                  setDialog({
+                    kind: 'create',
+                    collectionKind: 'deck',
+                    parentId: folder?.id ?? null,
+                  })
+                }
+              >
+                <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+                <span className="sr-only min-[420px]:not-sr-only">{t('library.newDeck')}</span>
+              </Button>
+            </>
+          }
+        >
+          <CollectionPath tree={tree} id={folderId ?? ''} />
+        </CollectionHeader>
 
-          <Button
-            variant="primary"
-            className="px-12"
-            onClick={() =>
-              setDialog({ kind: 'create', collectionKind: 'deck', parentId: folder?.id ?? null })
-            }
-          >
-            <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
-            {t('library.newDeck')}
-          </Button>
-        </div>
-      </header>
-      <CollectionPath tree={tree} id={folderId ?? ''} />
+        {decks.isPending ? <SkeletonRows rows={5} /> : undefined}
 
-      {decks.isPending ? <SkeletonRows rows={5} /> : undefined}
-
-      {/*
+        {/*
         Only when there is nothing to show. A refetch that failed behind
         content already on screen leaves that content alone: the counts are a
         few minutes old rather than gone, which is the better of the two.
       */}
-      {decks.error && !decks.data ? (
-        <ErrorState
-          message={t(describe(decks.error).key, describe(decks.error).values)}
-          retryLabel={t('common.retry')}
-          onRetry={() => void decks.refetch()}
+        {decks.error && !decks.data ? (
+          <ErrorState
+            message={t(describe(decks.error).key, describe(decks.error).values)}
+            retryLabel={t('common.retry')}
+            onRetry={() => void decks.refetch()}
+          />
+        ) : undefined}
+
+        {!decks.isPending && visible.length === 0 ? (
+          <EmptyState title={t('library.emptyTitle')} description={t('library.emptyBody')} />
+        ) : undefined}
+
+        {visible.length > 0 ? (
+          <div className="flex flex-col gap-8">
+            {visible.map((deck) => (
+              <Deck
+                key={deck.id}
+                deck={deck}
+                siblings={visible}
+                tree={tree}
+                actions={actions}
+                open={open}
+                onToggle={toggle}
+                onOpen={openNotes}
+                onAct={setDialog}
+              />
+            ))}
+          </div>
+        ) : undefined}
+
+        <DeckDialogs
+          state={dialog}
+          decks={tree}
+          onClose={() => setDialog({ kind: 'none' })}
+          onCreate={async (parentId, name, kind) => {
+            await actions.create.mutateAsync({ name, parentId, kind });
+
+            setDialog({ kind: 'none' });
+            toast.show(t('library.created', { name }));
+          }}
+          onRename={async (deck, name) => {
+            await actions.rename.mutateAsync({ id: deck.id, name });
+            setDialog({ kind: 'none' });
+          }}
+          onMove={async (deck, parentId) => {
+            await actions.move.mutateAsync({ id: deck.id, parentId });
+
+            setDialog({ kind: 'none' });
+            toast.show(t('library.moved', { name: deck.name }));
+          }}
+          onSaveSettings={async (deck, settings) => {
+            await actions.update.mutateAsync({ id: deck.id, settings });
+            setDialog({ kind: 'none' });
+          }}
+          onDelete={remove}
+          busy={
+            actions.create.isPending ||
+            actions.rename.isPending ||
+            actions.move.isPending ||
+            actions.update.isPending ||
+            actions.remove.isPending
+          }
+          createError={actions.create.error}
+          renameError={actions.rename.error}
         />
-      ) : undefined}
-
-      {!decks.isPending && visible.length === 0 ? (
-        <EmptyState title={t('library.emptyTitle')} description={t('library.emptyBody')} />
-      ) : undefined}
-
-      {visible.length > 0 ? (
-        <div className="flex flex-col gap-8">
-          {visible.map((deck) => (
-            <Deck
-              key={deck.id}
-              deck={deck}
-              siblings={visible}
-              tree={tree}
-              actions={actions}
-              open={open}
-              onToggle={toggle}
-              onOpen={openNotes}
-              onAct={setDialog}
-            />
-          ))}
-        </div>
-      ) : undefined}
-
-      <DeckDialogs
-        state={dialog}
-        decks={tree}
-        onClose={() => setDialog({ kind: 'none' })}
-        onCreate={async (parentId, name, kind) => {
-          await actions.create.mutateAsync({ name, parentId, kind });
-
-          setDialog({ kind: 'none' });
-          toast.show(t('library.created', { name }));
-        }}
-        onRename={async (deck, name) => {
-          await actions.rename.mutateAsync({ id: deck.id, name });
-          setDialog({ kind: 'none' });
-        }}
-        onMove={async (deck, parentId) => {
-          await actions.move.mutateAsync({ id: deck.id, parentId });
-
-          setDialog({ kind: 'none' });
-          toast.show(t('library.moved', { name: deck.name }));
-        }}
-        onSaveSettings={async (deck, settings) => {
-          await actions.update.mutateAsync({ id: deck.id, settings });
-          setDialog({ kind: 'none' });
-        }}
-        onDelete={remove}
-        busy={
-          actions.create.isPending ||
-          actions.rename.isPending ||
-          actions.move.isPending ||
-          actions.update.isPending ||
-          actions.remove.isPending
-        }
-        createError={actions.create.error}
-        renameError={actions.rename.error}
-      />
-    </section>
+      </section>
+    </CollectionDrag>
   );
 }
 
 /**
- * Whether this device has a mouse.
- *
- * Asked once, when the module loads, rather than per row. It decides only
- * whether dragging is offered as well; nothing depends on it being right,
- * because the menu on every row does the same job.
+ * The menu and grip are both available on every device. The grip is touch-safe
+ * because only its small surface uses `touch-action: none`.
  */
-const POINTER_FINE =
-  typeof globalThis.matchMedia === 'function' && globalThis.matchMedia('(pointer: fine)').matches;
-
-/** Which dialog is open, and what it is about. */
 type DialogState =
   | { readonly kind: 'none' }
   | {
@@ -272,7 +274,6 @@ function Deck({
 }) {
   const t = useTranslate();
   const toast = useToast();
-  const [over, setOver] = useState(false);
 
   const hasChildren = deck.kind === 'folder' && deck.children.length > 0;
   const expanded = open.has(deck.id);
@@ -296,61 +297,16 @@ function Deck({
       .catch((error) => toast.show(t(describe(error).key, describe(error).values), 'danger'));
   }
 
-  /**
-   * A deck dropped onto another one.
-   *
-   * Only on a pointer device, and only ever as a second way to do something the
-   * menu already does. The same check the picker uses runs before the request,
-   * so a drop that cannot work does nothing rather than being refused after the
-   * fact.
-   */
-  async function drop(movingId: string, position: 'before' | 'inside' | 'after') {
-    setOver(false);
-    const moving = findDeck(tree, movingId);
-    if (!moving || movingId === deck.id) return;
-    const parentId = position === 'inside' ? deck.id : deck.parentId;
-    if (moving.parentId !== parentId && moveProblem(tree, movingId, parentId) !== undefined) return;
-    try {
-      if (moving.parentId !== parentId) await actions.move.mutateAsync({ id: movingId, parentId });
-      if (position !== 'inside') {
-        const order = siblings.filter((item) => item.id !== movingId).map((item) => item.id);
-        const at = order.indexOf(deck.id) + (position === 'after' ? 1 : 0);
-        order.splice(at, 0, movingId);
-        await actions.reorder.mutateAsync({ parentId, order });
-      }
-    } catch (error) {
-      toast.show(t(describe(error).key, describe(error).values), 'danger');
-    }
-  }
-
   return (
-    <div className="flex select-none flex-col gap-8">
-      <div
-        className={over ? 'rounded-12 outline-2 outline-accent' : undefined}
-        {...(POINTER_FINE
-          ? {
-              onDragOver: (event) => {
-                event.preventDefault();
-                setOver(true);
-              },
-              onDragLeave: () => setOver(false),
-              onDrop: (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                const box = event.currentTarget.getBoundingClientRect();
-                const fraction = (event.clientY - box.top) / box.height;
-                void drop(
-                  event.dataTransfer.getData('text/deck'),
-                  fraction < 0.25
-                    ? 'before'
-                    : fraction > 0.75 || deck.kind === 'deck'
-                      ? 'after'
-                      : 'inside',
-                );
-              },
-            }
-          : {})}
-      >
+    <div className="relative flex select-none flex-col gap-8">
+      <div className="relative">
+        <CollectionDrop
+          tree={tree}
+          id={`before:${deck.id}`}
+          parentId={deck.parentId}
+          beforeId={deck.id}
+          position="before"
+        />
         <Row
           title={deck.name}
           /*
@@ -362,37 +318,31 @@ function Deck({
             ? { subtitle: t('today.deckCounts', { due: deck.due, fresh: deck.fresh }) }
             : {})}
           leading={
-            deck.kind === 'folder' ? (
-              <>
-                {hasChildren && (
-                  <button
-                    type="button"
-                    aria-label={t(expanded ? 'library.collapse' : 'library.expand')}
-                    aria-expanded={expanded}
-                    className="flex size-44 shrink-0 items-center justify-center"
-                    onClick={() => onToggle(deck.id)}
-                  >
-                    <ChevronRight
-                      size={16}
-                      className={expanded ? 'rotate-90' : ''}
-                      aria-hidden="true"
-                    />
-                  </button>
-                )}
-                <Folder size={18} aria-hidden="true" className="shrink-0 text-tertiary" />
-              </>
-            ) : undefined
+            <>
+              <CollectionHandle deck={deck} />
+              {deck.kind === 'folder' ? (
+                <>
+                  {hasChildren && (
+                    <button
+                      type="button"
+                      aria-label={t(expanded ? 'library.collapse' : 'library.expand')}
+                      aria-expanded={expanded}
+                      className="flex size-44 shrink-0 items-center justify-center"
+                      onClick={() => onToggle(deck.id)}
+                    >
+                      <ChevronRight
+                        size={16}
+                        className={expanded ? 'rotate-90' : ''}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  )}
+                  <Folder size={18} aria-hidden="true" className="shrink-0 text-tertiary" />
+                </>
+              ) : undefined}
+            </>
           }
           onClick={() => onOpen(deck.id)}
-          {...(POINTER_FINE
-            ? {
-                draggable: true,
-                onDragStart: (event: DragEvent) => {
-                  event.dataTransfer.setData('text/deck', deck.id);
-                  event.dataTransfer.effectAllowed = 'move';
-                },
-              }
-            : {})}
           interactiveTrailing
           trailing={
             <>
@@ -486,8 +436,25 @@ function Deck({
             </>
           }
         />
+        {deck.kind === 'folder' && (
+          <CollectionDrop
+            tree={tree}
+            id={`inside:${deck.id}`}
+            parentId={deck.id}
+            beforeId={null}
+            position="inside"
+          />
+        )}
       </div>
-
+      {index === siblings.length - 1 && (
+        <CollectionDrop
+          tree={tree}
+          id={`after:${deck.id}`}
+          parentId={deck.parentId}
+          beforeId={null}
+          position="after"
+        />
+      )}
       {hasChildren && expanded ? (
         <TreeChildren>
           {deck.children.map((child) => (

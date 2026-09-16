@@ -45,6 +45,7 @@ export interface SessionCardsQuery {
 
 /** How much work one deck is holding, before the tree is rolled up. */
 export interface DeckCount {
+  readonly nextDue?: string | null;
   readonly deckId: string;
   /** Answered at least once and waiting now. */
   readonly due: number;
@@ -108,6 +109,20 @@ export class NoteNotFound extends Error {
 }
 
 export function cardRepository(userId: string, run: Runner): CardRepository {
+  // Walk from live roots rather than trusting cached paths. A broken, deleted,
+  // cyclic, or non-folder ancestor cannot admit any descendant to learning.
+  const liveStudyDeck = sql`${cards.deckId} in (
+    with recursive live_collections as (
+      select id, kind from decks
+      where user_id = ${userId} and parent_id is null
+        and deleted_at is null and purged_at is null
+      union all
+      select child.id, child.kind from decks child
+      join live_collections parent on child.parent_id = parent.id
+      where child.user_id = ${userId} and parent.kind = 'folder'
+        and child.deleted_at is null and child.purged_at is null
+    ) select id from live_collections where kind = 'deck'
+  )`;
   /**
    * Which deck each of these notes is in.
    *
@@ -238,13 +253,20 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
       return run(async (tx) => {
         const limit = query.limit ?? DEFAULT_DUE_LIMIT;
         const ready = and(
+          liveStudyDeck,
           inArray(
             cards.noteId,
             tx
               .select({ id: notes.id })
               .from(notes)
               .where(
-                and(eq(notes.userId, userId), eq(notes.status, 'active'), isNull(notes.deletedAt)),
+                and(
+                  eq(notes.userId, userId),
+                  eq(notes.deckId, cards.deckId),
+                  eq(notes.status, 'active'),
+                  isNull(notes.deletedAt),
+                  isNull(notes.purgedAt),
+                ),
               ),
           ),
           eq(cards.userId, userId),
@@ -284,13 +306,20 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
     async forSession(query) {
       return run(async (tx) => {
         const live = and(
+          liveStudyDeck,
           inArray(
             cards.noteId,
             tx
               .select({ id: notes.id })
               .from(notes)
               .where(
-                and(eq(notes.userId, userId), eq(notes.status, 'active'), isNull(notes.deletedAt)),
+                and(
+                  eq(notes.userId, userId),
+                  eq(notes.deckId, cards.deckId),
+                  eq(notes.status, 'active'),
+                  isNull(notes.deletedAt),
+                  isNull(notes.purgedAt),
+                ),
               ),
           ),
           eq(cards.userId, userId),
@@ -328,11 +357,15 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
             deckId: cards.deckId,
             due: sql<number>`count(*) filter (where ${cards.state} <> 'new' and ${cards.due} <= ${now})::int`,
             fresh: sql<number>`count(*) filter (where ${cards.state} = 'new')::int`,
+            nextDue: sql<
+              string | null
+            >`min(${cards.due}) filter (where ${cards.state} <> 'new' and ${cards.due} > ${now})`,
           })
           .from(cards)
           .where(
             and(
               eq(cards.userId, userId),
+              liveStudyDeck,
               isNull(cards.deletedAt),
               isNull(cards.suspendedAt),
               inArray(
@@ -344,6 +377,8 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
                     and(
                       eq(notes.userId, userId),
                       eq(notes.status, 'active'),
+                      eq(notes.deckId, cards.deckId),
+                      isNull(notes.purgedAt),
                       isNull(notes.deletedAt),
                     ),
                   ),

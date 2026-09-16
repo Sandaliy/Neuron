@@ -4,7 +4,7 @@ import { noteTypeSchema } from '../note-types.js';
 
 import { cardSchema } from './cards.js';
 import { idSchema, nameSchema } from './common.js';
-import { createNoteSchema } from './notes.js';
+import { createNoteSchema, noteSchema } from './notes.js';
 
 /**
  * Saved ways of studying, and imports that can be taken back.
@@ -25,6 +25,7 @@ export type StudyPreset = z.infer<typeof studyPresetSchema>;
 
 /** The only Daily Study choices needed to build the first-appearance plan. */
 export const dailyStudySessionRequestSchema = z.strictObject({
+  direction: z.enum(['recognition', 'recall']).optional(),
   /** Omit to study the whole collection. A folder includes its descendants. */
   deckId: idSchema.optional(),
   /** A one-off sitting length. It never writes the user's normal daily plan. */
@@ -52,6 +53,9 @@ export const newCardAdmissionSchema = z.object({
 
 export const dailyStudySessionSchema = z.object({
   cards: z.array(cardSchema),
+  notes: z.array(noteSchema),
+  nextDue: z.string().nullable(),
+  availableCount: z.number().int().min(0),
   estimatedMinutes: z.number().min(0),
   budgetMinutes: z.number().min(0),
   reviewCount: z.number().int().min(0),

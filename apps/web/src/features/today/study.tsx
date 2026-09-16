@@ -15,11 +15,12 @@ import type { Card as StudyCard, DailyStudySession, NoteFields } from '@neuron/s
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
-import { noteQuery, useNote } from '../../lib/notes';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
+
+import { Practice } from './practice';
 
 export function workloadCard(card: StudyCard): WorkloadCard {
   const counters = {
@@ -68,7 +69,9 @@ const RATINGS = ['again', 'hard', 'good', 'easy'] as const;
 export function StudyScreen({
   onFinish,
   minutes,
+  initialPlan,
 }: {
+  readonly initialPlan?: DailyStudySession;
   readonly minutes: string;
   readonly onFinish: () => void;
 }) {
@@ -85,6 +88,16 @@ export function StudyScreen({
   const [pending, setPending] = useState(0);
   const [answered, setAnswered] = useState(0);
   const [reason, setReason] = useState('');
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  const [morePlanned, setMorePlanned] = useState(false);
+  const [nextDue, setNextDue] = useState<string | null>(null);
+  const [practicing, setPracticing] = useState(false);
+  const [last, setLast] = useState<{ answer: Answer; card: StudyCard; queue: SessionQueue }>();
+  const [ratings, setRatings] = useState<Record<string, number>>({});
+  const operations = useRef(new Map<string, Promise<void>>());
+  const cancelled = useRef(new Set<string>());
+  const undoOperation = useRef<Promise<void> | undefined>(undefined);
+  const retryUndo = useRef<(() => Promise<void>) | undefined>(undefined);
   const queue = useRef<SessionQueue>({ planned: [], retries: [], retryMayRun: false });
   const cards = useRef(new Map<string, StudyCard>());
   const started = useRef(0);
@@ -92,7 +105,7 @@ export function StudyScreen({
   const locked = useRef(false);
   const budget = useRef(0);
   const visibleId = useRef<string | undefined>(undefined);
-  const note = useNote(current?.noteId);
+  const note = plan?.notes.find((item) => item.id === current?.noteId);
   useBlocker({
     shouldBlockFn: () => {
       if (pending || failed.length) {
@@ -112,14 +125,14 @@ export function StudyScreen({
       budget.current,
     );
     queue.current = step.queue;
+    setMorePlanned(step.queue.planned.length > 0);
+    setElapsedMinutes(Math.round((Date.now() - started.current) / 6000) / 10);
     visibleId.current = step.card?.id;
     setCurrent(step.card ? cards.current.get(step.card.id) : undefined);
     setReason(step.card ? '' : step.reason);
     setRevealed(false);
     shown.current = Date.now();
     locked.current = false;
-    for (const card of queue.current.planned.slice(0, 4))
-      void client.prefetchQuery(noteQuery(card.noteId));
   }
 
   async function start() {
@@ -128,20 +141,22 @@ export function StudyScreen({
     setLoading(true);
     setError(undefined);
     try {
-      const result = dailyStudySessionSchema.parse(
-        await request('/study/session', {
-          method: 'POST',
-          body: minutes ? { minutes: Number(minutes) } : {},
-        }),
-      );
+      const result =
+        initialPlan ??
+        dailyStudySessionSchema.parse(
+          await request('/study/session', {
+            method: 'POST',
+            body: minutes ? { minutes: Number(minutes) } : {},
+          }),
+        );
       // Unsupported interaction directions stay outside this first reveal-only loop.
       const supported = result.cards.filter((card) => card.direction !== 'listening');
       cards.current = new Map(supported.map((card) => [card.id, card]));
       queue.current = { planned: supported.map(workloadCard), retries: [], retryMayRun: false };
       setPlan(result);
+      setNextDue(result.nextDue);
       budget.current = result.budgetMinutes;
       started.current = Date.now();
-      for (const card of supported.slice(0, 8)) void client.prefetchQuery(noteQuery(card.noteId));
       next();
     } catch (cause) {
       setError(cause);
@@ -166,8 +181,15 @@ export function StudyScreen({
         method: 'POST',
         body: answer,
       });
-      cards.current.set(result.card.id, result.card);
-      queue.current = queueSessionRetry(queue.current, workloadCard(result.card));
+      if (!cancelled.current.has(answer.id)) {
+        cards.current.set(result.card.id, result.card);
+        queue.current = queueSessionRetry(queue.current, workloadCard(result.card));
+        const future = [...cards.current.values()]
+          .map((card) => card.due)
+          .filter((due) => new Date(due).getTime() > Date.now());
+        if (plan?.nextDue) future.push(plan.nextDue);
+        setNextDue(future.sort()[0] ?? null);
+      }
       setFailed((items) => items.filter((item) => item.id !== answer.id));
       void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
       void client.invalidateQueries({ queryKey: ['notes'], refetchType: 'none' });
@@ -195,15 +217,69 @@ export function StudyScreen({
       reviewedAt: new Date().toISOString(),
       durationMs: Math.min(3_600_000, Math.max(0, Date.now() - shown.current)),
     };
+    setLast({ answer, card: current, queue: queue.current });
+    setRatings((values) => ({ ...values, [answer.rating]: (values[answer.rating] ?? 0) + 1 }));
     setAnswered((count) => count + 1);
     next();
-    void submit(answer);
+    const saving = (undoOperation.current ?? Promise.resolve()).then(() => submit(answer));
+    operations.current.set(answer.id, saving);
+  }
+
+  function undo() {
+    if (!last || undoOperation.current) return;
+    const previous = last;
+    cancelled.current.add(previous.answer.id);
+    setLast(undefined);
+    setAnswered((count) => count - 1);
+    setRatings((values) => ({
+      ...values,
+      [previous.answer.rating]: Math.max(0, (values[previous.answer.rating] ?? 0) - 1),
+    }));
+    queue.current = {
+      ...previous.queue,
+      retries: queue.current.retries.filter((card) => card.id !== previous.card.id),
+    };
+    cards.current.set(previous.card.id, previous.card);
+    visibleId.current = previous.card.id;
+    setCurrent(previous.card);
+    setRevealed(true);
+    locked.current = false;
+    setPending((count) => count + 1);
+    const body = { id: uuidV7(), reviewId: previous.answer.id };
+    let resolveUndo!: () => void;
+    undoOperation.current = new Promise<void>((resolve) => {
+      resolveUndo = resolve;
+    });
+    let attempting = false;
+    const attempt = async () => {
+      if (attempting) return;
+      attempting = true;
+      try {
+        await operations.current.get(previous.answer.id);
+        await request('/reviews', { method: 'POST', body: previous.answer });
+        await request('/reviews/undo', { method: 'POST', body });
+        setFailed((items) => items.filter((item) => item.id !== previous.answer.id));
+        setError(undefined);
+        locked.current = false;
+        retryUndo.current = undefined;
+        undoOperation.current = undefined;
+        setPending((count) => count - 1);
+        resolveUndo();
+      } catch (cause) {
+        setError(cause);
+        locked.current = true;
+      } finally {
+        attempting = false;
+      }
+    };
+    retryUndo.current = attempt;
+    void attempt();
   }
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.repeat || failed.length) return;
-      if (event.code === 'Space' && current && note.data) {
+      if (event.code === 'Space' && current && note) {
         event.preventDefault();
         setRevealed(true);
       }
@@ -227,15 +303,22 @@ export function StudyScreen({
     ? preview(workloadCard(current).scheduling, new Date(), config)
     : undefined;
   const face =
-    note.data && current
-      ? possibleCards(note.data.note.noteType, note.data.note.fields as NoteFields).find(
+    note && current
+      ? possibleCards(note.noteType, note.fields as NoteFields).find(
           (card) => card.direction === current.direction && card.slot === current.slot,
         )
       : undefined;
 
+  if (practicing && plan)
+    return <Practice notes={plan.notes} onFinish={() => setPracticing(false)} />;
   return (
     <section data-screen="" className="flex min-h-[65dvh] flex-col gap-20">
       <h1 className="font-display text-24 text-primary">{t('today.study')}</h1>
+      {last && (
+        <Button variant="text" onClick={undo}>
+          {t('study.undo')}
+        </Button>
+      )}
       {failed.length > 0 && (
         <ErrorState
           message={t('study.saveFailed')}
@@ -249,7 +332,7 @@ export function StudyScreen({
         <ErrorState
           message={t(describe(error).key, describe(error).values)}
           retryLabel={t('common.retry')}
-          onRetry={() => void start()}
+          onRetry={() => void (retryUndo.current ? retryUndo.current() : start())}
         />
       )}
       {loading && <SkeletonRows rows={3} />}
@@ -258,17 +341,9 @@ export function StudyScreen({
           <p className="text-13 text-secondary" data-numeric="">
             {t('study.answered', { count: answered })}
           </p>
-          {note.isPending ? (
-            <SkeletonRows rows={3} />
-          ) : note.error ? (
-            <ErrorState
-              message={t(describe(note.error).key, describe(note.error).values)}
-              retryLabel={t('common.retry')}
-              onRetry={() => void note.refetch()}
-            />
-          ) : face ? (
+          {face ? (
             <Card className="flex flex-1 flex-col justify-center gap-24">
-              <div className="text-24 leading-body text-primary">
+              <div className="font-display text-32 leading-body text-primary break-words">
                 {face.front.map((line) => (
                   <p key={line.field}>{line.value}</p>
                 ))}
@@ -292,12 +367,16 @@ export function StudyScreen({
                   return (
                     <Button
                       key={rating}
+                      layout="stacked"
                       disabled={failed.length > 0}
-                      className="min-h-64 flex-col gap-4 px-4"
+                      className="min-w-0 px-4 py-8"
                       onClick={() => grade(index)}
                     >
                       <span>{t(`study.${rating}`)}</span>
-                      <span className="text-12" data-numeric="">
+                      <span
+                        className="whitespace-nowrap text-12 font-normal text-tertiary"
+                        data-numeric=""
+                      >
                         {days < 1
                           ? t('study.intervalMinutes', {
                               count: Math.max(1, Math.round(days * 1440)),
@@ -336,6 +415,19 @@ export function StudyScreen({
               { count: answered },
             )}
           </p>
+          <p className="text-13 text-secondary">
+            {t('study.summaryTime', {
+              minutes: elapsedMinutes,
+            })}
+          </p>
+          <p className="text-13 text-secondary">
+            {RATINGS.map((rating) => `${t(`study.${rating}`)} ${ratings[rating] ?? 0}`).join(' · ')}
+          </p>
+          {nextDue && (
+            <p className="text-13 text-secondary">
+              {t('study.nextReturn', { time: new Date(nextDue).toLocaleString() })}
+            </p>
+          )}
           <Button
             full
             variant="primary"
@@ -344,17 +436,23 @@ export function StudyScreen({
           >
             {t(pending ? 'common.loading' : 'study.finish')}
           </Button>
-          <Button
-            full
-            disabled={pending > 0 || failed.length > 0}
-            onClick={() => {
-              started.current = Date.now();
-              if (queue.current.planned.length || queue.current.retries.length) next();
-              else void start();
-            }}
-          >
-            {t('study.continue')}
-          </Button>
+          {morePlanned && (
+            <Button
+              full
+              disabled={pending > 0 || failed.length > 0}
+              onClick={() => {
+                started.current = Date.now();
+                next();
+              }}
+            >
+              {t('study.continue')}
+            </Button>
+          )}
+          {plan.notes.length > 0 && (
+            <Button disabled={pending > 0 || failed.length > 0} onClick={() => setPracticing(true)}>
+              {t('practice.title')}
+            </Button>
+          )}
         </Card>
       )}
       {!plan && <Button onClick={onFinish}>{t('common.back')}</Button>}

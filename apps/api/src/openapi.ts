@@ -34,6 +34,7 @@ import {
   studyPresetSchema,
   submitReviewBatchSchema,
   submitReviewSchema,
+  undoReviewSchema,
   unlockDirectionSchema,
   updateDeckSchema,
   updateNoteSchema,
@@ -82,6 +83,8 @@ const registry: Record<string, z.ZodType> = {
   UpdatePreset: updatePresetSchema,
   CreateImport: createImportSchema,
   SubmitReview: submitReviewSchema,
+  UndoReview: undoReviewSchema,
+  UndoReviewResult: z.object({ card: cardSchema }),
   SubmitReviewBatch: submitReviewBatchSchema,
   ReviewResult: reviewResultSchema,
   ReviewBatchResult: reviewBatchResultSchema,
@@ -443,6 +446,16 @@ export function openApiDocument(baseUrl: string) {
           summary: 'A session that was answered with no network',
           requestBody: body('SubmitReviewBatch'),
           responses: { 200: answer('One result per answer', 'ReviewBatchResult'), ...commonErrors },
+        },
+      },
+      '/reviews/undo': {
+        post: {
+          summary: 'Append a compensating event for the latest answer to a card',
+          requestBody: body('UndoReview'),
+          responses: {
+            200: answer('Restored server projection', 'UndoReviewResult'),
+            ...commonErrors,
+          },
         },
       },
       '/sync': {

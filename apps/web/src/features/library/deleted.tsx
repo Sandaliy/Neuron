@@ -180,8 +180,6 @@ function DeletedNoteList() {
     setErrors((current) => ({ ...current, [note.id]: undefined }));
     try {
       const result = await actions.restore.mutateAsync(note.id);
-      const refreshed = await deleted.refetch();
-      if (refreshed.error) throw refreshed.error;
       pending.current.delete(note.id);
       setHidden(new Set(pending.current));
       if (result.restored) {
