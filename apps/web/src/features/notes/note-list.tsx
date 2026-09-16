@@ -13,12 +13,15 @@ import { findDeck, useDeckTree } from '../../lib/decks';
 import { NOTE_KEY, noteQueryString, useNoteActions } from '../../lib/notes';
 import { Button } from '../../ui/button';
 import { Chip } from '../../ui/chip';
+import { CollectionHeader } from '../../ui/collection-header';
 import { Input } from '../../ui/input';
 import { DenseRow } from '../../ui/row';
 import { Select } from '../../ui/select';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
+import { SwipeDelete } from '../../ui/swipe-delete';
 import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
+import { DeckPractice } from '../today/practice';
 
 import { NoteSelectionBar } from './note-selection';
 
@@ -45,6 +48,7 @@ const CARD_STATE_ORDER = ['new', 'learning', 'review', 'relearning'] as const;
  * search is sent a beat after the typing stops rather than on every keystroke.
  */
 export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
+  const [practicing, setPracticing] = useState(false);
   const t = useTranslate();
   const toast = useToast();
   const { mutateAsync: deleteNote } = useNoteActions().remove;
@@ -150,39 +154,39 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
     });
   }
 
+  if (practicing && deckId)
+    return <DeckPractice deckId={deckId} onFinish={() => setPracticing(false)} />;
   return (
     <section data-screen="" className="flex flex-col gap-16">
-      <header className="flex flex-wrap items-center justify-between gap-12">
-        <div className="flex min-w-0 flex-col gap-4">
-          <h1 className="truncate font-display text-24 tracking-tight text-primary">
-            {deck?.name ?? t('notes.title')}
-          </h1>
-          <p className="text-13 text-tertiary" data-numeric="">
-            {notes.hasNextPage
-              ? t('notes.countMore', { count: rows.length })
-              : t('notes.count', { count: rows.length })}
-          </p>
-        </div>
+      <CollectionHeader
+        title={deck?.name ?? t('notes.title')}
+        actions={
+          <>
+            <Button
+              variant="quiet"
+              onClick={() => void navigate({ to: '/import', search: deckSearch })}
+            >
+              <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
+              <span className="sr-only sm:not-sr-only">{t('notes.import')}</span>
+            </Button>
 
-        <div className="flex shrink-0 items-center gap-8">
-          <Button
-            variant="quiet"
-            onClick={() => void navigate({ to: '/import', search: deckSearch })}
-          >
-            <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
-            {t('notes.import')}
-          </Button>
-
-          <Button
-            variant="primary"
-            onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
-          >
-            <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
-            {t('notes.newNote')}
-          </Button>
-        </div>
-      </header>
-      <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
+            <Button
+              variant="primary"
+              onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
+            >
+              <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+              {t('notes.newNote')}
+            </Button>
+          </>
+        }
+      >
+        <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
+      </CollectionHeader>
+      {deckId && (
+        <Button variant="text" onClick={() => setPracticing(true)}>
+          {t('practice.title')}
+        </Button>
+      )}
 
       {(rows.length > 0 || filtered || typed !== '') && !selecting ? (
         <div className="flex flex-col gap-12">
@@ -196,7 +200,6 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           />
           <div className="flex items-center gap-8">
             <div className="min-w-0 flex-1">
-              {' '}
               <Select
                 value={sort}
                 aria-label={t('notes.sort')}
@@ -489,96 +492,38 @@ const NoteRow = memo(function NoteRow({
   readonly onReveal: (id: string | null) => void;
 }) {
   const t = useTranslate();
-  const gesture = useRef<{ x: number; y: number } | null>(null);
-  const swallowClick = useRef(false);
   const meaning =
     typeof note.fields['translation'] === 'string'
       ? note.fields['translation']
       : typeof note.fields['back'] === 'string'
         ? note.fields['back']
         : note.tags.join(', ');
-  const detail =
-    selecting && note.status !== 'active'
-      ? `${meaning} ${t(`note.status.${note.status}`)}`
-      : meaning;
-  const [drag, setDrag] = useState(0);
-
   return (
-    <div
-      className="relative h-52 select-none overflow-hidden"
-      style={{ touchAction: 'pan-y' }}
-      onPointerDown={(event) => {
-        swallowClick.current = false;
-        if (!revealed) onReveal(null);
-        if (!selecting && event.pointerType === 'touch')
-          gesture.current = { x: event.clientX, y: event.clientY };
-      }}
-      onPointerCancel={() => {
-        gesture.current = null;
-        setDrag(0);
-      }}
-      onPointerMove={(event) => {
-        const start = gesture.current;
-        if (!start) return;
-        const dx = event.clientX - start.x;
-        const dy = event.clientY - start.y;
-        if (Math.abs(dy) > 16) {
-          gesture.current = null;
-          setDrag(0);
-          return;
-        }
-        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 2) {
-          setDrag(Math.min(0, dx));
-          swallowClick.current = true;
-        }
-      }}
-      onPointerUp={() => {
-        if (drag < -120) {
-          onReveal(null);
-          onRemove(note.id);
-        } else if (drag < -40) onReveal(note.id);
-        else if (drag !== 0) onReveal(null);
-        setDrag(0);
-        gesture.current = null;
-      }}
-      onClickCapture={(event) => {
-        if (swallowClick.current) {
-          swallowClick.current = false;
-          event.preventDefault();
-          event.stopPropagation();
-        }
+    <SwipeDelete
+      label={t('note.delete')}
+      disabled={selecting}
+      open={revealed}
+      onOpen={(open) => onReveal(open ? note.id : null)}
+      onDelete={() => {
+        onReveal(null);
+        onRemove(note.id);
       }}
     >
-      {(revealed || drag < 0) && (
-        <button
-          type="button"
-          aria-label={t('note.delete')}
-          data-swipe-action=""
-          className="absolute inset-y-0 right-0 flex w-64 items-center justify-center bg-fill-error-quiet text-error active:opacity-70"
-          onClick={() => {
-            onReveal(null);
-            onRemove(note.id);
-          }}
-        >
-          <Trash2 size={20} aria-hidden="true" />
-        </button>
-      )}
-      <div
-        className="flex h-52 bg-base transition-transform dur-reveal"
-        style={{
-          transform: `translateX(${drag || (revealed ? -64 : 0)}px)`,
-          transition: drag ? 'none' : undefined,
-        }}
-      >
-        <DenseRow
-          selected={selecting ? selected : undefined}
-          word={termOf(note.fields)}
-          meaning={detail}
-          onClick={() =>
-            revealed ? onReveal(null) : selecting ? onToggle(note.id) : onOpen(note.id)
-          }
-          trailing={
-            selecting ? (
+      <DenseRow
+        selected={selecting ? selected : undefined}
+        word={termOf(note.fields)}
+        meaning={meaning}
+        onClick={() =>
+          revealed ? onReveal(null) : selecting ? onToggle(note.id) : onOpen(note.id)
+        }
+        trailing={
+          <>
+            {note.status !== 'active' ? (
+              <Chip tone="due">{t(`note.status.${note.status}`)}</Chip>
+            ) : (
+              <CardStateSummary counts={note.cardStates} />
+            )}
+            {selecting && (
               <span
                 aria-hidden="true"
                 data-selected={selected ? '' : undefined}
@@ -587,29 +532,26 @@ const NoteRow = memo(function NoteRow({
                   selected ? 'border-accent bg-fill-accent' : 'border-default',
                 ].join(' ')}
               />
-            ) : note.status !== 'active' ? (
-              <Chip tone="due">{t(`note.status.${note.status}`)}</Chip>
-            ) : (
-              <CardStateSummary counts={note.cardStates} />
-            )
-          }
-        />
-        {!selecting && !revealed && drag === 0 && (
-          <button
-            type="button"
-            aria-label={t('note.delete')}
-            title={t('note.delete')}
-            className="flex size-44 shrink-0 items-center justify-center self-center rounded-12 text-tertiary hover:text-error active:bg-fill-error-quiet active:scale-95"
-            onClick={() => {
-              onReveal(null);
-              onRemove(note.id);
-            }}
-          >
-            <Trash2 size={16} aria-hidden="true" />
-          </button>
-        )}
-      </div>
-    </div>
+            )}
+          </>
+        }
+      />
+      {!selecting && !revealed && (
+        <button
+          type="button"
+          aria-label={t('note.delete')}
+          data-direct-delete=""
+          title={t('note.delete')}
+          className="flex size-44 shrink-0 items-center justify-center self-center rounded-12 text-tertiary hover:text-error active:bg-fill-error-quiet active:scale-95"
+          onClick={() => {
+            onReveal(null);
+            onRemove(note.id);
+          }}
+        >
+          <Trash2 size={16} aria-hidden="true" />
+        </button>
+      )}
+    </SwipeDelete>
   );
 });
 

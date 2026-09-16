@@ -129,7 +129,7 @@ export function serialiseImportBatch(row: ImportBatchRow): ImportBatch {
  */
 export function buildDeckTree(rows: readonly DeckRow[], counts: readonly DeckCount[]): DeckNode[] {
   const own = new Map(counts.map((count) => [count.deckId, count]));
-  const totals = new Map<string, { due: number; fresh: number }>();
+  const totals = new Map<string, { due: number; fresh: number; nextDue?: string | null }>();
 
   for (const deck of rows) {
     totals.set(deck.id, { due: 0, fresh: 0 });
@@ -148,6 +148,11 @@ export function buildDeckTree(rows: readonly DeckRow[], counts: readonly DeckCou
       if (running) {
         running.due += mine.due;
         running.fresh += mine.fresh;
+        if (
+          mine.nextDue &&
+          (!running.nextDue || new Date(mine.nextDue) < new Date(running.nextDue))
+        )
+          running.nextDue = new Date(mine.nextDue).toISOString();
       }
     }
   }
@@ -161,6 +166,7 @@ export function buildDeckTree(rows: readonly DeckRow[], counts: readonly DeckCou
       ...serialiseDeck(deck),
       due: total.due,
       fresh: total.fresh,
+      nextDue: total.nextDue ?? null,
       children: [],
     });
   }

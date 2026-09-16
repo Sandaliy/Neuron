@@ -196,16 +196,29 @@ buttons that all promise the same date.
 ## Replay and offline
 
 The `reviews` table is append only, and card state is a projection of it.
-`replay(logs, config)` is that projection: it rebuilds a card from nothing but its
-review log. This is what makes offline sync work. When two devices answer the same
-card while offline, the logs are merged by timestamp and replayed, and both
-devices arrive at the same card without either one having to win.
+Ordinary histories use `replay(logs, config)`; histories containing recent-answer
+Undo use the event projection. Answers are ordered by `reviewed_at`, then by their
+stable id, so different arrival orders produce the same history. An Undo is another
+immutable row naming the answer it cancels. Projection removes that target from the
+contributing set and replays every surviving answer. It never restores an old card
+snapshot at the later Undo time, which would incorrectly erase an answer made in
+between.
 
-Stability and difficulty are recomputed during a replay, because they are a
+Each newly recorded answer also carries the server-captured state immediately
+before it. That state establishes the origin of the replay and tells the projector
+when a merged or cancelled predecessor changed. From that point, downstream answers
+are recomputed with deterministic id-seeded randomness. A duplicate event id is one
+fact, and repeated Undo of the same target adds no second cancellation. These rules
+are what let a future offline merge converge without choosing a winning device.
+
+Stability and difficulty are recomputed during a replay when the contributing
+history changed, because they are a
 function of the log and every device computes them identically. The due date is
-not. Fuzz and load balancing both draw from a generator, so the day a card
+preserved from the row while its predecessor still matches. Fuzz and load
+balancing both draw from a generator, so the day a card
 actually landed on exists nowhere except in the row that recorded it, and each
-row therefore stores it. Without that, a phone that scattered a card onto Tuesday
+row therefore stores it. If cancellation or merged ordering changes the predecessor,
+the due date is recomputed from the event id instead. Without that, a phone that scattered a card onto Tuesday
 and a laptop rebuilding the same card onto Monday would both be self consistent
 and a day apart forever, and nobody would notice for months. A test replays five
 thousand generated histories with fuzz on and requires the state, the stability,

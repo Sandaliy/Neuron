@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export const undoReviewSchema = z.strictObject({ id: z.uuid(), reviewId: z.uuid() });
+
 import { ratingSchema } from '../rating.js';
 
 import { cardSchema, cardStateSchema } from './cards.js';

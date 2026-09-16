@@ -91,9 +91,9 @@ export function DeckNameDialog({
 /**
  * Choosing where a deck goes.
  *
- * The primary way to move a deck, and on a phone the only one. Dragging on a
- * touch screen fights with scrolling and misfires, so the drag that exists is
- * an addition on pointer devices and this is what everybody gets.
+ * The explicit alternative to the drag grip, available on every device and to
+ * keyboard users. It moves to a parent; the grip also provides exact sibling
+ * insertion.
  *
  * Every target is listed, and the ones that cannot work are disabled with the
  * reason next to them rather than left to be chosen and then refused. Moving a

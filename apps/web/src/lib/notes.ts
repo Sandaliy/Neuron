@@ -8,10 +8,13 @@ import type {
   NoteTypeName,
   DuplicateMatch,
   RestoreNoteResult,
+  DeletedNote,
+  DeckNode,
 } from '@neuron/shared';
 
 import { request } from './api';
-import { DECK_TREE_KEY } from './decks';
+import { DECK_TREE_KEY, flatten } from './decks';
+import { DELETED_NOTES_KEY } from './recovery';
 
 import type { InfiniteData } from '@tanstack/react-query';
 
@@ -25,6 +28,7 @@ import type { InfiniteData } from '@tanstack/react-query';
 
 export const NOTE_KEY = 'notes';
 type NotePages = InfiniteData<{ items: Note[]; nextCursor?: string }>;
+const deletingNotes = new Map<string, Promise<{ deleted: boolean }>>();
 
 /** One note and the cards it currently has. */
 export function useNote(id: string | undefined) {
@@ -170,10 +174,41 @@ export function useNoteActions() {
     onSuccess: (written) => accept(written),
   });
 
+  const reconcileRecovery = () => {
+    if (client.isMutating({ mutationKey: ['note-recovery'] }) !== 1) return;
+    void client.invalidateQueries({ queryKey: DELETED_NOTES_KEY });
+    void client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'] });
+    void client.invalidateQueries({ queryKey: DECK_TREE_KEY, exact: true });
+  };
+
   const remove = useMutation({
+    mutationKey: ['note-recovery'],
     onMutate: async (id: string) => {
-      await client.cancelQueries({ queryKey: [NOTE_KEY, 'list'] });
+      await Promise.all([
+        client.cancelQueries({ queryKey: [NOTE_KEY, 'list'] }),
+        client.cancelQueries({ queryKey: DELETED_NOTES_KEY }),
+      ]);
       const previous = client.getQueriesData<NotePages>({ queryKey: [NOTE_KEY, 'list'] });
+      const note = previous
+        .flatMap(([, data]) => data?.pages.flatMap((page) => page.items) ?? [])
+        .find((row) => row.id === id);
+      if (note) {
+        const all = flatten(client.getQueryData<{ decks: DeckNode[] }>(DECK_TREE_KEY)?.decks ?? []);
+        const deck = all.find((row) => row.id === note.deckId);
+        client.setQueryData<{ notes: DeletedNote[] }>(DELETED_NOTES_KEY, (data) => ({
+          notes: [
+            {
+              ...note,
+              deckLive: !!deck,
+              deckPath: [...(deck?.path ?? []), note.deckId].flatMap((key) => {
+                const item = all.find((row) => row.id === key);
+                return item ? [item.name] : [];
+              }),
+            },
+            ...(data?.notes ?? []).filter((row) => row.id !== id),
+          ],
+        }));
+      }
       client.setQueriesData<NotePages>(
         { queryKey: [NOTE_KEY, 'list'] },
         (data) =>
@@ -188,6 +223,10 @@ export function useNoteActions() {
       return { previous };
     },
     onError: (_error, id, context) => {
+      client.setQueryData<{ notes: DeletedNote[] }>(
+        DELETED_NOTES_KEY,
+        (data) => data && { notes: data.notes.filter((row) => row.id !== id) },
+      );
       for (const [key, previous] of context?.previous ?? []) {
         const pageIndex =
           previous?.pages.findIndex((page) => page.items.some((note) => note.id === id)) ?? -1;
@@ -211,7 +250,15 @@ export function useNoteActions() {
       }
       markCollectionStale();
     },
-    mutationFn: (id: string) => request<{ deleted: boolean }>(`/notes/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => {
+      const pending = deletingNotes.get(id);
+      if (pending) return pending;
+      const operation = request<{ deleted: boolean }>(`/notes/${id}`, { method: 'DELETE' });
+      deletingNotes.set(id, operation);
+      void operation.finally(() => deletingNotes.delete(id)).catch(() => undefined);
+      return operation;
+    },
+    onSettled: reconcileRecovery,
     onSuccess: (_result, id) => {
       client.removeQueries({ queryKey: [NOTE_KEY, id], exact: true });
       client.setQueriesData<NotePages>(
@@ -230,9 +277,31 @@ export function useNoteActions() {
   });
 
   const restore = useMutation({
-    mutationFn: (id: string) =>
-      request<RestoreNoteResult>(`/notes/${id}/restore`, { method: 'POST' }),
+    mutationKey: ['note-recovery'],
+    onMutate: async (id: string) => {
+      await client.cancelQueries({ queryKey: DELETED_NOTES_KEY });
+      const note = client
+        .getQueryData<{ notes: DeletedNote[] }>(DELETED_NOTES_KEY)
+        ?.notes.find((row) => row.id === id);
+      client.setQueryData<{ notes: DeletedNote[] }>(
+        DELETED_NOTES_KEY,
+        (data) => data && { notes: data.notes.filter((row) => row.id !== id) },
+      );
+      return { note };
+    },
+    onError: (_error, id, context) => {
+      const note = context?.note;
+      if (note)
+        client.setQueryData<{ notes: DeletedNote[] }>(DELETED_NOTES_KEY, (data) => ({
+          notes: [note, ...(data?.notes ?? []).filter((row) => row.id !== id)],
+        }));
+    },
+    mutationFn: async (id: string) => {
+      await deletingNotes.get(id);
+      return request<RestoreNoteResult>(`/notes/${id}/restore`, { method: 'POST' });
+    },
     onSuccess: markCollectionStale,
+    onSettled: reconcileRecovery,
   });
 
   const setStatus = useMutation({

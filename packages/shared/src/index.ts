@@ -237,6 +237,7 @@ export {
   reviewResultSchema,
   submitReviewBatchSchema,
   submitReviewSchema,
+  undoReviewSchema,
 } from './api/reviews.js';
 export type {
   ReviewBatchResult,

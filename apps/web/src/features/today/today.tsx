@@ -1,17 +1,20 @@
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { DEFAULT_ANSWER_SECONDS } from '@neuron/core';
-import type { DeckNode } from '@neuron/shared';
+import { dailyStudySessionSchema } from '@neuron/shared';
+import type { DeckNode, DailyStudySession } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
-import { describe } from '../../lib/api';
+import { describe, request } from '../../lib/api';
 import { totals, useDeckTree } from '../../lib/decks';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
-import { Input } from '../../ui/input';
 import { Row } from '../../ui/row';
-import { EmptyState, ErrorState, Skeleton } from '../../ui/states';
+import { Select } from '../../ui/select';
+import { ErrorState, Skeleton } from '../../ui/states';
 
 import { StudyScreen } from './study';
 
@@ -44,9 +47,19 @@ export function estimateMinutes(due: number): number {
 export function TodayScreen() {
   const t = useTranslate();
   const decks = useDeckTree();
-  const [studying, setStudying] = useState(false);
+  const [studying, setStudying] = useState<DailyStudySession>();
   const [minutes, setMinutes] = useState('');
-  if (studying) return <StudyScreen minutes={minutes} onFinish={() => setStudying(false)} />;
+  if (studying)
+    return (
+      <StudyScreen
+        initialPlan={studying}
+        minutes={minutes}
+        onFinish={() => {
+          setStudying(undefined);
+          void decks.refetch();
+        }}
+      />
+    );
 
   return (
     <section data-screen="" className="flex flex-col gap-24">
@@ -78,7 +91,7 @@ export function TodayScreen() {
           minutes={minutes}
           onMinutes={setMinutes}
           decks={decks.data}
-          onStart={() => setStudying(true)}
+          onStart={setStudying}
         />
       ) : undefined}
     </section>
@@ -94,24 +107,30 @@ function Waiting({
   readonly minutes: string;
   readonly onMinutes: (value: string) => void;
   readonly decks: readonly DeckNode[];
-  readonly onStart: () => void;
+  readonly onStart: (plan: DailyStudySession) => void;
 }) {
   const t = useTranslate();
+  const navigate = useNavigate();
   const { due, fresh } = totals(decks);
-
-  /*
-   * Empty only when there is genuinely nothing.
-   *
-   * Due and new are two different facts and the screen says both. A collection
-   * imported an hour ago has nothing due and plenty new, and telling that
-   * person "nothing is waiting" reads as a broken app rather than as a
-   * scheduler doing its job.
-   */
-  if (due === 0 && fresh === 0) {
-    return <EmptyState title={t('today.emptyTitle')} description={t('today.emptyBody')} />;
-  }
-
-  const waiting = decks.filter((deck) => deck.due > 0 || deck.fresh > 0);
+  const [direction, setDirection] = useState('');
+  const [override, setOverride] = useState(false);
+  const plan = useQuery({
+    queryKey: ['study-plan', minutes, direction, override],
+    queryFn: async ({ signal }) =>
+      dailyStudySessionSchema.parse(
+        await request('/study/session', {
+          method: 'POST',
+          signal,
+          body: {
+            ...(minutes ? { minutes: Number(minutes) } : {}),
+            ...(direction ? { direction } : {}),
+            ...(override ? { newCards: 'override' } : {}),
+          },
+        }),
+      ),
+    staleTime: 0,
+  });
+  const waiting = decks;
 
   return (
     <div className="flex flex-col gap-24">
@@ -143,29 +162,85 @@ function Waiting({
           </div>
         ) : undefined}
 
-        <details>
-          <summary className="min-h-44 cursor-pointer text-14 text-secondary">
-            {t('study.minutes')}
-          </summary>
-          <Input
-            aria-label={t('study.minutes')}
-            type="number"
-            min={1}
-            max={1440}
-            value={minutes}
-            placeholder={t('study.defaultTime')}
-            onChange={(event) => onMinutes(event.target.value)}
-          />
-          <p className="pt-8 text-13 text-secondary">{t('study.oneOff')}</p>
-        </details>
+        {due === 0 && fresh === 0 ? (
+          <div role="status" className="rounded-12 bg-raised p-12">
+            <p className="text-15 text-primary">{t('today.caughtUpTitle')}</p>
+            <p className="text-13 text-secondary">{t('today.caughtUpBody')}</p>
+          </div>
+        ) : undefined}
+
+        <label className="text-14 text-secondary">
+          {t('study.minutes')}
+          <Select value={minutes} onChange={(event) => onMinutes(event.target.value)}>
+            <option value="">{t('study.defaultTime')}</option>
+            {[5, 10, 20, 30].map((value) => (
+              <option key={value} value={value}>
+                {t('study.intervalMinutes', { count: value })}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="text-14 text-secondary">
+          {t('study.skill')}
+          <Select value={direction} onChange={(event) => setDirection(event.target.value)}>
+            <option value="">{t('study.mixed')}</option>
+            <option value="recognition">{t('study.recognition')}</option>
+            <option value="recall">{t('study.recall')}</option>
+          </Select>
+        </label>
+        <p className="text-13 text-secondary">{t('study.oneOff')}</p>
+        <div aria-live="polite">
+          {plan.isFetching ? (
+            <p>{t('common.loading')}</p>
+          ) : (
+            plan.data && (
+              <>
+                <p className="text-15 text-primary">
+                  {t('study.plan', {
+                    minutes: Math.round(plan.data.estimatedMinutes * 10) / 10,
+                    reviews: plan.data.reviewCount,
+                    fresh: plan.data.newCount,
+                  })}
+                </p>
+                {plan.data.cards.length === plan.data.availableCount && (
+                  <p className="text-13 text-secondary">{t('study.allPlanned')}</p>
+                )}
+                {plan.data.newCards.overrideAvailable && (
+                  <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
+                    <input
+                      type="checkbox"
+                      checked={override}
+                      onChange={(event) => setOverride(event.target.checked)}
+                    />
+                    {t('study.moreNew')}
+                  </label>
+                )}
+                {plan.data.newCards.limitedBy === 'automaticPolicy' && (
+                  <p className="text-13 text-secondary">{t('study.policyPause')}</p>
+                )}
+                {plan.data.nextDue && (
+                  <p className="text-13 text-secondary">
+                    {t('study.nextReturn', { time: new Date(plan.data.nextDue).toLocaleString() })}
+                  </p>
+                )}
+              </>
+            )
+          )}
+          {plan.error && (
+            <ErrorState
+              message={t(describe(plan.error).key)}
+              retryLabel={t('common.retry')}
+              onRetry={() => void plan.refetch()}
+            />
+          )}
+        </div>
         <Button
           variant="primary"
           full
-          disabled={
-            !!minutes &&
-            (!Number.isInteger(Number(minutes)) || Number(minutes) < 1 || Number(minutes) > 1440)
-          }
-          onClick={onStart}
+          disabled={!plan.data?.cards.length || plan.isFetching}
+          onClick={() => {
+            if (plan.data) onStart(plan.data);
+          }}
         >
           {t('today.study')}
         </Button>
@@ -180,7 +255,16 @@ function Waiting({
               <Row
                 key={deck.id}
                 title={deck.name}
-                subtitle={t('today.deckCounts', { due: deck.due, fresh: deck.fresh })}
+                onClick={() =>
+                  void (deck.kind === 'deck'
+                    ? navigate({ to: '/notes', search: { deckId: deck.id } })
+                    : navigate({ to: '/library', search: { folderId: deck.id } }))
+                }
+                subtitle={
+                  deck.due === 0 && deck.fresh === 0 && deck.nextDue
+                    ? t('study.nextReturn', { time: new Date(deck.nextDue).toLocaleString() })
+                    : t('today.deckCounts', { due: deck.due, fresh: deck.fresh })
+                }
                 trailing={deck.due > 0 ? <Chip tone="due">{deck.due}</Chip> : undefined}
               />
             ))}

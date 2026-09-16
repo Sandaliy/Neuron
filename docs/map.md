@@ -20,6 +20,7 @@ Runs identically in the browser offline and on the server during sync.
 | `memory.ts`     | Stability and difficulty updates: `initialStability`, `recallStability`, `nextDifficulty`, `postLapseFloor` |
 | `scheduler.ts`  | The public surface: `review`, `preview`, `replay`, `retrievability`                                         |
 | `random.ts`     | `createSeededRandom`, the injectable `RandomSource`                                                         |
+| `events.ts`     | Canonical answer ordering and append-only cancellation projection                                           |
 
 Reference implementation checks live in `differential.test.ts`, invariants in `properties.test.ts`,
 a frozen output set in `snapshot.test.ts`.
@@ -87,7 +88,7 @@ objects, which is what stops it drifting away from the code.
 | `notes.ts`   | Note shapes, the browse query, create, update, bulk status                    |
 | `cards.ts`   | Card shapes, the due query, unlocking a direction                             |
 | `study.ts`   | Daily Study session requests/results, presets, and imports                    |
-| `reviews.ts` | Submitting an answer, one or a batch, and what comes back                     |
+| `reviews.ts` | Submitting an answer, recent-answer Undo, batches, and what comes back        |
 | `sync.ts`    | The revision stream, and what a client may push for each kind of row          |
 | `account.ts` | Who is signed in, preferences, and leaving                                    |
 | `auth.ts`    | Registering, signing in, recovery codes, TOTP, verification and reset         |
@@ -152,7 +153,7 @@ middleware put on the request, and answers only in the shape `src/errors.ts` dec
 | `notes.ts`   | Browse with filters and a cursor, create with its opening cards, edit, move, bulk status, delete, restore |
 | `cards.ts`   | What is due, suspend, unsuspend, reset, and opening a direction under `/notes/:id/cards`                  |
 | `study.ts`   | Daily Study session construction, presets, and imports that can be taken back whole                       |
-| `reviews.ts` | `POST /reviews` and the batch form. The hot path, and the one that recomputes rather than believes        |
+| `reviews.ts` | Answers, batches and append-only recent Undo. Recomputes rather than believing the client                 |
 | `sync.ts`    | `GET /sync` by revision, `POST /sync` as one transaction                                                  |
 | `account.ts` | Who is signed in, preferences, and leaving                                                                |
 
@@ -169,7 +170,7 @@ the checks that prove isolation works.
 | `notes.ts`               | `notes`. The fact, with all its fields                                                                                                                        |
 | `note-types.ts`          | `note_types`. Built in types belong to nobody, so this has its own policy                                                                                     |
 | `cards.ts`               | `cards`. One review direction of a note, with its FSRS state                                                                                                  |
-| `reviews.ts`             | `reviews`. Append only. Never updated, never deleted                                                                                                          |
+| `reviews.ts`             | `reviews`. Append-only answers and cancellation events with captured predecessor state                                                                        |
 | `study.ts`               | `study_presets`, `import_batches`                                                                                                                             |
 | `sync.ts`                | `sync_conflicts`. The version that lost a merge, kept whole                                                                                                   |
 | `rate-limits.ts`         | `rate_limits`. Counters only, no user data, reachable through one function                                                                                    |
@@ -253,7 +254,8 @@ the api anywhere in browser code would cost the session cookie.
 | `library/collection-picker.tsx` | Hierarchy-aware deck destination picker                                                         |
 | `library/collection-path.tsx`   | Navigable folder/deck path chips on collection-scoped screens                                   |
 | `today/today.tsx`               | What is due, what is new, and the estimate that says "about"                                    |
-| `today/study.tsx`               | Daily Study reveal, interval previews, verified answers, retries, and completion                |
+| `today/study.tsx`               | Local Daily Study reveal/advance, interval previews, verified answers, Undo, and completion     |
+| `today/practice.tsx`            | Schedule-free configurable field practice with repeated learning rounds                         |
 | `notes/note-list.tsx`           | Virtualized note browse, search, filters, sorts and selection                                   |
 | `notes/note-editor.tsx`         | Explicit create, autosaving edit, conditional fields and card preview                           |
 | `notes/note-selection.tsx`      | Bulk known, move, tag and delete actions                                                        |
@@ -270,6 +272,7 @@ every one of these in every state.
 | File                                      | Holds                                                                                   |
 | ----------------------------------------- | --------------------------------------------------------------------------------------- |
 | `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form  |
+| `collection-header.tsx`                   | Compact collection title/actions row with navigation directly below                     |
 | `input.tsx`, `textarea.tsx`, `select.tsx` | The fields. Sixteen pixels of text, or iOS zooms the page on focus                      |
 | `form-field.tsx`                          | The label, the hint, the error, and the wiring between them                             |
 | `range.tsx`                               | A rail, a filled portion, one white disc. The fill is handed to css as `--track`        |
@@ -277,6 +280,7 @@ every one of these in every state.
 | `switch.tsx`, `checkbox.tsx`              | A capsule and a white disc; a fill framed by an inset ring                              |
 | `card.tsx`                                | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                |
 | `row.tsx`                                 | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                     |
+| `swipe-delete.tsx`                        | Continuous note-row reveal and committed release-to-delete gesture                      |
 | `chip.tsx`, `progress.tsx`                | Four chip tones and no others; a line that fills on `transform`                         |
 | `dialog.tsx`                              | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip |
 | `toast.tsx`                               | Short confirmations, above the bottom bar and above the home indicator                  |

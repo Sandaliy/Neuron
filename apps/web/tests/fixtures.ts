@@ -279,6 +279,78 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
         return;
       }
 
+      // The Today plan is a real response, even in a screen fixture. Keeping
+      // one stable card here lets the planning controls render their normal
+      // ready state instead of an unrelated error panel.
+      if (path.endsWith('/api/study/session')) {
+        const studyDeckId = '01900000-0000-7000-8000-000000000901';
+        const studyNoteId = '01900000-0000-7000-8000-000000000902';
+        const studyCardId = '01900000-0000-7000-8000-000000000903';
+        const at = '2026-01-01T00:00:00.000Z';
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            cards: [
+              {
+                id: studyCardId,
+                noteId: studyNoteId,
+                deckId: studyDeckId,
+                direction: 'recognition',
+                slot: 0,
+                state: 'new',
+                stability: null,
+                difficulty: null,
+                due: at,
+                lastReview: null,
+                reps: 0,
+                lapses: 0,
+                learningStep: 0,
+                suspendedAt: null,
+                unlockedAt: null,
+                updatedAt: at,
+                rev: 1,
+              },
+            ],
+            notes: [
+              {
+                id: studyNoteId,
+                deckId: studyDeckId,
+                noteType: 'basic',
+                fields: { front: 'Sorgfalt', back: 'care, thoroughness' },
+                tags: [],
+                source: null,
+                rank: null,
+                status: 'active',
+                importBatchId: null,
+                createdAt: at,
+                updatedAt: at,
+                rev: 1,
+              },
+            ],
+            nextDue: null,
+            availableCount: 1,
+            estimatedMinutes: 0.1,
+            budgetMinutes: 20,
+            reviewCount: 0,
+            newCount: 1,
+            backlog: { active: false, overdueCount: 0, overdueMinutes: 0, budgetMinutes: 20 },
+            newCards: {
+              mode: 'automatic',
+              admitted: 1,
+              allowed: 10,
+              headroomMinutes: 20,
+              marginalCost: 0.1,
+              reason: 'withinBudget',
+              overrideAvailable: false,
+              limitedBy: null,
+            },
+          }),
+        });
+
+        return;
+      }
+
       // The browse screen. One page, however many rows: what is being measured
       // is the list rendering them, not the paging.
       if (path.endsWith('/api/notes')) {

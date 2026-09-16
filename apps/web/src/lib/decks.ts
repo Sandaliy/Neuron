@@ -163,10 +163,19 @@ export function useDeckActions() {
   });
 
   const move = useMutation({
-    mutationFn: (input: { id: string; parentId: string | null }) =>
+    onMutate: async (input: { id: string; parentId: string | null; beforeId?: string | null }) => {
+      await client.cancelQueries({ queryKey: DECK_TREE_KEY, exact: true });
+      const previous = client.getQueryData<{ decks: DeckNode[] }>(DECK_TREE_KEY);
+      if (previous) client.setQueryData(DECK_TREE_KEY, { decks: relocate(previous.decks, input) });
+      return { previous };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) client.setQueryData(DECK_TREE_KEY, context.previous);
+    },
+    mutationFn: (input: { id: string; parentId: string | null; beforeId?: string | null }) =>
       request<{ deck: Deck }>(`/decks/${input.id}/move`, {
         method: 'POST',
-        body: { parentId: input.parentId },
+        body: { parentId: input.parentId, beforeId: input.beforeId ?? null },
       }),
     onSuccess: refresh,
   });
@@ -192,4 +201,51 @@ export function useDeckActions() {
   });
 
   return { create, rename, update, move, reorder, remove, restore };
+}
+
+/** Rebuild paths and folder rollups in the same local update as placement. */
+function relocate(
+  tree: readonly DeckNode[],
+  input: { id: string; parentId: string | null; beforeId?: string | null },
+): DeckNode[] {
+  const rows = flatten(tree).map((row) => ({ ...row, children: [] as DeckNode[] }));
+  const moving = rows.find((row) => row.id === input.id);
+  if (!moving) return [...tree];
+  moving.parentId = input.parentId;
+  const siblings = rows
+    .filter((row) => row.parentId === input.parentId && row.id !== moving.id)
+    .sort((a, b) => a.position - b.position);
+  const at = input.beforeId
+    ? siblings.findIndex((row) => row.id === input.beforeId)
+    : siblings.length;
+  siblings.splice(Math.max(0, at), 0, moving);
+  siblings.forEach((row, index) => {
+    row.position = index;
+  });
+  function level(parentId: string | null, path: string[]): DeckNode[] {
+    return rows
+      .filter((row) => row.parentId === parentId)
+      .sort((a, b) => a.position - b.position)
+      .map((row) => {
+        const children = level(row.id, [...path, row.id]);
+        const nextDue = children.reduce<string | null>((earliest, child) => {
+          const candidate = child.nextDue ?? null;
+          if (!candidate) return earliest;
+          return !earliest || candidate < earliest ? candidate : earliest;
+        }, null);
+        return {
+          ...row,
+          path,
+          children,
+          ...(row.kind === 'folder'
+            ? {
+                due: children.reduce((sum, c) => sum + c.due, 0),
+                fresh: children.reduce((sum, c) => sum + c.fresh, 0),
+                nextDue,
+              }
+            : {}),
+        };
+      });
+  }
+  return level(null, []);
 }

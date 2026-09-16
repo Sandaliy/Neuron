@@ -1,4 +1,10 @@
 export {
+  projectReviewEvents,
+  reviewProjectionOrigin,
+  reviewSeed,
+  type ReviewEvent,
+} from './fsrs/events.js';
+export {
   MAX_DIFFICULTY,
   MAX_STABILITY,
   MIN_DIFFICULTY,

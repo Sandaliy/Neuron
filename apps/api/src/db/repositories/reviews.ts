@@ -1,6 +1,13 @@
-import { and, asc, count, eq, gte, inArray, isNull } from 'drizzle-orm';
+import { and, asc, count, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 
-import { createSchedulerConfig, createSeededRandom, replay, review } from '@neuron/core';
+import {
+  createSchedulerConfig,
+  createSeededRandom,
+  newCard,
+  projectReviewEvents,
+  review,
+  reviewProjectionOrigin,
+} from '@neuron/core';
 import type {
   Rating,
   RandomSource,
@@ -71,6 +78,7 @@ export interface RecordedReview {
 }
 
 export interface ReviewRepository {
+  undo: (reviewId: string, eventId: string) => Promise<typeof cards.$inferSelect>;
   record: (input: RecordReview) => Promise<RecordedReview>;
   /** Every answer for one card that still counts, oldest first. */
   forCard: (cardId: string) => Promise<ReviewLog[]>;
@@ -180,17 +188,129 @@ async function logFor(tx: Tx, userId: string, cardId: string): Promise<ReviewRow
       and(
         eq(reviews.userId, userId),
         eq(reviews.cardId, cardId),
+        isNull(reviews.cancelsReviewId),
+        sql`not exists (select 1 from reviews cancellation where cancellation.user_id = ${userId} and cancellation.cancels_review_id = ${reviews.id})`,
         ...(after === null ? [] : [gte(reviews.reviewedAt, after)]),
       ),
     )
     .orderBy(asc(reviews.reviewedAt), asc(reviews.id));
 }
 
+async function projectionFor(tx: Tx, userId: string, cardId: string): Promise<SchedulingState> {
+  const [card] = await tx
+    .select()
+    .from(cards)
+    .where(and(eq(cards.userId, userId), eq(cards.id, cardId)));
+  if (!card) throw new CardNotFound(cardId);
+  const rows = await tx
+    .select()
+    .from(reviews)
+    .where(
+      and(
+        eq(reviews.userId, userId),
+        eq(reviews.cardId, cardId),
+        ...(card.resetAt ? [gte(reviews.reviewedAt, card.resetAt)] : []),
+      ),
+    )
+    .orderBy(asc(reviews.reviewedAt), asc(reviews.id));
+  const decode = (prior: Record<string, unknown>) =>
+    toSchedulingState({
+      ...card,
+      ...prior,
+      due: new Date(String(prior['due'])),
+      lastReview: prior['lastReview'] ? new Date(String(prior['lastReview'])) : null,
+    });
+  // The first event's captured predecessor is the projection origin, even if
+  // that event is later cancelled. Looking only for a surviving `new` event
+  // would fall back to the card's current due date and could replay a history
+  // with the wrong starting memory after an old answer is undone.
+  const events = rows.map((row) => ({
+    id: row.id,
+    log: toReviewLog(row),
+    cancelsReviewId: row.cancelsReviewId,
+    ...(row.priorState ? { priorState: decode(row.priorState) } : {}),
+  }));
+  const initial = reviewProjectionOrigin(
+    events,
+    newCard(card.resetAt ?? rows[0]?.reviewedAt ?? card.due),
+  );
+  return projectReviewEvents(events, initial, await schedulerConfigFor(tx, userId));
+}
+
 export function reviewRepository(userId: string, run: Runner): ReviewRepository {
   return {
+    async undo(reviewId, eventId) {
+      return run(async (tx) => {
+        const [original] = await tx
+          .select()
+          .from(reviews)
+          .where(
+            and(
+              eq(reviews.userId, userId),
+              eq(reviews.id, reviewId),
+              isNull(reviews.cancelsReviewId),
+            ),
+          );
+        if (!original?.priorState) throw new CardNotFound(reviewId);
+        const [card] = await tx
+          .select()
+          .from(cards)
+          .where(
+            and(eq(cards.userId, userId), eq(cards.id, original.cardId), isNull(cards.deletedAt)),
+          );
+        if (!card) throw new CardNotFound(original.cardId);
+        const [existing] = await tx
+          .select()
+          .from(reviews)
+          .where(and(eq(reviews.userId, userId), eq(reviews.cancelsReviewId, reviewId)));
+        if (existing) return card;
+        const rev = await nextRev(tx, userId);
+        await tx
+          .insert(reviews)
+          .values({
+            ...original,
+            id: eventId,
+            cancelsReviewId: reviewId,
+            createdAt: new Date(),
+            rev,
+          })
+          .onConflictDoNothing();
+        const [written] = await tx
+          .select({ id: reviews.id, cancelsReviewId: reviews.cancelsReviewId })
+          .from(reviews)
+          .where(and(eq(reviews.userId, userId), eq(reviews.id, eventId)))
+          .limit(1);
+        if (!written) {
+          const [concurrent] = await tx
+            .select({ id: reviews.id })
+            .from(reviews)
+            .where(and(eq(reviews.userId, userId), eq(reviews.cancelsReviewId, reviewId)))
+            .limit(1);
+          if (concurrent) return card;
+        }
+        if (!written || written.cancelsReviewId !== reviewId) {
+          throw new Error('undo event id is already in use');
+        }
+        const state = await projectionFor(tx, userId, card.id);
+        const [updated] = await tx
+          .update(cards)
+          .set({
+            ...fromSchedulingState(state),
+            placedDue: state.state === 'new' ? null : state.due,
+            rev,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(cards.userId, userId), eq(cards.id, card.id)))
+          .returning();
+        if (!updated) throw new CardNotFound(card.id);
+        return updated;
+      });
+    },
     async record(input) {
       return run(async (tx) => {
         const id = input.id ?? uuidV7();
+        // Serialize projection reads as well as writes with recent-answer undo.
+        const rev = await nextRev(tx, userId);
 
         const [card] = await tx
           .select()
@@ -212,7 +332,6 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
           input.durationMs ?? 0,
         );
 
-        const rev = await nextRev(tx, userId);
         const columns = fromReviewLog(outcome.log);
 
         // The insert is what decides whether this is a retry. Checking first
@@ -220,7 +339,17 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
         // retry arrives, and both requests would think they were the original.
         const [written] = await tx
           .insert(reviews)
-          .values({ id, userId, cardId: card.id, ...columns, rev })
+          .values({
+            id,
+            userId,
+            cardId: card.id,
+            ...columns,
+            priorState: {
+              ...fromSchedulingState(toSchedulingState(card)),
+              placedDue: card.placedDue,
+            },
+            rev,
+          })
           .onConflictDoNothing({ target: reviews.id })
           .returning();
 
@@ -245,11 +374,17 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
           };
         }
 
-        const next = fromSchedulingState(outcome.next);
+        const projected = await projectionFor(tx, userId, card.id);
+        const next = fromSchedulingState(projected);
 
         const [updated] = await tx
           .update(cards)
-          .set({ ...next, placedDue: outcome.log.placedDue, updatedAt: new Date(), rev })
+          .set({
+            ...next,
+            placedDue: projected.state === 'new' ? null : projected.due,
+            updatedAt: new Date(),
+            rev,
+          })
           .where(and(eq(cards.userId, userId), eq(cards.id, card.id)))
           .returning();
 
@@ -257,7 +392,7 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
           throw new Error('the card was not updated');
         }
 
-        return { review: written, card: updated, state: outcome.next, applied: true };
+        return { review: written, card: updated, state: projected, applied: true };
       });
     },
 
@@ -271,7 +406,15 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
         const [row] = await tx
           .select({ total: count() })
           .from(reviews)
-          .where(and(eq(reviews.userId, userId), inArray(reviews.cardId, [...cardIds])));
+          .where(
+            and(
+              eq(reviews.userId, userId),
+              inArray(reviews.cardId, [...cardIds]),
+              // A compensation is an immutable history row, but it is not an
+              // answer. The target answer remains part of historical counts.
+              isNull(reviews.cancelsReviewId),
+            ),
+          );
         return row?.total ?? 0;
       });
     },
@@ -282,7 +425,13 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
           .select({ review: reviews, direction: cards.direction })
           .from(reviews)
           .innerJoin(cards, and(eq(cards.userId, userId), eq(cards.id, reviews.cardId)))
-          .where(eq(reviews.userId, userId))
+          .where(
+            and(
+              eq(reviews.userId, userId),
+              isNull(reviews.cancelsReviewId),
+              sql`not exists (select 1 from reviews cancellation where cancellation.user_id = ${userId} and cancellation.cancels_review_id = ${reviews.id})`,
+            ),
+          )
           .orderBy(asc(reviews.reviewedAt), asc(reviews.id));
 
         return rows.map(({ review: row, direction }) => ({
@@ -294,11 +443,7 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
     },
 
     async rebuild(cardId) {
-      return run(async (tx) => {
-        const rows = await logFor(tx, userId, cardId);
-
-        return replay(rows.map(toReviewLog), await schedulerConfigFor(tx, userId));
-      });
+      return run((tx) => projectionFor(tx, userId, cardId));
     },
 
     async append(entries) {

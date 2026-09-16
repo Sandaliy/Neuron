@@ -5,9 +5,11 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   uuid,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 import { CARD_STATES } from '@neuron/core';
@@ -51,6 +53,10 @@ export const reviews = pgTable(
     cardId: uuid('card_id')
       .notNull()
       .references(() => cards.id, { onDelete: 'cascade' }),
+    /** A compensating event; its target review remains immutable. */
+    cancelsReviewId: uuid('cancels_review_id'),
+    /** Server-captured projection before this answer, for exact recent undo. */
+    priorState: jsonb('prior_state').$type<Record<string, unknown>>(),
     /** When the person answered, as their device recorded it. */
     reviewedAt: instant('reviewed_at').notNull(),
     /**
@@ -91,6 +97,11 @@ export const reviews = pgTable(
     rev: bigint('rev', { mode: 'number' }).notNull().default(0),
   },
   (table) => [
+    uniqueIndex('reviews_cancellation_once').on(table.userId, table.cancelsReviewId),
+    check(
+      'reviews_cancellation_not_self',
+      sql`${table.cancelsReviewId} is null or ${table.cancelsReviewId} <> ${table.id}`,
+    ),
     /** Replay: every answer for one card, oldest first. */
     index('reviews_card_idx').on(table.userId, table.cardId, table.reviewedAt),
     /** Statistics: everything this person did, by date. */

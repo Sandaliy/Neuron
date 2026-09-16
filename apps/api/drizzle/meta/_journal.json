@@ -92,6 +92,20 @@
       "when": 1789084800000,
       "tag": "0012_collection_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789431349349,
+      "tag": "0013_lying_lockjaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789509814493,
+      "tag": "0014_dark_madelyne_pryor",
+      "breakpoints": true
     }
   ]
 }

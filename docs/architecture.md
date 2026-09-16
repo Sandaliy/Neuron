@@ -480,6 +480,12 @@ card's schedule moves somewhere neither the person nor the algorithm chose.
 The fuzz generator is seeded from that id rather than from the clock, so a retry recomputes exactly what
 the first attempt did and a client that seeds the same way lands its cards on the same days.
 
+Recent-answer Undo follows the same append-only rule. `POST /reviews/undo` writes a compensation row that
+names the immutable answer it cancels. The card projection subtracts that answer and canonically replays
+the remaining events by answer time and id. The captured predecessor state is replay evidence, not a
+snapshot restored at the Undo timestamp, so a later answer is retained and recomputed against the history
+that still contributes. The sync pull stream carries both the original and compensation rows.
+
 ### Rate limiting counts in Postgres
 
 The in memory limiter from phase 0.5 is gone. Every serverless invocation may be a fresh instance, so an

@@ -78,11 +78,11 @@ for (const locale of ['en', 'ru'] as const)
         exact: true,
       });
       await expand.click();
-      await expect(page.getByRole('button', { name: /B1/ }).first()).toBeVisible();
+      await expect(page.getByRole('button', { name: /^B1/ }).first()).toBeVisible();
       await expect(page).toHaveURL(/\/library$/);
       await page.getByRole('button', { name: 'German', exact: true }).click();
       await expect(page).toHaveURL(/folderId=folder/);
-      await page.getByRole('button', { name: /B1/ }).first().click();
+      await page.getByRole('button', { name: /^B1/ }).first().click();
       await expect(page).toHaveURL(/notes\?deckId=leaf/);
       await page.goto('/import?deckId=leaf');
       const list = page.getByRole('button', {
@@ -124,8 +124,8 @@ for (const locale of ['en', 'ru'] as const)
         })
         .click();
       const picker = page.getByRole('dialog');
-      await expect(picker.getByRole('button', { name: /B1/ })).toContainText('German');
-      await expect(picker.getByRole('button', { name: /B1/ })).not.toContainText('—');
+      await expect(picker.getByRole('button', { name: /^B1/ })).toContainText('German');
+      await expect(picker.getByRole('button', { name: /^B1/ })).not.toContainText('—');
       await picker.getByRole('button', { name: 'Oxford 5000', exact: true }).click();
       await page.screenshot({
         path: test.info().outputPath(`import-${locale}-${theme}.png`),
@@ -194,6 +194,12 @@ test('partial swipe reveals one action with an accessible button fallback', asyn
   await first.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 250, clientY: 150 });
   await first.dispatchEvent('pointermove', { pointerType: 'touch', clientX: 245, clientY: 195 });
   await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+  await first.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 250, clientY: 150 });
+  await first.dispatchEvent('pointermove', { pointerType: 'touch', clientX: 150, clientY: 151 });
+  await first.dispatchEvent('pointermove', { pointerType: 'touch', clientX: 260, clientY: 151 });
+  await first.dispatchEvent('pointerup', { pointerType: 'touch' });
+  await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+  expect(removed).toBe(0);
   await first.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 250, clientY: 150 });
   await first.dispatchEvent('pointermove', { pointerType: 'touch', clientX: 150, clientY: 151 });
   await first.dispatchEvent('pointerup', { pointerType: 'touch' });

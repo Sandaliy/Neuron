@@ -130,7 +130,7 @@ export function deckRoutes(): Hono<RequestBindings> {
   routes.post('/:id/move', async (context) => {
     const { id } = readParams(context, idParamSchema);
     const body = await readBody(context, moveDeckSchema);
-    const deck = await repositoriesOf(context).decks.move(id, body.parentId);
+    const deck = await repositoriesOf(context).decks.move(id, body.parentId, body.beforeId ?? null);
 
     if (!deck) {
       throw new ApiError('not_found');

@@ -51,6 +51,11 @@ export default defineConfig({
 
   projects: [
     {
+      name: 'webkit-phone-interaction',
+      testMatch: /stabilization\.spec\.ts/,
+      use: { ...devices['iPhone 13'] },
+    },
+    {
       name: 'phone',
       testMatch: /(?:gallery|screens)\.spec\.ts/,
       use: {

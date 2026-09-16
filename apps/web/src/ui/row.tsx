@@ -28,10 +28,8 @@ interface RowShape {
   readonly expanded?: boolean | undefined;
   readonly className?: string;
   /**
-   * Only on a pointer device, and never as the only way to do something.
-   *
-   * Dragging on a touch screen fights with scrolling and misfires, so what
-   * these are for is the mouse, and the menu on the row is what everybody gets.
+   * Legacy native dragging for callers that still use it. Collection touch
+   * dragging lives on its dedicated grip so the row keeps normal scrolling.
    */
   readonly draggable?: boolean;
   readonly onDragStart?: (event: DragEvent<HTMLElement>) => void;

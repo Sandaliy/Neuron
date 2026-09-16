@@ -89,6 +89,7 @@ export interface NoteRepository {
   /** Matching live notes in one exact destination deck, in one batched query. */
   duplicatesOf: (deckId: string, termKeys: readonly string[]) => Promise<DuplicateRow[]>;
   byId: (id: string, options?: { readonly forUpdate: boolean }) => Promise<NoteRow | undefined>;
+  byIds: (ids: readonly string[]) => Promise<NoteRow[]>;
   /**
    * The browse screen: filtered, and one page at a time.
    *
@@ -366,6 +367,22 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
 
         return rows.map((row) => ({ ...row, termKey: row.termKey ?? '' }));
       });
+    },
+
+    async byIds(ids) {
+      if (!ids.length) return [];
+      return run((tx) =>
+        tx
+          .select()
+          .from(notes)
+          .where(
+            and(
+              eq(notes.userId, userId),
+              inArray(notes.id, [...new Set(ids)]),
+              isNull(notes.deletedAt),
+            ),
+          ),
+      );
     },
 
     async byId(id, options) {
