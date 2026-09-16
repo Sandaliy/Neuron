@@ -189,9 +189,15 @@ function createBehindMigrationFolder(): string {
   cpSync(migrationsFolder, folder, { recursive: true });
   writeFileSync(
     join(folder, 'meta', '_journal.json'),
-    `${JSON.stringify({ ...journal, entries: journal.entries.slice(0, -1) }, null, 2)}\n`,
+    `${JSON.stringify({ ...journal, entries: journal.entries.slice(0, -2) }, null, 2)}\n`,
   );
+  // The current tip migration adds only an index/check constraint, which the
+  // runtime compatibility probe intentionally does not inspect. Keep the
+  // fixture genuinely behind the runtime schema by omitting both tip files.
   rmSync(join(folder, `${required.tag}.sql`));
+  if (previous) {
+    rmSync(join(folder, `${previous.tag}.sql`));
+  }
 
   return folder;
 }

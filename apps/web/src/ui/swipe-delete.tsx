@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 const COMMIT_MIN = 128;
-const COMMIT_MAX = 220;
+const COMMIT_MAX = 200;
 
 function commitDistance(width: number): number {
   // A phone row needs a decisive gesture, while a wide desktop row should not
@@ -47,7 +47,7 @@ export function SwipeDelete({
       onPointerDown={(event) => {
         if (
           disabled ||
-          event.button !== 0 ||
+          (event.pointerType === 'mouse' && event.button !== 0) ||
           (event.target as HTMLElement).closest('[data-swipe-action]')
         )
           return;
