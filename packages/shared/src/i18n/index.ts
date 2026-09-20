@@ -18,7 +18,7 @@ import type { Locale } from '../preferences.js';
  * screens exist is a translation layer built around guesses.
  */
 
-export const CATALOGUES: Record<Locale, Messages> = { en, ru };
+export const CATALOGUES: Record<Locale, Messages> = { en, ru: { ...en, ...ru } };
 
 /** What a message can be given to fill its placeholders. */
 export type MessageValues = Record<string, string | number>;

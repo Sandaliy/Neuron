@@ -100,12 +100,11 @@ Turn the scheduling, workload, data, and interface foundations into the first co
 - Build the study session screen and card reveal flow.
 - Record Again, Hard, Good, and Easy with immediate local feedback and server verification.
 - Show honest next intervals and allow a recent answer to be undone without rewriting review history.
-- Support a small set of useful presets such as recognition, recall, typed production, context, course,
-  listening where content permits it, and a cram mode that does not alter the schedule.
-- Implement typed-answer normalization and feedback for case, whitespace, accepted variants, small typos,
-  and language-specific rules.
-- Add keyboard shortcuts, touch gestures where they remain discoverable, and speech synthesis with clear
-  fallback behavior.
+- Keep recognition/recall Daily Study and persistent per-Deck non-SRS Practice coherent on phones.
+- Support persistent Deck participation and temporary session scope before workload planning.
+- Make explicit Restart learning immutable and replay safe, preserving Review history.
+- Present English only while retaining locale data compatibility.
+- Keep keyboard shortcuts and discoverable touch controls.
 - Assemble sessions from the workload manager, including related-card separation, difficulty spacing,
   review priority, and whole-card budget completion.
 
@@ -117,7 +116,7 @@ already exist as foundations.
 **Non-goals**
 
 Offline synchronization, a full statistics area, automatic large-list triage, custom note types, and paid
-content are outside this milestone.
+content are outside this milestone. Advanced drills, typed production expansion, and listening/speech work are deferred from this release slice. Phase 8 offline sync, Phase 9 waves/triage/progressive direction logic, and Phase 10 analytics remain deferred.
 
 **Definition of done**
 
@@ -359,3 +358,16 @@ or the architecture makes another order clearly safer.
 
 When direction changes, update this roadmap and `docs/STATE.md` in the same unit of work. Historical phase
 files may preserve earlier intent, but they must not remain discoverable as if they were current truth.
+
+### Phase 7 response-mode follow-up
+
+This slice includes optional German/English lexical grammar storage, language/POS-aware manual
+editing, import/generation support, and non-SRS Practice grammar combinations. It deliberately adds no
+independent scheduled grammar cards.
+
+Next response-mode design covers typed answers with typo/variant tolerance, grammar production,
+grammar cloze/input, multiple choice and smart distractors, definition/context/image variants, and
+the workload decision about which
+skills deserve independent FSRS schedules versus presentation-only Practice/Study recipes. Article,
+Präteritum, participle, and government drill schedules remain deferred until that decision.
+Advanced arbitrary Daily Study recipes and richer listening/speech work are also outside this slice.

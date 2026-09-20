@@ -1,6 +1,6 @@
 import { useBlocker, useNavigate } from '@tanstack/react-router';
-import { Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronDown, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import {
   NOTE_TYPES,
@@ -141,6 +141,12 @@ function Editor({
   );
   const [storedType, setNoteType] = useState<NoteTypeName>(note?.noteType ?? 'vocab');
   const [storedFields, setFields] = useState<Record<string, unknown>>(note?.fields ?? {});
+  // Field presence is not control lifetime. Retain stored/edited grammar even
+  // after clearing a value or changing the metadata which originally exposed it.
+  const [retainedGrammar, setRetainedGrammar] = useState(() => filledPaths(note?.fields));
+  const [grammarOpen, setGrammarOpen] = useState(() =>
+    [...filledPaths(note?.fields)].some((path) => path.startsWith('grammar.')),
+  );
   const [tags, setTags] = useState((note?.tags ?? []).join(', '));
   const [save, setSave] = useState<SaveState>('clean');
   const draft = useRef({ fields: storedFields, tags, version: 0 });
@@ -174,7 +180,7 @@ function Editor({
       ? { partOfSpeech: fields['partOfSpeech'] as PartOfSpeech }
       : {}),
     ...(settings.targetLanguage === undefined ? {} : { targetLanguage: settings.targetLanguage }),
-    filled: filledPaths(fields),
+    filled: new Set([...filledPaths(fields), ...retainedGrammar]),
   });
 
   /**
@@ -521,16 +527,63 @@ function Editor({
             disabled={(!!conversion || !note) && save === 'saving'}
             className="flex min-w-0 flex-col gap-16"
           >
-            {section.labelKey ? <GroupLabel>{t(section.labelKey)}</GroupLabel> : undefined}
+            {section.name === 'grammar' ? (
+              <Button
+                type="button"
+                variant="text"
+                className="justify-between text-secondary"
+                aria-expanded={grammarOpen}
+                aria-controls="note-grammar"
+                onClick={() => setGrammarOpen(!grammarOpen)}
+              >
+                <span>{t('note.section.grammar')}</span>
+                <span className="flex items-center gap-8">
+                  {[...filledPaths(fields)].some((path) => path.startsWith('grammar.')) && (
+                    <span className="text-12 font-normal">{t('note.grammarStored')}</span>
+                  )}
+                  <ChevronDown
+                    size={16}
+                    aria-hidden="true"
+                    className={`transition-transform dur-control ${grammarOpen ? 'rotate-180' : ''}`}
+                  />
+                </span>
+              </Button>
+            ) : section.labelKey ? (
+              <GroupLabel>{t(section.labelKey)}</GroupLabel>
+            ) : undefined}
 
-            {section.fields.map((field) => (
-              <NoteField
-                key={field.path}
-                field={field}
-                value={readField(fields, field.path)}
-                onChange={(value) => edit(writeField(fields, field.path, value))}
-              />
-            ))}
+            {(section.name !== 'grammar' || grammarOpen) && (
+              <div
+                id={section.name === 'grammar' ? 'note-grammar' : undefined}
+                className={
+                  section.name === 'grammar'
+                    ? 'neu-reveal grid grid-cols-2 gap-16'
+                    : 'flex flex-col gap-16'
+                }
+              >
+                {section.fields.map((field) => (
+                  <div
+                    key={field.path}
+                    className={
+                      section.name === 'grammar' && field.kind === 'multiline'
+                        ? 'col-span-2 min-w-0'
+                        : 'min-w-0'
+                    }
+                  >
+                    <NoteField
+                      key={field.path}
+                      field={field}
+                      value={readField(fields, field.path)}
+                      onChange={(value) => {
+                        if (field.path.startsWith('grammar.'))
+                          setRetainedGrammar((paths) => new Set([...paths, field.path]));
+                        edit(writeField(fields, field.path, value));
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </fieldset>
         ))}
 
@@ -677,6 +730,7 @@ function NoteField({
   readonly onChange: (value: string | boolean | undefined) => void;
 }) {
   const t = useTranslate();
+  const id = useId();
   const text = typeof value === 'string' ? value : '';
 
   function advance(event: KeyboardEvent<HTMLInputElement>) {
@@ -693,25 +747,22 @@ function NoteField({
     next?.focus();
   }
 
+  if (field.kind === 'toggle')
+    return (
+      <label
+        htmlFor={id}
+        className="flex min-h-44 cursor-pointer items-center justify-between gap-8 text-13 text-secondary"
+      >
+        <span>{t(field.labelKey)}</span>
+        <Switch id={id} label={t(field.labelKey)} checked={value === true} onChange={onChange} />
+      </label>
+    );
   return (
     <FormField
       label={t(field.labelKey)}
       {...(field.hintKey === undefined ? {} : { hint: t(field.hintKey) })}
     >
       {(props) => {
-        if (field.kind === 'toggle') {
-          return (
-            <span className="flex min-h-44 items-center">
-              <Switch
-                id={props.id}
-                label={t(field.labelKey)}
-                checked={value === true}
-                onChange={onChange}
-              />
-            </span>
-          );
-        }
-
         if (field.kind === 'choice') {
           return (
             <Select {...props} value={text} onChange={(event) => onChange(event.target.value)}>

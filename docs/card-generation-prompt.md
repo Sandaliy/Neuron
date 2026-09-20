@@ -110,6 +110,14 @@ For every verb set:
   grammar.case          "dative" or "genitive" when the verb governs one of
                         those. null when it takes the plain accusative
   grammar.reflexive     true if the verb is normally used reflexively
+  grammar.pattern       characteristic government/complements, as readable text,
+                        one pattern per line: "+ Dativ", "auf + Akkusativ",
+                        "mit + Dativ", or "jemandem etwas geben"
+
+For prepositions use partOfSpeech "preposition" and grammar.pattern for the
+characteristic case/complement. Do not guess. The legacy grammar.case enum is
+still accepted for a single governed case; pattern carries the richer form.
+When both are supplied they must agree. Do not infer or overwrite old case data.
 
 For adjectives with irregular comparison set:
   grammar.comparative and grammar.superlative
@@ -122,15 +130,25 @@ German. Do not include the article in "term", it belongs in grammar.article.
   reading            IPA transcription, for example "/əˈbæn.dən/"
   grammar.variant    "BrE" or "AmE" if the spelling or usage differs between
                      them, null otherwise
-  grammar.irregular  for irregular verbs, "past / past participle", for example
-                     "went / gone"
-  grammar.uncountable  true for uncountable nouns
+  grammar.pastSimple      irregular past simple, for example "went"
+  grammar.pastParticiple  irregular past participle, for example "gone"
+  grammar.plural          noun plural when useful to memorize, e.g. "children"
+  grammar.countability    "countable", "uncountable", or "both" when useful
+  grammar.comparative    non-predictable comparative, for example "better"
+  grammar.superlative    non-predictable superlative, for example "best"
+  grammar.pattern        characteristic verb/complement pattern, for example
+                         "depend on", "avoid doing", "want to do"; one per line
+
+The base form is term; do not duplicate it. Do not store predictable regular
+morphology just to fill fields. Add patterns only when characteristic and useful.
+Old grammar.irregular ("went / gone") and grammar.uncountable remain accepted
+for compatibility, but new output uses the structured fields above. Never
+mechanically split, discard, or overwrite legacy values. Use null when unsure.
 
 ### Any other target language
 
 Fill "reading" with a transcription if the writing system needs one. Fill
-grammar with whatever a learner of that language must memorise together with the
-word, and leave the rest null.
+only supported grammar fields when applicable, and leave the rest null. Do not invent keys.
 
 ## Output format
 
@@ -146,8 +164,14 @@ No trailing commas.
     {
       "term": "string",
       "reading": "string or null",
-      "partOfSpeech": "noun | verb | adjective | adverb | phrase | other",
-      "grammar": { },
+      "partOfSpeech": "noun | verb | adjective | adverb | preposition | phrase | other",
+      "grammar": {
+        "article": null, "plural": null, "gender": null,
+        "praeteritum": null, "partizip2": null, "auxiliary": null,
+        "separable": null, "reflexive": null, "case": null, "pattern": null,
+        "pastSimple": null, "pastParticiple": null, "countability": null,
+        "comparative": null, "superlative": null, "variant": null
+      },
       "translation": ["string"],
       "definition": "string",
       "example": "string",

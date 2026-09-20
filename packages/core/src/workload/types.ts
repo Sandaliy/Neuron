@@ -38,6 +38,7 @@ export const CARD_STATES: readonly CardState[] = ['new', 'learning', 'review', '
 
 /** A card as the workload manager sees it. */
 export interface WorkloadCard {
+  readonly deckId?: string;
   readonly id: CardId;
   /** The note this card asks about. Two cards of one note share it. */
   readonly noteId: NoteId;
@@ -56,6 +57,7 @@ export interface WorkloadCard {
  * of answer it was.
  */
 export interface WorkloadReview extends ReviewLog {
+  readonly deckId?: string;
   readonly cardId: CardId;
   readonly direction: CardDirection;
 }

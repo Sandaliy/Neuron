@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 
+import { advancePractice } from '@neuron/shared';
+import type { PracticeRun } from '@neuron/shared';
+
 import { useFixtures, usePreferences } from './fixtures';
 
 import type { Page } from '@playwright/test';
@@ -36,6 +39,131 @@ const notes = Array.from({ length: 10 }, (_, n) => ({
   rev: 1,
 }));
 
+test('stored grammar toggles stay editable after clearing, even without language metadata', async ({
+  page,
+}, testInfo) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [deck] });
+  let saved = {
+    ...notes[0]!,
+    noteType: 'vocab',
+    fields: {
+      term: 'aufstehen',
+      translation: 'get up',
+      partOfSpeech: 'verb',
+      grammar: { separable: true, reflexive: true, partizip2: 'aufgestanden' },
+    } as Record<string, unknown>,
+  };
+  const writes: unknown[] = [];
+  let release!: () => void;
+  const barrier = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**/api/notes/${saved.id}`, async (route) => {
+    if (route.request().method() === 'PATCH') {
+      const body = route.request().postDataJSON();
+      writes.push(body);
+      await barrier;
+      saved = { ...saved, ...body };
+    }
+    return route.fulfill({ json: { note: saved, cards: [] } });
+  });
+  await page.goto(`/notes/${saved.id}`);
+  const grammar = page.getByRole('button', { name: /Grammar/ });
+  await expect(grammar).toHaveAttribute('aria-expanded', 'true');
+  await grammar.click();
+  await expect(grammar).toHaveAttribute('aria-expanded', 'false');
+  expect(writes).toEqual([]);
+  await page.screenshot({
+    animations: 'disabled',
+    path: testInfo.outputPath('grammar-collapsed.png'),
+    fullPage: true,
+  });
+  await grammar.click();
+  for (const name of ['Separable', 'Reflexive']) {
+    const control = page.getByRole('switch', { name, exact: true });
+    await control.click();
+    await expect(control).toHaveAttribute('aria-checked', 'false');
+    await expect(control).toBeVisible();
+    await expect(grammar).toHaveAttribute('aria-expanded', 'true');
+  }
+  await expect(page.getByRole('textbox', { name: 'Partizip II', exact: true })).toHaveValue(
+    'aufgestanden',
+  );
+  await expect.poll(() => writes.length).toBeGreaterThan(0);
+  await grammar.click();
+  await expect(grammar).toHaveAttribute('aria-expanded', 'false');
+  await grammar.click();
+  await expect(page.getByRole('switch', { name: 'Separable', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Note', exact: true }).click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await page.keyboard.press('Escape');
+  release();
+  await expect
+    .poll(() => saved.fields['grammar'] as Record<string, unknown>)
+    .toEqual({ partizip2: 'aufgestanden' });
+});
+
+for (const language of ['de', 'en'] as const) {
+  test(`Grammar follows ${language} context without deleting earlier values`, async ({
+    page,
+  }, testInfo) => {
+    await usePreferences(page, { locale: 'en', theme: 'dark' });
+    await useFixtures(page, { decks: [{ ...deck, settings: { targetLanguage: language } }] });
+    await page.goto(`/notes/new?deckId=${deck.id}`);
+    await page
+      .getByRole('textbox', { name: 'Word', exact: true })
+      .fill(language === 'de' ? 'Haus' : 'go');
+    await page
+      .getByRole('combobox', { name: 'Part of speech', exact: true })
+      .selectOption(language === 'de' ? 'noun' : 'verb');
+    const grammar = page.getByRole('button', { name: /Grammar/ });
+    await expect(grammar).toHaveAttribute('aria-expanded', 'false');
+    await grammar.click();
+    if (language === 'de') {
+      await page.getByRole('combobox', { name: 'Article', exact: true }).selectOption('das');
+      await page.getByRole('textbox', { name: 'Plural', exact: true }).fill('Häuser');
+      await page
+        .locator('#note-grammar')
+        .screenshot({ animations: 'disabled', path: testInfo.outputPath('german-noun.png') });
+      await page
+        .getByRole('combobox', { name: 'Part of speech', exact: true })
+        .selectOption('verb');
+      await expect(page.getByRole('textbox', { name: 'Plural', exact: true })).toHaveValue(
+        'Häuser',
+      );
+      await expect(page.getByRole('switch', { name: 'Separable', exact: true })).toBeVisible();
+      await page
+        .getByRole('textbox', { name: 'Verb / complement pattern', exact: true })
+        .fill('jemandem etwas geben');
+      await page
+        .locator('#note-grammar')
+        .screenshot({ animations: 'disabled', path: testInfo.outputPath('german-verb.png') });
+    } else {
+      await page.getByRole('textbox', { name: 'Past simple', exact: true }).fill('went');
+      await page.getByRole('textbox', { name: 'Past participle', exact: true }).fill('gone');
+      await page
+        .getByRole('textbox', { name: 'Verb / complement pattern', exact: true })
+        .fill('go to');
+      await page
+        .locator('#note-grammar')
+        .screenshot({ animations: 'disabled', path: testInfo.outputPath('english-verb.png') });
+      await page
+        .getByRole('combobox', { name: 'Part of speech', exact: true })
+        .selectOption('noun');
+      await expect(page.getByRole('textbox', { name: 'Past simple', exact: true })).toHaveValue(
+        'went',
+      );
+      await expect(page.getByRole('combobox', { name: 'Countability', exact: true })).toBeVisible();
+    }
+    await grammar.click();
+    await grammar.click();
+    await expect(
+      page.getByRole('textbox', { name: 'Verb / complement pattern', exact: true }),
+    ).not.toHaveValue('');
+  });
+}
+
 async function dragWithMouse(page: Page, name: string, targetId: string) {
   const handle = page.getByRole('button', { name, exact: true });
   const start = (await handle.boundingBox())!;
@@ -46,8 +174,191 @@ async function dragWithMouse(page: Page, name: string, targetId: string) {
   await expect(target).toBeVisible();
   const end = (await target.boundingBox())!;
   await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, { steps: 10 });
+  await page.screenshot({
+    animations: 'disabled',
+    path: test.info().outputPath('library-drag.png'),
+  });
   await page.mouse.up();
 }
+
+test('grammar Practice composes selected fields and resumes without schedule writes', async ({
+  page,
+}, testInfo) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const words = notes.slice(0, 2).map((note, index) => ({
+    ...note,
+    noteType: 'vocab',
+    fields: {
+      term: index ? 'Baum' : 'Haus',
+      translation: index ? 'tree' : 'house',
+      partOfSpeech: 'noun',
+      grammar: { article: index ? 'der' : 'das', plural: index ? 'Bäume' : 'Häuser' },
+    },
+  }));
+  await useFixtures(page, { decks: [deck], notes: words });
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() !== 'GET') writes.push(request.url());
+  });
+  let run: PracticeRun | null = null;
+  let version = 0;
+  await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+    if (route.request().method() === 'POST') {
+      run = advancePractice(run, route.request().postDataJSON(), words);
+      version++;
+    }
+    return route.fulfill({ json: { run, version } });
+  });
+  await page.goto(`/notes?deckId=${deck.id}`);
+  await page.getByRole('button', { name: 'Practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Word', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Word', exact: true }).uncheck();
+  await page.getByRole('checkbox', { name: 'Translation', exact: true }).check();
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await page.getByRole('button', { name: 'Translation', exact: true }).nth(1).click();
+  await page.getByRole('checkbox', { name: 'Translation', exact: true }).uncheck();
+  await page.getByRole('checkbox', { name: 'Word', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Article', exact: true }).check();
+  await expect(page.getByRole('checkbox', { name: 'Past simple', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+  await expect(page.getByText('house', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+  await expect(page.getByText('das Haus', { exact: true })).toBeVisible();
+  const animation = await page
+    .locator('.neu-reveal')
+    .last()
+    .evaluate((element) => getComputedStyle(element).animationDuration);
+  expect(parseFloat(animation)).toBeLessThanOrEqual(0.001);
+  await page.screenshot({
+    animations: 'disabled',
+    path: testInfo.outputPath('grammar-practice.png'),
+  });
+  await page.getByRole('button', { name: 'Known', exact: true }).click();
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Practice', exact: true }).click();
+  await expect(page.getByText('tree', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+  await expect(page.getByText('der Baum', { exact: true })).toBeVisible();
+  expect(writes.every((url) => url.endsWith('/practice'))).toBe(true);
+});
+
+test('Adjust and scope open locally while the initial plan is still unresolved', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [deck] });
+  let release!: () => void;
+  const barrier = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let received = false;
+  await page.route('**/api/study/session', async (route) => {
+    received = true;
+    await barrier;
+    await route.fallback();
+  });
+  await page.goto('/');
+  await expect.poll(() => received).toBe(true);
+  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
+  await page.getByRole('button', { name: 'All included decks', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByText('You are caught up', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'No decks selected' })).toHaveCount(0);
+  release();
+});
+
+test('Today scopes are temporary and distinguish no decks from caught up', async ({
+  page,
+}, testInfo) => {
+  await usePreferences(page, { locale: 'ru', theme: 'dark' });
+  await useFixtures(page, {
+    decks: [
+      deck,
+      { ...deck, id: id(101), name: 'Paused deck', settings: { dailyStudyIncluded: false } },
+    ],
+  });
+  const bodies: { deckIds?: string[] }[] = [];
+  await page.route('**/api/study/session', (route) => {
+    const body = route.request().postDataJSON() as { deckIds?: string[] };
+    bodies.push(body);
+    const scopeDeckIds = body.deckIds ?? [deck.id];
+    return route.fulfill({
+      json: {
+        cards: scopeDeckIds.length
+          ? [
+              {
+                id: id(400),
+                noteId: notes[1]!.id,
+                deckId: scopeDeckIds[0],
+                direction: 'recognition',
+                slot: 0,
+                state: 'new',
+                stability: null,
+                difficulty: null,
+                due: stamp,
+                lastReview: null,
+                reps: 0,
+                lapses: 0,
+                learningStep: 0,
+                suspendedAt: null,
+                unlockedAt: null,
+                updatedAt: stamp,
+                rev: 1,
+              },
+            ]
+          : [],
+        notes: [notes[1]],
+        scopeDeckIds,
+        deckSummaries: scopeDeckIds.map((deckId) => ({ deckId, due: 0, fresh: 1, nextDue: null })),
+        nextDue: null,
+        availableCount: scopeDeckIds.length ? 1 : 0,
+        estimatedMinutes: 0.1,
+        budgetMinutes: 20,
+        reviewCount: 0,
+        newCount: scopeDeckIds.length ? 1 : 0,
+        backlog: { active: false, overdueCount: 0, overdueMinutes: 0, budgetMinutes: 20 },
+        newCards: {
+          mode: 'automatic',
+          admitted: 1,
+          allowed: 1,
+          headroomMinutes: 20,
+          marginalCost: 0.1,
+          reason: 'withinBudget',
+          overrideAvailable: false,
+          limitedBy: null,
+        },
+      },
+    });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('today.png') });
+  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('adjust.png') });
+  await page.getByRole('button', { name: 'All included decks', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.screenshot({ animations: 'disabled', path: test.info().outputPath('deck-scope.png') });
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'No decks selected' })).toBeVisible();
+  await expect.poll(() => bodies.at(-1)?.deckIds).toEqual([]);
+  await expect(page.getByText('You are caught up', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Choose decks', exact: true }).click();
+  await page.getByRole('checkbox', { name: /Paused deck/ }).check();
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect.poll(() => bodies.at(-1)?.deckIds).toEqual([id(101)]);
+  await page.getByRole('button', { name: 'Study', exact: true }).click();
+  await expect(page.getByText('Question 2', { exact: true })).toBeVisible();
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('study-front.png') });
+  await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+  await expect(page.getByText('Answer 2', { exact: true })).toBeVisible();
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('study-answer.png') });
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect.poll(() => bodies.at(-1)?.deckIds).toBeUndefined();
+});
 
 test('undo is local during a delayed save and regrade follows its compensation', async ({
   page,
@@ -129,6 +440,10 @@ test('undo is local during a delayed save and regrade follows its compensation',
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
   await page.getByRole('button', { name: /^Easy / }).click();
   await expect(page.getByText('Session complete', { exact: true })).toBeVisible();
+  await page.screenshot({
+    animations: 'disabled',
+    path: test.info().outputPath('study-complete.png'),
+  });
   await page.getByRole('button', { name: 'Undo last answer', exact: true }).click();
   await expect(page.getByText('Answer 2', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: /^Good / }).click();
@@ -201,7 +516,9 @@ test('ten rapid deletes and restores settle once under delayed responses', async
   expect(recoveryReads - readsBefore).toBeLessThanOrEqual(1);
 });
 
-test('practice repeats only still-learning notes and sends no writes', async ({ page }) => {
+test('practice persists rounds across reload without schedule writes', async ({
+  page,
+}, testInfo) => {
   await usePreferences(page, { locale: 'en', theme: 'dark' });
   await useFixtures(page);
   const writes: string[] = [];
@@ -212,19 +529,46 @@ test('practice repeats only still-learning notes and sends no writes', async ({ 
   await page.route('**/api/notes?**', (route) =>
     route.fulfill({ json: { items: notes.slice(0, 2) } }),
   );
+  let run: PracticeRun | null = null;
+  let version = 0;
+  await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+    if (route.request().method() === 'POST') {
+      run = advancePractice(run, route.request().postDataJSON(), notes.slice(0, 2));
+      version++;
+    }
+    return route.fulfill({ json: { run, version } });
+  });
   await page.goto(`/notes?deckId=${deck.id}`);
+  await expect(page.getByRole('button', { name: 'Practice', exact: true })).toBeVisible();
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('deck-browser.png') });
   await page.getByRole('button', { name: 'Practice', exact: true }).click();
   await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+  await expect(page.getByText('Question 1', { exact: true })).toBeVisible();
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('practice.png') });
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
   await page.getByRole('button', { name: 'Still learning', exact: true }).click();
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
-  await page.getByRole('button', { name: 'Know', exact: true }).click();
+  await page.getByRole('button', { name: 'Known', exact: true }).click();
   await page.getByRole('button', { name: 'Repeat still learning', exact: true }).click();
   await expect(page.getByText('Question 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
-  await page.getByRole('button', { name: 'Know', exact: true }).click();
-  await expect(page.getByText('100% cleared this practice run', { exact: true })).toBeVisible();
-  expect(writes).toEqual([]);
+  await page.getByRole('button', { name: 'Known', exact: true }).click();
+  await expect(page.getByText('Practice complete', { exact: true })).toBeVisible();
+  await page.screenshot({
+    animations: 'disabled',
+    path: test.info().outputPath('practice-complete.png'),
+  });
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Practice', exact: true }).click();
+  await expect(page.getByText('Practice complete', { exact: true })).toBeVisible();
+  await page.screenshot({
+    animations: 'disabled',
+    path: test.info().outputPath('practice-complete.png'),
+  });
+  await expect(page.getByRole('button', { name: 'Restart Practice', exact: true })).toBeVisible();
+  expect(writes.length).toBeGreaterThan(0);
+  expect(writes.every((url) => url.endsWith('/practice'))).toBe(true);
 });
 
 test('caught-up Today state explains when the next review returns', async ({ page }) => {
@@ -257,8 +601,10 @@ test('caught-up Today state explains when the next review returns', async ({ pag
   );
   await page.goto('/');
   await expect(page.getByText('You are caught up', { exact: true })).toBeVisible();
-  await expect(page.getByText(/Next scheduled review:/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeDisabled();
+  await expect(page.getByText('Next review', { exact: true })).toBeVisible();
+  await page.screenshot({ animations: 'disabled', path: test.info().outputPath('caught-up.png') });
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Adjust', exact: true })).toHaveCount(0);
 });
 
 test('a committed touch swipe deletes on release without a second tap', async ({ page }) => {

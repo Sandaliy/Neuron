@@ -20,6 +20,9 @@ test.describe('component gallery', () => {
     // shot has to wait for it rather than catch the stand-in.
     await page.evaluate(() => document.fonts.ready);
     await expect(page.getByRole('heading', { name: 'Components and every state' })).toBeVisible();
+    const specimenStyle = await page.addStyleTag({
+      content: '[data-learning-specimen] { display: none !important; }',
+    });
 
     // A full-page shot asks Chromium to lay out nearly seventeen thousand
     // pixels. Wait until that height has held across several frames, or a
@@ -41,9 +44,13 @@ test.describe('component gallery', () => {
       }
     });
 
+    // The new learning specimen has its own focused assertion below. Keep the
+    // established full-page component inventory independently comparable.
     await expect(page).toHaveScreenshot(
       hostedWindowsSnapshot('gallery.png', testInfo.project.name),
       { fullPage: true },
     );
+    await specimenStyle.evaluate((style) => style.remove());
+    await expect(page.locator('[data-learning-specimen]')).toHaveScreenshot('learning-card.png');
   });
 });

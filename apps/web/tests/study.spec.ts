@@ -110,6 +110,7 @@ test('study previews, advances before saving, retries the same answer and comple
   });
   await page.clock.install();
   await page.goto('/');
+  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
   await page.getByLabel('Time for this session').selectOption('5');
   await page.getByRole('button', { name: 'Study', exact: true }).click();
   await expect(page.getByText('Question 1', { exact: true })).toBeVisible();

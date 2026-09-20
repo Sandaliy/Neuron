@@ -12,6 +12,7 @@ import { DIALOG_FORM, Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
 import { Select } from '../../ui/select';
+import { Switch } from '../../ui/switch';
 
 import { collectionPath } from './collection-picker';
 
@@ -277,6 +278,20 @@ export function DeckSettingsDialog({
       )}
     >
       <DialogBody>
+        {deck.kind === 'deck' && (
+          <div className="flex flex-col gap-8">
+            <div className="flex items-center justify-between gap-16">
+              <span className="text-14 text-primary">{t('study.included')}</span>
+              <Switch
+                label={t('study.included')}
+                checked={draft.dailyStudyIncluded !== false}
+                onChange={(value) => setDraft({ ...draft, dailyStudyIncluded: value })}
+              />
+            </div>
+            <p className="text-13 text-secondary">{t('study.participationHint')}</p>
+          </div>
+        )}
+
         <LanguageField
           label={t('library.targetLanguage')}
           value={draft.targetLanguage}

@@ -24,20 +24,24 @@ export const studyPresetSchema = z.object({
 export type StudyPreset = z.infer<typeof studyPresetSchema>;
 
 /** The only Daily Study choices needed to build the first-appearance plan. */
-export const dailyStudySessionRequestSchema = z.strictObject({
-  direction: z.enum(['recognition', 'recall']).optional(),
-  /** Omit to study the whole collection. A folder includes its descendants. */
-  deckId: idSchema.optional(),
-  /** A one-off sitting length. It never writes the user's normal daily plan. */
-  minutes: z
-    .number()
-    .int()
-    .min(1)
-    .max(24 * 60)
-    .optional(),
-  /** Override is intentional and local to this request. */
-  newCards: z.enum(['automatic', 'exclude', 'override']).default('automatic'),
-});
+export const dailyStudySessionRequestSchema = z
+  .strictObject({
+    direction: z.enum(['recognition', 'recall']).optional(),
+    /** Omit to study the whole collection. A folder includes its descendants. */
+    deckId: idSchema.optional(),
+    /** Explicit temporary leaf scope, including paused Decks. Empty means none. */
+    deckIds: z.array(idSchema).max(5000).optional(),
+    /** A one-off sitting length. It never writes the user's normal daily plan. */
+    minutes: z
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 60)
+      .optional(),
+    /** Override is intentional and local to this request. */
+    newCards: z.enum(['automatic', 'exclude', 'override']).default('automatic'),
+  })
+  .refine((value) => value.deckId === undefined || value.deckIds === undefined, 'Choose one scope');
 
 export const newCardAdmissionSchema = z.object({
   mode: z.enum(['automatic', 'exclude', 'override']),
@@ -52,6 +56,17 @@ export const newCardAdmissionSchema = z.object({
 });
 
 export const dailyStudySessionSchema = z.object({
+  scopeDeckIds: z.array(z.string()).default([]),
+  deckSummaries: z
+    .array(
+      z.object({
+        deckId: z.string(),
+        due: z.number(),
+        fresh: z.number(),
+        nextDue: z.string().nullable(),
+      }),
+    )
+    .default([]),
   cards: z.array(cardSchema),
   notes: z.array(noteSchema),
   nextDue: z.string().nullable(),

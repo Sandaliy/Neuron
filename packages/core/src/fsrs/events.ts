@@ -1,11 +1,14 @@
 import { createSeededRandom } from './random.js';
 import { review } from './scheduler.js';
+import { newCard } from './types.js';
 
 import type { SchedulerConfig } from './parameters.js';
 import type { ReviewLog, SchedulingState } from './types.js';
 
 export interface ReviewEvent {
   readonly id: string;
+  readonly resetsLearning?: boolean;
+  readonly order?: number;
   readonly log: ReviewLog;
   readonly cancelsReviewId?: string | null;
   readonly priorState?: SchedulingState;
@@ -40,11 +43,19 @@ export function projectReviewEvents(
   const answers = [...unique.values()]
     .filter((event) => !event.cancelsReviewId)
     .sort(
-      (a, b) => a.log.reviewedAt.getTime() - b.log.reviewedAt.getTime() || a.id.localeCompare(b.id),
+      (a, b) =>
+        a.log.reviewedAt.getTime() - b.log.reviewedAt.getTime() ||
+        (a.order ?? 0) - (b.order ?? 0) ||
+        a.id.localeCompare(b.id),
     );
   let state = initial;
   let changed = false;
   for (const event of answers) {
+    if (event.resetsLearning) {
+      state = newCard(event.log.reviewedAt);
+      changed = false;
+      continue;
+    }
     if (cancelled.has(event.id)) {
       changed = true;
       continue;

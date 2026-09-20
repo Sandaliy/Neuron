@@ -35,6 +35,9 @@ import {
   submitReviewBatchSchema,
   submitReviewSchema,
   undoReviewSchema,
+  practiceCommandSchema,
+  practiceResultSchema,
+  restartLearningSchema,
   unlockDirectionSchema,
   updateDeckSchema,
   updateNoteSchema,
@@ -83,6 +86,9 @@ const registry: Record<string, z.ZodType> = {
   UpdatePreset: updatePresetSchema,
   CreateImport: createImportSchema,
   SubmitReview: submitReviewSchema,
+  PracticeCommand: practiceCommandSchema,
+  PracticeResult: practiceResultSchema,
+  RestartLearning: restartLearningSchema,
   UndoReview: undoReviewSchema,
   UndoReviewResult: z.object({ card: cardSchema }),
   SubmitReviewBatch: submitReviewBatchSchema,
@@ -238,6 +244,26 @@ export function openApiDocument(baseUrl: string) {
         delete: {
           summary: 'Soft delete a deck and everything under it',
           responses: { 200: answer('How many rows were marked'), ...commonErrors },
+        },
+      },
+      '/decks/{id}/practice': {
+        parameters: [idParameter],
+        get: {
+          summary: 'Resume the deck Practice run',
+          responses: { 200: answer('Reconciled progress', 'PracticeResult'), ...commonErrors },
+        },
+        post: {
+          summary: 'Advance Practice with version and retry protection',
+          requestBody: body('PracticeCommand'),
+          responses: { 200: answer('Saved progress', 'PracticeResult'), ...commonErrors },
+        },
+      },
+      '/decks/{id}/restart-learning': {
+        parameters: [idParameter],
+        post: {
+          summary: 'Append a learning restart for participating cards',
+          requestBody: body('RestartLearning'),
+          responses: { 200: answer('Number of restarted cards'), ...commonErrors },
         },
       },
       '/decks/{id}/move': {

@@ -329,6 +329,8 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
               },
             ],
             nextDue: null,
+            scopeDeckIds: [studyDeckId],
+            deckSummaries: [{ deckId: 'd3', due: 0, fresh: 1, nextDue: null }],
             availableCount: 1,
             estimatedMinutes: 0.1,
             budgetMinutes: 20,

@@ -51,7 +51,7 @@ The curve is a power curve, not an exponential one, and this matters more than i
 sounds. It has a long tail. With the fitted decay, recall reaches a coin flip only
 after roughly ninety times the card's stability has passed. A card worth six
 months does not evaporate over a summer. This is the reason a break in study does
-not destroy progress in Neuron, and the reason no card is ever reset to the start.
+not destroy progress in Neuron, and the reason absence never automatically resets a card to the start. Explicit Restart learning is a separate user action.
 
 ## What an answer does
 
@@ -197,7 +197,7 @@ buttons that all promise the same date.
 
 The `reviews` table is append only, and card state is a projection of it.
 Ordinary histories use `replay(logs, config)`; histories containing recent-answer
-Undo use the event projection. Answers are ordered by `reviewed_at`, then by their
+Undo or explicit Restart learning use the event projection. Events are ordered by `reviewed_at`, server revision, then by their
 stable id, so different arrival orders produce the same history. An Undo is another
 immutable row naming the answer it cancels. Projection removes that target from the
 contributing set and replays every surviving answer. It never restores an old card
@@ -720,3 +720,14 @@ is the only thing standing between a fast approximation and a forecast that is
 quietly half the truth. And **the simulator's own reproducibility**: the same seed
 gives the same year to the minute, so a difference between two arms is the policy
 and never the dice.
+
+Explicit Restart learning appends a reset event at the server time. Replay crosses it by creating a new
+card state; surviving later answers continue from that boundary. Cancelling an older answer cannot
+remove the restart or erase later answers. The normal `[1, 10]` learning steps and grading semantics
+remain unchanged. Reset events are not rating samples and do not count as introduced material.
+
+Daily session scope is resolved before forecasting. Paused Decks are absent from the default scope;
+temporary selection does not alter them. New candidates merge stable Deck streams by today's prior
+introductions plus their position in each stream. This prevents trivial large-Deck starvation, including
+successive short sessions, while allowing any Deck to use spare capacity. Due/overdue review priority,
+related-Note separation, automatic workload admission, and the whole-card time boundary still apply.

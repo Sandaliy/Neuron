@@ -1,7 +1,7 @@
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { Plus, Upload, Trash2 } from 'lucide-react';
+import { Plus, Upload, Trash2, Search } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { NOTE_SORTS, NOTE_STATUSES, termOf } from '@neuron/shared';
@@ -24,6 +24,7 @@ import { CollectionPath } from '../library/collection-path';
 import { DeckPractice } from '../today/practice';
 
 import { NoteSelectionBar } from './note-selection';
+import { RestartLearning } from './restart-learning';
 
 import type { NoteQuery } from '../../lib/notes';
 
@@ -162,6 +163,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         title={deck?.name ?? t('notes.title')}
         actions={
           <>
+            {deck && <RestartLearning deck={deck} />}
             <Button
               variant="quiet"
               onClick={() => void navigate({ to: '/import', search: deckSearch })}
@@ -183,23 +185,31 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
       </CollectionHeader>
       {deckId && (
-        <Button variant="text" onClick={() => setPracticing(true)}>
+        <Button variant="quiet" className="self-start" onClick={() => setPracticing(true)}>
           {t('practice.title')}
         </Button>
       )}
 
       {(rows.length > 0 || filtered || typed !== '') && !selecting ? (
         <div className="flex flex-col gap-12">
-          <Input
-            type="search"
-            value={typed}
-            aria-label={t('notes.search')}
-            placeholder={t('notes.searchPlaceholder')}
-            enterKeyHint="search"
-            onChange={(event) => setTyped(event.target.value)}
-          />
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              size={16}
+              className="pointer-events-none absolute left-12 top-16 text-secondary"
+            />
+            <Input
+              className="pl-40"
+              type="search"
+              value={typed}
+              aria-label={t('notes.search')}
+              placeholder={t('notes.searchPlaceholder')}
+              enterKeyHint="search"
+              onChange={(event) => setTyped(event.target.value)}
+            />
+          </div>
           <div className="flex items-center gap-8">
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 max-w-[60%]">
               <Select
                 value={sort}
                 aria-label={t('notes.sort')}
@@ -223,7 +233,6 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           </div>
           {filtersOpen && (
             <div className="flex flex-col gap-12 rounded-12 border border-default p-16">
-              <p className="text-14 text-secondary">{t('notes.studyFilterHint')}</p>
               <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
                 <Select
                   value={status}
@@ -250,7 +259,6 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
                   ))}
                 </Select>
               </div>
-              <p className="text-14 text-secondary">{t('notes.organizeFilterHint')}</p>
               <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
                 <Input
                   value={tag}
@@ -299,9 +307,11 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         </div>
       ) : undefined}
 
-      {notes.isPending ? <SkeletonRows rows={8} /> : undefined}
+      {notes.isPending || (rows.length === 0 && notes.isFetching) ? (
+        <SkeletonRows rows={8} />
+      ) : undefined}
 
-      {notes.error && !notes.data ? (
+      {notes.error && rows.length === 0 ? (
         <ErrorState
           message={t(describe(notes.error).key, describe(notes.error).values)}
           retryLabel={t('common.retry')}
@@ -309,7 +319,11 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         />
       ) : undefined}
 
-      {notes.data && rows.length === 0 ? (
+      {notes.data &&
+      rows.length === 0 &&
+      !notes.isFetching &&
+      !notes.isPlaceholderData &&
+      !notes.error ? (
         filtered ? (
           <EmptyState
             title={t('notes.noMatchTitle')}

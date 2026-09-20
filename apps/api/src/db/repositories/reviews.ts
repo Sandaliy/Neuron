@@ -18,9 +18,10 @@ import type {
 } from '@neuron/core';
 import { uuidV7 } from '@neuron/shared';
 
-import { cards, reviews, user } from '../schema/index.js';
+import { cards, reviews, user, notes, learningRestarts } from '../schema/index.js';
 
 import { fromReviewLog, fromSchedulingState, toReviewLog, toSchedulingState } from './mapping.js';
+import { requireLiveDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
 import type { Runner, Tx } from './session.js';
@@ -78,6 +79,7 @@ export interface RecordedReview {
 }
 
 export interface ReviewRepository {
+  restartDeck: (deckId: string, eventId: string) => Promise<number>;
   undo: (reviewId: string, eventId: string) => Promise<typeof cards.$inferSelect>;
   record: (input: RecordReview) => Promise<RecordedReview>;
   /** Every answer for one card that still counts, oldest first. */
@@ -189,7 +191,9 @@ async function logFor(tx: Tx, userId: string, cardId: string): Promise<ReviewRow
         eq(reviews.userId, userId),
         eq(reviews.cardId, cardId),
         isNull(reviews.cancelsReviewId),
+        eq(reviews.resetsLearning, false),
         sql`not exists (select 1 from reviews cancellation where cancellation.user_id = ${userId} and cancellation.cancels_review_id = ${reviews.id})`,
+        sql`not exists (select 1 from reviews restart where restart.user_id = ${userId} and restart.card_id = ${cardId} and restart.resets_learning and (restart.reviewed_at, restart.rev, restart.id) > (${reviews.reviewedAt}, ${reviews.rev}, ${reviews.id}))`,
         ...(after === null ? [] : [gte(reviews.reviewedAt, after)]),
       ),
     )
@@ -226,6 +230,8 @@ async function projectionFor(tx: Tx, userId: string, cardId: string): Promise<Sc
   // with the wrong starting memory after an old answer is undone.
   const events = rows.map((row) => ({
     id: row.id,
+    resetsLearning: row.resetsLearning,
+    order: row.rev,
     log: toReviewLog(row),
     cancelsReviewId: row.cancelsReviewId,
     ...(row.priorState ? { priorState: decode(row.priorState) } : {}),
@@ -239,6 +245,63 @@ async function projectionFor(tx: Tx, userId: string, cardId: string): Promise<Sc
 
 export function reviewRepository(userId: string, run: Runner): ReviewRepository {
   return {
+    async restartDeck(deckId, eventId) {
+      return run(async (tx) => {
+        const rev = await nextRev(tx, userId);
+        const [receipt] = await tx
+          .select()
+          .from(learningRestarts)
+          .where(and(eq(learningRestarts.userId, userId), eq(learningRestarts.id, eventId)));
+        if (receipt) {
+          if (receipt.deckId !== deckId) throw new Error('Restart id is already in use');
+          return receipt.cardCount;
+        }
+        await requireLiveDeck(tx, userId, deckId, 'deck');
+        const eligible = await tx
+          .select({ card: cards })
+          .from(cards)
+          .innerJoin(notes, and(eq(notes.id, cards.noteId), eq(notes.userId, userId)))
+          .where(
+            and(
+              eq(cards.userId, userId),
+              eq(cards.deckId, deckId),
+              eq(notes.deckId, deckId),
+              isNull(cards.deletedAt),
+              isNull(cards.suspendedAt),
+              isNull(notes.deletedAt),
+              eq(notes.status, 'active'),
+            ),
+          );
+        const now = new Date();
+        await tx
+          .insert(learningRestarts)
+          .values({ id: eventId, userId, deckId, cardCount: eligible.length, rev, createdAt: now });
+        for (const { card } of eligible) {
+          // Reset is a first-class immutable event in the same canonical stream.
+          await tx.insert(reviews).values({
+            id: uuidV7(),
+            userId,
+            cardId: card.id,
+            resetsLearning: true,
+            restartId: eventId,
+            reviewedAt: now,
+            rating: 'good',
+            elapsedDays: 0,
+            scheduledDays: 0,
+            placedDue: now,
+            stateBefore: 'new',
+            priorState: { ...fromSchedulingState(toSchedulingState(card)) },
+            rev,
+          });
+          const state = await projectionFor(tx, userId, card.id);
+          await tx
+            .update(cards)
+            .set({ ...fromSchedulingState(state), placedDue: null, rev, updatedAt: now })
+            .where(and(eq(cards.userId, userId), eq(cards.id, card.id)));
+        }
+        return eligible.length;
+      });
+    },
     async undo(reviewId, eventId) {
       return run(async (tx) => {
         const [original] = await tx
@@ -249,6 +312,7 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
               eq(reviews.userId, userId),
               eq(reviews.id, reviewId),
               isNull(reviews.cancelsReviewId),
+              eq(reviews.resetsLearning, false),
             ),
           );
         if (!original?.priorState) throw new CardNotFound(reviewId);
@@ -413,6 +477,7 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
               // A compensation is an immutable history row, but it is not an
               // answer. The target answer remains part of historical counts.
               isNull(reviews.cancelsReviewId),
+              eq(reviews.resetsLearning, false),
             ),
           );
         return row?.total ?? 0;
@@ -422,21 +487,23 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
     async workload() {
       return run(async (tx) => {
         const rows = await tx
-          .select({ review: reviews, direction: cards.direction })
+          .select({ review: reviews, direction: cards.direction, deckId: cards.deckId })
           .from(reviews)
           .innerJoin(cards, and(eq(cards.userId, userId), eq(cards.id, reviews.cardId)))
           .where(
             and(
               eq(reviews.userId, userId),
               isNull(reviews.cancelsReviewId),
+              eq(reviews.resetsLearning, false),
               sql`not exists (select 1 from reviews cancellation where cancellation.user_id = ${userId} and cancellation.cancels_review_id = ${reviews.id})`,
             ),
           )
           .orderBy(asc(reviews.reviewedAt), asc(reviews.id));
 
-        return rows.map(({ review: row, direction }) => ({
+        return rows.map(({ review: row, direction, deckId }) => ({
           ...toReviewLog(row),
           cardId: row.cardId,
+          deckId,
           direction: direction as WorkloadReview['direction'],
         }));
       });

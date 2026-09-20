@@ -94,6 +94,7 @@ const PART_OF_SPEECH_OPTIONS: readonly FieldOption[] = [
   { value: 'verb', labelKey: 'note.pos.verb' },
   { value: 'adjective', labelKey: 'note.pos.adjective' },
   { value: 'adverb', labelKey: 'note.pos.adverb' },
+  { value: 'preposition', labelKey: 'note.pos.preposition' },
   { value: 'phrase', labelKey: 'note.pos.phrase' },
   { value: 'other', labelKey: 'note.pos.other' },
 ];
@@ -136,15 +137,34 @@ const GRAMMAR: Partial<
         'note.hint.case',
       ),
       toggle('grammar.reflexive', 'note.field.reflexive'),
+      withHint(multiline('grammar.pattern', 'note.field.pattern'), 'note.hint.pattern'),
     ],
     adjective: [
       withHint(text('grammar.comparative', 'note.field.comparative'), 'note.hint.comparison'),
       text('grammar.superlative', 'note.field.superlative'),
     ],
+    preposition: [
+      withHint(multiline('grammar.pattern', 'note.field.pattern'), 'note.hint.pattern'),
+    ],
   },
   en: {
-    noun: [toggle('grammar.uncountable', 'note.field.uncountable')],
-    verb: [withHint(text('grammar.irregular', 'note.field.irregular'), 'note.hint.irregular')],
+    noun: [
+      text('grammar.plural', 'note.field.plural'),
+      choice('grammar.countability', 'note.field.countability', [
+        { value: 'countable', labelKey: 'note.countability.countable' },
+        { value: 'uncountable', labelKey: 'note.countability.uncountable' },
+        { value: 'both', labelKey: 'note.countability.both' },
+      ]),
+    ],
+    verb: [
+      text('grammar.pastSimple', 'note.field.pastSimple'),
+      text('grammar.pastParticiple', 'note.field.pastParticiple'),
+      withHint(multiline('grammar.pattern', 'note.field.pattern'), 'note.hint.pattern'),
+    ],
+    adjective: [
+      text('grammar.comparative', 'note.field.comparative'),
+      text('grammar.superlative', 'note.field.superlative'),
+    ],
   },
 };
 
@@ -157,6 +177,8 @@ const ENGLISH_ANY: readonly EditorField[] = [
 const ALL_GRAMMAR: readonly EditorField[] = [
   ...Object.values(GRAMMAR).flatMap((byPart) => Object.values(byPart).flat()),
   ...ENGLISH_ANY,
+  withHint(text('grammar.irregular', 'note.field.irregular'), 'note.hint.irregular'),
+  toggle('grammar.uncountable', 'note.field.uncountable'),
 ];
 
 function grammarFor(context: FieldContext): EditorField[] {
@@ -177,7 +199,11 @@ function grammarFor(context: FieldContext): EditorField[] {
   // Anything already written down stays on screen, whatever the part of speech
   // says now. Changing a word from a noun to a verb must not make its plural
   // invisible while it is still stored.
-  const kept = ALL_GRAMMAR.filter((field) => filled.has(field.path) && !shown.has(field.path));
+  const kept = ALL_GRAMMAR.filter((field) => {
+    if (!filled.has(field.path) || shown.has(field.path)) return false;
+    shown.add(field.path);
+    return true;
+  });
 
   return [...applies, ...kept];
 }

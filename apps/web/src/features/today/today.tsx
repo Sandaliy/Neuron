@@ -1,14 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 import { DEFAULT_ANSWER_SECONDS } from '@neuron/core';
-import { dailyStudySessionSchema } from '@neuron/shared';
+import { dailyStudySessionSchema, studyDecks } from '@neuron/shared';
 import type { DeckNode, DailyStudySession } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
-import { totals, useDeckTree } from '../../lib/decks';
+import { flatten, useDeckTree } from '../../lib/decks';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
@@ -17,6 +18,7 @@ import { Select } from '../../ui/select';
 import { ErrorState, Skeleton } from '../../ui/states';
 
 import { StudyScreen } from './study';
+import { StudyScope } from './study-scope';
 
 /**
  * How long the cards waiting are likely to take.
@@ -60,44 +62,30 @@ export function TodayScreen() {
         }}
       />
     );
-
   return (
     <section data-screen="" className="flex flex-col gap-24">
-      <h1 className="font-display text-24 tracking-tight text-primary">{t('today.title')}</h1>
-
-      {decks.isPending ? (
-        <div className="flex flex-col gap-12" role="status" aria-label={t('common.loading')}>
-          <Skeleton className="h-56 w-[60%]" />
-          <Skeleton className="h-20 w-[40%]" />
-          <Skeleton className="h-48 w-full" />
-        </div>
-      ) : undefined}
-
-      {/*
-        Only when there is nothing to show. A refetch that failed behind
-        content already on screen leaves that content alone: the counts are a
-        few minutes old rather than gone, which is the better of the two.
-      */}
-      {decks.error && !decks.data ? (
+      <header className="flex items-baseline justify-between gap-12">
+        <h1 className="text-24 tracking-tight text-primary">{t('today.title')}</h1>
+      </header>
+      {decks.isPending && <Skeleton className="h-56 w-full" />}
+      {decks.error && !decks.data && (
         <ErrorState
-          message={t(describe(decks.error).key, describe(decks.error).values)}
+          message={t(describe(decks.error).key)}
           retryLabel={t('common.retry')}
           onRetry={() => void decks.refetch()}
         />
-      ) : undefined}
-
-      {decks.data ? (
+      )}
+      {decks.data && (
         <Waiting
           minutes={minutes}
           onMinutes={setMinutes}
           decks={decks.data}
           onStart={setStudying}
         />
-      ) : undefined}
+      )}
     </section>
   );
 }
-
 function Waiting({
   decks,
   onStart,
@@ -111,11 +99,30 @@ function Waiting({
 }) {
   const t = useTranslate();
   const navigate = useNavigate();
-  const { due, fresh } = totals(decks);
+  const live = studyDecks(flatten(decks));
+  const [scope, setScope] = useState<string[]>();
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const selected =
+    scope ??
+    live.filter((deck) => deck.settings?.dailyStudyIncluded !== false).map((deck) => deck.id);
+  const scopeLabel =
+    scope === undefined
+      ? t('study.scopeDefault')
+      : scope.length === 1
+        ? (live.find((deck) => deck.id === scope[0])?.name ?? t('study.scopeCount', { count: 1 }))
+        : t('study.scopeCount', { count: scope.length });
   const [direction, setDirection] = useState('');
   const [override, setOverride] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
   const plan = useQuery({
-    queryKey: ['study-plan', minutes, direction, override],
+    queryKey: [
+      'study-plan',
+      minutes,
+      direction,
+      override,
+      scope,
+      live.map((deck) => [deck.id, deck.settings?.dailyStudyIncluded]),
+    ],
     queryFn: async ({ signal }) =>
       dailyStudySessionSchema.parse(
         await request('/study/session', {
@@ -125,144 +132,184 @@ function Waiting({
             ...(minutes ? { minutes: Number(minutes) } : {}),
             ...(direction ? { direction } : {}),
             ...(override ? { newCards: 'override' } : {}),
+            ...(scope === undefined ? {} : { deckIds: scope }),
           },
         }),
       ),
     staleTime: 0,
   });
-  const waiting = decks;
-
+  const result = plan.data;
+  const caughtUp = result?.availableCount === 0 && selected.length > 0;
+  const waiting = (result?.deckSummaries ?? []).flatMap((summary) => {
+    const deck = live.find((row) => row.id === summary.deckId);
+    return deck ? [{ ...deck, ...summary }] : [];
+  });
   return (
     <div className="flex flex-col gap-24">
-      <Card className="flex flex-col gap-20">
-        <div className="flex items-baseline gap-12">
-          <span
-            data-numeric=""
-            className="font-display text-56 leading-none tracking-tight text-primary"
-          >
-            {due}
-          </span>
-
-          <div className="flex flex-col gap-4 pb-4">
-            <span className="text-15 leading-snug text-primary">{t('today.waitingLabel')}</span>
-            {due > 0 ? (
-              <span className="text-13 text-tertiary">
-                {t('today.estimate', { minutes: estimateMinutes(due) })}
+      <Card className="flex flex-col gap-24">
+        {selected.length === 0 ? (
+          <>
+            <h2 className="text-24 text-primary">{t('study.noDecks')}</h2>
+            <Button onClick={() => setScopeOpen(true)}>{t('study.chooseDecks')}</Button>
+          </>
+        ) : plan.error && !result ? (
+          <ErrorState
+            message={t(describe(plan.error).key)}
+            retryLabel={t('common.retry')}
+            onRetry={() => void plan.refetch()}
+          />
+        ) : !result ? (
+          <div className="flex flex-col gap-20" aria-label={t('common.loading')} role="status">
+            <Skeleton className="h-56 w-[60%]" />
+            <Skeleton className="h-20 w-[40%]" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+        ) : caughtUp ? (
+          <>
+            <h2 className="text-24 text-primary">{t('today.caughtUpTitle')}</h2>
+            <div className="flex flex-col gap-4" role="status">
+              <span className="text-12 text-secondary">{t('today.nextReview')}</span>
+              <span className="text-17 text-primary">
+                {result.nextDue
+                  ? new Date(result.nextDue).toLocaleString('en', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })
+                  : t('today.noneScheduled')}
               </span>
-            ) : undefined}
+            </div>
+            <Button onClick={() => void navigate({ to: '/library' })}>
+              {t('today.practiceDeck')}
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="flex items-end justify-between gap-16">
+              <div className="flex items-baseline gap-12">
+                <span data-numeric="" className="text-56 leading-none tracking-tight text-primary">
+                  {result.cards.length}
+                </span>
+                <span className="text-17 text-secondary">{t('today.ready')}</span>
+              </div>
+              <span className="pb-4 text-13 text-secondary">
+                {t('today.estimate', { minutes: Math.max(1, Math.round(result.estimatedMinutes)) })}
+              </span>
+            </div>
+            <div className="flex gap-32 text-13 text-secondary">
+              <span>
+                <span data-numeric="" className="mr-4 text-15 text-primary">
+                  {result.reviewCount}
+                </span>
+                {t('study.reviewsMetric')}
+              </span>
+              <span>
+                <span data-numeric="" className="mr-4 text-15 text-primary">
+                  {result.newCount}
+                </span>
+                {t('study.newMetric')}
+              </span>
+            </div>
+            <Button
+              variant="primary"
+              full
+              disabled={!result.cards.length || plan.isFetching}
+              onClick={() => onStart(result)}
+            >
+              {t('today.study')}
+            </Button>
+          </>
+        )}
+        {selected.length > 0 && !caughtUp && (
+          <div className="flex items-center justify-between gap-12 border-t border-subtle pt-8">
+            <span className="truncate text-12 text-secondary">{scopeLabel}</span>
+            <Button
+              variant="text"
+              className="shrink-0 px-8 text-secondary"
+              aria-expanded={adjusting}
+              onClick={() => setAdjusting(!adjusting)}
+            >
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              {t('today.adjust')}
+            </Button>
           </div>
-        </div>
-
-        {fresh > 0 ? (
-          <div className="flex flex-col gap-4">
-            <span data-numeric="" className="text-15 text-accent">
-              {fresh}
-            </span>
-            <span className="text-12 text-tertiary">{t('today.newLabel')}</span>
+        )}
+        {caughtUp && (
+          <Button
+            variant="text"
+            className="self-start px-8 text-secondary"
+            onClick={() => setScopeOpen(true)}
+          >
+            {t('study.scope')}
+            <ChevronDown size={14} aria-hidden="true" />
+          </Button>
+        )}
+        {adjusting && !caughtUp && selected.length > 0 && (
+          <div className="neu-reveal flex flex-col gap-16 border-t border-subtle pt-16">
+            <div className="flex items-center justify-between gap-12">
+              <span className="text-14 text-secondary">{t('study.scope')}</span>
+              <Button onClick={() => setScopeOpen(true)}>
+                {scopeLabel}
+                <ChevronDown size={14} aria-hidden="true" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-12">
+              <label className="flex flex-col gap-8 text-13 text-secondary">
+                {t('study.minutes')}
+                <Select value={minutes} onChange={(event) => onMinutes(event.target.value)}>
+                  <option value="">{t('study.defaultTime')}</option>
+                  {[5, 10, 20, 30].map((value) => (
+                    <option key={value} value={value}>
+                      {t('study.intervalMinutes', { count: value })}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              <label className="flex flex-col gap-8 text-13 text-secondary">
+                {t('study.skill')}
+                <Select value={direction} onChange={(event) => setDirection(event.target.value)}>
+                  <option value="">{t('study.mixed')}</option>
+                  <option value="recognition">{t('study.recognition')}</option>
+                  <option value="recall">{t('study.recall')}</option>
+                </Select>
+              </label>
+            </div>
+            {(result?.newCards.overrideAvailable || override) && (
+              <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
+                <input
+                  type="checkbox"
+                  checked={override}
+                  onChange={(event) => setOverride(event.target.checked)}
+                />
+                {t('study.moreNew')}
+              </label>
+            )}
           </div>
-        ) : undefined}
-
-        {due === 0 && fresh === 0 ? (
-          <div role="status" className="rounded-12 bg-raised p-12">
-            <p className="text-15 text-primary">{t('today.caughtUpTitle')}</p>
-            <p className="text-13 text-secondary">{t('today.caughtUpBody')}</p>
-          </div>
-        ) : undefined}
-
-        <label className="text-14 text-secondary">
-          {t('study.minutes')}
-          <Select value={minutes} onChange={(event) => onMinutes(event.target.value)}>
-            <option value="">{t('study.defaultTime')}</option>
-            {[5, 10, 20, 30].map((value) => (
-              <option key={value} value={value}>
-                {t('study.intervalMinutes', { count: value })}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="text-14 text-secondary">
-          {t('study.skill')}
-          <Select value={direction} onChange={(event) => setDirection(event.target.value)}>
-            <option value="">{t('study.mixed')}</option>
-            <option value="recognition">{t('study.recognition')}</option>
-            <option value="recall">{t('study.recall')}</option>
-          </Select>
-        </label>
-        <p className="text-13 text-secondary">{t('study.oneOff')}</p>
-        <div aria-live="polite">
-          {plan.isFetching ? (
-            <p>{t('common.loading')}</p>
-          ) : (
-            plan.data && (
-              <>
-                <p className="text-15 text-primary">
-                  {t('study.plan', {
-                    minutes: Math.round(plan.data.estimatedMinutes * 10) / 10,
-                    reviews: plan.data.reviewCount,
-                    fresh: plan.data.newCount,
-                  })}
-                </p>
-                {plan.data.cards.length === plan.data.availableCount && (
-                  <p className="text-13 text-secondary">{t('study.allPlanned')}</p>
-                )}
-                {plan.data.newCards.overrideAvailable && (
-                  <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
-                    <input
-                      type="checkbox"
-                      checked={override}
-                      onChange={(event) => setOverride(event.target.checked)}
-                    />
-                    {t('study.moreNew')}
-                  </label>
-                )}
-                {plan.data.newCards.limitedBy === 'automaticPolicy' && (
-                  <p className="text-13 text-secondary">{t('study.policyPause')}</p>
-                )}
-                {plan.data.nextDue && (
-                  <p className="text-13 text-secondary">
-                    {t('study.nextReturn', { time: new Date(plan.data.nextDue).toLocaleString() })}
-                  </p>
-                )}
-              </>
-            )
-          )}
-          {plan.error && (
-            <ErrorState
-              message={t(describe(plan.error).key)}
-              retryLabel={t('common.retry')}
-              onRetry={() => void plan.refetch()}
-            />
-          )}
-        </div>
-        <Button
-          variant="primary"
-          full
-          disabled={!plan.data?.cards.length || plan.isFetching}
-          onClick={() => {
-            if (plan.data) onStart(plan.data);
-          }}
-        >
-          {t('today.study')}
-        </Button>
+        )}
       </Card>
-
-      {waiting.length > 0 ? (
+      {plan.error && result && (
+        <ErrorState
+          message={t(describe(plan.error).key)}
+          retryLabel={t('common.retry')}
+          onRetry={() => void plan.refetch()}
+        />
+      )}
+      {selected.length > 0 && waiting.length > 0 && (
         <div className="flex flex-col gap-12">
           <GroupLabel>{t('today.waitingIn')}</GroupLabel>
-
           <div className="flex flex-col gap-8">
             {waiting.map((deck) => (
               <Row
                 key={deck.id}
                 title={deck.name}
-                onClick={() =>
-                  void (deck.kind === 'deck'
-                    ? navigate({ to: '/notes', search: { deckId: deck.id } })
-                    : navigate({ to: '/library', search: { folderId: deck.id } }))
-                }
+                onClick={() => void navigate({ to: '/notes', search: { deckId: deck.id } })}
                 subtitle={
                   deck.due === 0 && deck.fresh === 0 && deck.nextDue
-                    ? t('study.nextReturn', { time: new Date(deck.nextDue).toLocaleString() })
+                    ? new Date(deck.nextDue).toLocaleDateString('en', {
+                        month: 'short',
+                        day: 'numeric',
+                      })
                     : t('today.deckCounts', { due: deck.due, fresh: deck.fresh })
                 }
                 trailing={deck.due > 0 ? <Chip tone="due">{deck.due}</Chip> : undefined}
@@ -270,7 +317,15 @@ function Waiting({
             ))}
           </div>
         </div>
-      ) : undefined}
+      )}
+      <StudyScope
+        open={scopeOpen}
+        onOpenChange={setScopeOpen}
+        decks={live}
+        collections={flatten(decks)}
+        selected={scope}
+        onApply={setScope}
+      />
     </div>
   );
 }

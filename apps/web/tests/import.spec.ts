@@ -1,3 +1,4 @@
+const locale = 'en';
 import { expect, test } from '@playwright/test';
 
 import { useFixtures, usePreferences } from './fixtures';
@@ -5,9 +6,13 @@ import { useFixtures, usePreferences } from './fixtures';
 const IMPORT_DECK_ID = 'd3';
 const IMPORT_DECK_NAME = 'Verben mit Dativ';
 
-for (const locale of ['en', 'ru'] as const) {
-  test(`duplicate defaults, exceptions and undo boundary in ${locale}`, async ({ page }) => {
-    await usePreferences(page, { theme: locale === 'en' ? 'dark' : 'light', locale, glass: 'off' });
+for (const storedLocale of ['en', 'ru'] as const) {
+  test(`duplicate defaults, exceptions and undo boundary in ${storedLocale}`, async ({ page }) => {
+    await usePreferences(page, {
+      theme: locale === 'en' ? 'dark' : 'light',
+      locale: storedLocale,
+      glass: 'off',
+    });
     await useFixtures(page);
     const matches = [
       { term: 'unique', noteId: 'unique', noteType: 'vocab' },
@@ -65,7 +70,10 @@ for (const locale of ['en', 'ru'] as const) {
     expect((await row('ambiguous').locator('select').boundingBox())!.height).toBeGreaterThanOrEqual(
       44,
     );
-    await page.screenshot({ path: test.info().outputPath(`import-${locale}.png`), fullPage: true });
+    await page.screenshot({
+      path: test.info().outputPath(`import-${storedLocale}.png`),
+      fullPage: true,
+    });
     await expect(row('incompatible')).toContainText(
       locale === 'en' ? 'another note type' : 'другой тип',
     );

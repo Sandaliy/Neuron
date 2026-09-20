@@ -9,7 +9,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Folder, Layers } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import type { DeckNode } from '@neuron/shared';
@@ -17,6 +17,7 @@ import type { DeckNode } from '@neuron/shared';
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
 import { findDeck, moveProblem } from '../../lib/decks';
+import { Row } from '../../ui/row';
 import { useToast } from '../../ui/toast';
 
 import type { useDeckActions } from '../../lib/decks';
@@ -112,8 +113,26 @@ export function CollectionDrag({
       {children}
       <DragOverlay dropAnimation={null} className="pointer-events-none">
         {active && (
-          <div className="pointer-events-none rounded-12 border border-accent bg-card px-16 py-12 text-primary shadow-2">
-            {findDeck(tree, active)?.name}
+          <div className="pointer-events-none w-full opacity-90 shadow-2">
+            <Row
+              title={findDeck(tree, active)?.name ?? ''}
+              leading={
+                findDeck(tree, active)?.kind === 'folder' ? (
+                  <Folder size={20} />
+                ) : (
+                  <Layers size={20} />
+                )
+              }
+              subtitle={
+                findDeck(tree, active)?.kind === 'deck'
+                  ? t('today.deckCounts', {
+                      due: findDeck(tree, active)?.due ?? 0,
+                      fresh: findDeck(tree, active)?.fresh ?? 0,
+                    })
+                  : undefined
+              }
+              trailing={<GripVertical size={12} />}
+            />
           </div>
         )}
       </DragOverlay>
@@ -155,9 +174,14 @@ function isDropTarget(value: unknown): value is DropTarget {
 
 export function CollectionHandle({ deck }: { readonly deck: DeckNode }) {
   const t = useTranslate();
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef } = useDraggable({ id: deck.id });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
+    id: deck.id,
+  });
   return (
-    <span ref={setNodeRef}>
+    <span
+      data-dragging={isDragging}
+      ref={(node) => setNodeRef(node?.closest<HTMLElement>('[data-collection-row]') ?? null)}
+    >
       <button
         ref={setActivatorNodeRef}
         type="button"
@@ -167,7 +191,7 @@ export function CollectionHandle({ deck }: { readonly deck: DeckNode }) {
         className="flex size-44 shrink-0 touch-none items-center justify-center text-tertiary"
         style={{ WebkitTouchCallout: 'none' }}
       >
-        <GripVertical size={18} />
+        <GripVertical size={12} strokeWidth={1.5} />
       </button>
     </span>
   );
@@ -187,31 +211,32 @@ export function CollectionDrop({
   readonly position: 'before' | 'inside' | 'after';
 }) {
   const { active } = useDndContext();
-  const t = useTranslate();
   const problem = active ? moveProblem(tree, String(active.id), parentId) : undefined;
   const invalid =
     !!active && ((problem !== undefined && problem !== 'same') || beforeId === active.id);
-  const { setNodeRef, isOver } = useDroppable({ id, data: { parentId, beforeId, invalid } });
-  if (!active) return null;
+  const { setNodeRef, isOver } = useDroppable({
+    id,
+    disabled: invalid,
+    data: { parentId, beforeId, invalid },
+  });
+  if (!active || invalid) return null;
   const positionClass =
     position === 'before'
-      ? '-top-16'
+      ? '-top-16 h-32 z-30'
       : position === 'inside'
-        ? 'top-1/2 -translate-y-1/2'
-        : '-bottom-16';
+        ? 'inset-y-0 z-20'
+        : '-bottom-16 h-32 z-30';
   return (
     <div
       ref={setNodeRef}
       data-drop-target={id}
-      aria-disabled={invalid}
-      className={`pointer-events-auto absolute left-0 right-0 ${position === 'before' ? 'z-30' : 'z-20'} flex h-28 items-center rounded-8 border px-12 text-12 ${positionClass} ${isOver ? (invalid ? 'border-error text-error' : 'border-accent bg-fill-accent-quiet text-accent') : 'border-subtle bg-base text-tertiary'}`}
+      aria-hidden="true"
+      className={`pointer-events-auto absolute left-0 right-0 transition-colors dur-control ${positionClass} flex items-center ${position === 'inside' && isOver ? 'rounded-12 bg-fill-accent-quiet ring-1 ring-inset ring-accent' : ''}`}
     >
-      {t(
-        invalid
-          ? 'library.dropInvalid'
-          : position === 'inside'
-            ? 'library.dropInside'
-            : 'library.dropHere',
+      {position !== 'inside' && (
+        <div
+          className={`h-[2px] w-full bg-fill-accent transition-opacity dur-control ${isOver ? 'opacity-100' : 'opacity-0'}`}
+        />
       )}
     </div>
   );

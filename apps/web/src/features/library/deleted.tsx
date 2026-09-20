@@ -74,7 +74,8 @@ function DeletedDeckList() {
     }
   }
 
-  if (deleted.isPending) return <SkeletonRows rows={5} />;
+  if (deleted.isPending || (deleted.isFetching && deleted.data?.length === 0))
+    return <SkeletonRows rows={5} />;
   if (deleted.error && !deleted.data) {
     return (
       <ErrorState
@@ -196,7 +197,8 @@ function DeletedNoteList() {
     }
   }
 
-  if (deleted.isPending) return <SkeletonRows rows={5} />;
+  if (deleted.isPending || (deleted.isFetching && deleted.data?.length === 0))
+    return <SkeletonRows rows={5} />;
   if (deleted.error && !deleted.data) {
     return (
       <ErrorState

@@ -12,10 +12,11 @@ describe('the message catalogues', () => {
     }
   });
 
-  it('has the same keys in both languages', () => {
+  it('falls back to English while Russian localization is deferred', () => {
     // The types already say so. This says so at run time as well, because the
     // Russian catalogue is the one a type assertion could silently widen.
-    expect(Object.keys(ru).sort()).toEqual(Object.keys(en).sort());
+    expect(Object.keys(CATALOGUES.ru).sort()).toEqual(Object.keys(en).sort());
+    expect(translate('ru', 'today.adjust')).toBe(en['today.adjust']);
   });
 
   it('leaves no message empty in either language', () => {

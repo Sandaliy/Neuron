@@ -156,7 +156,9 @@ export function LibraryScreen() {
           <CollectionPath tree={tree} id={folderId ?? ''} />
         </CollectionHeader>
 
-        {decks.isPending ? <SkeletonRows rows={5} /> : undefined}
+        {decks.isPending || (decks.isFetching && visible.length === 0) ? (
+          <SkeletonRows rows={5} />
+        ) : undefined}
 
         {/*
         Only when there is nothing to show. A refetch that failed behind
@@ -171,7 +173,7 @@ export function LibraryScreen() {
           />
         ) : undefined}
 
-        {!decks.isPending && visible.length === 0 ? (
+        {decks.data && !decks.isFetching && !decks.error && visible.length === 0 ? (
           <EmptyState title={t('library.emptyTitle')} description={t('library.emptyBody')} />
         ) : undefined}
 
@@ -299,7 +301,7 @@ function Deck({
 
   return (
     <div className="relative flex select-none flex-col gap-8">
-      <div className="relative">
+      <div data-collection-row="" className="relative has-[[data-dragging=true]]:opacity-40">
         <CollectionDrop
           tree={tree}
           id={`before:${deck.id}`}

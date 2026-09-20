@@ -80,3 +80,50 @@ describe('canonical cancellation replay', () => {
     expect(reviewProjectionOrigin(merged, b.next)).toEqual(initial);
   });
 });
+
+describe('immutable learning restart replay', () => {
+  it('converges across arrival order, retries and cancellation on either side of reset', () => {
+    const config = createSchedulerConfig({ timezone: 'UTC' });
+    const initial = newCard(new Date('2026-01-01'));
+    const a = review(
+      initial,
+      RATING.easy,
+      new Date('2026-01-02'),
+      config,
+      createSeededRandom(reviewSeed('a')),
+    );
+    const at = new Date('2026-02-01');
+    const reset = {
+      id: 'reset',
+      resetsLearning: true,
+      log: { ...a.log, reviewedAt: at },
+      priorState: a.next,
+    };
+    const fresh = newCard(at);
+    const b = review(
+      fresh,
+      RATING.good,
+      new Date('2026-02-02'),
+      config,
+      createSeededRandom(reviewSeed('b')),
+    );
+    const A = { id: 'a', log: a.log, priorState: initial };
+    const B = { id: 'b', log: b.log, priorState: fresh };
+    const undoA = { id: 'undo-a', log: a.log, cancelsReviewId: 'a' };
+    for (const events of [
+      [A, reset, B],
+      [B, reset, A, reset],
+      [undoA, B, reset, A],
+    ]) {
+      expect(projectReviewEvents(events, initial, config)).toEqual(b.next);
+      expect(
+        projectReviewEvents(
+          [...events, { id: 'undo-b', log: b.log, cancelsReviewId: 'b' }],
+          initial,
+          config,
+        ),
+      ).toEqual(fresh);
+    }
+    expect(projectReviewEvents([A, reset], initial, config)).toEqual(fresh);
+  });
+});

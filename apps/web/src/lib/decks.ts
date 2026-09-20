@@ -78,7 +78,16 @@ export function settingsFor(decks: readonly DeckNode[], id: string): ResolvedDec
   }
 
   const byId = new Map(all.map((entry) => [entry.id, entry]));
-  const chain = [...deck.path.map((ancestor) => byId.get(ancestor)), deck];
+  const chain = [deck];
+  const seen = new Set([deck.id]);
+  let parent = deck.parentId;
+  while (parent !== null && !seen.has(parent)) {
+    seen.add(parent);
+    const ancestor = byId.get(parent);
+    if (!ancestor) break;
+    chain.unshift(ancestor);
+    parent = ancestor.parentId;
+  }
 
   return resolveDeckSettings(chain.map((entry) => entry?.settings ?? null));
 }

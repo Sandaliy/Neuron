@@ -359,22 +359,7 @@ export function ImportSource({
         </dl>
         <p className="pt-12 text-14 text-secondary">{t('import.grammarFields')}</p>
         <ul className="grid grid-cols-2 gap-8 py-12 font-mono text-13 text-secondary">
-          {[
-            'article',
-            'plural',
-            'gender',
-            'praeteritum',
-            'partizip2',
-            'auxiliary',
-            'separable',
-            'case',
-            'reflexive',
-            'comparative',
-            'superlative',
-            'variant',
-            'irregular',
-            'uncountable',
-          ].map((field) => (
+          {Object.keys(noteFieldsSchemas.vocab.shape.grammar.unwrap().shape).map((field) => (
             <li key={field}>{field}</li>
           ))}
         </ul>
