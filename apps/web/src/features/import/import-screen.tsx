@@ -13,8 +13,12 @@ import {
   rowProblems,
   termCounts,
   termOf,
+  PRACTICE_FIELDS,
+  practiceFieldLabel,
+  practiceValue,
 } from '@neuron/shared';
 import type {
+  Note,
   DuplicateMatch,
   ImportFormat,
   MessageKey,
@@ -26,7 +30,7 @@ import type {
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
 import { DECK_TREE_KEY, findDeck, settingsFor, useDeckTree } from '../../lib/decks';
-import { findDuplicates, NOTE_KEY } from '../../lib/notes';
+import { findDuplicates, NOTE_KEY, noteQueryString } from '../../lib/notes';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel, Panel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
@@ -230,6 +234,21 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
         queryClient.invalidateQueries({ queryKey: DECK_TREE_KEY }),
       ]);
 
+      // Warm the exact destination first page, including when its old query is inactive.
+      const destination = noteQueryString({ deckId: deck, sort: 'created' });
+      await queryClient
+        .fetchInfiniteQuery({
+          queryKey: [NOTE_KEY, 'list', destination],
+          initialPageParam: undefined as string | undefined,
+          staleTime: 0,
+          queryFn: ({ signal }) =>
+            request<{ items: Note[]; nextCursor?: string }>(`/notes?${destination}&limit=1000`, {
+              signal,
+            }),
+          getNextPageParam: (page) => page.nextCursor,
+          pages: 1,
+        })
+        .catch(() => undefined);
       setStage({
         kind: 'done',
         ...(batchId === undefined ? {} : { batchId }),
@@ -723,6 +742,27 @@ function PreviewRow({
           ))}
         </span>
       ) : undefined}
+      {noteType === 'vocab' && !!row.fields['grammar'] && (
+        <details className="w-full text-13 text-secondary">
+          <summary className="min-h-44 cursor-pointer">{t('note.section.grammar')}</summary>
+          <dl className="neu-reveal grid grid-cols-2 gap-12 pb-12">
+            {PRACTICE_FIELDS.filter(
+              (field) =>
+                field.startsWith('grammar.') && practiceValue(row.fields, field) !== undefined,
+            ).map((field) => {
+              const value = practiceValue(row.fields, field);
+              return (
+                <div key={field}>
+                  <dt className="text-12 text-secondary">{t(practiceFieldLabel(field))}</dt>
+                  <dd className="whitespace-pre-line text-primary">
+                    {typeof value === 'boolean' ? t(value ? 'practice.yes' : 'practice.no') : value}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </details>
+      )}
     </div>
   );
 }

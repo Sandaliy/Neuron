@@ -1,3 +1,4 @@
+const locale = 'en';
 import { expect, test } from '@playwright/test';
 
 import { useFixtures as stubApi, usePreferences as setPreferences } from './fixtures';
@@ -176,11 +177,11 @@ test('cancel and switching back do not persist drafts; ordinary fields and tags 
   });
 });
 
-for (const locale of ['en', 'ru'] as const) {
-  test(`answered cards require confirmation with truthful history copy in ${locale}`, async ({
+for (const storedLocale of ['en', 'ru'] as const) {
+  test(`answered cards require confirmation with truthful history copy in ${storedLocale}`, async ({
     page,
   }) => {
-    const state = await editor(page, { reviewed: true, locale });
+    const state = await editor(page, { reviewed: true, locale: storedLocale });
     await page
       .getByRole('radio', { name: locale === 'en' ? 'Question' : 'Вопрос', exact: true })
       .press('Space');
@@ -202,7 +203,7 @@ for (const locale of ['en', 'ru'] as const) {
     await expect(apply).toBeFocused();
     await apply.click();
     await page.screenshot({
-      path: test.info().outputPath(`conversion-${locale}.png`),
+      path: test.info().outputPath(`conversion-${storedLocale}.png`),
       animations: 'disabled',
     });
     const rect = await dialog.boundingBox();

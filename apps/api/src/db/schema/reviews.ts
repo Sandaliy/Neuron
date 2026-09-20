@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   check,
   doublePrecision,
   index,
@@ -54,6 +55,8 @@ export const reviews = pgTable(
       .notNull()
       .references(() => cards.id, { onDelete: 'cascade' }),
     /** A compensating event; its target review remains immutable. */
+    resetsLearning: boolean('resets_learning').notNull().default(false),
+    restartId: uuid('restart_id'),
     cancelsReviewId: uuid('cancels_review_id'),
     /** Server-captured projection before this answer, for exact recent undo. */
     priorState: jsonb('prior_state').$type<Record<string, unknown>>(),
@@ -97,6 +100,11 @@ export const reviews = pgTable(
     rev: bigint('rev', { mode: 'number' }).notNull().default(0),
   },
   (table) => [
+    check(
+      'reviews_reset_event_valid',
+      sql`${table.resetsLearning} = (${table.restartId} is not null) and (not ${table.resetsLearning} or ${table.cancelsReviewId} is null)`,
+    ),
+    uniqueIndex('reviews_restart_card_once').on(table.userId, table.restartId, table.cardId),
     uniqueIndex('reviews_cancellation_once').on(table.userId, table.cancelsReviewId),
     check(
       'reviews_cancellation_not_self',

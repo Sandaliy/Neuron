@@ -5,7 +5,7 @@ import { useFixtures, usePreferences } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /**
- * Every dialog fits a phone, whole, in both languages.
+ * Every dialog fits a phone, whole, with either stored locale.
  *
  * The rule this file exists for: nothing a dialog holds may be below the fold
  * when it opens. A dialog that has to be scrolled is a dialog whose action a
@@ -17,33 +17,18 @@ import type { Page } from '@playwright/test';
  * looks fine: it shows the top of it. What says the content did not fit is the
  * difference between what the scrolling part holds and how tall it is.
  *
- * Russian is measured as well as English. It is the longer language of the two
- * almost everywhere, so a layout that fits in English and not in Russian is the
- * ordinary failure, not the exotic one.
+ * Both stored locales render English during the Phase 7 presentation gate.
  */
-const LOCALES = [
-  {
-    code: 'ru',
-    settings: 'Настройки',
-    changePassword: 'Сменить пароль',
-    regenerate: 'Заменить коды восстановления',
-    issue: 'Выпустить новые коды',
-    password: 'Твой пароль',
-    secondFactor: 'Двухфакторная аутентификация',
-    deleteAccount: 'Удалить аккаунт',
-  },
-  {
-    code: 'en',
-    settings: 'Settings',
-    changePassword: 'Change your password',
-    regenerate: 'Replace your recovery codes',
-    issue: 'Generate new codes',
-    password: 'Your password',
-    secondFactor: 'Two-factor authentication',
-    deleteAccount: 'Delete account',
-  },
-] as const;
-
+const LOCALES = (['ru', 'en'] as const).map((code) => ({
+  code,
+  settings: 'Settings',
+  changePassword: 'Change your password',
+  regenerate: 'Replace your recovery codes',
+  issue: 'Generate new codes',
+  password: 'Your password',
+  secondFactor: 'Two-factor authentication',
+  deleteAccount: 'Delete account',
+}));
 /** Nothing in the dialog is below the fold, and the dialog is on the screen. */
 async function fitsWhole(page: Page, what: string): Promise<void> {
   const box = await page.locator('[data-g="panel"]').boundingBox();

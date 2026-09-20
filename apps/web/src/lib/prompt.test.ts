@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { PROMPT_VARIANTS, fillPrompt } from '@neuron/shared';
+import { PROMPT_VARIANTS, fillPrompt, parseImport, noteFieldsSchemas } from '@neuron/shared';
 
 import { PROMPTS } from './prompt';
 
@@ -25,6 +25,30 @@ describe('the prompt the app copies', () => {
   it('shows an example answer that is valid JSON', () => {
     for (const prompt of PROMPTS) {
       expect(() => JSON.parse(prompt.example)).not.toThrow();
+      const parsed = parseImport(prompt.example, 'json');
+      for (const row of parsed.rows)
+        expect(noteFieldsSchemas[parsed.noteType].safeParse(row.fields).success).toBe(true);
+    }
+  });
+  it('copies one canonical prompt with structured German and English grammar rules', () => {
+    for (const targetLanguage of ['de', 'en'] as const) {
+      const prompt = fillPrompt(PROMPTS[0]!.text, {
+        targetLanguage,
+        nativeLanguage: 'en',
+        level: 'B1',
+        deckName: 'Words',
+      });
+      for (const field of [
+        'grammar.pattern',
+        'grammar.pastSimple',
+        'grammar.pastParticiple',
+        'grammar.countability',
+        'grammar.article',
+        'grammar.plural',
+      ])
+        expect(prompt).toContain(field);
+      expect(prompt).toContain('Keep the input order');
+      expect(prompt).toContain('Do not invent grammar');
     }
   });
 

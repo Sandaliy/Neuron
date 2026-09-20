@@ -2,10 +2,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-import { LOCALES, THEMES, isAcceptablePassword } from '@neuron/shared';
-import type { Locale, MessageKey, Theme } from '@neuron/shared';
+import { THEMES, isAcceptablePassword } from '@neuron/shared';
+import type { MessageKey, Theme } from '@neuron/shared';
 
-import { useLocale, useTranslate } from '../../i18n/locale';
+import { useTranslate } from '../../i18n/locale';
 import { ACCOUNT_KEY, useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { authClient, changePassword, describeAuthError, signOut } from '../../lib/auth-client';
@@ -103,7 +103,6 @@ function Setting({
 function Appearance() {
   const t = useTranslate();
   const { theme, setTheme } = useTheme();
-  const { locale, setLocale } = useLocale();
   const { glass, effective, capReason, scope, setGlass, setGlassScope } = useGlass();
   const { motion, setMotion } = useMotion();
 
@@ -128,10 +127,6 @@ function Appearance() {
   // so and dims rather than disappearing: a control that vanishes teaches
   // nobody why it went.
   const scopeIdle = effective === 'off';
-
-  // The name of a language is written in that language. A Russian speaker
-  // hunting for their language should not have to read the word "Russian".
-  const localeLabels: Record<Locale, string> = { en: 'English', ru: 'Русский' };
 
   return (
     <Group title={t('settings.appearance')}>
@@ -191,17 +186,6 @@ function Appearance() {
             onChange={(on) => setMotion(on ? 'system' : 'reduce')}
           />
         </div>
-      </Card>
-
-      <Card>
-        <Setting label={t('settings.language')}>
-          <Segmented
-            label={t('settings.language')}
-            value={locale}
-            onChange={setLocale}
-            options={LOCALES.map((value) => ({ value, label: localeLabels[value] }))}
-          />
-        </Setting>
       </Card>
     </Group>
   );

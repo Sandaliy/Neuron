@@ -54,6 +54,8 @@ const ladderRungSchema = z.strictObject({
 });
 
 export const deckSettingsSchema = z.strictObject({
+  /** Leaf-deck participation only; never inherited from a Folder or account. */
+  dailyStudyIncluded: z.boolean().optional(),
   budgetMinutes: budgetMinutesSchema.optional(),
   allowCarryOver: z.boolean().optional(),
   ladder: z.array(ladderRungSchema).min(1).optional(),
@@ -143,7 +145,7 @@ export function resolveDeckSettings(
     // Only keys that are actually present override. An explicit undefined in a
     // parsed object would otherwise wipe out a value set further up.
     for (const [key, value] of Object.entries(settings)) {
-      if (value !== undefined) {
+      if (value !== undefined && key !== 'dailyStudyIncluded') {
         resolved = { ...resolved, [key]: value };
       }
     }

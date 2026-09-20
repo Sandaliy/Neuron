@@ -36,7 +36,15 @@ export type NoteStatus = z.infer<typeof noteStatusSchema>;
  * generated note and a typed one describe a noun with the same word. Anything
  * that does not fit is `other`, which asks for no grammar at all.
  */
-export const PARTS_OF_SPEECH = ['noun', 'verb', 'adjective', 'adverb', 'phrase', 'other'] as const;
+export const PARTS_OF_SPEECH = [
+  'noun',
+  'verb',
+  'adjective',
+  'adverb',
+  'preposition',
+  'phrase',
+  'other',
+] as const;
 
 export const partOfSpeechSchema = z.enum(PARTS_OF_SPEECH);
 
@@ -78,7 +86,7 @@ const optional = required.optional();
  * that names none is a word with nothing to memorise beyond its meaning, which
  * is most of them.
  */
-const grammarSchema = z
+export const grammarSchema = z
   .strictObject({
     /** A German noun: der, die, das, and the rest of what has to be learned. */
     article: optional,
@@ -93,6 +101,8 @@ const grammarSchema = z
     /** The case it governs, when that is not the plain accusative. */
     case: z.enum(['accusative', 'dative', 'genitive']).optional(),
     reflexive: z.boolean().optional(),
+    /** Characteristic complements, one readable pattern per line; no syntax parser. */
+    pattern: optional,
 
     /** A German adjective, when its comparison is irregular. */
     comparative: optional,
@@ -103,6 +113,9 @@ const grammarSchema = z
     /** The principal parts of an irregular verb, as "went / gone". */
     irregular: optional,
     uncountable: z.boolean().optional(),
+    pastSimple: optional,
+    pastParticiple: optional,
+    countability: z.enum(['countable', 'uncountable', 'both']).optional(),
   })
   .optional();
 

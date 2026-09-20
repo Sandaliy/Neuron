@@ -172,22 +172,7 @@ function grammarOf(value: unknown): Record<string, unknown> | undefined {
     return undefined;
   }
 
-  const known = new Set([
-    'article',
-    'plural',
-    'gender',
-    'praeteritum',
-    'partizip2',
-    'auxiliary',
-    'separable',
-    'case',
-    'reflexive',
-    'comparative',
-    'superlative',
-    'variant',
-    'irregular',
-    'uncountable',
-  ]);
+  const known = new Set(Object.keys(noteFieldsSchemas.vocab.shape.grammar.unwrap().shape));
 
   const grammar: Record<string, unknown> = {};
 

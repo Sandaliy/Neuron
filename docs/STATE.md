@@ -4,7 +4,47 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-16, after the Phase 7 phone stabilization slice.
+Last updated: 2026-09-20, Phase 7 persistent learning and composition release.
+
+## Current release slice
+
+The `work/phase7-product-polish` worktree continues the merged PR #22 checkpoint. English-only
+presentation preserves stored locale data. Today emphasizes real ready/time/review/new information
+and reveals planning controls through Adjust. Daily Study and Practice share a dominant reading card
+and thin progress treatment; Library drag retains exact placement with a full-row lift and quiet targets.
+
+Deck settings now control default Daily Study participation (missing means included). Today can choose
+an exact temporary subset, including paused Decks, before server planning. Counts, estimates, admission,
+Waiting in and actual cards share that scope. No decks selected is distinct from caught up. Deterministic
+new-material composition prevents a large Deck from starving other selected Decks.
+
+Migration 0015 adds persistent per-Deck Practice runs and immutable Restart learning receipts/events.
+Restart preserves IDs/history and excludes Known/excluded Notes, suspended/deleted cards and Practice.
+Practice persists rounds/completion independently of FSRS and reconciles live membership. Import waits
+for destination prefetch; affected lists show empty copy only after a successful settled request.
+
+Focused fresh-schema verification: 39 core/shared/API/database tests passed, including restart/replay,
+Practice, scoped planning, unchanged schedules/history, and Deck fairness. Chromium/WebKit phone
+interaction checks preserve Undo, Practice reload, scope, rapid delete/restore, and touch drag. Broader
+release verification and protected PR checks are recorded in the delivery report. Physical iPhone
+acceptance of this slice remains outstanding; browser evidence is not a substitute.
+
+Final local release verification covers 960 passing unit/API/core/shared tests across the resumed
+run, 58 reviewed visual checks, the repaired browser interactions, and 31 Chromium/WebKit phone
+checks (one platform-specific skip). Typecheck, lint, build, formatting, migration schema checks,
+behind-schema/restricted-role migration safety and owner-free Preview verification pass. Default
+scroll performance measured 58.7 fps against the unchanged 55 fps budget. One fresh-install journal
+test remains locally blocked by Windows `EPERM` when renaming `packages/shared/dist`, including an
+isolated retry; the protected Linux migration job must establish that remaining evidence.
+
+Advanced drills, typed expansion, listening/speech, Phase 8 offline sync, Phase 9 waves/triage and
+progressive directions, and Phase 10 analytics remain deferred.
+
+The same release includes collapsible vocab Grammar, stable boolean controls, structured English
+principal parts/countability, German complement patterns and preposition POS, preserved legacy grammar,
+and populated grammar combinations in persistent Practice. Local panels open immediately; Today and
+Practice retain known content during background refresh. Reveal/advance uses existing short motion.
+Scheduled grammar drills and the response-mode follow-up remain explicitly deferred in ROADMAP.
 
 ## Now
 

@@ -6,7 +6,7 @@ import type { Messages } from './en.js';
  * Typed as `Messages`, so a key added to `en` and forgotten here is a
  * compilation error rather than a blank space on somebody's screen.
  */
-export const ru: Messages = {
+export const ru = {
   'library.drag': 'Перетащить {name}',
   'library.dropInvalid': 'Сюда переместить нельзя',
   'library.dropInside': 'Переместить внутрь',
@@ -656,4 +656,4 @@ export const ru: Messages = {
   'error.unexpected': 'Что-то пошло не так. Попробуй ещё раз.',
   'error.internal_error':
     'Что-то сломалось на нашей стороне. Попробуй ещё раз, а если повторится, назови этот номер: {correlationId}',
-};
+} satisfies Partial<Messages>;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { detectFormat, parseImport, rowProblems, termCounts } from './import-parse.js';
+import { noteFieldsSchemas } from './note-types.js';
 
 /**
  * Reading a word list.
@@ -58,6 +59,57 @@ describe('working out what a file is', () => {
 });
 
 describe('the generated JSON', () => {
+  it('imports structured grammar, prepositions, and unchanged legacy English data', () => {
+    const notes = [
+      {
+        term: 'geben',
+        translation: 'give',
+        partOfSpeech: 'verb',
+        grammar: {
+          praeteritum: 'gab',
+          partizip2: 'gegeben',
+          auxiliary: 'haben',
+          separable: false,
+          reflexive: false,
+          case: 'dative',
+          pattern: 'jemandem etwas geben',
+        },
+      },
+      {
+        term: 'mit',
+        translation: 'with',
+        partOfSpeech: 'preposition',
+        grammar: { pattern: 'mit + Dativ' },
+      },
+      {
+        term: 'go',
+        translation: 'move',
+        partOfSpeech: 'verb',
+        grammar: {
+          pastSimple: 'went',
+          pastParticiple: 'gone',
+          irregular: 'went / gone',
+          pattern: 'go to',
+        },
+      },
+      {
+        term: 'child',
+        translation: 'young person',
+        partOfSpeech: 'noun',
+        grammar: { plural: 'children', countability: 'countable' },
+      },
+      {
+        term: 'water',
+        translation: 'liquid',
+        partOfSpeech: 'noun',
+        grammar: { uncountable: true },
+      },
+    ];
+    const result = parseImport(JSON.stringify({ noteType: 'vocab', notes }), 'json');
+    expect(result.rows.map((row) => row.fields)).toEqual(notes);
+    for (const row of result.rows)
+      expect(noteFieldsSchemas.vocab.parse(row.fields)).toEqual(row.fields);
+  });
   const result = parseImport(GENERATED, 'json');
 
   it('reads the note and what it is about', () => {

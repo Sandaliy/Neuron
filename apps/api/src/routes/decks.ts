@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 
 import {
   createDeckSchema,
+  practiceCommandSchema,
+  restartLearningSchema,
   idParamSchema,
   moveDeckSchema,
   purgeConfirmationSchema,
@@ -10,6 +12,7 @@ import {
 } from '@neuron/shared';
 
 import { repositoriesOf } from '../context.js';
+import { PracticeConflict } from '../db/repositories/practice.js';
 import { ApiError } from '../errors.js';
 import { buildDeckTree, serialiseDeck } from '../serialise.js';
 import { readBody, readParams } from '../validation.js';
@@ -174,6 +177,27 @@ export function deckRoutes(): Hono<RequestBindings> {
     return context.json(await repositoriesOf(context).purge.remove('decks', id));
   });
 
+  routes.get('/:id/practice', async (context) => {
+    const { id } = readParams(context, idParamSchema);
+    return context.json(await repositoriesOf(context).practice.get(id));
+  });
+  routes.post('/:id/practice', async (context) => {
+    const { id } = readParams(context, idParamSchema);
+    const body = await readBody(context, practiceCommandSchema);
+    try {
+      return context.json(await repositoriesOf(context).practice.apply(id, body));
+    } catch (error) {
+      if (error instanceof PracticeConflict) throw new ApiError('sync_rejected');
+      throw error;
+    }
+  });
+  routes.post('/:id/restart-learning', async (context) => {
+    const { id } = readParams(context, idParamSchema);
+    const body = await readBody(context, restartLearningSchema);
+    return context.json({
+      restarted: await repositoriesOf(context).reviews.restartDeck(id, body.id),
+    });
+  });
   return routes;
 }
 

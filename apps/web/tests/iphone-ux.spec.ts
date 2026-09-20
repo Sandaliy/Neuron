@@ -1,3 +1,4 @@
+const locale = 'en';
 import { expect, test } from '@playwright/test';
 
 import { useFixtures as stubApi, usePreferences as setPreferences } from './fixtures';
@@ -153,11 +154,11 @@ test('empty decks hide browse controls; selection actions stay in the page and o
   await page.screenshot({ path: test.info().outputPath('selection-mobile.png'), fullPage: true });
 });
 
-for (const locale of ['en', 'ru'] as const) {
-  test(`import explains fields, adds separate word/translation and previews cloze in ${locale}`, async ({
+for (const storedLocale of ['en', 'ru'] as const) {
+  test(`import explains fields, adds separate word/translation and previews cloze in ${storedLocale}`, async ({
     page,
   }) => {
-    await setup(page, locale);
+    await setup(page, storedLocale);
     await page.route('**/api/notes/duplicates', (route) =>
       route.fulfill({ json: { matches: [] } }),
     );
@@ -199,7 +200,10 @@ for (const locale of ['en', 'ru'] as const) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    await page.screenshot({ path: test.info().outputPath(`cloze-${locale}.png`), fullPage: true });
+    await page.screenshot({
+      path: test.info().outputPath(`cloze-${storedLocale}.png`),
+      fullPage: true,
+    });
   });
 }
 

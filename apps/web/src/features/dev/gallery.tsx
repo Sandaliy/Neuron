@@ -10,6 +10,7 @@ import { Chip } from '../../ui/chip';
 import { Dialog } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
+import { LearningCard } from '../../ui/learning-card';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
 import { Progress } from '../../ui/progress';
 import { Range } from '../../ui/range';
@@ -42,55 +43,69 @@ import type { ReactNode } from 'react';
 export function GalleryScreen() {
   return (
     <div className="bg-canvas text-primary">
-      <header className="mx-auto flex max-w-[1180px] flex-col gap-12 px-20 pt-56 pb-32">
-        <GroupLabel>Neuron</GroupLabel>
-        <h1 className="font-display text-32 tracking-tight">Components and every state</h1>
-        <p className="max-w-[64ch] text-14 leading-read text-secondary">
-          Both themes, all three glass levels. A component that only works in one of them is not
-          built yet.
-        </p>
-      </header>
+      <div data-gallery-core="">
+        <header className="mx-auto flex max-w-[1180px] flex-col gap-12 px-20 pt-56 pb-32">
+          <GroupLabel>Neuron</GroupLabel>
+          <h1 className="font-display text-32 tracking-tight">Components and every state</h1>
+          <p className="max-w-[64ch] text-14 leading-read text-secondary">
+            Both themes, all three glass levels. A component that only works in one of them is not
+            built yet.
+          </p>
+        </header>
 
-      {(['dark', 'light'] as const).map((theme) => (
-        <section key={theme} data-theme={theme} className="bg-canvas text-primary">
-          <div className="mx-auto flex max-w-[1180px] flex-col gap-32 px-20 py-32">
-            <GroupLabel>{theme}</GroupLabel>
-            <Inventory />
+        {(['dark', 'light'] as const).map((theme) => (
+          <section key={theme} data-theme={theme} className="bg-canvas text-primary">
+            <div className="mx-auto flex max-w-[1180px] flex-col gap-32 px-20 py-32">
+              <GroupLabel>{theme}</GroupLabel>
+              <Inventory />
+            </div>
+          </section>
+        ))}
+
+        <section className="mx-auto flex max-w-[1180px] flex-col gap-32 px-20 py-32">
+          <GroupLabel>Glass, at every level, in both themes</GroupLabel>
+
+          <div className="grid gap-20 sm:grid-cols-2">
+            {(['dark', 'light'] as const).map((theme) =>
+              GLASS_LEVELS.map((level) => (
+                <GlassSpecimen key={`${theme}-${level}`} theme={theme} level={level} />
+              )),
+            )}
+          </div>
+
+          <GroupLabel>Where it applies</GroupLabel>
+
+          <p className="max-w-[64ch] text-14 leading-read text-secondary">
+            Panels only is the default and the rule the system is designed around. Panels and cards
+            carries the effect into the content flow, which is one blurred layer per card on every
+            scrolled frame.
+          </p>
+
+          <div className="grid gap-20 sm:grid-cols-2">
+            {(['floating', 'all'] as const).map((scope) => (
+              <div key={scope} data-gscope={scope} className="flex flex-col gap-8">
+                <State>{scope === 'floating' ? 'panels only' : 'panels and cards'}</State>
+                <Card className="flex flex-col gap-8">
+                  <span className="text-15 text-primary">Deutsch</span>
+                  <span className="text-13 text-tertiary">1 240 notes · 30 to review</span>
+                </Card>
+                <Row title="Verben mit Dativ" subtitle="500 notes · 4 new" />
+              </div>
+            ))}
           </div>
         </section>
-      ))}
-
-      <section className="mx-auto flex max-w-[1180px] flex-col gap-32 px-20 py-32">
-        <GroupLabel>Glass, at every level, in both themes</GroupLabel>
-
-        <div className="grid gap-20 sm:grid-cols-2">
-          {(['dark', 'light'] as const).map((theme) =>
-            GLASS_LEVELS.map((level) => (
-              <GlassSpecimen key={`${theme}-${level}`} theme={theme} level={level} />
-            )),
-          )}
-        </div>
-
-        <GroupLabel>Where it applies</GroupLabel>
-
-        <p className="max-w-[64ch] text-14 leading-read text-secondary">
-          Panels only is the default and the rule the system is designed around. Panels and cards
-          carries the effect into the content flow, which is one blurred layer per card on every
-          scrolled frame.
-        </p>
-
-        <div className="grid gap-20 sm:grid-cols-2">
-          {(['floating', 'all'] as const).map((scope) => (
-            <div key={scope} data-gscope={scope} className="flex flex-col gap-8">
-              <State>{scope === 'floating' ? 'panels only' : 'panels and cards'}</State>
-              <Card className="flex flex-col gap-8">
-                <span className="text-15 text-primary">Deutsch</span>
-                <span className="text-13 text-tertiary">1 240 notes · 30 to review</span>
-              </Card>
-              <Row title="Verben mit Dativ" subtitle="500 notes · 4 new" />
-            </div>
-          ))}
-        </div>
+      </div>
+      <section
+        data-learning-specimen=""
+        className="mx-auto flex max-w-[720px] flex-col gap-20 p-20"
+      >
+        <GroupLabel>Learning card</GroupLabel>
+        {(['dark', 'light'] as const).map((theme) => (
+          <div key={theme} data-theme={theme} className="flex flex-col gap-12 bg-canvas p-20">
+            <Progress label="Study" value={2} max={5} />
+            <LearningCard context="Recognition" prompt="Sorgfalt" answer="care, thoroughness" />
+          </div>
+        ))}
       </section>
     </div>
   );

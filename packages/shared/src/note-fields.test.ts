@@ -51,7 +51,7 @@ describe('which fields a word gets', () => {
     const reading = sections[0]?.fields.find((field) => field.path === 'reading');
 
     expect(paths(sections)).toContain('grammar.variant');
-    expect(paths(sections)).toContain('grammar.uncountable');
+    expect(paths(sections)).toContain('grammar.countability');
     expect(reading?.hintKey).toBe('note.hint.readingIpa');
   });
 
@@ -102,6 +102,55 @@ describe('which fields a word gets', () => {
 });
 
 describe('reading and writing one field', () => {
+  it.each(['separable', 'reflexive'])(
+    'retains applicable %s controls after clearing and keeps unrelated grammar',
+    (field) => {
+      const fields = {
+        term: 'aufstehen',
+        translation: 'get up',
+        partOfSpeech: 'verb',
+        grammar: { separable: true, reflexive: true, partizip2: 'aufgestanden' },
+      };
+      const changed = writeField(fields, `grammar.${field}`, false);
+      expect(readField(changed, `grammar.${field}`)).toBeUndefined();
+      expect(readField(changed, 'grammar.partizip2')).toBe('aufgestanden');
+      expect(
+        paths(
+          editorFields({
+            noteType: 'vocab',
+            targetLanguage: 'de',
+            partOfSpeech: 'verb',
+            filled: filledPaths(changed),
+          }),
+        ),
+      ).toContain(`grammar.${field}`);
+    },
+  );
+  it('shows new context and stored legacy fields once without losing grammar', () => {
+    const fields = {
+      grammar: { plural: 'Häuser', irregular: 'went / gone', case: 'dative', separable: false },
+    };
+    const shown = paths(
+      editorFields({
+        noteType: 'vocab',
+        targetLanguage: 'en',
+        partOfSpeech: 'verb',
+        filled: filledPaths(fields),
+      }),
+    );
+    expect(shown).toEqual(
+      expect.arrayContaining([
+        'grammar.pastSimple',
+        'grammar.pastParticiple',
+        'grammar.pattern',
+        'grammar.plural',
+        'grammar.irregular',
+        'grammar.case',
+        'grammar.separable',
+      ]),
+    );
+    expect(new Set(shown).size).toBe(shown.length);
+  });
   it('follows a dotted path', () => {
     expect(readField({ grammar: { article: 'die' } }, 'grammar.article')).toBe('die');
   });

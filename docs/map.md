@@ -343,3 +343,16 @@ Collection recovery additions: `apps/api/src/db/repositories/purge.ts` owns irre
 server impact counts; `restoration.ts` owns operation-scoped subtree restoration. In the web Library,
 `collection-picker.tsx` renders clean names and secondary paths, `deleted.tsx` renders recovery
 hierarchies and note dependencies, and `purge-action.tsx` owns irreversible confirmation.
+
+### Persistent learning and scoped sessions
+
+- `packages/shared/src/practice.ts`: validated run/commands and pure Practice reconciliation/reducer.
+- `packages/shared/src/study-scope.ts`: live leaf Deck selection from authoritative parent links.
+- `apps/api/src/db/schema/practice.ts`: versioned runs and immutable restart receipts (migration 0015).
+- `apps/api/src/db/repositories/practice.ts`: account-isolated persistent Practice with version conflicts.
+- `apps/api/src/db/repositories/reviews.ts`: restart events and canonical card projection.
+- `apps/api/src/routes/study.ts`: scope-first workload planning and per-Deck summaries.
+- `apps/web/src/lib/practice.ts`: optimistic serialized Practice commands and pending retry IDs.
+- `apps/web/src/features/today/study-scope.tsx`: temporary exact Deck selection.
+- `apps/web/src/features/notes/restart-learning.tsx`: Deck participation and explicit restart actions.
+- `apps/web/src/ui/learning-card.tsx`: common reading surface for Daily Study and Practice.

@@ -1,3 +1,4 @@
+const locale = 'en';
 import { expect, test } from '@playwright/test';
 
 import { useFixtures as stubApi, usePreferences as setPreferences } from './fixtures';
@@ -28,8 +29,8 @@ const folder = {
 };
 const rootDeck = { ...leaf, id: 'root-deck', name: 'Oxford 5000', parentId: null, path: [] };
 
-async function setup(page: Page, locale: 'en' | 'ru', theme: 'light' | 'dark') {
-  await setPreferences(page, { locale, theme, glass: 'off' });
+async function setup(page: Page, storedLocale: 'en' | 'ru', theme: 'light' | 'dark') {
+  await setPreferences(page, { locale: storedLocale, theme, glass: 'off' });
   await stubApi(page);
   await page.route('**/api/decks', (route) =>
     route.fulfill({ json: { decks: [folder, rootDeck] } }),
@@ -60,12 +61,12 @@ async function setup(page: Page, locale: 'en' | 'ru', theme: 'light' | 'dark') {
   );
 }
 
-for (const locale of ['en', 'ru'] as const)
+for (const storedLocale of ['en', 'ru'] as const)
   for (const theme of ['light', 'dark'] as const) {
-    test(`${locale} ${theme}: collection navigation, clean picker paths and safe import examples`, async ({
+    test(`${storedLocale} ${theme}: collection navigation, clean picker paths and safe import examples`, async ({
       page,
     }) => {
-      await setup(page, locale, theme);
+      await setup(page, storedLocale, theme);
       await page.goto('/library');
       await expect(
         page.getByRole('button', {
@@ -128,7 +129,7 @@ for (const locale of ['en', 'ru'] as const)
       await expect(picker.getByRole('button', { name: /^B1/ })).not.toContainText('—');
       await picker.getByRole('button', { name: 'Oxford 5000', exact: true }).click();
       await page.screenshot({
-        path: test.info().outputPath(`import-${locale}-${theme}.png`),
+        path: test.info().outputPath(`import-${storedLocale}-${theme}.png`),
         fullPage: true,
         animations: 'disabled',
       });
@@ -137,10 +138,10 @@ for (const locale of ['en', 'ru'] as const)
       );
     });
 
-    test(`${locale} ${theme}: Deleted hierarchy and irreversible confirmation`, async ({
+    test(`${storedLocale} ${theme}: Deleted hierarchy and irreversible confirmation`, async ({
       page,
     }) => {
-      await setup(page, locale, theme);
+      await setup(page, storedLocale, theme);
       let purged = false;
       await page.route('**/api/decks/deleted', (route) =>
         route.fulfill({
@@ -171,7 +172,7 @@ for (const locale of ['en', 'ru'] as const)
       await expect(dialog).toContainText('B1');
       await expect(dialog.getByRole('button', { name: permanent, exact: true })).toBeDisabled();
       await page.screenshot({
-        path: test.info().outputPath(`purge-${locale}-${theme}.png`),
+        path: test.info().outputPath(`purge-${storedLocale}-${theme}.png`),
         fullPage: true,
         animations: 'disabled',
       });

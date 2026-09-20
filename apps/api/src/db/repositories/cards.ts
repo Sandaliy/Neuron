@@ -39,6 +39,7 @@ export interface DueQuery {
 }
 
 export interface SessionCardsQuery {
+  readonly deckIds?: readonly string[];
   /** Restrict to one deck or folder and everything below it. */
   readonly deckId?: string;
 }
@@ -326,6 +327,15 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
           isNull(cards.deletedAt),
           isNull(cards.suspendedAt),
         );
+
+        if (query.deckIds !== undefined) {
+          if (!query.deckIds.length) return [];
+          return tx
+            .select()
+            .from(cards)
+            .where(and(live, inArray(cards.deckId, [...query.deckIds])))
+            .orderBy(asc(cards.due), asc(cards.id));
+        }
 
         if (query.deckId === undefined) {
           return tx.select().from(cards).where(live).orderBy(asc(cards.due), asc(cards.id));

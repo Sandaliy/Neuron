@@ -64,6 +64,21 @@ for (const theme of THEMES) {
       await expect(page).toHaveScreenshot(`library-${theme}.png`, { fullPage: true });
     });
 
+    test('study composition and adjustment', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/');
+      await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
+      await page.getByRole('button', { name: 'Adjust', exact: true }).click();
+      await expect(page).toHaveScreenshot(`today-adjust-${theme}.png`, { fullPage: true });
+      await page.getByRole('button', { name: 'Study', exact: true }).click();
+      await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
+      await expect(page).toHaveScreenshot(`study-front-${theme}.png`, { fullPage: true });
+      await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+      await expect(page.getByText('care, thoroughness', { exact: true })).toBeVisible();
+      await expect(page).toHaveScreenshot(`study-answer-${theme}.png`, { fullPage: true });
+    });
+
     test('settings', async ({ page }) => {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);
@@ -166,13 +181,15 @@ for (const theme of THEMES) {
   });
 }
 
-test('the interface in Russian', async ({ page }) => {
+test('stored Russian preference still opens English', async ({ page }) => {
   await usePreferences(page, { theme: 'dark', locale: 'ru' });
   await useFixtures(page);
   await page.goto('/settings');
-  await expect(page.getByRole('heading', { name: 'Настройки' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   await settle(page);
 
+  await expect(page.getByText('Language', { exact: true })).toHaveCount(0);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page).toHaveScreenshot('settings-ru.png', { fullPage: true });
 });
 
@@ -238,7 +255,9 @@ test('glass on the cards as well', async ({ page }) => {
   );
 
   // Every card on the screen, not the row groups alone.
-  expect(blurred).toBeGreaterThan(3);
+  const cards = await page.locator('[data-g="card"]').count();
+  expect(cards).toBeGreaterThan(0);
+  expect(blurred).toBe(cards);
 
   await expect(page).toHaveScreenshot('settings-glass-cards.png', { fullPage: true });
 });

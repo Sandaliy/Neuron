@@ -17,6 +17,8 @@ import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
+import { LearningCard } from '../../ui/learning-card';
+import { Progress } from '../../ui/progress';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 
@@ -87,6 +89,7 @@ export function StudyScreen({
   const [failed, setFailed] = useState<Answer[]>([]);
   const [pending, setPending] = useState(0);
   const [answered, setAnswered] = useState(0);
+  const [answeredCards, setAnsweredCards] = useState<Record<string, number>>({});
   const [reason, setReason] = useState('');
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [morePlanned, setMorePlanned] = useState(false);
@@ -220,6 +223,10 @@ export function StudyScreen({
     setLast({ answer, card: current, queue: queue.current });
     setRatings((values) => ({ ...values, [answer.rating]: (values[answer.rating] ?? 0) + 1 }));
     setAnswered((count) => count + 1);
+    setAnsweredCards((counts) => ({
+      ...counts,
+      [answer.cardId]: (counts[answer.cardId] ?? 0) + 1,
+    }));
     next();
     const saving = (undoOperation.current ?? Promise.resolve()).then(() => submit(answer));
     operations.current.set(answer.id, saving);
@@ -231,6 +238,10 @@ export function StudyScreen({
     cancelled.current.add(previous.answer.id);
     setLast(undefined);
     setAnswered((count) => count - 1);
+    setAnsweredCards((counts) => ({
+      ...counts,
+      [previous.card.id]: Math.max(0, (counts[previous.card.id] ?? 0) - 1),
+    }));
     setRatings((values) => ({
       ...values,
       [previous.answer.rating]: Math.max(0, (values[previous.answer.rating] ?? 0) - 1),
@@ -311,11 +322,25 @@ export function StudyScreen({
 
   if (practicing && plan)
     return <Practice notes={plan.notes} onFinish={() => setPracticing(false)} />;
+  const completed = Object.values(answeredCards).filter((count) => count > 0).length;
+  const total = plan?.cards.length ?? 0;
   return (
-    <section data-screen="" className="flex min-h-[65dvh] flex-col gap-20">
-      <h1 className="font-display text-24 text-primary">{t('today.study')}</h1>
-      {last && (
-        <Button variant="text" onClick={undo}>
+    <section
+      data-screen=""
+      className="flex min-h-[calc(100dvh-var(--bar-height)-var(--safe-top)-var(--safe-bottom)-52px)] flex-col gap-16"
+    >
+      <div className="flex items-center justify-between gap-12">
+        <Button variant="quiet" disabled={pending > 0 || failed.length > 0} onClick={onFinish}>
+          {t('study.stop')}
+        </Button>
+        <h1 className="text-14 text-secondary">{t('today.study')}</h1>
+        <span data-numeric="" className="text-13 text-secondary">
+          {t('study.position', { current: Math.min(completed + (current ? 1 : 0), total), total })}
+        </span>
+      </div>
+      {current && <Progress value={completed} max={total} label={t('today.study')} />}
+      {!current && last && (
+        <Button className="self-start" variant="quiet" onClick={undo}>
           {t('study.undo')}
         </Button>
       )}
@@ -338,30 +363,28 @@ export function StudyScreen({
       {loading && <SkeletonRows rows={3} />}
       {current && (
         <>
-          <p className="text-13 text-secondary" data-numeric="">
-            {t('study.answered', { count: answered })}
-          </p>
           {face ? (
-            <Card className="flex flex-1 flex-col justify-center gap-24">
-              <div className="font-display text-32 leading-body text-primary break-words">
-                {face.front.map((line) => (
-                  <p key={line.field}>{line.value}</p>
-                ))}
-              </div>
-              {revealed && (
-                <div className="neu-reveal border-t border-subtle pt-20 text-20 leading-body text-primary">
-                  {face.back.map((line) => (
-                    <p key={line.field}>{line.value}</p>
-                  ))}
-                </div>
-              )}
-            </Card>
+            <LearningCard
+              identity={current.id}
+              context={t(`study.direction.${current.direction}`)}
+              prompt={face.front.map((line) => (
+                <p key={line.field}>{line.value}</p>
+              ))}
+              answer={
+                revealed ? face.back.map((line) => <p key={line.field}>{line.value}</p>) : undefined
+              }
+            />
           ) : (
             <EmptyState title={t('study.unavailable')} description={t('study.unavailableBody')} />
           )}
-          <div className="mt-auto pb-20">
+          <div className="mt-auto flex min-h-[104px] flex-col justify-end gap-8">
+            {last && (
+              <Button className="self-start" variant="quiet" onClick={undo}>
+                {t('study.undo')}
+              </Button>
+            )}
             {revealed && intervals ? (
-              <div className="grid grid-cols-4 gap-8">
+              <div className="neu-reveal grid grid-cols-4 gap-8">
                 {RATINGS.map((rating, index) => {
                   const days = intervals[(index + 1) as Rating].intervalDays;
                   return (

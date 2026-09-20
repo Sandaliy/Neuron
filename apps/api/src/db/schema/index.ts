@@ -1,3 +1,4 @@
+export { practiceRuns, learningRestarts } from './practice.js';
 import {
   account,
   recoveryCodes,
@@ -11,6 +12,7 @@ import { cards } from './cards.js';
 import { decks } from './decks.js';
 import { noteTypes } from './note-types.js';
 import { notes } from './notes.js';
+import { practiceRuns, learningRestarts } from './practice.js';
 import { rateLimits } from './rate-limits.js';
 import { reviews } from './reviews.js';
 import { importBatches, studyPresets } from './study.js';
@@ -66,6 +68,8 @@ export const authSchema = {
 };
 
 export const schema = {
+  practiceRuns,
+  learningRestarts,
   user,
   session,
   account,
@@ -93,6 +97,8 @@ export const USER_OWNED_TABLES = [
   'study_presets',
   'import_batches',
   'sync_conflicts',
+  'practice_runs',
+  'learning_restarts',
 ] as const;
 
 /**
@@ -155,4 +161,6 @@ export const WRITE_ORDER = [
   'reviews',
   'study_presets',
   'sync_conflicts',
+  'practice_runs',
+  'learning_restarts',
 ] as const;

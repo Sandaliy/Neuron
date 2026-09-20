@@ -56,9 +56,9 @@ const preference = createDevicePreference<Locale>({
   serialise: (value) => value,
   // Screen readers pick a voice from this, and the browser hyphenates and
   // chooses quotation marks from it.
-  apply: (value) => {
+  apply: () => {
     if (typeof document !== 'undefined') {
-      document.documentElement.lang = value;
+      document.documentElement.lang = 'en';
     }
   },
 });
@@ -93,7 +93,9 @@ export interface LocaleValue {
 }
 
 export function useLocale(): LocaleValue {
-  const locale = useSyncExternalStore(preference.subscribe, preference.get, preference.get);
+  // Retain the stored preference for the later localization release.
+  useSyncExternalStore(preference.subscribe, preference.get, preference.get);
+  const locale: Locale = 'en';
 
   const t = useCallback<Translate>((key, values) => translate(locale, key, values), [locale]);
 

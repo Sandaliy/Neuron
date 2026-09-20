@@ -482,7 +482,7 @@ the first attempt did and a client that seeds the same way lands its cards on th
 
 Recent-answer Undo follows the same append-only rule. `POST /reviews/undo` writes a compensation row that
 names the immutable answer it cancels. The card projection subtracts that answer and canonically replays
-the remaining events by answer time and id. The captured predecessor state is replay evidence, not a
+the remaining events by answer time, server revision, and id. The captured predecessor state is replay evidence, not a
 snapshot restored at the Undo timestamp, so a later answer is retained and recomputed against the history
 that still contributes. The sync pull stream carries both the original and compensation rows.
 
@@ -572,3 +572,64 @@ Better Auth secret exist only in the api's Vercel Preview environment. Productio
 scoped to Production. Preview deployments share this database for now. Per-pull-request database
 branches are deferred until role provisioning and migrations can be automated without an owner
 credential in a deployed application.
+
+### Deck participation, session scope, and independent Practice
+
+A leaf Deck stores `dailyStudyIncluded` in its existing settings JSON. Missing means included for both
+existing and new Decks. The flag is not inherited from folders/account settings. Changing it updates
+only the Deck; cards, due dates, Note Known/excluded state, Reviews, and Practice are untouched.
+`POST /study/session` accepts optional `deckIds`. Omitted uses included live leaf Decks; an explicit
+array is a temporary exact subset and may include paused Decks; an empty array means no selection.
+Foreign, deleted, or non-leaf IDs are rejected. Legacy `deckId` subtree scope remains supported but
+cannot be combined with `deckIds`. Scope filters repository candidates and workload logs before
+forecast, new admission, time estimation and assembly. Responses include scope IDs and per-Deck
+summaries. Within-Deck new-card order remains stable; streams merge by today's introduction count
+plus within-Deck offset, preventing a large import from monopolizing admission without equal quotas.
+
+`practice_runs` holds one versioned run per account and Deck: chosen fields, unseen/learning/known
+Note statuses, queue, and round. The shared reducer is independent of FSRS. GET reconciles live
+membership and persists removals/admissions; POST commands use operation IDs and expected versions
+under the account lock. A repeated last operation returns its result; conflicting changes return 409.
+The client serializes optimistic commands and retains unacknowledged IDs for retry across reloads.
+Completion remains saved until explicit restart. Field changes explicitly restart the run. Practice
+never writes Reviews or card schedules; this narrow retry mechanism is not Phase 8 offline sync.
+
+`POST /decks/:id/restart-learning` records an immutable operation receipt in `learning_restarts`, even
+when no cards participate. Each participating live unsuspended card on an active Note receives an
+append-only Review reset event, identified by `(user_id, restart_id, card_id)`. Projection starts a fresh
+learning state at that event and retains subsequent answers; earlier history stays immutable. Receipts
+make retries return the original scope/count after later edits or answers. Reset events cannot be Undo
+targets and never count as answers or workload samples. Both new tables have forced account RLS;
+application privileges on receipts allow only SELECT/INSERT. Migration 0015 introduces these contracts.
+
+### Lexical grammar and compatibility
+
+Vocab grammar remains an optional strict object inside Note fields, with no new scheduled directions.
+German supports article, plural, gender, Präteritum, Partizip II, auxiliary (haben/sein), separable,
+reflexive, comparative, superlative, legacy governed `case`, and `pattern`. The preposition POS is now
+explicit because its characteristic governed case/complement is useful lexical material. `pattern` is
+readable text with one characteristic complement per line, such as `auf + Akkusativ` or
+`jemandem etwas geben`; it is not a syntax tree. The single-case enum remains accepted and editable.
+Neither field is inferred from or overwrites the other; generators must keep them consistent.
+
+English supports pastSimple, pastParticiple, plural, countability (countable/uncountable/both),
+comparative, superlative, pattern, and the existing BrE/AmE variant. `term` is the base form. Predictable
+regular morphology need not be stored. Legacy `irregular` and `uncountable` remain accepted unchanged,
+discoverable and editable; there is no destructive migration or automatic splitting of combined forms.
+New generation/manual entry uses the structured principal parts and countability. Stored legacy values
+remain separate evidence; no automatic precedence is used to rewrite them.
+
+The editor's Grammar disclosure starts collapsed for new Notes and open for stored grammar. Its fields
+follow target language and POS, plus stored/edited fields retained through the editor session. Clearing
+a boolean's positive value never removes its still-applicable control or collapses Grammar. Changing
+context retains earlier stored fields for correction. Writes replace only the edited nested property.
+The importer derives supported grammar keys from the shared schema, preserves legacy values and
+boolean false, and removes nulls. Import preview exposes grammar independently of scheduled-card
+preview. The single canonical generation prompt has German/English sections and explicitly prohibits
+uncertain guesses.
+
+Practice sides accept a supported field or a combination of up to six distinct supported fields. Existing
+scalar choices are unchanged. Only populated choices are offered and every selected field must exist
+for a Note to participate. Article plus term is composed as one phrase; additional values have quiet
+human labels. Boolean values are explicit Yes/No, not raw paths or JSON. Changing choices requires an
+explicit new run, while queue/status persistence and zero Review/schedule writes remain unchanged.

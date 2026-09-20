@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { dailyStudySessionSchema } from '@neuron/shared';
+import { dailyStudySessionSchema, uuidV7 } from '@neuron/shared';
 import type { DailyStudySession } from '@neuron/shared';
 
 import { createUser, repositoriesFor, testDatabase } from '../db/testing/database.js';
@@ -72,6 +72,82 @@ describe.skipIf(!database)('POST /study/session', () => {
 
   it('rejects a non-positive explicit session length', async () => {
     await build({ deckId, minutes: 0 }, 400);
+  });
+
+  it('plans default and temporary scopes before counts, time, admission and cards without changing schedules', async () => {
+    const included = await repositories.decks.create({ name: 'Included' });
+    const paused = await repositories.decks.create({
+      name: 'Paused',
+      settings: { dailyStudyIncluded: false },
+    });
+    const make = async (id: string, count: number) => {
+      const cards = [];
+      for (let index = 0; index < count; index++) {
+        const note = await repositories.notes.create({
+          deckId: id,
+          noteType: 'basic',
+          fields: { front: String(index), back: 'Answer' },
+        });
+        cards.push(
+          await repositories.cards.create({
+            noteId: note.id,
+            direction: 'recognition',
+            due: new Date('2026-01-01'),
+          }),
+        );
+      }
+      return cards;
+    };
+    const first = await make(included.id, 2);
+    const second = await make(paused.id, 4);
+    const before = await Promise.all(
+      [...first, ...second].map((card) => repositories.cards.byId(card.id)),
+    );
+    const history = await repositories.reviews.countForCards(before.map((card) => card!.id));
+    expect((await build({ newCards: 'override' })).scopeDeckIds).not.toContain(paused.id);
+    const single = await build({ deckIds: [included.id], minutes: 20, newCards: 'override' });
+    const both = await build({
+      deckIds: [paused.id, included.id],
+      minutes: 20,
+      newCards: 'override',
+    });
+    expect(single).toMatchObject({ availableCount: 2, newCount: 2, reviewCount: 0 });
+    expect(single.cards.map((card) => card.id).sort()).toEqual(first.map((card) => card.id).sort());
+    expect(single.deckSummaries).toEqual([
+      { deckId: included.id, due: 0, fresh: 2, nextDue: null },
+    ]);
+    expect(both).toMatchObject({ availableCount: 6, newCount: 6, reviewCount: 0 });
+    expect(both.estimatedMinutes).toBeCloseTo(single.estimatedMinutes * 3);
+    expect(both.newCards.admitted).toBe(6);
+    expect((await repositories.decks.byId(paused.id))?.settings?.dailyStudyIncluded).toBe(false);
+    await repositories.decks.updateSettings(included.id, { dailyStudyIncluded: false });
+    expect((await build({ newCards: 'override' })).scopeDeckIds).not.toContain(included.id);
+    await repositories.decks.updateSettings(included.id, { dailyStudyIncluded: true });
+    expect((await build({ newCards: 'override' })).cards.map((card) => card.id)).toEqual(
+      expect.arrayContaining(first.map((card) => card.id)),
+    );
+    expect(await Promise.all(before.map((card) => repositories.cards.byId(card!.id)))).toEqual(
+      before,
+    );
+    expect(await repositories.reviews.countForCards(before.map((card) => card!.id))).toBe(history);
+    const empty = await build({ deckIds: [] });
+    expect(empty).toMatchObject({
+      scopeDeckIds: [],
+      deckSummaries: [],
+      cards: [],
+      availableCount: 0,
+      estimatedMinutes: 0,
+      newCount: 0,
+      reviewCount: 0,
+      nextDue: null,
+    });
+    const caughtUpDeck = await repositories.decks.create({ name: 'Empty but included' });
+    expect(await build({ deckIds: [caughtUpDeck.id] })).toMatchObject({
+      scopeDeckIds: [caughtUpDeck.id],
+      availableCount: 0,
+    });
+    await build({ deckIds: [uuidV7()] }, 404);
+    await build({ deckId: included.id, deckIds: [included.id] }, 400);
   });
 
   it('applies recognition and recall choices to the actual session', async () => {

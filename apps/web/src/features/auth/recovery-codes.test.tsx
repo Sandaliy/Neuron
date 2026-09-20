@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { en, formatRecoveryCode, ru } from '@neuron/shared';
+import { en, formatRecoveryCode } from '@neuron/shared';
 
 import { renderWithProviders } from '../../testing/render';
 
@@ -89,18 +89,18 @@ describe('the recovery codes screen', () => {
     expect(screen.getByText(en['auth.recoveryCodes.warning'])).toBeTruthy();
   });
 
-  it('says it in Russian when the interface is in Russian', () => {
+  it('keeps the English presentation with a stored Russian preference', () => {
     renderWithProviders(
       <RecoveryCodes
         codes={CODES}
-        title={ru['auth.recoveryCodes.title']}
+        title={en['auth.recoveryCodes.title']}
         warningKey="auth.recoveryCodes.warning"
         onConfirmed={vi.fn()}
       />,
       { locale: 'ru' },
     );
 
-    expect(screen.getByText(ru['auth.recoveryCodes.warning'])).toBeTruthy();
+    expect(screen.getByText(en['auth.recoveryCodes.warning'])).toBeTruthy();
   });
 
   it('copies every code, not the one somebody could see', async () => {

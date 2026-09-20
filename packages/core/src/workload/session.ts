@@ -231,12 +231,30 @@ function fill(candidates: readonly Candidate[], minutes: number): Candidate[] {
 }
 
 /** Stable creation order for new cards, independent of collection traversal order. */
-function orderNewCards(cards: readonly WorkloadCard[]): WorkloadCard[] {
-  return [...cards].sort(
-    (left, right) =>
-      left.scheduling.due.getTime() - right.scheduling.due.getTime() ||
-      left.id.localeCompare(right.id),
+function orderNewCards(
+  cards: readonly WorkloadCard[],
+  introductions: ReadonlyMap<string, number>,
+): WorkloadCard[] {
+  const ordered = [...cards].sort(
+    (a, b) => a.scheduling.due.getTime() - b.scheduling.due.getTime() || a.id.localeCompare(b.id),
   );
+  const offsets = new Map<string, number>();
+  // Virtual introduction counts merge stable within-deck streams. A large deck
+  // can use spare capacity, but cannot place its entire import ahead of others.
+  return ordered
+    .map((card) => {
+      const deck = card.deckId ?? '';
+      const offset = offsets.get(deck) ?? 0;
+      offsets.set(deck, offset + 1);
+      return { card, rank: (introductions.get(deck) ?? 0) + offset };
+    })
+    .sort(
+      (a, b) =>
+        a.rank - b.rank ||
+        (a.card.deckId ?? '').localeCompare(b.card.deckId ?? '') ||
+        a.card.id.localeCompare(b.card.id),
+    )
+    .map((entry) => entry.card);
 }
 
 /**
@@ -416,8 +434,17 @@ export function buildSession(request: SessionRequest): Session {
   const roomLeft = Math.max(budgetMinutes - reviewMinutes, 0);
   const mode: NewCardMode = request.newCardMode ?? (preset.allowNewCards ? 'automatic' : 'exclude');
   const reviewNotes = new Set(reviews.map((entry) => entry.card.noteId));
+  const introductions = new Map<string, number>();
+  const deckOfCard = new Map(cards.map((card) => [card.id, card.deckId ?? '']));
+  for (const log of logs) {
+    if (log.stateBefore !== 'new' || dayIndexOf(log.reviewedAt, config.scheduler) !== today)
+      continue;
+    const deck = log.deckId ?? deckOfCard.get(log.cardId);
+    if (deck !== undefined) introductions.set(deck, (introductions.get(deck) ?? 0) + 1);
+  }
   const newCandidates = orderNewCards(
     cards.filter((card) => card.scheduling.state === 'new' && !reviewNotes.has(card.noteId)),
+    introductions,
   ).map((card) => candidateFor(card, times, today, config));
   const automaticFresh = fill(newCandidates.slice(0, decision.allowed), roomLeft);
   const overrideFresh = fill(newCandidates, roomLeft);

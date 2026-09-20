@@ -18,6 +18,7 @@ import {
   importChunkSchema,
   openingCards,
   resolveDeckSettings,
+  studyDecks,
   updatePresetSchema,
 } from '@neuron/shared';
 import type { DeckSettings, NoteFields, NoteStatus, NoteTypeName } from '@neuron/shared';
@@ -77,11 +78,29 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       maximumNewCardsPerDay: settings.maximumNewCardsPerDay,
     });
     const now = new Date();
-    const rows = await repositories.cards.forSession(
-      body.deckId === undefined ? {} : { deckId: body.deckId },
-    );
+    const liveDecks = studyDecks(await repositories.decks.list());
+    let scope = body.deckIds;
+    if (body.deckId !== undefined) {
+      const subtree = new Set(
+        (await repositories.decks.subtree(body.deckId)).map((deck) => deck.id),
+      );
+      scope = liveDecks.filter((deck) => subtree.has(deck.id)).map((deck) => deck.id);
+    }
+    if (scope?.some((id) => !liveDecks.some((deck) => deck.id === id)))
+      throw new ApiError('not_found');
+    const scopeDeckIds = [
+      ...new Set(
+        scope ??
+          liveDecks
+            .filter((deck) => deck.settings?.dailyStudyIncluded !== false)
+            .map((deck) => deck.id),
+      ),
+    ].sort();
+    const selected = new Set(scopeDeckIds);
+    const rows = await repositories.cards.forSession({ deckIds: scopeDeckIds });
     const cards: WorkloadCard[] = rows.map((row) => ({
       id: row.id,
+      deckId: row.deckId,
       noteId: row.noteId,
       direction: row.direction as WorkloadCard['direction'],
       scheduling: toSchedulingState(row),
@@ -91,7 +110,9 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
         card.direction !== 'listening' &&
         (body.direction === undefined || card.direction === body.direction),
     );
-    const logs = await repositories.reviews.workload();
+    const logs = (await repositories.reviews.workload()).filter(
+      (log) => log.deckId !== undefined && selected.has(log.deckId),
+    );
     const load = forecast({ cards: supported, config, now, logs });
     const session = buildSession({
       cards: supported,
@@ -100,7 +121,9 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       now,
       logs,
       load,
-      rng: createSeededRandom(sessionSeed(account.id, body.deckId, dayIndexOf(now, scheduler))),
+      rng: createSeededRandom(
+        sessionSeed(account.id, scopeDeckIds.join(','), dayIndexOf(now, scheduler)),
+      ),
       ...(body.minutes === undefined ? {} : { oneOffMinutes: body.minutes }),
       newCardMode: body.newCards,
     });
@@ -112,8 +135,28 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
 
     return context.json({
       ...session,
+      scopeDeckIds,
+      deckSummaries: scopeDeckIds.map((deckId) => {
+        const pool = supported.filter((card) => card.deckId === deckId);
+        return {
+          deckId,
+          due: pool.filter(
+            (card) =>
+              card.scheduling.state !== 'new' &&
+              dayIndexOf(card.scheduling.due, scheduler) <= dayIndexOf(now, scheduler),
+          ).length,
+          fresh: pool.filter((card) => card.scheduling.state === 'new').length,
+          nextDue:
+            pool
+              .filter((card) => card.scheduling.state !== 'new' && card.scheduling.due > now)
+              .map((card) => card.scheduling.due.toISOString())
+              .sort()[0] ?? null,
+        };
+      }),
       availableCount: supported.filter(
-        (card) => card.scheduling.state === 'new' || card.scheduling.due <= now,
+        (card) =>
+          card.scheduling.state === 'new' ||
+          dayIndexOf(card.scheduling.due, scheduler) <= dayIndexOf(now, scheduler),
       ).length,
       nextDue:
         supported

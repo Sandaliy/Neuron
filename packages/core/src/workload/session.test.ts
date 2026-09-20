@@ -53,6 +53,56 @@ function untouched(size: number): WorkloadCard[] {
 }
 
 describe('filling the time available', () => {
+  it('merges unequal Decks fairly and deterministically without imposing equal quotas', () => {
+    const huge = untouched(1000).map((card) => ({ ...card, deckId: 'a' }));
+    const small = [0, 1].map((index) => ({
+      ...freshCard({ id: `small-${index}` }, NOW),
+      deckId: 'b',
+    }));
+    const build = (cards: readonly WorkloadCard[]) =>
+      buildSession({
+        cards,
+        budget,
+        config,
+        now: NOW,
+        rng: rng(),
+        oneOffMinutes: 1,
+        newCardMode: 'override',
+      });
+    const plan = build([...huge, ...small]);
+    expect(plan.cards.slice(0, 4).map((card) => card.deckId)).toEqual(['a', 'b', 'a', 'b']);
+    expect(plan.cards.length).toBeGreaterThan(4);
+    expect(plan.cards.filter((card) => card.deckId === 'a').map((card) => card.id)).toEqual(
+      huge.slice(0, plan.cards.length - 2).map((card) => card.id),
+    );
+    expect(build([...small, ...huge].reverse()).cards).toEqual(plan.cards);
+    const next = buildSession({
+      cards: [...huge.slice(1), ...small],
+      budget,
+      config,
+      now: NOW,
+      rng: rng(),
+      oneOffMinutes: 0.01,
+      newCardMode: 'override',
+      logs: [
+        {
+          cardId: huge[0]!.id,
+          deckId: 'a',
+          direction: 'recognition',
+          rating: 3,
+          reviewedAt: NOW,
+          elapsedDays: 0,
+          scheduledDays: 0,
+          placedDue: NOW,
+          stateBefore: 'new',
+          stabilityBefore: undefined,
+          difficultyBefore: undefined,
+          durationMs: 6000,
+        },
+      ],
+    });
+    expect(next.cards[0]?.deckId).toBe('b');
+  });
   it('fills the budget for the day and stops', () => {
     const session = buildSession({
       cards: dueToday(500),
