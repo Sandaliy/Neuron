@@ -610,9 +610,14 @@ test('caught-up Today state explains when the next review returns', async ({ pag
 test('a committed touch swipe deletes on release without a second tap', async ({ page }) => {
   await usePreferences(page, { locale: 'en', theme: 'dark' });
   await useFixtures(page, { decks: [deck], notes });
+  const removed = new Set<string>();
+  await page.route('**/api/notes?**', (route) =>
+    route.fulfill({ json: { items: notes.filter((note) => !removed.has(note.id)) } }),
+  );
   let deleted = 0;
   await page.route(`**/api/notes/${notes[0]!.id}`, (route) => {
     deleted += 1;
+    removed.add(notes[0]!.id);
     return route.fulfill({ json: { deleted: true } });
   });
   await page.goto(`/notes?deckId=${deck.id}`);
