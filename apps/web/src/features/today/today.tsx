@@ -13,6 +13,7 @@ import { flatten, useDeckTree } from '../../lib/decks';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
+import { ReviewTime } from '../../ui/review-time';
 import { Row } from '../../ui/row';
 import { Select } from '../../ui/select';
 import { ErrorState, Skeleton } from '../../ui/states';
@@ -170,14 +171,7 @@ function Waiting({
             <div className="flex flex-col gap-4" role="status">
               <span className="text-12 text-secondary">{t('today.nextReview')}</span>
               <span className="text-17 text-primary">
-                {result.nextDue
-                  ? new Date(result.nextDue).toLocaleString('en', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })
-                  : t('today.noneScheduled')}
+                {result.nextDue ? <ReviewTime due={result.nextDue} /> : t('today.noneScheduled')}
               </span>
             </div>
             <Button onClick={() => void navigate({ to: '/library' })}>
@@ -250,7 +244,7 @@ function Waiting({
             <div className="flex items-center justify-between gap-12">
               <span className="text-14 text-secondary">{t('study.scope')}</span>
               <Button onClick={() => setScopeOpen(true)}>
-                {scopeLabel}
+                {t('study.chooseDecks')}
                 <ChevronDown size={14} aria-hidden="true" />
               </Button>
             </div>
@@ -297,7 +291,7 @@ function Waiting({
       )}
       {selected.length > 0 && waiting.length > 0 && (
         <div className="flex flex-col gap-12">
-          <GroupLabel>{t('today.waitingIn')}</GroupLabel>
+          <GroupLabel>{t('study.scopeDefault')}</GroupLabel>
           <div className="flex flex-col gap-8">
             {waiting.map((deck) => (
               <Row

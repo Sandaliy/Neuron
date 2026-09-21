@@ -121,10 +121,13 @@ test('Known responds immediately, rejects repeated taps and rolls back on failur
   await expect(again).toBeEnabled();
   expect(control.statuses).toEqual(['known']);
   control.fail = true;
+  await page.route('**/api/notes/mobile/study-again', (route) =>
+    route.fulfill({
+      status: 500,
+      json: { error: { code: 'internal_error', status: 500, correlationId: 'test' } },
+    }),
+  );
   await again.click();
-  await expect(page.getByRole('status').filter({ hasText: /^Being studied$/ })).toBeVisible({
-    timeout: 500,
-  });
   await expect(again).toBeEnabled();
   await expect(page.getByRole('status').filter({ hasText: /^Known$/ })).toBeVisible();
   await expect(page.getByRole('alert')).toBeVisible();
@@ -228,4 +231,47 @@ test('Safari toolbar measurements do not move the fixed bar; blur restores it af
   await page.getByRole('textbox', { name: 'Translation', exact: true }).blur();
   await expect(nav).toBeVisible();
   expect((await nav.boundingBox())!.y).toBe(original!.y);
+});
+
+test('Study it again retries one reset, preserves the draft and returns the note to Ready', async ({
+  page,
+}) => {
+  const { stored } = await setup(page);
+  const ids: string[] = [];
+  await page.route('**/api/notes/mobile/study-again', async (route) => {
+    ids.push(route.request().postDataJSON().id);
+    if (ids.length === 1)
+      return route.fulfill({
+        status: 500,
+        json: { error: { code: 'internal_error', status: 500, correlationId: 'test' } },
+      });
+    return route.fulfill({
+      json: {
+        note: { ...stored(), status: 'active' },
+        cards: [
+          {
+            id: 'card',
+            direction: 'recognition',
+            slot: 0,
+            reps: 0,
+            state: 'new',
+            due: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+  });
+  await page.goto('/notes/mobile');
+  const field = page.getByRole('textbox', { name: 'Translation', exact: true });
+  await field.fill('retained during restart');
+  await page.getByRole('button', { name: 'Already know this', exact: true }).click();
+  const again = page.getByRole('button', { name: 'Study it again', exact: true });
+  await expect(again).toBeEnabled();
+  await again.click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await again.click();
+  await expect(page.getByRole('status').filter({ hasText: /^Ready$/ })).toBeVisible();
+  await expect(field).toHaveValue('retained during restart');
+  expect(ids).toHaveLength(2);
+  expect(ids[0]).toBe(ids[1]);
 });

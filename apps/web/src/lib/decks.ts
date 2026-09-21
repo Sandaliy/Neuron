@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef } from 'react';
 
 import { resolveDeckSettings, uuidV7 } from '@neuron/shared';
 import type { Deck, DeckNode, DeckSettings, ResolvedDeckSettings } from '@neuron/shared';
@@ -134,6 +135,7 @@ export function moveProblem(
 
 /** Everything a deck row can be asked to do. */
 export function useDeckActions() {
+  const settingsVersion = useRef(0);
   const client = useQueryClient();
   // Cache reconciliation is follow-up work. A confirmed write must remain a
   // success even when a best-effort refresh is unavailable (for example during
@@ -163,12 +165,44 @@ export function useDeckActions() {
   });
 
   const update = useMutation({
+    onMutate: async (input: { id: string; settings: DeckSettings | null }) => {
+      const version = ++settingsVersion.current;
+      await client.cancelQueries({ queryKey: DECK_TREE_KEY });
+      const previous = client.getQueryData<{ decks: DeckNode[] }>(DECK_TREE_KEY);
+      if (previous) {
+        const patch = (rows: readonly DeckNode[]): DeckNode[] =>
+          rows.map((row) => ({
+            ...row,
+            ...(row.id === input.id ? { settings: input.settings } : {}),
+            children: patch(row.children),
+          }));
+        client.setQueryData(DECK_TREE_KEY, { decks: patch(previous.decks) });
+      }
+      return { previous, version };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous && context.version === settingsVersion.current)
+        client.setQueryData(DECK_TREE_KEY, context.previous);
+    },
     mutationFn: (input: { id: string; settings: DeckSettings | null }) =>
       request<{ deck: Deck }>(`/decks/${input.id}`, {
         method: 'PATCH',
         body: { settings: input.settings },
       }),
-    onSuccess: refresh,
+    onSuccess: ({ deck }, _input, context) => {
+      if (context.version !== settingsVersion.current) return;
+      client.setQueryData<{ decks: DeckNode[] }>(DECK_TREE_KEY, (cached) => {
+        if (!cached) return cached;
+        const replace = (rows: readonly DeckNode[]): DeckNode[] =>
+          rows.map((row) => ({
+            ...row,
+            ...(row.id === deck.id ? { settings: deck.settings } : {}),
+            children: replace(row.children),
+          }));
+        return { decks: replace(cached.decks) };
+      });
+      refresh();
+    },
   });
 
   const move = useMutation({

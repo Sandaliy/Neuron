@@ -12,6 +12,7 @@ import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
 import { LearningCard } from '../../ui/learning-card';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
+import { ModeHeader } from '../../ui/mode-header';
 import { Progress } from '../../ui/progress';
 import { Range } from '../../ui/range';
 import { DenseRow, Row, RowChevron, TreeChildren, TreeRow } from '../../ui/row';
@@ -102,7 +103,15 @@ export function GalleryScreen() {
         <GroupLabel>Learning card</GroupLabel>
         {(['dark', 'light'] as const).map((theme) => (
           <div key={theme} data-theme={theme} className="flex flex-col gap-12 bg-canvas p-20">
-            <Progress label="Study" value={2} max={5} />
+            <ModeHeader
+              title="Study"
+              exitLabel="Exit Study"
+              onExit={() => undefined}
+              value={3}
+              max={10}
+              action={<span className="text-12 text-secondary">Saved</span>}
+            />
+
             <LearningCard context="Recognition" prompt="Sorgfalt" answer="care, thoroughness" />
           </div>
         ))}

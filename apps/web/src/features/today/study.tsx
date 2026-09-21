@@ -1,9 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useBlocker } from '@tanstack/react-router';
+import { Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
+  availableForStudy,
   createSchedulerConfig,
+  createSeededRandom,
+  seedFromReviewId,
+  review,
   preview,
   queueSessionRetry,
   takeNextSessionCard,
@@ -18,7 +23,8 @@ import { describe, request } from '../../lib/api';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
 import { LearningCard } from '../../ui/learning-card';
-import { Progress } from '../../ui/progress';
+import { ModeHeader } from '../../ui/mode-header';
+import { ReviewTime } from '../../ui/review-time';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 
@@ -81,6 +87,13 @@ export function StudyScreen({
   const toast = useToast();
   const client = useQueryClient();
   const account = useAccount();
+  const config = createSchedulerConfig({
+    timezone: account.data?.timezone ?? 'UTC',
+    dayCutoffHour: account.data?.dayCutoffHour ?? 4,
+    ...(account.data?.settings.targetRetention === undefined
+      ? {}
+      : { desiredRetention: account.data.settings.targetRetention }),
+  });
   const [plan, setPlan] = useState<DailyStudySession>();
   const [current, setCurrent] = useState<StudyCard>();
   const [revealed, setRevealed] = useState(false);
@@ -103,6 +116,7 @@ export function StudyScreen({
   const retryUndo = useRef<(() => Promise<void>) | undefined>(undefined);
   const queue = useRef<SessionQueue>({ planned: [], retries: [], retryMayRun: false });
   const cards = useRef(new Map<string, StudyCard>());
+  const projectedDue = useRef(new Map<string, string>());
   const started = useRef(0);
   const shown = useRef(0);
   const locked = useRef(false);
@@ -177,6 +191,15 @@ export function StudyScreen({
     }
   });
 
+  function updateNextDue() {
+    const future = [...cards.current.values()]
+      .map((card) => projectedDue.current.get(card.id) ?? card.due)
+      .filter((due) => new Date(due).getTime() > Date.now());
+    if (plan?.nextDue && !plan.cards.some((card) => card.due === plan.nextDue))
+      future.push(plan.nextDue);
+    setNextDue(future.sort()[0] ?? null);
+  }
+
   async function submit(answer: Answer) {
     setPending((count) => count + 1);
     try {
@@ -187,11 +210,31 @@ export function StudyScreen({
       if (!cancelled.current.has(answer.id)) {
         cards.current.set(result.card.id, result.card);
         queue.current = queueSessionRetry(queue.current, workloadCard(result.card));
-        const future = [...cards.current.values()]
-          .map((card) => card.due)
-          .filter((due) => new Date(due).getTime() > Date.now());
-        if (plan?.nextDue) future.push(plan.nextDue);
-        setNextDue(future.sort()[0] ?? null);
+        projectedDue.current.delete(result.card.id);
+        updateNextDue();
+        client.setQueriesData<DailyStudySession>({ queryKey: ['study-plan'] }, (cached) => {
+          if (!cached || !cached.cards.some((card) => card.id === result.card.id)) return cached;
+          const available = availableForStudy(
+            workloadCard(result.card).scheduling,
+            new Date(),
+            config,
+          );
+          const nextCards = cached.cards.flatMap((card) =>
+            card.id === result.card.id ? (available ? [result.card] : []) : [card],
+          );
+          return {
+            ...cached,
+            cards: nextCards,
+            availableCount: Math.max(0, cached.availableCount - (available ? 0 : 1)),
+            newCount: nextCards.filter((card) => card.state === 'new').length,
+            reviewCount: nextCards.filter((card) => card.state !== 'new').length,
+            nextDue: available
+              ? cached.nextDue
+              : ([cached.nextDue, result.card.due]
+                  .filter((due): due is string => !!due)
+                  .sort()[0] ?? null),
+          };
+        });
       }
       setFailed((items) => items.filter((item) => item.id !== answer.id));
       void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
@@ -227,6 +270,16 @@ export function StudyScreen({
       ...counts,
       [answer.cardId]: (counts[answer.cardId] ?? 0) + 1,
     }));
+    const predicted = review(
+      workloadCard(current).scheduling,
+      (index + 1) as Rating,
+      new Date(answer.reviewedAt),
+      config,
+      createSeededRandom(seedFromReviewId(answer.id)),
+      answer.durationMs,
+    );
+    projectedDue.current.set(current.id, predicted.next.due.toISOString());
+    updateNextDue();
     next();
     const saving = (undoOperation.current ?? Promise.resolve()).then(() => submit(answer));
     operations.current.set(answer.id, saving);
@@ -251,6 +304,8 @@ export function StudyScreen({
       retries: queue.current.retries.filter((card) => card.id !== previous.card.id),
     };
     cards.current.set(previous.card.id, previous.card);
+    projectedDue.current.delete(previous.card.id);
+    updateNextDue();
     visibleId.current = previous.card.id;
     setCurrent(previous.card);
     setRevealed(true);
@@ -269,6 +324,9 @@ export function StudyScreen({
         await operations.current.get(previous.answer.id);
         await request('/reviews', { method: 'POST', body: previous.answer });
         await request('/reviews/undo', { method: 'POST', body });
+        void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
+        void client.invalidateQueries({ queryKey: ['notes'], refetchType: 'none' });
+        void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
         setFailed((items) => items.filter((item) => item.id !== previous.answer.id));
         setError(undefined);
         locked.current = false;
@@ -303,13 +361,6 @@ export function StudyScreen({
     return () => window.removeEventListener('keydown', handler);
   });
 
-  const config = createSchedulerConfig({
-    timezone: account.data?.timezone ?? 'UTC',
-    dayCutoffHour: account.data?.dayCutoffHour ?? 4,
-    ...(account.data?.settings.targetRetention === undefined
-      ? {}
-      : { desiredRetention: account.data.settings.targetRetention }),
-  });
   const intervals = current
     ? preview(workloadCard(current).scheduling, new Date(), config)
     : undefined;
@@ -329,21 +380,27 @@ export function StudyScreen({
       data-screen=""
       className="flex min-h-[calc(100dvh-var(--bar-height)-var(--safe-top)-var(--safe-bottom)-52px)] flex-col gap-16"
     >
-      <div className="flex items-center justify-between gap-12">
-        <Button variant="quiet" disabled={pending > 0 || failed.length > 0} onClick={onFinish}>
-          {t('study.stop')}
-        </Button>
-        <h1 className="text-14 text-secondary">{t('today.study')}</h1>
-        <span data-numeric="" className="text-13 text-secondary">
-          {t('study.position', { current: Math.min(completed + (current ? 1 : 0), total), total })}
-        </span>
-      </div>
-      {current && <Progress value={completed} max={total} label={t('today.study')} />}
-      {!current && last && (
-        <Button className="self-start" variant="quiet" onClick={undo}>
-          {t('study.undo')}
-        </Button>
-      )}
+      <ModeHeader
+        title={t('today.study')}
+        exitLabel={t('study.stop')}
+        onExit={onFinish}
+        disabled={pending > 0 || failed.length > 0}
+        value={completed}
+        max={total}
+        action={
+          last && (
+            <Button
+              variant="text"
+              className="w-44 text-secondary"
+              aria-label={t('study.undo')}
+              title={t('study.undo')}
+              onClick={undo}
+            >
+              <Undo2 size={20} strokeWidth={1.5} aria-hidden="true" />
+            </Button>
+          )
+        }
+      />
       {failed.length > 0 && (
         <ErrorState
           message={t('study.saveFailed')}
@@ -378,11 +435,6 @@ export function StudyScreen({
             <EmptyState title={t('study.unavailable')} description={t('study.unavailableBody')} />
           )}
           <div className="mt-auto flex min-h-[104px] flex-col justify-end gap-8">
-            {last && (
-              <Button className="self-start" variant="quiet" onClick={undo}>
-                {t('study.undo')}
-              </Button>
-            )}
             {revealed && intervals ? (
               <div className="neu-reveal grid grid-cols-4 gap-8">
                 {RATINGS.map((rating, index) => {
@@ -448,7 +500,9 @@ export function StudyScreen({
           </p>
           {nextDue && (
             <p className="text-13 text-secondary">
-              {t('study.nextReturn', { time: new Date(nextDue).toLocaleString() })}
+              {t('today.nextReview')}
+              <br />
+              <ReviewTime due={nextDue} />
             </p>
           )}
           <Button

@@ -10,7 +10,7 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { GripVertical, Folder, Layers } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import type { DeckNode } from '@neuron/shared';
 
@@ -39,6 +39,34 @@ export function CollectionDrag({
   readonly actions: ReturnType<typeof useDeckActions>;
 }) {
   const [active, setActive] = useState<string>();
+  const positions = useRef(new Map<string, { x: number; y: number }>());
+  const placed = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    const next = new Map<string, { x: number; y: number }>();
+    const reduced =
+      document.documentElement.dataset['motion'] === 'reduce' ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    for (const row of document.querySelectorAll<HTMLElement>('[data-collection-id]')) {
+      const id = row.dataset['collectionId']!;
+      const bounds = row.getBoundingClientRect();
+      const point = { x: bounds.left + window.scrollX, y: bounds.top + window.scrollY };
+      const previous = positions.current.get(id);
+      next.set(id, point);
+      if (!reduced && previous && id !== placed.current) {
+        const dx = previous.x - point.x;
+        const dy = previous.y - point.y;
+        if ((dx || dy) && Math.abs(dx) <= 40 && Math.abs(dy) <= 96) {
+          const style = getComputedStyle(row);
+          row.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0 0' }], {
+            duration: parseFloat(style.getPropertyValue('--dur-2')),
+            easing: style.getPropertyValue('--ease-enter').trim(),
+          });
+        }
+      }
+    }
+    positions.current = next;
+    placed.current = undefined;
+  }, [tree]);
   const lastOver = useRef<DropTarget | undefined>(undefined);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const toast = useToast();
@@ -95,6 +123,7 @@ export function CollectionDrag({
       }}
       onDragEnd={({ active, over }) => {
         setActive(undefined);
+        placed.current = String(active.id);
         const target =
           lastOver.current ??
           (isDropTarget(over?.data.current) ? over.data.current : undefined) ??
@@ -188,7 +217,7 @@ export function CollectionHandle({ deck }: { readonly deck: DeckNode }) {
         {...attributes}
         {...listeners}
         aria-label={t('library.drag', { name: deck.name })}
-        className="flex size-44 shrink-0 touch-none items-center justify-center text-tertiary"
+        className="-mx-8 flex size-44 shrink-0 touch-none items-center justify-center text-tertiary"
         style={{ WebkitTouchCallout: 'none' }}
       >
         <GripVertical size={12} strokeWidth={1.5} />
@@ -235,7 +264,7 @@ export function CollectionDrop({
     >
       {position !== 'inside' && (
         <div
-          className={`h-[2px] w-full bg-fill-accent transition-opacity dur-control ${isOver ? 'opacity-100' : 'opacity-0'}`}
+          className={`h-4 w-full rounded-full bg-fill-accent-quiet ring-1 ring-inset ring-accent transition-opacity dur-control ${isOver ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
     </div>

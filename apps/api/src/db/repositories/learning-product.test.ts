@@ -77,6 +77,59 @@ describe.skipIf(!database)('persistent learning products', () => {
     expect(events.some((row) => row.id === before.review.id)).toBe(true);
     await expect(other.reviews.restartDeck(deck.id, uuidV7())).rejects.toThrow();
   });
+  it.each(['active', 'known'] as const)(
+    'Study again restarts a %s note with immutable history and stable retries',
+    async (status) => {
+      const { deck, note, card } = await fixture();
+      const before = await repo.reviews.record({
+        cardId: card.id,
+        rating: RATING.easy,
+        now: new Date('2026-02-01'),
+      });
+      const practice = await repo.practice.apply(deck.id, {
+        kind: 'start',
+        id: uuidV7(),
+        expectedVersion: 0,
+        runId: uuidV7(),
+        front: 'front',
+        back: 'back',
+      });
+      await repo.notes.setStatus(note.id, status);
+      if (status === 'known') {
+        expect(
+          (await repo.cards.forSession({ deckIds: [deck.id] })).some(
+            (candidate) => candidate.id === card.id,
+          ),
+        ).toBe(false);
+        expect(
+          (await repo.cards.due({ deckId: deck.id, now: new Date('2099-01-01') })).some(
+            (candidate) => candidate.id === card.id,
+          ),
+        ).toBe(false);
+      }
+      const id = uuidV7();
+      expect(await repo.reviews.restartDeck(deck.id, id, note.id)).toBe(1);
+      expect((await repo.notes.byId(note.id))!.status).toBe('active');
+      const fresh = (await repo.cards.byId(card.id))!;
+      expect(fresh).toMatchObject({ id: card.id, state: 'new', reps: 0, lastReview: null });
+      expect(await repo.reviews.rebuild(card.id)).toMatchObject({ state: 'new', due: fresh.due });
+      const after = await repo.reviews.record({
+        cardId: card.id,
+        rating: RATING.good,
+        now: new Date(fresh.due.getTime() + 1000),
+      });
+      await repo.reviews.restartDeck(deck.id, id, note.id);
+      expect(await repo.cards.byId(card.id)).toEqual(after.card);
+      expect(await repo.reviews.rebuild(card.id)).toEqual(after.state);
+      expect(await repo.reviews.countForCards([card.id])).toBe(2);
+      expect((await repo.practice.get(deck.id)).run).toEqual(practice.run);
+      const events = (await repo.sync.pull(0, 1000)).changes;
+      expect(events.some((event) => event.id === before.review.id)).toBe(true);
+      await expect(repo.reviews.restartDeck(deck.id, id)).rejects.toThrow();
+      await expect(other.reviews.restartDeck(deck.id, uuidV7(), note.id)).rejects.toThrow();
+    },
+  );
+
   it('keeps an empty restart retry empty after content is added', async () => {
     const deck = await repo.decks.create({ name: uuidV7(), kind: 'deck' });
     const id = uuidV7();

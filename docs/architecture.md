@@ -633,3 +633,21 @@ scalar choices are unchanged. Only populated choices are offered and every selec
 for a Note to participate. Article plus term is composed as one phrase; additional values have quiet
 human labels. Boolean values are explicit Yes/No, not raw paths or JSON. Changing choices requires an
 explicit new run, while queue/status persistence and zero Review/schedule writes remain unchanged.
+
+### Note learning and immediate feedback
+
+`POST /notes/:id/study-again` reuses the immutable restart projection with a Note-scoped receipt
+(migration 0016). It reactivates the Note and restarts its live unsuspended cards, preserving IDs and
+Reviews. A repeated operation keeps its original scope and never resets later answers. Deck restart
+continues to exclude Known Notes. Neither operation changes Practice. Ready and In review are derived
+from eligible card schedules; only Known is a user-set learning exclusion.
+
+Grammar remains visible in every vocab editor, including missing or unsupported Deck languages.
+Inline setup updates the existing Deck settings and tree cache without remounting the editor or writing
+a Note language. The Note draft survives language changes. My study decks denotes persistent
+participation; Choose for this session denotes temporary scope.
+
+Learning/relearning steps become available at their actual instant; reviews retain study-day admission.
+The shared availability predicate drives session assembly and API availability counts. Study advances
+locally and computes its immediate due result using the server's deterministic review seed. Confirmed
+answers replace that projection and reconcile cached plans; broad collection refresh is deferred.

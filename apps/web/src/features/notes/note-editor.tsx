@@ -2,8 +2,10 @@ import { useBlocker, useNavigate } from '@tanstack/react-router';
 import { ChevronDown, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
+import { availableForStudy, createSchedulerConfig } from '@neuron/core';
 import {
   NOTE_TYPES,
+  LANGUAGE_CODES,
   editorFields,
   filledPaths,
   noteFieldsSchemas,
@@ -16,6 +18,7 @@ import {
 } from '@neuron/shared';
 import type {
   Card,
+  LanguageCode,
   DeckNode,
   EditorField,
   MessageKey,
@@ -26,8 +29,9 @@ import type {
 } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
+import { useAccount } from '../../lib/account';
 import { ApiFailure, describe } from '../../lib/api';
-import { flatten, settingsFor, useDeckTree } from '../../lib/decks';
+import { flatten, findDeck, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
 import { useNote, useNoteActions } from '../../lib/notes';
 import { Button } from '../../ui/button';
 import { GroupLabel } from '../../ui/card';
@@ -135,6 +139,13 @@ function Editor({
   const toast = useToast();
   const navigate = useNavigate();
   const actions = useNoteActions();
+  const deckActions = useDeckActions();
+  const account = useAccount();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const [deck, setDeck] = useState(
     note?.deckId ?? deckId ?? flatten(decks).find((row) => row.kind === 'deck')?.id ?? '',
@@ -155,6 +166,7 @@ function Editor({
   const [saveError, setSaveError] = useState<unknown>();
   const [statusError, setStatusError] = useState<unknown>();
   const createId = useRef(uuidV7());
+  const restartId = useRef(uuidV7());
   const [conversion, setConversion] = useState<{
     type: NoteTypeName;
     fields: Record<string, unknown>;
@@ -442,29 +454,72 @@ function Editor({
       <CollectionPath tree={decks} id={deck} />
 
       {note && !conversion && (
-        <div className="flex min-h-44 items-center justify-between gap-12">
+        <div className="flex min-h-44 flex-wrap items-center justify-between gap-12">
           <span role="status" className="text-14 text-secondary">
             {t(
-              `note.status.${actions.setStatus.isPending ? actions.setStatus.variables.status : note.status}`,
+              note.status === 'known'
+                ? 'note.status.known'
+                : cards.some(
+                      (card) =>
+                        !card.suspendedAt &&
+                        availableForStudy(
+                          { state: card.state, due: new Date(card.due) },
+                          new Date(now),
+                          createSchedulerConfig({
+                            timezone: account.data?.timezone ?? 'UTC',
+                            dayCutoffHour: account.data?.dayCutoffHour ?? 4,
+                          }),
+                        ),
+                    )
+                  ? 'note.ready'
+                  : cards.some((card) => !card.suspendedAt && card.reps > 0)
+                    ? 'note.inReview'
+                    : 'note.status.active',
             )}
           </span>
           <Button
             aria-pressed={note.status === 'known'}
-            disabled={actions.setStatus.isPending}
+            disabled={actions.setStatus.isPending || actions.studyAgain.isPending}
             aria-busy={actions.setStatus.isPending}
             onClick={() => {
               if (actions.setStatus.isPending) return;
               setStatusError(undefined);
+              if (note.status === 'known') {
+                void actions.studyAgain
+                  .mutateAsync({ noteId: note.id, id: restartId.current })
+                  .then(() => {
+                    restartId.current = uuidV7();
+                  })
+                  .catch(setStatusError);
+                return;
+              }
               void actions.setStatus
                 .mutateAsync({
                   ids: [note.id],
-                  status: note.status === 'known' ? 'active' : 'known',
+                  status: 'known',
                 })
                 .catch(setStatusError);
             }}
           >
             {note.status === 'known' ? t('note.markActive') : t('note.markKnown')}
           </Button>
+          {note.status !== 'known' && (
+            <Button
+              variant="text"
+              disabled={actions.studyAgain.isPending}
+              onClick={() => {
+                setStatusError(undefined);
+                void actions.studyAgain
+                  .mutateAsync({ noteId: note.id, id: restartId.current })
+                  .then(() => {
+                    restartId.current = uuidV7();
+                  })
+                  .catch(setStatusError);
+              }}
+            >
+              {t('note.markActive')}
+            </Button>
+          )}
         </div>
       )}
 
@@ -525,7 +580,11 @@ function Editor({
           <fieldset
             key={section.name}
             disabled={(!!conversion || !note) && save === 'saving'}
-            className="flex min-w-0 flex-col gap-16"
+            className={
+              section.name === 'grammar'
+                ? 'flex min-w-0 flex-col gap-16 rounded-12 border border-subtle bg-sunken p-12'
+                : 'flex min-w-0 flex-col gap-16'
+            }
           >
             {section.name === 'grammar' ? (
               <Button
@@ -561,6 +620,43 @@ function Editor({
                     : 'flex flex-col gap-16'
                 }
               >
+                {section.name === 'grammar' && (
+                  <div className="col-span-2 flex flex-col gap-8">
+                    {!settings.targetLanguage && (
+                      <p className="text-13 text-secondary">{t('note.grammarLanguage')}</p>
+                    )}
+                    <FormField label={t('library.targetLanguage')}>
+                      {(props) => (
+                        <Select
+                          {...props}
+                          value={settings.targetLanguage ?? ''}
+                          disabled={!deck}
+                          onChange={(event) => {
+                            const targetLanguage = event.target.value as LanguageCode;
+                            if (!targetLanguage) return;
+                            deckActions.update.mutate(
+                              {
+                                id: deck,
+                                settings: { ...findDeck(decks, deck)?.settings, targetLanguage },
+                              },
+                              { onError: (error) => toast.show(t(describe(error).key)) },
+                            );
+                          }}
+                        >
+                          <option value="">{t('library.notSet')}</option>
+                          {LANGUAGE_CODES.map((code) => (
+                            <option key={code} value={code}>
+                              {t(`lang.${code}` as MessageKey)}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                    </FormField>
+                    {settings.targetLanguage && section.fields.length === 0 && (
+                      <p className="text-13 text-secondary">{t('note.grammarUnavailable')}</p>
+                    )}
+                  </div>
+                )}
                 {section.fields.map((field) => (
                   <div
                     key={field.path}

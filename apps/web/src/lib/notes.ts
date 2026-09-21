@@ -133,6 +133,7 @@ export function useNoteActions() {
     void Promise.all([
       client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'], refetchType: 'none' }),
       client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' }),
+      client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' }),
     ]).catch(() => undefined);
   };
 
@@ -141,6 +142,7 @@ export function useNoteActions() {
     void Promise.all([
       client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'] }),
       client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' }),
+      client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' }),
     ]).catch(() => undefined);
   };
 
@@ -304,6 +306,19 @@ export function useNoteActions() {
     onSettled: reconcileRecovery,
   });
 
+  const studyAgain = useMutation({
+    scope: { id: 'note-writes' },
+    mutationFn: (input: { noteId: string; id: string }) =>
+      request<{ note: Note; cards: Card[] }>(`/notes/${input.noteId}/study-again`, {
+        method: 'POST',
+        body: { id: input.id },
+      }),
+    onSuccess: (written) => {
+      accept(written);
+      markCollectionStale();
+    },
+  });
+
   const setStatus = useMutation({
     mutationKey: ['note-status'],
     scope: { id: 'note-writes' },
@@ -385,7 +400,7 @@ export function useNoteActions() {
     onSuccess: markCollectionStale,
   });
 
-  return { create, update, remove, restore, setStatus, move, tag, removeMany };
+  return { create, update, remove, restore, setStatus, studyAgain, move, tag, removeMany };
 }
 
 /**

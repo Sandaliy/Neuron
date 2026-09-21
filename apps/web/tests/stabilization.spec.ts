@@ -238,7 +238,7 @@ test('grammar Practice composes selected fields and resumes without schedule wri
   await page.getByRole('button', { name: 'Known', exact: true }).click();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: 'Practice', exact: true }).click();
+  await page.getByRole('button', { name: /Continue practice/ }).click();
   await expect(page.getByText('tree', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
   await expect(page.getByText('der Baum', { exact: true })).toBeVisible();
@@ -263,7 +263,7 @@ test('Adjust and scope open locally while the initial plan is still unresolved',
   await page.goto('/');
   await expect.poll(() => received).toBe(true);
   await page.getByRole('button', { name: 'Adjust', exact: true }).click();
-  await page.getByRole('button', { name: 'All included decks', exact: true }).click();
+  await page.getByRole('button', { name: 'Choose for this session', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByText('You are caught up', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No decks selected' })).toHaveCount(0);
@@ -338,7 +338,7 @@ test('Today scopes are temporary and distinguish no decks from caught up', async
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('today.png') });
   await page.getByRole('button', { name: 'Adjust', exact: true }).click();
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('adjust.png') });
-  await page.getByRole('button', { name: 'All included decks', exact: true }).click();
+  await page.getByRole('button', { name: 'Choose for this session', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.screenshot({ animations: 'disabled', path: test.info().outputPath('deck-scope.png') });
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
@@ -346,7 +346,7 @@ test('Today scopes are temporary and distinguish no decks from caught up', async
   await expect(page.getByRole('heading', { name: 'No decks selected' })).toBeVisible();
   await expect.poll(() => bodies.at(-1)?.deckIds).toEqual([]);
   await expect(page.getByText('You are caught up', { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Choose decks', exact: true }).click();
+  await page.getByRole('button', { name: 'Choose for this session', exact: true }).click();
   await page.getByRole('checkbox', { name: /Paused deck/ }).check();
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect.poll(() => bodies.at(-1)?.deckIds).toEqual([id(101)]);
@@ -440,6 +440,8 @@ test('undo is local during a delayed save and regrade follows its compensation',
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
   await page.getByRole('button', { name: /^Easy / }).click();
   await expect(page.getByText('Session complete', { exact: true })).toBeVisible();
+  await expect(page.locator('time[datetime]')).toBeVisible();
+  expect(events).toEqual(['easy']);
   await page.screenshot({
     animations: 'disabled',
     path: test.info().outputPath('study-complete.png'),
@@ -560,7 +562,7 @@ test('practice persists rounds across reload without schedule writes', async ({
   });
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: 'Practice', exact: true }).click();
+  await page.getByRole('button', { name: /Practice complete/ }).click();
   await expect(page.getByText('Practice complete', { exact: true })).toBeVisible();
   await page.screenshot({
     animations: 'disabled',
@@ -855,4 +857,49 @@ test('touch handle drag keeps the exact insertion target', async ({ page }) => {
   );
   await expect.poll(() => moves).toEqual([{ parentId: null, beforeId: other.id }]);
   await expect.poll(() => treeReads).toBeGreaterThan(1);
+});
+
+test('partial swipe, reversal, cancel and failed commit preserve row geometry', async ({
+  page,
+}, testInfo) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [deck], notes });
+  let attempts = 0;
+  await page.route(`**/api/notes/${notes[0]!.id}`, (route) => {
+    attempts++;
+    return route.fulfill({
+      status: 500,
+      json: { error: { code: 'internal_error', status: 500, correlationId: 'test' } },
+    });
+  });
+  await page.goto(`/notes?deckId=${deck.id}`);
+  const row = page.getByRole('button', { name: /Question 1 Answer 1/ }).first();
+  const start = (await row.boundingBox())!;
+  const gesture = async (xs: number[], cancel = false) => {
+    await row.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 300, clientY: 150 });
+    for (const x of xs)
+      await row.dispatchEvent('pointermove', { pointerType: 'touch', clientX: x, clientY: 150 });
+    await row.dispatchEvent(cancel ? 'pointercancel' : 'pointerup', {
+      pointerType: 'touch',
+      clientX: xs.at(-1),
+      clientY: 150,
+    });
+  };
+  await gesture([250, 230]);
+  await expect(page.locator('[data-swipe-action]')).toBeVisible();
+  await expect
+    .poll(async () => Math.round((await row.boundingBox())!.width))
+    .toBe(Math.round(start.width));
+  await page.screenshot({ path: testInfo.outputPath('swipe-partial.png'), animations: 'disabled' });
+  await gesture([340, 380]);
+  await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+  await gesture([200, 260, 300]);
+  await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+  await gesture([220], true);
+  await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+  expect(attempts).toBe(0);
+  await gesture([200, 100, 40]);
+  await expect.poll(() => attempts).toBe(1);
+  await expect(row).toBeVisible();
+  await expect.poll(async () => Math.round((await row.boundingBox())!.x)).toBe(Math.round(start.x));
 });

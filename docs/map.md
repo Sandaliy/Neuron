@@ -356,3 +356,10 @@ hierarchies and note dependencies, and `purge-action.tsx` owns irreversible conf
 - `apps/web/src/features/today/study-scope.tsx`: temporary exact Deck selection.
 - `apps/web/src/features/notes/restart-learning.tsx`: Deck participation and explicit restart actions.
 - `apps/web/src/ui/learning-card.tsx`: common reading surface for Daily Study and Practice.
+
+- `packages/core/src/workload/availability.ts`: exact learning-step and study-day review admission.
+- `packages/core/src/fsrs/review-seed.ts`: deterministic seed shared by local and server answers.
+- `apps/web/src/ui/mode-header.tsx`: equal-slot Study/Practice navigation and progress.
+- `apps/web/src/ui/review-time.tsx`: local absolute and relative review timing.
+- `apps/web/src/ui/completion-progress.tsx`: restrained Practice completion ring.
+- `apps/web/src/features/notes/practice-entry.tsx`: persistent Deck Practice summary entry.

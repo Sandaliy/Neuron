@@ -2,6 +2,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import {
   ArrowDown,
   ArrowUp,
+  Layers,
   FolderInput,
   Folder,
   ChevronRight,
@@ -301,7 +302,11 @@ function Deck({
 
   return (
     <div className="relative flex select-none flex-col gap-8">
-      <div data-collection-row="" className="relative has-[[data-dragging=true]]:opacity-40">
+      <div
+        data-collection-row=""
+        data-collection-id={deck.id}
+        className="relative has-[[data-dragging=true]]:opacity-40"
+      >
         <CollectionDrop
           tree={tree}
           id={`before:${deck.id}`}
@@ -311,6 +316,9 @@ function Deck({
         />
         <Row
           title={deck.name}
+          className={
+            deck.kind === 'folder' ? 'gap-8 border-strong bg-sunken font-semibold' : 'gap-8'
+          }
           /*
             Nothing waiting is said by the row carrying no second line, not by a
             line of zeroes. A count of nothing is the one number worth not
@@ -323,25 +331,37 @@ function Deck({
             <>
               <CollectionHandle deck={deck} />
               {deck.kind === 'folder' ? (
-                <>
-                  {hasChildren && (
-                    <button
-                      type="button"
-                      aria-label={t(expanded ? 'library.collapse' : 'library.expand')}
-                      aria-expanded={expanded}
-                      className="flex size-44 shrink-0 items-center justify-center"
-                      onClick={() => onToggle(deck.id)}
-                    >
-                      <ChevronRight
-                        size={16}
-                        className={expanded ? 'rotate-90' : ''}
-                        aria-hidden="true"
-                      />
-                    </button>
-                  )}
-                  <Folder size={18} aria-hidden="true" className="shrink-0 text-tertiary" />
-                </>
-              ) : undefined}
+                hasChildren ? (
+                  <button
+                    type="button"
+                    aria-label={t(expanded ? 'library.collapse' : 'library.expand')}
+                    aria-expanded={expanded}
+                    className="-mx-8 flex size-44 shrink-0 items-center justify-center gap-4"
+                    onClick={() => onToggle(deck.id)}
+                  >
+                    <ChevronRight
+                      size={12}
+                      className={`transition-transform dur-control ${expanded ? 'rotate-90' : ''}`}
+                      aria-hidden="true"
+                    />
+                    <Folder size={18} strokeWidth={1.5} aria-hidden="true" />
+                  </button>
+                ) : (
+                  <Folder
+                    size={18}
+                    strokeWidth={1.5}
+                    aria-hidden="true"
+                    className="text-secondary"
+                  />
+                )
+              ) : (
+                <Layers
+                  size={18}
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                  className="shrink-0 text-secondary"
+                />
+              )}
             </>
           }
           onClick={() => onOpen(deck.id)}

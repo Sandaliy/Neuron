@@ -1,6 +1,7 @@
 import { and, asc, count, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 
 import {
+  seedFromReviewId,
   createSchedulerConfig,
   createSeededRandom,
   newCard,
@@ -79,7 +80,7 @@ export interface RecordedReview {
 }
 
 export interface ReviewRepository {
-  restartDeck: (deckId: string, eventId: string) => Promise<number>;
+  restartDeck: (deckId: string, eventId: string, noteId?: string) => Promise<number>;
   undo: (reviewId: string, eventId: string) => Promise<typeof cards.$inferSelect>;
   record: (input: RecordReview) => Promise<RecordedReview>;
   /** Every answer for one card that still counts, oldest first. */
@@ -116,15 +117,7 @@ export class CardNotFound extends Error {
  * @param id the review id, a UUID
  * @returns a 32 bit seed
  */
-export function seedFromReviewId(id: string): number {
-  let seed = 0;
-
-  for (const character of id.replaceAll('-', '')) {
-    seed = (Math.imul(seed, 31) + character.charCodeAt(0)) | 0;
-  }
-
-  return seed >>> 0;
-}
+export { seedFromReviewId } from '@neuron/core';
 
 /**
  * The scheduler settings for a user.
@@ -245,7 +238,7 @@ async function projectionFor(tx: Tx, userId: string, cardId: string): Promise<Sc
 
 export function reviewRepository(userId: string, run: Runner): ReviewRepository {
   return {
-    async restartDeck(deckId, eventId) {
+    async restartDeck(deckId, eventId, noteId) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
         const [receipt] = await tx
@@ -253,10 +246,29 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
           .from(learningRestarts)
           .where(and(eq(learningRestarts.userId, userId), eq(learningRestarts.id, eventId)));
         if (receipt) {
-          if (receipt.deckId !== deckId) throw new Error('Restart id is already in use');
+          if (receipt.deckId !== deckId || receipt.noteId !== (noteId ?? null))
+            throw new Error('Restart id is already in use');
           return receipt.cardCount;
         }
         await requireLiveDeck(tx, userId, deckId, 'deck');
+        if (noteId) {
+          const [note] = await tx
+            .select()
+            .from(notes)
+            .where(
+              and(
+                eq(notes.id, noteId),
+                eq(notes.userId, userId),
+                eq(notes.deckId, deckId),
+                isNull(notes.deletedAt),
+              ),
+            );
+          if (!note) throw new CardNotFound(noteId);
+          await tx
+            .update(notes)
+            .set({ status: 'active', rev, updatedAt: new Date() })
+            .where(and(eq(notes.id, noteId), eq(notes.userId, userId)));
+        }
         const eligible = await tx
           .select({ card: cards })
           .from(cards)
@@ -270,12 +282,19 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
               isNull(cards.suspendedAt),
               isNull(notes.deletedAt),
               eq(notes.status, 'active'),
+              noteId ? eq(notes.id, noteId) : undefined,
             ),
           );
         const now = new Date();
-        await tx
-          .insert(learningRestarts)
-          .values({ id: eventId, userId, deckId, cardCount: eligible.length, rev, createdAt: now });
+        await tx.insert(learningRestarts).values({
+          id: eventId,
+          userId,
+          deckId,
+          noteId: noteId ?? null,
+          cardCount: eligible.length,
+          rev,
+          createdAt: now,
+        });
         for (const { card } of eligible) {
           // Reset is a first-class immutable event in the same canonical stream.
           await tx.insert(reviews).values({

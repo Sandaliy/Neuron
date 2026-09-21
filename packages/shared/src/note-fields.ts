@@ -11,8 +11,8 @@ import type { NoteTypeName, PartOfSpeech } from './note-types.js';
  * of speech, and on the language the deck is about.
  *
  * Two rules, and the second one is the one that is usually forgotten. Show a
- * field only when it applies, so a word with no grammar renders no grammar
- * block at all rather than an empty one. And never hide a field somebody has
+ * field only when it applies, while keeping the Grammar disclosure available
+ * for language setup and an explicit empty state. Never hide a field somebody has
  * already filled in, whatever the conditions say now, because a value that
  * disappears from the screen while it is still in the database is a value
  * nobody can find or correct.
@@ -270,9 +270,7 @@ export function editorFields(context: FieldContext): EditorSection[] {
     },
   ];
 
-  if (grammar.length > 0) {
-    sections.push({ name: 'grammar', labelKey: 'note.section.grammar', fields: grammar });
-  }
+  sections.push({ name: 'grammar', labelKey: 'note.section.grammar', fields: grammar });
 
   sections.push({
     name: 'extra',

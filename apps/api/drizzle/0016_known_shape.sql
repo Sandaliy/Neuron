@@ -1,0 +1,1 @@
+ALTER TABLE "learning_restarts" ADD COLUMN "note_id" uuid;

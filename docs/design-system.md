@@ -104,7 +104,7 @@ Weights: **400 and 600**. There is no third. Contrast comes from size and colour
 Motion: **`--dur-1` 90ms** a control changing state, **`--dur-2` 160ms** a reveal or a toast,
 **`--dur-3` 240ms** a screen change or a scrim, **`--dur-4` 340ms** a sheet rising. Curves:
 `ease-enter` arrives and settles, `ease-exit` leaves quickly, `ease-inout` changes on the spot,
-`ease-spring` is the switch knob and the travelling pill and nothing else.
+`ease-inout` also governs switch knobs and travelling selection pills, without overshoot.
 
 ---
 
@@ -298,13 +298,7 @@ library scroll fell from 60 frames a second to 8.7 with nothing on screen lookin
 fill `forwards`, because something on its way out has to stay where it ended until it is unmounted.
 `src/styles/motion.test.ts` fails the build on `both`.
 
-- A screen arrives: 6px up and a fade over `--dur-3`, replayed whenever the route changes. The tabs are
-  siblings, so nothing travels sideways between them, and what says the screen changed is that it
-  arrives rather than appears.
-- Its first four blocks arrive a beat behind it, 26ms apart, then it stops. Written once against
-  `[data-screen] > *`, so a screen added later gets it by being a screen.
-- Forward navigation enters from the right at 14px, backward from the left. The direction is a spatial
-  claim and has to match the hierarchy.
+- Screens and routes do not animate globally. Motion belongs to the control or content changing state.
 - Dialogs appear in place with opacity and scale 0.99 to 1 over `--dur-2`. Closing reverses
   those endpoints over `--dur-1`. The scrim fades in and out on the same timings.
 - The app background stays stationary at every width. The scrim, glass surface and shadow provide
@@ -594,7 +588,7 @@ utilities such as Adjust and Change fields may use text treatment when the surro
 their role clear. Avoid multiple equal-weight action slabs competing with Study.
 
 Library drag lifts the full collection row. The source retains its footprint at reduced opacity, sibling
-placement uses a thin accent insertion line, and valid folder containment uses a quiet tint. Invalid
+placement uses a thin rounded accent band, and valid folder containment uses a quiet tint. Invalid
 placements have no accent or explanatory target labels. The handle remains a generous touch target
 with a small grip; menu-based movement remains available.
 
@@ -615,3 +609,16 @@ load only unresolved content in place. Learning-card contents and answer/grade r
 `neu-reveal` motion; the card surface stays fixed. Existing press, switch, dialog and progress motion
 remain authoritative. Pointer-following drag/swipe has no easing behind the finger. Reduced motion
 collapses animation through the existing global preference contract.
+
+### Acceptance patterns
+
+`ModeHeader` uses equal side columns with a centered title, a quiet 44px exit target and optional
+secondary action. Study uses an accessible Undo icon. Thin progress sits directly below the header.
+Practice completion uses a restrained percentage ring and known/remaining counts, with explicit
+continue, finish and restart actions. A Deck's Practice entry is a full-width secondary surface showing
+saved progress; it never gates Deck loading. Completed runs remain completed until explicit restart.
+
+Grammar has its own bordered secondary surface, compact disclosure and inline Deck-language setup.
+The shared reveal is a short fade with 6px vertical settling. Pointer manipulation has no interpolation.
+Committed swipe removal starts immediately and retains a departing surface until its leftward exit
+finishes, independently of virtual-row unmounting. Partial gestures preserve row geometry.

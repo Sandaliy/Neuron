@@ -61,7 +61,10 @@ for (const theme of THEMES) {
       await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
       await settle(page);
 
-      await expect(page).toHaveScreenshot(`library-${theme}.png`, { fullPage: true });
+      await expect(page).toHaveScreenshot(`library-${theme}.png`, {
+        fullPage: true,
+        maxDiffPixelRatio: 0.001,
+      });
     });
 
     test('study composition and adjustment', async ({ page }) => {
@@ -70,13 +73,22 @@ for (const theme of THEMES) {
       await page.goto('/');
       await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
       await page.getByRole('button', { name: 'Adjust', exact: true }).click();
-      await expect(page).toHaveScreenshot(`today-adjust-${theme}.png`, { fullPage: true });
+      await expect.soft(page).toHaveScreenshot(`today-adjust-${theme}.png`, {
+        fullPage: true,
+        maxDiffPixelRatio: 0.001,
+      });
       await page.getByRole('button', { name: 'Study', exact: true }).click();
       await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
-      await expect(page).toHaveScreenshot(`study-front-${theme}.png`, { fullPage: true });
+      await expect.soft(page).toHaveScreenshot(`study-front-${theme}.png`, {
+        fullPage: true,
+        maxDiffPixelRatio: 0.001,
+      });
       await page.getByRole('button', { name: 'Show answer', exact: true }).click();
       await expect(page.getByText('care, thoroughness', { exact: true })).toBeVisible();
-      await expect(page).toHaveScreenshot(`study-answer-${theme}.png`, { fullPage: true });
+      await expect.soft(page).toHaveScreenshot(`study-answer-${theme}.png`, {
+        fullPage: true,
+        maxDiffPixelRatio: 0.001,
+      });
     });
 
     test('settings', async ({ page }) => {

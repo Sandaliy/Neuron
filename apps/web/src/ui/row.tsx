@@ -164,7 +164,10 @@ export function TreeRow({
 /** What hangs under an open deck: one indent, one hairline, per level. */
 export function TreeChildren({ children }: { readonly children: ReactNode }) {
   return (
-    <div data-reveal="" className="ml-20 flex flex-col gap-8 border-l border-subtle pl-16">
+    <div
+      data-reveal=""
+      className="ml-12 flex flex-col gap-8 border-l border-subtle pl-8 sm:ml-20 sm:pl-16"
+    >
       {children}
     </div>
   );
