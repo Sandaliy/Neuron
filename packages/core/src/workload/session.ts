@@ -33,6 +33,7 @@ import { retrievability } from '../fsrs/scheduler.js';
 import { dayIndexOf } from '../time/day.js';
 
 import { defaultAnswerTimes, type AnswerTimes } from './answer-time.js';
+import { availableForStudy } from './availability.js';
 import { detectBacklog, orderBacklog, type BacklogState } from './backlog.js';
 import { budgetFor, carryOverMinutes, type Budget } from './budget.js';
 import { answerSeconds } from './forecast.js';
@@ -401,7 +402,7 @@ export function buildSession(request: SessionRequest): Session {
 
   const due = cards.filter(
     (card) =>
-      card.scheduling.state !== 'new' && dayIndexOf(card.scheduling.due, config.scheduler) <= today,
+      card.scheduling.state !== 'new' && availableForStudy(card.scheduling, now, config.scheduler),
   );
 
   // During a backlog the recovery ordering decides what gets seen, and it is

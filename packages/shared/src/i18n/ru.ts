@@ -7,6 +7,22 @@ import type { Messages } from './en.js';
  * compilation error rather than a blank space on somebody's screen.
  */
 export const ru = {
+  'practice.exit': 'Выйти из Практики',
+  'study.scopeDefault': 'Мои учебные колоды',
+  'study.scopeAll': 'Выбрать все колоды на эту сессию',
+  'study.chooseDecks': 'Выбрать на эту сессию',
+  'learning.restartBody':
+    'Запланированное изучение активных подходящих заметок начнётся заново. История повторений сохранится. Уже известные заметки останутся известными, Практика не изменится.',
+  'time.today': 'Сегодня',
+  'time.tomorrow': 'Завтра',
+  'time.relative': 'через {hours} ч {minutes} мин',
+  'practice.resume': 'Продолжить практику',
+  'practice.knownCount': '{known} / {total} знаю',
+  'note.ready': 'Готово к изучению',
+  'note.inReview': 'На повторении',
+  'practice.completionCounts': '{known} знаю · {learning} ещё учу',
+  'note.grammarLanguage': 'Выбери язык колоды, чтобы настроить грамматику заметки.',
+  'note.grammarUnavailable': 'Для этого языка и части речи пока нет грамматических полей.',
   'library.drag': 'Перетащить {name}',
   'library.dropInvalid': 'Сюда переместить нельзя',
   'library.dropInside': 'Переместить внутрь',
@@ -335,7 +351,7 @@ export const ru = {
     'Запись и её карточки переместятся в «Удалённое». Оттуда их можно восстановить.',
   'note.deleted': 'Запись перемещена в «Удалённые»',
   'note.markKnown': 'Уже знаю',
-  'note.markActive': 'Вернуть в повторение',
+  'note.markActive': 'Изучить заново',
   'note.status.active': 'В повторении',
   'note.status.known': 'Знакомо',
   'note.status.suspended': 'Отложено',

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 
 import {
+  availableForStudy,
   buildSession,
   createBudget,
   createSchedulerConfig,
@@ -142,8 +143,7 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
           deckId,
           due: pool.filter(
             (card) =>
-              card.scheduling.state !== 'new' &&
-              dayIndexOf(card.scheduling.due, scheduler) <= dayIndexOf(now, scheduler),
+              card.scheduling.state !== 'new' && availableForStudy(card.scheduling, now, scheduler),
           ).length,
           fresh: pool.filter((card) => card.scheduling.state === 'new').length,
           nextDue:
@@ -153,11 +153,8 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
               .sort()[0] ?? null,
         };
       }),
-      availableCount: supported.filter(
-        (card) =>
-          card.scheduling.state === 'new' ||
-          dayIndexOf(card.scheduling.due, scheduler) <= dayIndexOf(now, scheduler),
-      ).length,
+      availableCount: supported.filter((card) => availableForStudy(card.scheduling, now, scheduler))
+        .length,
       nextDue:
         supported
           .filter((card) => card.scheduling.state !== 'new' && card.scheduling.due > now)

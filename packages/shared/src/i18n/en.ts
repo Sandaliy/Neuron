@@ -2,14 +2,26 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'practice.exit': 'Exit Practice',
+  'time.today': 'Today',
+  'time.tomorrow': 'Tomorrow',
+  'time.relative': 'in {hours}h {minutes}m',
+  'practice.resume': 'Continue practice',
+  'practice.knownCount': '{known} / {total} known',
+  'note.ready': 'Ready',
+  'note.inReview': 'In review',
+  'practice.completionCounts': '{known} known · {learning} still learning',
+  'note.grammarLanguage': 'Choose the deck language to set up grammar for this note.',
+  'note.grammarUnavailable':
+    'No grammar fields are available for this language and part of speech.',
   'study.scope': 'Study decks',
   'study.scopeTemporary': 'For this session only. Your usual decks stay unchanged.',
-  'study.scopeDefault': 'All included decks',
-  'study.scopeAll': 'All decks',
+  'study.scopeDefault': 'My study decks',
+  'study.scopeAll': 'Select all decks for this session',
   'study.scopeNone': 'Clear',
   'study.scopeCount': '{count} decks',
   'study.noDecks': 'No decks selected',
-  'study.chooseDecks': 'Choose decks',
+  'study.chooseDecks': 'Choose for this session',
   'study.paused': 'Paused',
   'study.included': 'Include in Daily Study',
   'study.pause': 'Pause Daily Study',
@@ -55,7 +67,7 @@ export const en = {
   'learning.restart': 'Restart learning',
   'learning.restartTitle': 'Restart this deck?',
   'learning.restartBody':
-    'Scheduled cards in this deck will start as New. Your review history and Practice progress stay. Known, excluded and suspended material stays unchanged.',
+    'Active eligible notes will start scheduled learning again. Review history is preserved. Already known notes stay known, and Practice is unaffected.',
   'learning.restarted': 'Learning restarted',
 
   'library.drag': 'Drag {name}',

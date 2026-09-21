@@ -28,5 +28,6 @@ export const learningRestarts = pgTable('learning_restarts', {
   deckId: uuid('deck_id')
     .notNull()
     .references(() => decks.id, { onDelete: 'cascade' }),
+  noteId: uuid('note_id'),
   cardCount: integer('card_count').notNull(),
 });

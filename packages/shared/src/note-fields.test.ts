@@ -55,20 +55,20 @@ describe('which fields a word gets', () => {
     expect(reading?.hintKey).toBe('note.hint.readingIpa');
   });
 
-  it('renders no grammar block at all for a word with no grammar', () => {
+  it('keeps an empty grammar disclosure for a word with no grammar', () => {
     const sections = editorFields({
       noteType: 'vocab',
       partOfSpeech: 'adverb',
       targetLanguage: 'de',
     });
 
-    expect(section(sections, 'grammar')).toBeUndefined();
+    expect(section(sections, 'grammar')?.fields).toEqual([]);
   });
 
-  it('renders no grammar block before the part of speech is chosen', () => {
-    expect(section(editorFields({ noteType: 'vocab', targetLanguage: 'de' }), 'grammar')).toBe(
-      undefined,
-    );
+  it('keeps grammar discoverable before the part of speech is chosen', () => {
+    expect(
+      section(editorFields({ noteType: 'vocab', targetLanguage: 'de' }), 'grammar')?.fields,
+    ).toEqual([]);
   });
 
   it('keeps showing a field that is already filled in, whatever the rules say now', () => {

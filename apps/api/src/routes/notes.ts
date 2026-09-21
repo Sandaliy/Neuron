@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { Hono } from 'hono';
 
 import {
+  restartLearningSchema,
   bulkDeleteSchema,
   bulkMoveSchema,
   bulkStatusSchema,
@@ -143,6 +144,19 @@ export function noteRoutes(): Hono<RequestBindings> {
    * spinner. Each of these is capped, because an unbounded batch is a way to
    * hold a transaction open for as long as somebody likes.
    */
+  routes.post('/:id/study-again', async (context) => {
+    const { id } = readParams(context, idParamSchema);
+    const body = await readBody(context, restartLearningSchema);
+    const repo = repositoriesOf(context);
+    const note = await repo.notes.byId(id);
+    if (!note) throw new ApiError('not_found');
+    await repo.reviews.restartDeck(note.deckId, body.id, id);
+    return context.json({
+      note: serialiseNote((await repo.notes.byId(id))!, await repo.noteTypes.namesById()),
+      cards: (await repo.cards.forNote(id)).map(serialiseCard),
+    });
+  });
+
   routes.post('/status', async (context) => {
     const body = await readBody(context, bulkStatusSchema);
     const changed = await repositoriesOf(context).notes.setStatusMany(body.ids, body.status);

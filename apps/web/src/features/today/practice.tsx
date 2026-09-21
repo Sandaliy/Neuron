@@ -18,10 +18,11 @@ import { findDeck, useDeckTree } from '../../lib/decks';
 import { practiceStore } from '../../lib/practice';
 import { Button } from '../../ui/button';
 import { Checkbox } from '../../ui/checkbox';
+import { CompletionProgress } from '../../ui/completion-progress';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 import { LearningCard } from '../../ui/learning-card';
-import { Progress } from '../../ui/progress';
-import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
+import { ModeHeader } from '../../ui/mode-header';
+import { ErrorState, SkeletonRows } from '../../ui/states';
 
 /** Session completion chooses a deck; every entry resumes the same durable run. */
 export function Practice({
@@ -135,15 +136,18 @@ function PersistentPractice({
       data-screen=""
       className="flex min-h-[calc(100dvh-var(--bar-height)-var(--safe-top)-var(--safe-bottom)-52px)] flex-col gap-16"
     >
-      <div className="flex items-center justify-between gap-12">
-        <Button variant="quiet" onClick={onFinish}>
-          {t('study.finish')}
-        </Button>
-        <h1 className="text-14 text-secondary">{t('practice.title')}</h1>
-        <span role="status" className="text-12 text-secondary">
-          {t(state.saving ? 'practice.saving' : 'practice.saved')}
-        </span>
-      </div>
+      <ModeHeader
+        title={t('practice.title')}
+        exitLabel={t('practice.exit')}
+        onExit={onFinish}
+        value={known}
+        max={statuses.length}
+        action={
+          <span role="status" className="text-12 text-secondary">
+            {t(state.saving ? 'practice.saving' : 'practice.saved')}
+          </span>
+        }
+      />
       {state.error ? (
         <ErrorState
           message={t(describe(state.error).key)}
@@ -189,15 +193,6 @@ function PersistentPractice({
         </>
       ) : (
         <>
-          <div className="flex justify-between text-13 text-secondary" aria-live="polite">
-            <span>
-              {t('practice.learning')} {statuses.length - known}
-            </span>
-            <span>
-              {t('practice.know')} {known}
-            </span>
-          </div>
-          <Progress value={known} max={statuses.length} label={t('practice.title')} />
           {current ? (
             <>
               <LearningCard
@@ -234,10 +229,19 @@ function PersistentPractice({
             </>
           ) : (
             <>
-              <EmptyState
-                description=""
-                title={t(learning ? 'practice.roundComplete' : 'practice.cleared')}
-              />
+              <div className="neu-reveal my-auto flex flex-col items-center gap-16 py-32 text-center">
+                <CompletionProgress
+                  value={known}
+                  max={statuses.length}
+                  label={t('practice.know')}
+                />
+                <h2 className="text-24">
+                  {t(learning ? 'practice.roundComplete' : 'practice.cleared')}
+                </h2>
+                <p className="text-14 text-secondary">
+                  {t('practice.completionCounts', { known, learning: statuses.length - known })}
+                </p>
+              </div>
               {learning > 0 ? (
                 <Button
                   variant="primary"
@@ -248,6 +252,7 @@ function PersistentPractice({
                 </Button>
               ) : (
                 <Button
+                  variant="text"
                   disabled={!!state.error}
                   onClick={() => store.act({ kind: 'start', front: run.front, back: run.back })}
                 >
@@ -256,17 +261,24 @@ function PersistentPractice({
               )}
             </>
           )}
-          <Button
-            className="self-start"
-            variant="text"
-            onClick={() => {
-              setFront(run.front);
-              setBack(run.back);
-              setConfiguring(true);
-            }}
-          >
-            {t('practice.changeFields')}
-          </Button>
+          {!current && (
+            <Button variant={learning ? 'quiet' : 'primary'} onClick={onFinish}>
+              {t('study.finish')}
+            </Button>
+          )}
+          {current && (
+            <Button
+              className="self-start"
+              variant="text"
+              onClick={() => {
+                setFront(run.front);
+                setBack(run.back);
+                setConfiguring(true);
+              }}
+            >
+              {t('practice.changeFields')}
+            </Button>
+          )}
         </>
       )}
     </section>

@@ -26,7 +26,7 @@ export function SwipeDelete({
   readonly disabled: boolean;
   readonly open: boolean;
   readonly onOpen: (open: boolean) => void;
-  readonly onDelete: () => void;
+  readonly onDelete: () => void | Promise<void>;
 }) {
   const gesture = useRef<{
     x: number;
@@ -37,6 +37,7 @@ export function SwipeDelete({
   } | null>(null);
   const suppress = useRef(false);
   const [offset, setOffset] = useState<number | null>(null);
+  const [committing, setCommitting] = useState(false);
   const [armed, setArmed] = useState(false);
   const x = disabled ? 0 : (offset ?? (open ? -64 : 0));
   return (
@@ -47,6 +48,7 @@ export function SwipeDelete({
       onPointerDown={(event) => {
         if (
           disabled ||
+          committing ||
           (event.pointerType === 'mouse' && event.button !== 0) ||
           (event.target as HTMLElement).closest('[data-swipe-action]')
         )
@@ -70,6 +72,8 @@ export function SwipeDelete({
         if (!g.horizontal) {
           if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
             gesture.current = null;
+            setOffset(null);
+            setArmed(false);
             return;
           }
           if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
@@ -96,9 +100,46 @@ export function SwipeDelete({
         }
         const commit = -g.offset >= commitDistance(event.currentTarget.clientWidth);
         if (commit) {
-          // Keep the committed surface in place until the optimistic row removal.
+          // The virtual row can unmount immediately. Keep only its departing
+          // surface above the list until the leftward animation finishes.
+          const surface = event.currentTarget.lastElementChild as HTMLElement;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          const ghost = surface.cloneNode(true) as HTMLElement;
+          ghost.setAttribute('aria-hidden', 'true');
+          ghost.inert = true;
+          Object.assign(ghost.style, {
+            position: 'fixed',
+            left: `${bounds.left}px`,
+            top: `${bounds.top}px`,
+            width: `${bounds.width}px`,
+            height: `${bounds.height}px`,
+            pointerEvents: 'none',
+            zIndex: '50',
+            margin: '0',
+            transition: 'none',
+          });
+          document.body.append(ghost);
+          const style = getComputedStyle(surface);
+          const reduced =
+            document.documentElement.dataset['motion'] === 'reduce' ||
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          const duration = reduced ? 0 : parseFloat(style.getPropertyValue('--dur-2'));
+          const animation = ghost.animate(
+            [
+              { transform: `translateX(${g.offset}px)` },
+              { transform: `translateX(${-bounds.width}px)`, opacity: 0 },
+            ],
+            { duration, easing: 'ease-out', fill: 'forwards' },
+          );
+          void animation.finished.finally(() => ghost.remove());
+          setCommitting(true);
           setOffset(-event.currentTarget.clientWidth);
-          onDelete();
+          void Promise.resolve(onDelete()).finally(() => {
+            // A fast failure may restore the row before React unmounts it.
+            setCommitting(false);
+            setOffset(null);
+            setArmed(false);
+          });
         } else {
           onOpen(g.offset < -32);
           setOffset(null);
@@ -128,7 +169,7 @@ export function SwipeDelete({
         className="flex h-52 bg-base transition-transform dur-reveal"
         style={{
           transform: `translateX(${x}px)`,
-          transition: offset !== null ? 'none' : undefined,
+          transition: offset !== null && !committing ? 'none' : undefined,
         }}
       >
         {children}

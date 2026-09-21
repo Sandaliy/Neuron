@@ -731,3 +731,9 @@ temporary selection does not alter them. New candidates merge stable Deck stream
 introductions plus their position in each stream. This prevents trivial large-Deck starvation, including
 successive short sessions, while allowing any Deck to use spare capacity. Due/overdue review priority,
 related-Note separation, automatic workload admission, and the whole-card time boundary still apply.
+
+Note Study again uses the same immutable reset stream as Deck Restart learning. The Note becomes
+active; eligible live unsuspended cards restart with IDs and history intact. Operation receipts include
+Note scope and protect retries, including zero-card operations. Learning and relearning steps wait for
+their exact due instant on both session admission and retry; reviewed cards retain study-day admission.
+FSRS weights and `[1, 10]` / `[10]` steps are unchanged.

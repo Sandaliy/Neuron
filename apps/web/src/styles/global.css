@@ -587,7 +587,7 @@
    */
   [data-slot='switch-knob'] {
     box-shadow: var(--knob-shadow);
-    transition: transform var(--dur-2) var(--ease-spring);
+    transition: transform var(--dur-2) var(--ease-inout);
   }
 
   /*
@@ -624,7 +624,7 @@
      * long, and the spring is what makes the arrival read as a settle rather
      * than a stop.
      */
-    transition: transform var(--dur-3) var(--ease-spring);
+    transition: transform var(--dur-3) var(--ease-inout);
     z-index: 0;
   }
 
@@ -724,7 +724,7 @@
     background: var(--surface-selected);
     box-shadow: var(--elev-1);
     transform: translate3d(calc(var(--seg-index) * 100%), 0, 0);
-    transition: transform var(--dur-3) var(--ease-spring);
+    transition: transform var(--dur-3) var(--ease-inout);
     z-index: 0;
   }
 
@@ -974,7 +974,7 @@
 @keyframes neu-reveal {
   from {
     opacity: 0;
-    transform: translate3d(0, 10px, 0) scale(0.99);
+    transform: translate3d(0, 6px, 0);
   }
   to {
     opacity: 1;
@@ -1202,26 +1202,6 @@
  * separate things, and sixty milliseconds of it says that as well as a hundred.
  */
 @layer components {
-  [data-screen] > * {
-    animation: neu-rise var(--dur-3) var(--ease-enter) backwards;
-  }
-
-  [data-screen] > *:nth-child(1) {
-    animation-delay: 0ms;
-  }
-
-  [data-screen] > *:nth-child(2) {
-    animation-delay: 22ms;
-  }
-
-  [data-screen] > *:nth-child(3) {
-    animation-delay: 44ms;
-  }
-
-  [data-screen] > *:nth-child(n + 4) {
-    animation-delay: 62ms;
-  }
-
   /* Editing can begin as soon as fields appear; never move their ancestors. */
   [data-editor] > * {
     animation-name: none;

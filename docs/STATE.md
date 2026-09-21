@@ -4,47 +4,50 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-20, Phase 7 persistent learning and composition release.
+Last updated: 2026-09-21, Phase 7 iPhone acceptance repair slice.
 
 ## Current release slice
 
-The `work/phase7-product-polish` worktree continues the merged PR #22 checkpoint. English-only
-presentation preserves stored locale data. Today emphasizes real ready/time/review/new information
-and reveals planning controls through Adjust. Daily Study and Practice share a dominant reading card
-and thin progress treatment; Library drag retains exact placement with a full-row lift and quiet targets.
+The `work/iphone-acceptance` branch starts from merged PR #23 (`f294210`). It repairs the
+reported phone flows while retaining persistent Practice, temporary Study scope, immutable review
+history and the existing scheduler configuration.
 
-Deck settings now control default Daily Study participation (missing means included). Today can choose
-an exact temporary subset, including paused Decks, before server planning. Counts, estimates, admission,
-Waiting in and actual cards share that scope. No decks selected is distinct from caught up. Deterministic
-new-material composition prevents a large Deck from starving other selected Decks.
+Vocab Grammar remains discoverable when a Deck has no language. Its inline language setting updates
+applicable German/English fields immediately without replacing the editor or losing draft/focus.
+Today distinguishes My study decks from the temporary session selection. Available cards and future
+learning steps share one eligibility rule: learning/relearning waits for its exact timestamp, while
+review cards retain the established study-day cutoff. Completion immediately projects the next time
+with the same deterministic scheduler, then reconciles the confirmed response. Next-review displays
+include local day/time and a compact relative duration.
 
-Migration 0015 adds persistent per-Deck Practice runs and immutable Restart learning receipts/events.
-Restart preserves IDs/history and excludes Known/excluded Notes, suspended/deleted cards and Practice.
-Practice persists rounds/completion independently of FSRS and reconciles live membership. Import waits
-for destination prefetch; affected lists show empty copy only after a successful settled request.
+Note Study it again records an idempotent scoped reset, activates Known Notes, preserves card IDs and
+history, and leaves Practice untouched. Migration 0016 adds the optional Note scope to restart receipts.
+Ready and In review are derived editor labels, not new persisted statuses. Deck restart remains in
+Settings with an explicit confirmation explaining its active eligible Note scope.
 
-Focused fresh-schema verification: 39 core/shared/API/database tests passed, including restart/replay,
-Practice, scoped planning, unchanged schedules/history, and Deck fairness. Chromium/WebKit phone
-interaction checks preserve Undo, Practice reload, scope, rapid delete/restore, and touch drag. Broader
-release verification and protected PR checks are recorded in the delivery report. Physical iPhone
-acceptance of this slice remains outstanding; browser evidence is not a substitute.
+Study and Practice share centered mode headers, thin progress and stable reveal geometry. Practice has
+a full-width entry/resume control and a dedicated completion treatment. Library uses tighter phone
+nesting, clearer Folder/Deck shapes, quiet insertion bands and small sibling repositioning motion.
+Swipe deletion continues left while the list updates; failed deletion resets the row even when WebKit
+batches removal and rollback into one render. Reduced motion retains the same interactions.
 
-Final local release verification covers 960 passing unit/API/core/shared tests across the resumed
-run, 58 reviewed visual checks, the repaired browser interactions, and 31 Chromium/WebKit phone
-checks (one platform-specific skip). Typecheck, lint, build, formatting, migration schema checks,
-behind-schema/restricted-role migration safety and owner-free Preview verification pass. Default
-scroll performance measured 58.7 fps against the unchanged 55 fps budget. One fresh-install journal
-test remains locally blocked by Windows `EPERM` when renaming `packages/shared/dist`, including an
-isolated retry; the protected Linux migration job must establish that remaining evidence.
+Verification includes the normal unit gate (the Russian copy-style failure was fixed and its suite
+retested), targeted real-database restart/replay/Practice/scoped-planning checks, typecheck, lint,
+build and migration schema checks. The broad browser gate's four failures were resolved and the
+focused follow-up passed 50 checks; its additional WebKit rollback failure was fixed and passed nine
+repeated gesture checks. Note reset retry/draft checks pass on phone and desktop. The 16 changed visual
+baselines were inspected individually; all 10 affected visual tests pass and the rest of the earlier
+visual gate passed. Default scroll performance remains above the unchanged 55 fps budget: 56.5 fps
+for 5,000 Notes and 58.7 fps for 500 Library rows. Opt-in glass on every row measured 50.5 fps and is
+not the default budget target.
+
+Behind-schema fail-closed behavior, owner migration and restricted-role verification pass. The
+fresh-install journal test remains locally blocked by Windows `EPERM` renaming `packages/shared/dist`;
+the protected Linux migration job must establish that evidence. Protected PR checks and actual
+physical-iPhone touch/keyboard acceptance remain outstanding. Browser emulation is not device acceptance.
 
 Advanced drills, typed expansion, listening/speech, Phase 8 offline sync, Phase 9 waves/triage and
 progressive directions, and Phase 10 analytics remain deferred.
-
-The same release includes collapsible vocab Grammar, stable boolean controls, structured English
-principal parts/countability, German complement patterns and preposition POS, preserved legacy grammar,
-and populated grammar combinations in persistent Practice. Local panels open immediately; Today and
-Practice retain known content during background refresh. Reveal/advance uses existing short motion.
-Scheduled grammar drills and the response-mode follow-up remain explicitly deferred in ROADMAP.
 
 ## Now
 

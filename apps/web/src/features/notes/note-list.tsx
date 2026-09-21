@@ -24,6 +24,7 @@ import { CollectionPath } from '../library/collection-path';
 import { DeckPractice } from '../today/practice';
 
 import { NoteSelectionBar } from './note-selection';
+import { PracticeEntry } from './practice-entry';
 import { RestartLearning } from './restart-learning';
 
 import type { NoteQuery } from '../../lib/notes';
@@ -184,11 +185,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       >
         <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
       </CollectionHeader>
-      {deckId && (
-        <Button variant="quiet" className="self-start" onClick={() => setPracticing(true)}>
-          {t('practice.title')}
-        </Button>
-      )}
+      {deckId && <PracticeEntry deckId={deckId} onOpen={() => setPracticing(true)} />}
 
       {(rows.length > 0 || filtered || typed !== '') && !selecting ? (
         <div className="flex flex-col gap-12">
@@ -408,7 +405,7 @@ function VirtualNotes({
   readonly selected: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
   readonly onOpen: (id: string) => void;
-  readonly onRemove: (id: string) => void;
+  readonly onRemove: (id: string) => Promise<void>;
   readonly layoutKey: string;
   readonly hasMore: boolean;
   readonly onNeedMore: () => void;
@@ -501,7 +498,7 @@ const NoteRow = memo(function NoteRow({
   readonly selected: boolean;
   readonly onToggle: (id: string) => void;
   readonly onOpen: (id: string) => void;
-  readonly onRemove: (id: string) => void;
+  readonly onRemove: (id: string) => Promise<void>;
   readonly revealed: boolean;
   readonly onReveal: (id: string | null) => void;
 }) {
@@ -520,7 +517,7 @@ const NoteRow = memo(function NoteRow({
       onOpen={(open) => onReveal(open ? note.id : null)}
       onDelete={() => {
         onReveal(null);
-        onRemove(note.id);
+        return onRemove(note.id);
       }}
     >
       <DenseRow
@@ -550,11 +547,12 @@ const NoteRow = memo(function NoteRow({
           </>
         }
       />
-      {!selecting && !revealed && (
+      {!selecting && (
         <button
           type="button"
           aria-label={t('note.delete')}
           data-direct-delete=""
+          style={{ visibility: revealed ? 'hidden' : undefined }}
           title={t('note.delete')}
           className="flex size-44 shrink-0 items-center justify-center self-center rounded-12 text-tertiary hover:text-error active:bg-fill-error-quiet active:scale-95"
           onClick={() => {

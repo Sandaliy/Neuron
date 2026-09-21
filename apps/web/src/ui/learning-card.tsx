@@ -17,8 +17,8 @@ export function LearningCard({
   return (
     <Card className="flex min-h-[320px] flex-1 flex-col gap-24 break-words">
       <div className="text-12 text-secondary">{context}</div>
-      <div key={identity} className="neu-reveal flex flex-1 flex-col justify-center gap-24 py-24">
-        <div className="font-display text-32 leading-body tracking-tight text-primary">
+      <div key={identity} className="neu-reveal flex flex-1 flex-col gap-24 py-24">
+        <div className="flex min-h-[120px] flex-col justify-center font-display text-32 leading-body tracking-tight text-primary">
           {prompt}
         </div>
         {answer && (
