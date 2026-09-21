@@ -121,6 +121,7 @@ export const grammarSchema = z
 
 const vocabFieldsSchema = z.strictObject({
   term: required,
+  acceptedAnswers: z.array(required.max(200)).max(20).optional(),
   reading: optional,
   translation: required,
   definition: optional,
@@ -271,9 +272,8 @@ export function clozeGaps(text: string): ClozeGap[] {
 /**
  * The cards each type can produce.
  *
- * `requires` is what makes a template conditional: a listening card is only
- * possible once the note has audio, so a vocab note without it produces four
- * templates and three cards. Which of these are actually created is a deck
+ * Listening uses the target-language term through browser speech synthesis.
+ * A recorded audio field is optional. Which of these are actually created is a deck
  * setting, and the ladder that opens them one at a time is the scheduler's
  * business, not this file's.
  */
@@ -282,7 +282,7 @@ export const NOTE_TYPE_TEMPLATES: Record<NoteTypeName, readonly CardTemplate[]> 
     { direction: 'recognition', ask: ['term'], answer: ['translation'], requires: [] },
     { direction: 'recall', ask: ['translation'], answer: ['term'], requires: [] },
     { direction: 'production', ask: ['translation'], answer: ['term'], requires: [] },
-    { direction: 'listening', ask: ['audio'], answer: ['term'], requires: ['audio'] },
+    { direction: 'listening', ask: ['term'], answer: ['term'], requires: ['term'] },
   ],
   basic: [
     { direction: 'recognition', ask: ['front'], answer: ['back'], requires: [] },

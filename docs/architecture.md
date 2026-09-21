@@ -651,3 +651,52 @@ Learning/relearning steps become available at their actual instant; reviews reta
 The shared availability predicate drives session assembly and API availability counts. Study advances
 locally and computes its immediate due result using the server's deterministic review seed. Confirmed
 answers replace that projection and reconcile cached plans; broad collection refresh is deferred.
+
+## Immediate interaction and server confirmation
+
+Signed-in interactions publish knowable local state before waiting for transport. The network is not
+an animation trigger or a prerequisite for typing, reveal, progress, or an optimistic participation
+change. `entity-writes.ts` serializes overlapping entity writes within one query client; unrelated Notes
+can save independently. This replaces the shared Note-wide mutation scope that made unrelated writes
+wait behind each other.
+
+`note-projection.ts` updates loaded detail records, every loaded browse page, and affected ancestor
+counts from complete cached cards. Status, Study again, move and tag actions use the same inverse-patch
+contract. A rollback restores only its changed fields and entities, preserving unrelated edits. Reset
+projections preserve card IDs and suspended cards; the server still records and verifies immutable reset
+and review events. Late autosave responses retain pending participation/reset intent. Server card
+responses also reconcile browse card-stage summaries. Deck name/settings edits use `deck-projection.ts`
+with field-scoped rollback, rather than replacing the whole cached tree.
+
+Cancel obsolete reads before projection, pass AbortSignal through queries, and keep stale content visible
+while reconciling. Small field writes must not await list/tree refetches or erase the visible screen.
+Names, tags, and settings reconcile in place. Structural hierarchy and incomplete aggregate data still
+require a best-effort server refresh; do not fabricate counts from an incomplete page. Workload-backed
+Study admission remains server-owned: projected counts are feedback, and starting a new plan waits for
+pending participation writes and fresh plan confirmation. Neither a rejected refresh nor a delayed one
+turns an acknowledged write into a failed write.
+
+Verification must hold requests unresolved and assert visible changes before releasing them, then test
+failure/rollback and authoritative reconciliation. Include multiple pages, unrelated concurrent writes,
+phone keyboard interaction and reduced motion. This is an online responsiveness contract, not an offline
+queue or Phase 8 synchronization.
+
+### Rich scheduled directions
+
+Production uses the existing vocabulary term as its deterministic answer. Optional `acceptedAnswers`
+contains explicit complete alternatives, edited one per line; punctuation within the term is not an
+implicit alternatives syntax. Local feedback uses NFC, trimmed/collapsed whitespace and casing, with
+Turkish/Azerbaijani dotted-I rules. Accents, umlauts, sharp s and meaningful spelling differences are
+preserved. One edit or adjacent transposition on words of at least four characters can be close, never
+correct. Feedback never chooses a rating: the learner explicitly selects Again, Hard, Good or Easy.
+
+Listening uses the term and the Deck/account target language through browser speech synthesis.
+Recordings are optional. Playback starts on a user gesture, follows late voice availability, supports
+replay and cancels when the card leaves. Missing/unusable voices leave Show answer available. There is
+no speech recognition. Vocabulary directions can be enabled explicitly using the existing manual card
+endpoint; no existing card is replaced and no progressive unlocking rule is introduced. Practice remains
+the independent schedule-free mode.
+
+`studyAvailableAt` supplies the same eligibility boundary used by Study admission: learning steps use
+the precise due instant, review cards use the start of their study day. Session and per-Deck future
+availability display this boundary in local date/time, including after confirmed reviews.

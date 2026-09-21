@@ -14,6 +14,8 @@ import type {
 
 import { request } from './api';
 import { DECK_TREE_KEY, flatten } from './decks';
+import { writeEntities } from './entity-writes';
+import { projectNotes } from './note-projection';
 import { DELETED_NOTES_KEY } from './recovery';
 
 import type { InfiniteData } from '@tanstack/react-query';
@@ -85,11 +87,56 @@ export function useNoteActions() {
   function accept(written: { note: Note; cards: Card[] }, created = false) {
     const pendingStatus = client
       .getMutationCache()
-      .findAll({ mutationKey: ['note-status'], status: 'pending' })
+      .findAll({ mutationKey: ['note-interaction', 'status'], status: 'pending' })
       .map((mutation) => mutation.state.variables as { ids: readonly string[]; status: NoteStatus })
-      .find((input) => input.ids.includes(written.note.id));
+      .filter((input) => input.ids.includes(written.note.id))
+      .at(-1);
     if (pendingStatus)
       written = { ...written, note: { ...written.note, status: pendingStatus.status } };
+    const resetting = client
+      .getMutationCache()
+      .findAll({ mutationKey: ['note-interaction', 'restart'], status: 'pending' })
+      .some(
+        (mutation) => (mutation.state.variables as { noteId: string }).noteId === written.note.id,
+      );
+    if (resetting)
+      written = {
+        note: { ...written.note, status: 'active' },
+        cards: written.cards.map(resetCard),
+      };
+    for (const mutation of client
+      .getMutationCache()
+      .findAll({ mutationKey: ['note-interaction'], status: 'pending' })) {
+      const input = mutation.state.variables as {
+        ids?: readonly string[];
+        deckId?: string;
+        add?: readonly string[];
+        remove?: readonly string[];
+      };
+      if (!input.ids?.includes(written.note.id)) continue;
+      if (mutation.options.mutationKey?.[1] === 'move' && input.deckId) {
+        written = {
+          note: { ...written.note, deckId: input.deckId },
+          cards: written.cards.map((card) => ({ ...card, deckId: input.deckId! })),
+        };
+      }
+      if (mutation.options.mutationKey?.[1] === 'tag')
+        written = {
+          ...written,
+          note: {
+            ...written.note,
+            tags: [
+              ...new Set([
+                ...written.note.tags.filter((tag) => !input.remove?.includes(tag)),
+                ...(input.add ?? []),
+              ]),
+            ],
+          },
+        };
+    }
+    const cardStates = { new: 0, learning: 0, review: 0, relearning: 0 };
+    for (const card of written.cards) cardStates[card.state]++;
+    written = { ...written, note: { ...written.note, cardStates } };
     client.setQueryData([NOTE_KEY, written.note.id], written);
     for (const [key, data] of client.getQueriesData<NotePages>({ queryKey: [NOTE_KEY, 'list'] })) {
       if (!data) continue;
@@ -137,13 +184,13 @@ export function useNoteActions() {
     ]).catch(() => undefined);
   };
 
-  /** Refreshes browse rows after a confirmed bulk write, without touching an open editor. */
-  const refreshLists = () => {
-    void Promise.all([
-      client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'] }),
-      client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' }),
-      client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' }),
-    ]).catch(() => undefined);
+  const reconcileInteraction = () => {
+    markCollectionStale();
+    // Only planning requires fresh server policy. Keep visible projections in place.
+    if (client.isMutating({ mutationKey: ['note-interaction'] }) === 1) {
+      void client.invalidateQueries({ queryKey: ['study-plan'] });
+      void client.invalidateQueries({ queryKey: DECK_TREE_KEY });
+    }
   };
 
   const create = useMutation({
@@ -153,7 +200,6 @@ export function useNoteActions() {
   });
 
   const update = useMutation({
-    scope: { id: 'note-writes' },
     onMutate: async ({ id }) => {
       await Promise.all([
         client.cancelQueries({ queryKey: [NOTE_KEY, id], exact: true }),
@@ -171,7 +217,9 @@ export function useNoteActions() {
     }) => {
       const { id, ...body } = input;
 
-      return request<{ note: Note; cards: Card[] }>(`/notes/${id}`, { method: 'PATCH', body });
+      return writeEntities(client, [id], () =>
+        request<{ note: Note; cards: Card[] }>(`/notes/${id}`, { method: 'PATCH', body }),
+      );
     },
     onSuccess: (written) => accept(written),
   });
@@ -306,13 +354,49 @@ export function useNoteActions() {
     onSettled: reconcileRecovery,
   });
 
+  const enableDirection = useMutation({
+    mutationKey: ['note-interaction', 'direction'],
+    mutationFn: (input: { noteId: string; direction: 'production' | 'listening' }) =>
+      writeEntities(client, [input.noteId], () =>
+        request<{ card: Card }>(`/notes/${input.noteId}/cards`, {
+          method: 'POST',
+          body: { direction: input.direction },
+        }),
+      ),
+    onError: (_error, input) => {
+      // A lost response may still have created the server-owned Card identity.
+      void client.invalidateQueries({ queryKey: [NOTE_KEY, input.noteId], exact: true });
+    },
+    onSuccess: ({ card }, input) => {
+      const detail = client.getQueryData<{ note: Note; cards: Card[] }>([NOTE_KEY, input.noteId]);
+      if (detail)
+        accept({
+          note: detail.note,
+          cards: [...detail.cards.filter((item) => item.id !== card.id), card],
+        });
+    },
+    onSettled: reconcileInteraction,
+  });
+
   const studyAgain = useMutation({
-    scope: { id: 'note-writes' },
+    mutationKey: ['note-interaction', 'restart'],
+    onMutate: ({ noteId }: { noteId: string; id: string }) => ({
+      rollback: projectNotes(
+        client,
+        [noteId],
+        (note) => ({ ...note, status: 'active' }),
+        (cards) => cards.map(resetCard),
+      ),
+    }),
+    onError: (_error, _input, context) => context?.rollback(),
+    onSettled: reconcileInteraction,
     mutationFn: (input: { noteId: string; id: string }) =>
-      request<{ note: Note; cards: Card[] }>(`/notes/${input.noteId}/study-again`, {
-        method: 'POST',
-        body: { id: input.id },
-      }),
+      writeEntities(client, [input.noteId], () =>
+        request<{ note: Note; cards: Card[] }>(`/notes/${input.noteId}/study-again`, {
+          method: 'POST',
+          body: { id: input.id },
+        }),
+      ),
     onSuccess: (written) => {
       accept(written);
       markCollectionStale();
@@ -320,77 +404,64 @@ export function useNoteActions() {
   });
 
   const setStatus = useMutation({
-    mutationKey: ['note-status'],
-    scope: { id: 'note-writes' },
+    mutationKey: ['note-interaction', 'status'],
     mutationFn: (input: { readonly ids: readonly string[]; readonly status: NoteStatus }) =>
-      request<{ changed: number }>('/notes/status', { method: 'POST', body: input }),
-    onMutate: async ({ ids, status }) => {
-      await client.cancelQueries({ queryKey: [NOTE_KEY] });
-      const previous = client.getQueriesData<NotePages>({ queryKey: [NOTE_KEY, 'list'] });
-      const details = ids.map(
-        (id) => [id, client.getQueryData<{ note: Note; cards: Card[] }>([NOTE_KEY, id])] as const,
-      );
-      const selected = new Set(ids);
-      client.setQueriesData<NotePages>(
-        { queryKey: [NOTE_KEY, 'list'] },
-        (data) =>
-          data && {
-            ...data,
-            pages: data.pages.map((page) => ({
-              ...page,
-              items: page.items.map((note) => (selected.has(note.id) ? { ...note, status } : note)),
-            })),
-          },
-      );
-      for (const [id, data] of details)
-        if (data) client.setQueryData([NOTE_KEY, id], { ...data, note: { ...data.note, status } });
-      return { previous, details };
-    },
-    onError: (_error, _input, context) => {
-      const selected = new Set(_input.ids);
-      for (const [key, data] of context?.previous ?? []) {
-        const oldStatus = new Map(
-          data?.pages.flatMap((page) => page.items.map((note) => [note.id, note.status] as const)),
-        );
-        client.setQueryData<NotePages>(
-          key,
-          (current) =>
-            current && {
-              ...current,
-              pages: current.pages.map((page) => ({
-                ...page,
-                items: page.items.map((note) => {
-                  const status = oldStatus.get(note.id);
-                  return selected.has(note.id) && status ? { ...note, status } : note;
-                }),
-              })),
-            },
-        );
-      }
-      for (const [id, data] of context?.details ?? [])
-        if (data) {
-          client.setQueryData<{ note: Note; cards: Card[] }>(
-            [NOTE_KEY, id],
-            (current) =>
-              current && { ...current, note: { ...current.note, status: data.note.status } },
-          );
-        }
-    },
-    onSettled: refreshLists,
+      writeEntities(client, input.ids, () =>
+        request<{ changed: number }>('/notes/status', { method: 'POST', body: input }),
+      ),
+    onMutate: ({ ids, status }) => ({
+      rollback: projectNotes(client, ids, (note) => ({ ...note, status })),
+    }),
+    onError: (_error, _input, context) => context?.rollback(),
+    onSettled: reconcileInteraction,
   });
 
   const move = useMutation({
+    mutationKey: ['note-interaction', 'move'],
+    onMutate: (input: { readonly ids: readonly string[]; readonly deckId: string }) => ({
+      rollback: projectNotes(
+        client,
+        input.ids,
+        (note) => ({ ...note, deckId: input.deckId }),
+        (cards) => cards.map((card) => ({ ...card, deckId: input.deckId })),
+      ),
+    }),
+    onError: (_error, _input, context) => context?.rollback(),
+    onSettled: reconcileInteraction,
     mutationFn: (input: { readonly ids: readonly string[]; readonly deckId: string }) =>
-      request<{ changed: number }>('/notes/move', { method: 'POST', body: input }),
+      writeEntities(client, input.ids, () =>
+        request<{ changed: number }>('/notes/move', { method: 'POST', body: input }),
+      ),
     onSuccess: markCollectionStale,
   });
 
   const tag = useMutation({
+    mutationKey: ['note-interaction', 'tag'],
+    onMutate: (input: {
+      readonly ids: readonly string[];
+      readonly add?: readonly string[];
+      readonly remove?: readonly string[];
+    }) => ({
+      rollback: projectNotes(client, input.ids, (note) => ({
+        ...note,
+        tags: [
+          ...new Set([
+            ...note.tags.filter((tag) => !input.remove?.includes(tag)),
+            ...(input.add ?? []),
+          ]),
+        ],
+      })),
+    }),
+    onError: (_error, _input, context) => context?.rollback(),
+    onSettled: markCollectionStale,
     mutationFn: (input: {
       readonly ids: readonly string[];
       readonly add?: readonly string[];
       readonly remove?: readonly string[];
-    }) => request<{ changed: number }>('/notes/tags', { method: 'POST', body: input }),
+    }) =>
+      writeEntities(client, input.ids, () =>
+        request<{ changed: number }>('/notes/tags', { method: 'POST', body: input }),
+      ),
     onSuccess: markCollectionStale,
   });
 
@@ -400,7 +471,18 @@ export function useNoteActions() {
     onSuccess: markCollectionStale,
   });
 
-  return { create, update, remove, restore, setStatus, studyAgain, move, tag, removeMany };
+  return {
+    create,
+    update,
+    remove,
+    restore,
+    setStatus,
+    studyAgain,
+    enableDirection,
+    move,
+    tag,
+    removeMany,
+  };
 }
 
 /**
@@ -433,4 +515,19 @@ export async function findDuplicates(
   }
 
   return found;
+}
+
+function resetCard(card: Card): Card {
+  return card.suspendedAt
+    ? card
+    : {
+        ...card,
+        state: 'new',
+        stability: null,
+        difficulty: null,
+        lastReview: null,
+        reps: 0,
+        lapses: 0,
+        learningStep: 0,
+      };
 }

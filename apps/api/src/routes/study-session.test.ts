@@ -70,6 +70,29 @@ describe.skipIf(!database)('POST /study/session', () => {
     expect(after.currentRev).toBe(before.currentRev);
   });
 
+  it.each(['production', 'listening'] as const)(
+    'plans existing %s cards without changing identity or schedule',
+    async (direction) => {
+      const deck = await repositories.decks.create({ name: direction });
+      const note = await repositories.notes.create({
+        deckId: deck.id,
+        noteType: 'vocab',
+        fields: { term: 'Sorgfalt', translation: 'care' },
+      });
+      const card = await repositories.cards.create({
+        noteId: note.id,
+        direction,
+        due: new Date('2026-01-01T00:00:00Z'),
+      });
+      const before = await repositories.account.read();
+      const result = await build({ deckId: deck.id, direction, newCards: 'override' });
+      expect(result.cards.map((item) => item.id)).toEqual([card.id]);
+      expect(result.notes[0]?.id).toBe(note.id);
+      expect((await repositories.account.read()).currentRev).toBe(before.currentRev);
+      expect(await repositories.cards.byId(card.id)).toEqual(card);
+    },
+  );
+
   it('rejects a non-positive explicit session length', async () => {
     await build({ deckId, minutes: 0 }, 400);
   });

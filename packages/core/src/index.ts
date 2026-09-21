@@ -200,5 +200,5 @@ export {
   type SimulationSummary,
 } from './simulation/simulate.js';
 
-export { availableForStudy } from './workload/availability.js';
+export { availableForStudy, studyAvailableAt } from './workload/availability.js';
 export { seedFromReviewId } from './fsrs/review-seed.js';

@@ -454,59 +454,49 @@ function Editor({
       <CollectionPath tree={decks} id={deck} />
 
       {note && !conversion && (
-        <div className="flex min-h-44 flex-wrap items-center justify-between gap-12">
-          <span role="status" className="text-14 text-secondary">
-            {t(
-              note.status === 'known'
-                ? 'note.status.known'
-                : cards.some(
-                      (card) =>
-                        !card.suspendedAt &&
-                        availableForStudy(
-                          { state: card.state, due: new Date(card.due) },
-                          new Date(now),
-                          createSchedulerConfig({
-                            timezone: account.data?.timezone ?? 'UTC',
-                            dayCutoffHour: account.data?.dayCutoffHour ?? 4,
-                          }),
-                        ),
-                    )
-                  ? 'note.ready'
-                  : cards.some((card) => !card.suspendedAt && card.reps > 0)
-                    ? 'note.inReview'
-                    : 'note.status.active',
-            )}
-          </span>
-          <Button
-            aria-pressed={note.status === 'known'}
-            disabled={actions.setStatus.isPending || actions.studyAgain.isPending}
-            aria-busy={actions.setStatus.isPending}
-            onClick={() => {
-              if (actions.setStatus.isPending) return;
-              setStatusError(undefined);
-              if (note.status === 'known') {
-                void actions.studyAgain
-                  .mutateAsync({ noteId: note.id, id: restartId.current })
-                  .then(() => {
-                    restartId.current = uuidV7();
-                  })
-                  .catch(setStatusError);
-                return;
-              }
-              void actions.setStatus
-                .mutateAsync({
-                  ids: [note.id],
-                  status: 'known',
-                })
-                .catch(setStatusError);
-            }}
+        <div
+          className="flex flex-col gap-12 rounded-12 border border-subtle bg-raised p-12"
+          aria-label={t('note.studyStatus')}
+        >
+          <span
+            role="status"
+            className="flex items-center justify-between gap-8 text-14 text-secondary"
           >
-            {note.status === 'known' ? t('note.markActive') : t('note.markKnown')}
-          </Button>
-          {note.status !== 'known' && (
+            <span className="rounded-8 bg-sunken px-12 py-8">
+              {t(`note.status.${note.status}`)}
+            </span>
+            <span
+              key={`${note.status}:${cards.map((card) => card.state).join()}`}
+              className="neu-reveal"
+            >
+              {note.status === 'active' &&
+                t(
+                  note.status !== 'active'
+                    ? `note.status.${note.status}`
+                    : cards.some(
+                          (card) =>
+                            !card.suspendedAt &&
+                            availableForStudy(
+                              { state: card.state, due: new Date(card.due) },
+                              new Date(now),
+                              createSchedulerConfig({
+                                timezone: account.data?.timezone ?? 'UTC',
+                                dayCutoffHour: account.data?.dayCutoffHour ?? 4,
+                              }),
+                            ),
+                        )
+                      ? 'note.ready'
+                      : cards.some((card) => !card.suspendedAt && card.reps > 0)
+                        ? 'note.inReview'
+                        : 'note.status.active',
+                )}
+            </span>
+          </span>
+          <div className="grid grid-cols-2 gap-8">
             <Button
-              variant="text"
-              disabled={actions.studyAgain.isPending}
+              className="px-8"
+              disabled={actions.studyAgain.isPending || actions.setStatus.isPending}
+              aria-busy={actions.studyAgain.isPending}
               onClick={() => {
                 setStatusError(undefined);
                 void actions.studyAgain
@@ -519,8 +509,68 @@ function Editor({
             >
               {t('note.markActive')}
             </Button>
-          )}
+            <Button
+              className="px-8"
+              disabled={
+                note.status === 'known' ||
+                actions.setStatus.isPending ||
+                actions.studyAgain.isPending
+              }
+              aria-busy={actions.setStatus.isPending}
+              onClick={() => {
+                setStatusError(undefined);
+                void actions.setStatus
+                  .mutateAsync({ ids: [note.id], status: 'known' })
+                  .catch(setStatusError);
+              }}
+            >
+              {t('note.markKnown')}
+            </Button>
+          </div>
         </div>
+      )}
+
+      {note?.noteType === 'vocab' && !conversion && (
+        <details className="rounded-12 border border-subtle p-12">
+          <summary className="min-h-44 text-14 text-secondary">{t('study.moreDirections')}</summary>
+          <p className="text-13 text-secondary">{t('study.directionHint')}</p>
+          <div className="flex flex-wrap gap-8">
+            {(['production', 'listening'] as const).map((direction) => (
+              <Button
+                key={direction}
+                disabled={
+                  cards.some((card) => card.direction === direction) ||
+                  actions.enableDirection.isPending
+                }
+                onClick={() => {
+                  setStatusError(undefined);
+                  void actions.enableDirection
+                    .mutateAsync({ noteId: note.id, direction })
+                    .catch(setStatusError);
+                }}
+              >
+                {t(`study.direction.${direction}`)}
+              </Button>
+            ))}
+          </div>
+          <label className="flex flex-col gap-8 text-14 text-secondary">
+            {t('study.acceptedAnswers')}
+            <TextArea
+              defaultValue={
+                Array.isArray(fields['acceptedAnswers']) ? fields['acceptedAnswers'].join('\n') : ''
+              }
+              onBlur={(event) =>
+                edit({
+                  ...fields,
+                  acceptedAnswers: event.target.value
+                    .split('\n')
+                    .map((value) => value.trim())
+                    .filter(Boolean),
+                })
+              }
+            />
+          </label>
+        </details>
       )}
 
       {conversion && (

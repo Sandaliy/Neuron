@@ -363,3 +363,11 @@ hierarchies and note dependencies, and `purge-action.tsx` owns irreversible conf
 - `apps/web/src/ui/review-time.tsx`: local absolute and relative review timing.
 - `apps/web/src/ui/completion-progress.tsx`: restrained Practice completion ring.
 - `apps/web/src/features/notes/practice-entry.tsx`: persistent Deck Practice summary entry.
+
+Rich Study and interaction responsiveness:
+
+- `packages/shared/src/typed-answer.ts`: conservative local production feedback, separate from ratings.
+- `apps/web/src/features/today/listening-prompt.tsx`: target-language speech playback and fallback.
+- `apps/web/src/lib/entity-writes.ts`: per-client serialization of overlapping entity writes.
+- `apps/web/src/lib/note-projection.ts`: shared optimistic Note/page/count patches and inverse rollback.
+- `apps/web/src/lib/deck-projection.ts`: field-local Deck name/settings patches and rollback.

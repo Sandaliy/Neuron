@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 
 import {
   availableForStudy,
+  studyAvailableAt,
   buildSession,
   createBudget,
   createSchedulerConfig,
@@ -107,9 +108,7 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       scheduling: toSchedulingState(row),
     }));
     const supported = cards.filter(
-      (card) =>
-        card.direction !== 'listening' &&
-        (body.direction === undefined || card.direction === body.direction),
+      (card) => body.direction === undefined || card.direction === body.direction,
     );
     const logs = (await repositories.reviews.workload()).filter(
       (log) => log.deckId !== undefined && selected.has(log.deckId),
@@ -148,8 +147,12 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
           fresh: pool.filter((card) => card.scheduling.state === 'new').length,
           nextDue:
             pool
-              .filter((card) => card.scheduling.state !== 'new' && card.scheduling.due > now)
-              .map((card) => card.scheduling.due.toISOString())
+              .filter(
+                (card) =>
+                  card.scheduling.state !== 'new' &&
+                  studyAvailableAt(card.scheduling, scheduler) > now,
+              )
+              .map((card) => studyAvailableAt(card.scheduling, scheduler).toISOString())
               .sort()[0] ?? null,
         };
       }),
@@ -157,8 +160,11 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
         .length,
       nextDue:
         supported
-          .filter((card) => card.scheduling.state !== 'new' && card.scheduling.due > now)
-          .map((card) => card.scheduling.due.toISOString())
+          .filter(
+            (card) =>
+              card.scheduling.state !== 'new' && studyAvailableAt(card.scheduling, scheduler) > now,
+          )
+          .map((card) => studyAvailableAt(card.scheduling, scheduler).toISOString())
           .sort()[0] ?? null,
       notes: notes.map((note) => serialiseNote(note, typeNames)),
       cards: session.cards.flatMap((card) => {
