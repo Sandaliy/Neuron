@@ -670,11 +670,13 @@ with field-scoped rollback, rather than replacing the whole cached tree.
 
 Cancel obsolete reads before projection, pass AbortSignal through queries, and keep stale content visible
 while reconciling. Small field writes must not await list/tree refetches or erase the visible screen.
-Names, tags, and settings reconcile in place. Structural hierarchy and incomplete aggregate data still
-require a best-effort server refresh; do not fabricate counts from an incomplete page. Workload-backed
-Study admission remains server-owned: projected counts are feedback, and starting a new plan waits for
-pending participation writes and fresh plan confirmation. Neither a rejected refresh nor a delayed one
-turns an acknowledged write into a failed write.
+Names, tags, and settings reconcile in place. After the final overlapping interaction settles, active
+relevant queries refresh in the background and replace the projection with authoritative server content;
+the existing cached rows remain visible while they do. Structural hierarchy and incomplete aggregate data
+still require a best-effort server refresh; do not fabricate counts from an incomplete page. Workload-
+backed Study admission remains server-owned: projected counts are feedback, and starting a new plan waits
+for pending participation writes and fresh plan confirmation. Neither a rejected refresh nor a delayed
+one turns an acknowledged write into a failed write.
 
 Verification must hold requests unresolved and assert visible changes before releasing them, then test
 failure/rollback and authoritative reconciliation. Include multiple pages, unrelated concurrent writes,

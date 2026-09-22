@@ -186,8 +186,11 @@ export function useNoteActions() {
 
   const reconcileInteraction = () => {
     markCollectionStale();
-    // Only planning requires fresh server policy. Keep visible projections in place.
+    // Reconcile only after the final overlapping interaction. Active observers
+    // retain their projected rows while this background request gets the
+    // authoritative server representation.
     if (client.isMutating({ mutationKey: ['note-interaction'] }) === 1) {
+      void client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'] });
       void client.invalidateQueries({ queryKey: ['study-plan'] });
       void client.invalidateQueries({ queryKey: DECK_TREE_KEY });
     }
