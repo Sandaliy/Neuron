@@ -113,7 +113,7 @@ jobs:
   browser:
     name: Browser and screenshot tests
     runs-on: windows-2022
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Check out the repository
@@ -167,7 +167,7 @@ jobs:
       - name: Run interaction browser tests
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-interaction
-        run: pnpm --filter @neuron/web test:screens --project=phone-interaction --project=desktop-interaction --output=test-results-interaction
+        run: pnpm --filter @neuron/web test:screens --project=phone-interaction --project=desktop-interaction --workers=1 --output=test-results-interaction
 
       - name: Run visual snapshot tests
         if: ${{ !cancelled() && steps.web-server.outcome == 'success' }}

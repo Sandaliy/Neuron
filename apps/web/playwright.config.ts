@@ -22,7 +22,8 @@ export default defineConfig({
   /*
    * The hosted frame-rate benchmark and the visual snapshot suite are isolated
    * from concurrent work. Keep both on one worker so throttled measurements and
-   * screenshots remain honest; the blocking interaction suite can use two.
+   * screenshots remain honest. The hosted interaction gate also sets one worker
+   * explicitly; ordinary local runs keep the faster two-worker default.
    */
   fullyParallel: false,
   workers:
@@ -32,7 +33,18 @@ export default defineConfig({
       : 2,
   forbidOnly: Boolean(process.env['CI']),
   retries: 0,
-  reporter: process.env['CI'] ? 'line' : [['list']],
+  reporter: process.env['CI']
+    ? [
+        ['line'],
+        [
+          'html',
+          {
+            outputFolder: process.env['PLAYWRIGHT_HTML_OUTPUT_DIR'] ?? 'playwright-report',
+            open: 'never',
+          },
+        ],
+      ]
+    : [['list']],
 
   expect: {
     toHaveScreenshot: {
