@@ -132,7 +132,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build browser app
-        run: pnpm --filter "@neuron/web^..." build
+        run: pnpm --filter "@neuron/web..." build
 
       - name: Install Chromium
         run: pnpm --filter @neuron/web test:screens:install
@@ -143,7 +143,7 @@ jobs:
         run: |
           $server = Start-Process `
             -FilePath node `
-            -ArgumentList "./node_modules/vite/bin/vite.js", "--host", "127.0.0.1" `
+            -ArgumentList "./node_modules/vite/bin/vite.js", "preview", "--host", "127.0.0.1", "--port", "5173", "--strictPort" `
             -WorkingDirectory "apps/web" `
             -WindowStyle Hidden `
             -RedirectStandardOutput "$env:RUNNER_TEMP/neuron-vite.out.log" `
@@ -162,7 +162,7 @@ jobs:
             }
           }
 
-          throw "The web server did not start"
+          throw "The built web preview server did not start"
 
       - name: Run interaction browser tests
         env:

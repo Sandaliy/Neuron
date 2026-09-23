@@ -104,7 +104,11 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'node ./node_modules/vite/bin/vite.js --host',
+    // CI builds the web package first and serves that artifact through Vite's
+    // production-like preview server. Local iteration keeps the faster dev server.
+    command: process.env['CI']
+      ? 'node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 5173 --strictPort'
+      : 'node ./node_modules/vite/bin/vite.js --host',
     url: 'http://127.0.0.1:5173',
     reuseExistingServer: true,
     timeout: 120_000,
