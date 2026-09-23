@@ -270,7 +270,7 @@ test('Study it again retries one reset, preserves the draft and returns the note
   await again.click();
   await expect(page.getByRole('alert')).toBeVisible();
   await again.click();
-  await expect(page.getByRole('status').filter({ hasText: /^Ready$/ })).toBeVisible();
+  await expect(page.getByLabel('Study status').getByText('Ready', { exact: true })).toBeVisible();
   await expect(field).toHaveValue('retained during restart');
   expect(ids).toHaveLength(2);
   expect(ids[0]).toBe(ids[1]);

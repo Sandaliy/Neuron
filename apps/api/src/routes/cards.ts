@@ -115,8 +115,8 @@ export function unlockRoute(): Hono<RequestBindings> {
     const possible = templatesFor(typeName, note.fields as NoteFields);
 
     if (!possible.some((template) => template.direction === body.direction)) {
-      // The note cannot produce this direction at all: a listening card needs
-      // audio, and a cloze note has only one way of being asked.
+      // The note cannot produce this direction: a cloze note, for example,
+      // has only one way of being asked.
       throw new ApiError('direction_unavailable');
     }
 

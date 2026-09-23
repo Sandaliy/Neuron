@@ -1,4 +1,8 @@
-/** A quiet completion ring. Only progress changes animate, never a remount. */
+import { useEffect, useState } from 'react';
+
+import { motionIsReduced } from '../preferences/motion';
+
+/** A quiet completion ring. Draws once on completion; the accessible value is immediately final. */
 export function CompletionProgress({
   value,
   max,
@@ -9,6 +13,20 @@ export function CompletionProgress({
   readonly label: string;
 }) {
   const ratio = Math.min(1, Math.max(0, value / Math.max(1, max)));
+  const [display, setDisplay] = useState(() => (motionIsReduced() ? ratio : 0));
+  useEffect(() => {
+    let frame = 0;
+    const started = performance.now();
+    const duration =
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-4')) || 340;
+    const tick = (now: number) => {
+      const progress = motionIsReduced() ? 1 : Math.min(1, (now - started) / duration);
+      setDisplay(ratio * (1 - (1 - progress) ** 3));
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [ratio]);
   return (
     <div
       className="relative flex size-[160px] items-center justify-center"
@@ -38,12 +56,12 @@ export function CompletionProgress({
           strokeWidth="2"
           pathLength="1"
           strokeDasharray="1"
-          strokeDashoffset={1 - ratio}
-          className="text-accent transition-[stroke-dashoffset] dur-reveal"
+          strokeDashoffset={1 - display}
+          className="text-accent"
         />
       </svg>
       <span className="text-44 text-primary" data-numeric="">
-        {Math.round(ratio * 100)}%
+        {Math.round(display * 100)}%
       </span>
     </div>
   );

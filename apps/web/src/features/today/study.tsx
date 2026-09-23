@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import {
   availableForStudy,
+  studyAvailableAt,
   createSchedulerConfig,
   createSeededRandom,
   seedFromReviewId,
@@ -14,20 +15,23 @@ import {
   takeNextSessionCard,
 } from '@neuron/core';
 import type { SessionQueue, WorkloadCard, Rating } from '@neuron/core';
-import { dailyStudySessionSchema, possibleCards, uuidV7 } from '@neuron/shared';
+import { checkTypedAnswer, dailyStudySessionSchema, possibleCards, uuidV7 } from '@neuron/shared';
 import type { Card as StudyCard, DailyStudySession, NoteFields } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
+import { settingsFor, useDeckTree } from '../../lib/decks';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
+import { Input } from '../../ui/input';
 import { LearningCard } from '../../ui/learning-card';
 import { ModeHeader } from '../../ui/mode-header';
 import { ReviewTime } from '../../ui/review-time';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 
+import { ListeningPrompt } from './listening-prompt';
 import { Practice } from './practice';
 
 export function workloadCard(card: StudyCard): WorkloadCard {
@@ -87,6 +91,8 @@ export function StudyScreen({
   const toast = useToast();
   const client = useQueryClient();
   const account = useAccount();
+  const decks = useDeckTree();
+  const [typed, setTyped] = useState('');
   const config = createSchedulerConfig({
     timezone: account.data?.timezone ?? 'UTC',
     dayCutoffHour: account.data?.dayCutoffHour ?? 4,
@@ -148,6 +154,7 @@ export function StudyScreen({
     setCurrent(step.card ? cards.current.get(step.card.id) : undefined);
     setReason(step.card ? '' : step.reason);
     setRevealed(false);
+    setTyped('');
     shown.current = Date.now();
     locked.current = false;
   }
@@ -166,8 +173,7 @@ export function StudyScreen({
             body: minutes ? { minutes: Number(minutes) } : {},
           }),
         );
-      // Unsupported interaction directions stay outside this first reveal-only loop.
-      const supported = result.cards.filter((card) => card.direction !== 'listening');
+      const supported = result.cards;
       cards.current = new Map(supported.map((card) => [card.id, card]));
       queue.current = { planned: supported.map(workloadCard), retries: [], retryMayRun: false };
       setPlan(result);
@@ -193,7 +199,11 @@ export function StudyScreen({
 
   function updateNextDue() {
     const future = [...cards.current.values()]
-      .map((card) => projectedDue.current.get(card.id) ?? card.due)
+      .map(
+        (card) =>
+          projectedDue.current.get(card.id) ??
+          studyAvailableAt(workloadCard(card).scheduling, config).toISOString(),
+      )
       .filter((due) => new Date(due).getTime() > Date.now());
     if (plan?.nextDue && !plan.cards.some((card) => card.due === plan.nextDue))
       future.push(plan.nextDue);
@@ -230,7 +240,10 @@ export function StudyScreen({
             reviewCount: nextCards.filter((card) => card.state !== 'new').length,
             nextDue: available
               ? cached.nextDue
-              : ([cached.nextDue, result.card.due]
+              : ([
+                  cached.nextDue,
+                  studyAvailableAt(workloadCard(result.card).scheduling, config).toISOString(),
+                ]
                   .filter((due): due is string => !!due)
                   .sort()[0] ?? null),
           };
@@ -278,7 +291,7 @@ export function StudyScreen({
       createSeededRandom(seedFromReviewId(answer.id)),
       answer.durationMs,
     );
-    projectedDue.current.set(current.id, predicted.next.due.toISOString());
+    projectedDue.current.set(current.id, studyAvailableAt(predicted.next, config).toISOString());
     updateNextDue();
     next();
     const saving = (undoOperation.current ?? Promise.resolve()).then(() => submit(answer));
@@ -371,6 +384,28 @@ export function StudyScreen({
         )
       : undefined;
 
+  const language = note
+    ? (settingsFor(decks.data ?? [], note.deckId).targetLanguage ??
+      account.data?.settings.targetLanguage)
+    : undefined;
+  const typedAnswer =
+    current?.direction === 'production' && face?.back.length === 1
+      ? face.back[0]?.value
+      : undefined;
+  const feedback =
+    typedAnswer && revealed && typed
+      ? checkTypedAnswer(
+          typed,
+          typedAnswer,
+          Array.isArray(note?.fields['acceptedAnswers'])
+            ? note.fields['acceptedAnswers'].filter(
+                (value): value is string => typeof value === 'string',
+              )
+            : [],
+          language,
+        )
+      : undefined;
+
   if (practicing && plan)
     return <Practice notes={plan.notes} onFinish={() => setPracticing(false)} />;
   const completed = Object.values(answeredCards).filter((count) => count > 0).length;
@@ -424,15 +459,65 @@ export function StudyScreen({
             <LearningCard
               identity={current.id}
               context={t(`study.direction.${current.direction}`)}
-              prompt={face.front.map((line) => (
-                <p key={line.field}>{line.value}</p>
-              ))}
+              prompt={
+                current.direction === 'listening' ? (
+                  <ListeningPrompt
+                    key={current.id}
+                    text={String(note?.fields['term'] ?? '')}
+                    language={language}
+                  />
+                ) : (
+                  face.front.map((line) => <p key={line.field}>{line.value}</p>)
+                )
+              }
               answer={
                 revealed ? face.back.map((line) => <p key={line.field}>{line.value}</p>) : undefined
               }
             />
           ) : (
             <EmptyState title={t('study.unavailable')} description={t('study.unavailableBody')} />
+          )}
+          {typedAnswer && (
+            <form
+              className="flex flex-col gap-8"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (typed.trim()) {
+                  setRevealed(true);
+                  (
+                    event.currentTarget.elements.namedItem(
+                      'study-answer',
+                    ) as HTMLInputElement | null
+                  )?.blur();
+                }
+              }}
+            >
+              <label className="text-14 text-secondary" htmlFor="study-answer">
+                {t('study.typeAnswer')}
+              </label>
+              <Input
+                id="study-answer"
+                name="study-answer"
+                readOnly={revealed}
+                value={typed}
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                enterKeyHint="done"
+                onChange={(event) => setTyped(event.target.value)}
+              />
+              <div className="min-h-44">
+                {revealed ? (
+                  <p role="status" className="neu-reveal text-14 text-secondary">
+                    {feedback ? t(`study.feedback.${feedback}`) : ''} {t('study.chooseRating')}
+                  </p>
+                ) : (
+                  <Button full type="submit" variant="primary" disabled={!typed.trim()}>
+                    {t('study.checkAnswer')}
+                  </Button>
+                )}
+              </div>
+            </form>
           )}
           <div className="mt-auto flex min-h-[104px] flex-col justify-end gap-8">
             {revealed && intervals ? (
@@ -509,9 +594,11 @@ export function StudyScreen({
             full
             variant="primary"
             disabled={pending > 0 || failed.length > 0}
+            busy={pending > 0}
+            aria-label={t('study.finish')}
             onClick={onFinish}
           >
-            {t(pending ? 'common.loading' : 'study.finish')}
+            {t('study.finish')}
           </Button>
           {morePlanned && (
             <Button

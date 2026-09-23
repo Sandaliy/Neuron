@@ -113,7 +113,7 @@ jobs:
   browser:
     name: Browser and screenshot tests
     runs-on: windows-2022
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Check out the repository
@@ -132,7 +132,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build browser app
-        run: pnpm --filter "@neuron/web^..." build
+        run: pnpm --filter "@neuron/web..." build
 
       - name: Install Chromium
         run: pnpm --filter @neuron/web test:screens:install
@@ -143,7 +143,7 @@ jobs:
         run: |
           $server = Start-Process `
             -FilePath node `
-            -ArgumentList "./node_modules/vite/bin/vite.js", "--host", "127.0.0.1" `
+            -ArgumentList "./node_modules/vite/bin/vite.js", "preview", "--host", "127.0.0.1", "--port", "5173", "--strictPort" `
             -WorkingDirectory "apps/web" `
             -WindowStyle Hidden `
             -RedirectStandardOutput "$env:RUNNER_TEMP/neuron-vite.out.log" `
@@ -162,15 +162,19 @@ jobs:
             }
           }
 
-          throw "The web server did not start"
+          throw "The built web preview server did not start"
 
       - name: Run interaction browser tests
-        run: pnpm --filter @neuron/web test:screens --project=phone-interaction --project=desktop-interaction
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-interaction
+        run: pnpm --filter @neuron/web test:screens --project=phone-interaction --project=desktop-interaction --workers=1 --output=test-results-interaction
 
       - name: Run visual snapshot tests
+        if: ${{ !cancelled() && steps.web-server.outcome == 'success' }}
         env:
           VISUAL_SNAPSHOT_SUITE: 'true'
-        run: pnpm --filter @neuron/web test:screens --project=phone --project=desktop
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-visual
+        run: pnpm --filter @neuron/web test:screens --project=phone --project=desktop --output=test-results-visual
 
       - name: Stop web server
         if: ${{ always() && steps.web-server.outputs.pid != '' }}
@@ -183,6 +187,8 @@ jobs:
         with:
           name: playwright-report
           path: |
-            apps/web/playwright-report/
-            apps/web/test-results/
+            apps/web/playwright-report-interaction/
+            apps/web/playwright-report-visual/
+            apps/web/test-results-interaction/
+            apps/web/test-results-visual/
           retention-days: 14

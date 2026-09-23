@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useIsMutating, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
@@ -20,6 +20,8 @@ import { ErrorState, Skeleton } from '../../ui/states';
 
 import { StudyScreen } from './study';
 import { StudyScope } from './study-scope';
+
+import type { StudyPlanProjection } from '../../lib/note-projection';
 
 /**
  * How long the cards waiting are likely to take.
@@ -112,10 +114,11 @@ function Waiting({
       : scope.length === 1
         ? (live.find((deck) => deck.id === scope[0])?.name ?? t('study.scopeCount', { count: 1 }))
         : t('study.scopeCount', { count: scope.length });
+  const mutations = useIsMutating({ mutationKey: ['note-interaction'] });
   const [direction, setDirection] = useState('');
   const [override, setOverride] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
-  const plan = useQuery({
+  const plan = useQuery<StudyPlanProjection>({
     queryKey: [
       'study-plan',
       minutes,
@@ -138,6 +141,7 @@ function Waiting({
         }),
       ),
     staleTime: 0,
+    enabled: mutations === 0,
   });
   const result = plan.data;
   const caughtUp = result?.availableCount === 0 && selected.length > 0;
@@ -208,7 +212,13 @@ function Waiting({
             <Button
               variant="primary"
               full
-              disabled={!result.cards.length || plan.isFetching}
+              disabled={
+                !result.cards.length ||
+                plan.isFetching ||
+                mutations > 0 ||
+                !!plan.error ||
+                result.localProjection === true
+              }
               onClick={() => onStart(result)}
             >
               {t('today.study')}
@@ -266,6 +276,8 @@ function Waiting({
                   <option value="">{t('study.mixed')}</option>
                   <option value="recognition">{t('study.recognition')}</option>
                   <option value="recall">{t('study.recall')}</option>
+                  <option value="production">{t('study.direction.production')}</option>
+                  <option value="listening">{t('study.direction.listening')}</option>
                 </Select>
               </label>
             </div>
@@ -299,12 +311,11 @@ function Waiting({
                 title={deck.name}
                 onClick={() => void navigate({ to: '/notes', search: { deckId: deck.id } })}
                 subtitle={
-                  deck.due === 0 && deck.fresh === 0 && deck.nextDue
-                    ? new Date(deck.nextDue).toLocaleDateString('en', {
-                        month: 'short',
-                        day: 'numeric',
-                      })
-                    : t('today.deckCounts', { due: deck.due, fresh: deck.fresh })
+                  deck.due === 0 && deck.fresh === 0 && deck.nextDue ? (
+                    <ReviewTime due={deck.nextDue} />
+                  ) : (
+                    t('today.deckCounts', { due: deck.due, fresh: deck.fresh })
+                  )
                 }
                 trailing={deck.due > 0 ? <Chip tone="due">{deck.due}</Chip> : undefined}
               />

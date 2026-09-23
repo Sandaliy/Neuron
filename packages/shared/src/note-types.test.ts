@@ -113,12 +113,12 @@ describe('cloze gaps', () => {
 });
 
 describe('templatesFor', () => {
-  it('leaves out the listening card when the note has no audio', () => {
+  it('offers speech listening without a recording', () => {
     const directions = templatesFor('vocab', { term: 'Sorgfalt', translation: 'care' }).map(
       (template) => template.direction,
     );
 
-    expect(directions).toEqual(['recognition', 'recall', 'production']);
+    expect(directions).toEqual(['recognition', 'recall', 'production', 'listening']);
   });
 
   it('includes the listening card once audio is there', () => {

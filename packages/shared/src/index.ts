@@ -349,3 +349,4 @@ export type { MessageKey, MessageValues, Messages } from './i18n/index.js';
 export * from './practice.js';
 
 export { studyDecks } from './study-scope.js';
+export * from './typed-answer.js';

@@ -289,7 +289,10 @@ ceiling the test cannot see past.
 
 ## Motion rules
 
-Transform and opacity only. Never height, width, top, left, or filter.
+Transform and opacity only for layout and entrances. Never height, width, top, left, or filter.
+The bounded 160px Practice completion ring is the sole paint exception: its SVG stroke-dashoffset
+and numeric percentage may advance together for at most `--dur-4`, without delaying controls.
+Its accessible percentage is final immediately; reduced motion displays the final result.
 
 **Every entrance fills `backwards`, never `both`.** `both` holds the last keyframe on the element for
 as long as it lives, and a held transform, even `none`, keeps that element on a composited layer of its
@@ -308,7 +311,9 @@ fill `forwards`, because something on its way out has to stay where it ended unt
 - Toasts travel 4px with opacity, opening over `--dur-2` and closing over `--dur-1`. They remain mounted
   through their exit. On phones they sit 8px above the tab bar, with safe area counted once; with the
   keyboard open they sit 8px above it. Desktop feedback uses the bottom safe area plus 16px.
-- The card reveal moves 10px and scales .99 to 1 over `--dur-2`. It says the answer was already there.
+- The learning card keeps a stable reading surface. Before reveal its prompt is vertically centered.
+  Reveal moves the prompt upward using a measured transform over `--dur-2`, draws a divider with
+  scaleX/opacity, and introduces the answer below it. Long content scrolls inside the card.
 - A pushed screen brings its content a beat behind itself: four rows, 26ms apart, then it stops.
 - The focus ring is instant. The halo behind it fades over `--dur-1`.
 - What hangs under an open deck arrives with the reveal. The disclosure has already turned by then, so
@@ -622,3 +627,8 @@ Grammar has its own bordered secondary surface, compact disclosure and inline De
 The shared reveal is a short fade with 6px vertical settling. Pointer manipulation has no interpolation.
 Committed swipe removal starts immediately and retains a departing surface until its leftward exit
 finishes, independently of virtual-row unmounting. Partial gestures preserve row geometry.
+
+Note study participation appears as a status badge in a dedicated panel. Ready/In review is secondary
+card availability, not a persisted Note status. Study it again and Already know this are equal-weight
+controls; Known disables the latter while leaving restart available. Status transitions use the existing
+short reveal animation and never wait for animation completion before publishing local state.

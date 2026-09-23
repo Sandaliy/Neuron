@@ -1277,3 +1277,17 @@
     --menu-offset: 2px;
   }
 }
+
+@keyframes neu-answer-divider {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+.neu-answer-divider {
+  animation: neu-answer-divider var(--dur-2) ease-out backwards;
+}

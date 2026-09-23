@@ -4,50 +4,39 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-21, Phase 7 iPhone acceptance repair slice.
+Last updated: 2026-09-22, rich Study and interaction responsiveness slice.
 
 ## Current release slice
 
-The `work/iphone-acceptance` branch starts from merged PR #23 (`f294210`). It repairs the
-reported phone flows while retaining persistent Practice, temporary Study scope, immutable review
-history and the existing scheduler configuration.
+`work/rich-study-responsiveness` builds on merged `f4c2fa4`. Production now checks vocabulary terms
+locally with conservative Unicode/case/whitespace normalization, explicit accepted alternatives, and
+separate close-spelling feedback. The learner still chooses every rating. Listening uses target-language
+speech playback with replay and a reveal fallback for missing or unusable voices. Both directions use
+existing independent Card identities and explicit manual enabling; progressive unlocking remains deferred.
 
-Vocab Grammar remains discoverable when a Deck has no language. Its inline language setting updates
-applicable German/English fields immediately without replacing the editor or losing draft/focus.
-Today distinguishes My study decks from the temporary session selection. Available cards and future
-learning steps share one eligibility rule: learning/relearning waits for its exact timestamp, while
-review cards retain the established study-day cutoff. Completion immediately projects the next time
-with the same deterministic scheduler, then reconciles the confirmed response. Next-review displays
-include local day/time and a compact relative duration.
+The shared learning card centers the prompt, then moves it above a drawn divider and revealed answer
+inside a stable reading surface. Note participation is a status badge with separate readiness text and
+equal-weight Study it again / Already know this actions. Practice completion draws its ring and counts
+its percentage without delaying any control, with an immediate final result under reduced motion.
+Future Study and per-Deck availability uses the actual shared eligibility boundary and localized time.
 
-Note Study it again records an idempotent scoped reset, activates Known Notes, preserves card IDs and
-history, and leaves Practice untouched. Migration 0016 adds the optional Note scope to restart receipts.
-Ready and In review are derived editor labels, not new persisted statuses. Deck restart remains in
-Settings with an explicit confirmation explaining its active eligible Note scope.
+Note status, reset, move and tag changes share immediate cache projections and field/entity-local
+rollback. Overlapping writes serialize per entity while unrelated writes proceed. Late autosave responses
+preserve pending intent. Deck name/settings edits patch only their fields instead of broadly refetching.
+Fresh Study admission remains server-confirmed. The maintained interaction contract is in architecture.md;
+the bounded completion-ring motion exception is scoped in design-system.md.
 
-Study and Practice share centered mode headers, thin progress and stable reveal geometry. Practice has
-a full-width entry/resume control and a dedicated completion treatment. Library uses tighter phone
-nesting, clearer Folder/Deck shapes, quiet insertion bands and small sibling repositioning motion.
-Swipe deletion continues left while the list updates; failed deletion resets the row even when WebKit
-batches removal and rollback into one render. Reduced motion retains the same interactions.
+Verification: the 39-check phone/desktop/WebKit interaction pass and the 9-check real-database Study
+suite passed, including new directions, server confirmation, retry/Undo, reset and unchanged identity.
+The default 5,000-note phone benchmark passed at 57.1 fps against the unchanged 55 fps threshold.
+The six changed Study visual references were inspected. Today phone typography also differed on the
+unchanged baseline implementation; hosted references are preserved separately from local Windows images.
+Four Study visual checks, four Practice phone/WebKit checks, and 55 focused projection, motion,
+answer-contract and eligibility tests passed. Typechecks, production web build, lint, core isolation
+and design-token checks passed.
 
-Verification includes the normal unit gate (the Russian copy-style failure was fixed and its suite
-retested), targeted real-database restart/replay/Practice/scoped-planning checks, typecheck, lint,
-build and migration schema checks. The broad browser gate's four failures were resolved and the
-focused follow-up passed 50 checks; its additional WebKit rollback failure was fixed and passed nine
-repeated gesture checks. Note reset retry/draft checks pass on phone and desktop. The 16 changed visual
-baselines were inspected individually; all 10 affected visual tests pass and the rest of the earlier
-visual gate passed. Default scroll performance remains above the unchanged 55 fps budget: 56.5 fps
-for 5,000 Notes and 58.7 fps for 500 Library rows. Opt-in glass on every row measured 50.5 fps and is
-not the default budget target.
-
-Behind-schema fail-closed behavior, owner migration and restricted-role verification pass. The
-fresh-install journal test remains locally blocked by Windows `EPERM` renaming `packages/shared/dist`;
-the protected Linux migration job must establish that evidence. Protected PR checks and actual
-physical-iPhone touch/keyboard acceptance remain outstanding. Browser emulation is not device acceptance.
-
-Advanced drills, typed expansion, listening/speech, Phase 8 offline sync, Phase 9 waves/triage and
-progressive directions, and Phase 10 analytics remain deferred.
+Physical-iPhone keyboard/audio acceptance and protected PR/production verification remain outstanding.
+Phase 8 offline sync, Phase 9 progressive unlocking and statistics are outside this slice.
 
 ## Now
 
@@ -73,7 +62,7 @@ owner-only `DATABASE_URL_OWNER` credential remains confined to the protected Git
 Phase 7 Daily Study is the current milestone. Its backend/core session foundation provides a
 deterministic time-based first-appearance plan, workload-backed and explainable new-card admission,
 an explicit one-off override that does not change long-term settings, and a fair due-preserving retry
-pool. Study now plans visibly from one-off time and recognition/recall choices, keeps reveal and advance
+pool. Study now plans visibly from one-off time and scheduled-direction choices, keeps reveal and advance
 local after the plan arrives, offers append-only recent-answer Undo, and ends with a useful summary.
 Practice provides configurable front/back rounds without Review or schedule writes. The collection slice
 adds atomic exact-position touch/mouse placement, committed swipe deletion, targeted rapid recovery,
@@ -94,7 +83,7 @@ Today or Study.
 ## Next
 
 1. Re-run the gesture-heavy acceptance pass on the physical iPhone and production domain after preview delivery.
-2. Add the intentionally deferred rich drill families, typed production tolerance, listening and speech work.
+2. Complete physical-device acceptance of typed production, listening and the shared interaction contract.
 3. Continue review-history presentation and accessibility work without weakening session fairness or replay.
 
 ## Open threads
