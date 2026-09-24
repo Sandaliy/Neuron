@@ -4,11 +4,12 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-22, rich Study and interaction responsiveness slice.
+Last updated: 2026-09-25, merged rich Study and CI updates.
 
 ## Current release slice
 
-`work/rich-study-responsiveness` builds on merged `f4c2fa4`. Production now checks vocabulary terms
+PR #25 shipped the rich Study and interaction-responsiveness slice to `main`; PR #26 completed the
+risk-based browser CI redesign. Production now checks vocabulary terms
 locally with conservative Unicode/case/whitespace normalization, explicit accepted alternatives, and
 separate close-spelling feedback. The learner still chooses every rating. Listening uses target-language
 speech playback with replay and a reveal fallback for missing or unusable voices. Both directions use
@@ -26,17 +27,10 @@ preserve pending intent. Deck name/settings edits patch only their fields instea
 Fresh Study admission remains server-confirmed. The maintained interaction contract is in architecture.md;
 the bounded completion-ring motion exception is scoped in design-system.md.
 
-Verification: the 39-check phone/desktop/WebKit interaction pass and the 9-check real-database Study
-suite passed, including new directions, server confirmation, retry/Undo, reset and unchanged identity.
-The default 5,000-note phone benchmark passed at 57.1 fps against the unchanged 55 fps threshold.
-The six changed Study visual references were inspected. Today phone typography also differed on the
-unchanged baseline implementation; hosted references are preserved separately from local Windows images.
-Four Study visual checks, four Practice phone/WebKit checks, and 55 focused projection, motion,
-answer-contract and eligibility tests passed. Typechecks, production web build, lint, core isolation
-and design-token checks passed.
-
-Physical-iPhone keyboard/audio acceptance and protected PR/production verification remain outstanding.
-Phase 8 offline sync, Phase 9 progressive unlocking and statistics are outside this slice.
+Protected PR delivery is complete. Post-merge browser interaction, Windows visual, build, migration-journal,
+performance-monitoring and Vercel checks succeeded. Physical-iPhone acceptance of typed Production,
+Listening audio and the shared Study interactions remains outstanding. Phase 8 offline sync and Phase 9
+progressive unlocking and statistics remain outside this slice.
 
 ## Now
 
@@ -59,7 +53,7 @@ workflow verified it and skipped migration. Production Vercel compatibility chec
 `neuron_app` and `neuron_auth` roles; `/health` and `/db-check` are schema-aware and healthy. The
 owner-only `DATABASE_URL_OWNER` credential remains confined to the protected GitHub
 `production-migrations` environment and is absent from Vercel and runtime environments.
-Phase 7 Daily Study is the current milestone. Its backend/core session foundation provides a
+Phase 7 Daily Study is shipped. Its backend/core session foundation provides a
 deterministic time-based first-appearance plan, workload-backed and explainable new-card admission,
 an explicit one-off override that does not change long-term settings, and a fair due-preserving retry
 pool. Study now plans visibly from one-off time and scheduled-direction choices, keeps reveal and advance
@@ -82,9 +76,8 @@ Today or Study.
 
 ## Next
 
-1. Re-run the gesture-heavy acceptance pass on the physical iPhone and production domain after preview delivery.
-2. Complete physical-device acceptance of typed production, listening and the shared interaction contract.
-3. Continue review-history presentation and accessibility work without weakening session fairness or replay.
+1. Complete physical-iPhone acceptance of typed Production, Listening playback/fallback, and shared Study interactions.
+2. Continue review-history presentation and accessibility work without weakening session fairness or replay.
 
 ## Open threads
 
@@ -142,6 +135,7 @@ Today or Study.
 | 2026-08    | Keep theme and language device-first                                         | Preference changes must not wait on the network                                                               |
 | 2026-08    | Keep reusable visual contracts, docs, mockup, gallery, and code aligned      | Global design references should describe the reusable system, not every screen-level adjustment               |
 | 2026-09-24 | Isolate CPU-sensitive Playwright work                                        | Frame-rate and Windows visual tests use one worker; interaction tests may run concurrently                    |
+| 2026-09-25 | Separate browser, visual, and performance triggers by risk                   | Fast required smoke/targeted checks; broad suites retain distinct triggers                                    |
 | 2026-09-03 | Protect `main` and deliver production changes through `work/*` pull requests | Production must receive only checked changes                                                                  |
 | 2026-09-16 | Represent recent Undo as an append-only cancellation event                   | Canonical replay removes the target while preserving every later immutable answer                             |
 | 2026-09-03 | Keep the prompt in `docs/card-generation-prompt.md`                          | It defines the product contract used by all three card generation modes                                       |
