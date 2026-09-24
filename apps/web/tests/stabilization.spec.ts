@@ -556,6 +556,7 @@ test('practice persists rounds across reload without schedule writes', async ({
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
   await page.getByRole('button', { name: 'Known', exact: true }).click();
   await expect(page.getByText('Practice complete', { exact: true })).toBeVisible();
+  await expect(page.getByRole('img').getByText('100%', { exact: true })).toBeVisible();
   await page.screenshot({
     animations: 'disabled',
     path: test.info().outputPath('practice-complete.png'),
@@ -564,6 +565,7 @@ test('practice persists rounds across reload without schedule writes', async ({
   await page.reload();
   await page.getByRole('button', { name: /Practice complete/ }).click();
   await expect(page.getByText('Practice complete', { exact: true })).toBeVisible();
+  await expect(page.getByRole('img').getByText('100%', { exact: true })).toBeVisible();
   await page.screenshot({
     animations: 'disabled',
     path: test.info().outputPath('practice-complete.png'),

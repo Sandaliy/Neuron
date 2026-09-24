@@ -46,7 +46,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build browser app
-        run: pnpm --filter "@neuron/web^..." build
+        run: pnpm --filter "@neuron/web..." build
 
       - name: Install Chromium
         run: pnpm --filter @neuron/web test:screens:install

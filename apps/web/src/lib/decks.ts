@@ -5,6 +5,8 @@ import { resolveDeckSettings, uuidV7 } from '@neuron/shared';
 import type { Deck, DeckNode, DeckSettings, ResolvedDeckSettings } from '@neuron/shared';
 
 import { request } from './api';
+import { projectDeck } from './deck-projection';
+import { writeEntities } from './entity-writes';
 
 /**
  * The library, in one request, and the six things that can change it.
@@ -13,10 +15,8 @@ import { request } from './api';
  * over each subtree, from two queries on the server. Asking per deck instead
  * would put one round trip per row on the first screen anybody sees.
  *
- * Every change refetches the tree rather than editing the cached copy. The
- * counts roll up over a subtree, a move changes them at three levels at once,
- * and a cache patched by hand would be right for the deck that moved and wrong
- * for both of its parents.
+ * Name and settings edits patch their fields locally. Structural moves also
+ * rebuild ancestor counts, then reconcile the server-owned hierarchy.
  */
 export const DECK_TREE_KEY = ['decks'] as const;
 
@@ -32,7 +32,8 @@ export const DECK_TREE_KEY = ['decks'] as const;
 export function deckTreeQuery() {
   return {
     queryKey: DECK_TREE_KEY,
-    queryFn: () => request<{ decks: DeckNode[] }>('/decks'),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      request<{ decks: DeckNode[] }>('/decks', { signal }),
   } as const;
 }
 
@@ -156,39 +157,36 @@ export function useDeckActions() {
   });
 
   const rename = useMutation({
+    onMutate: (input: { id: string; name: string }) => ({
+      rollback: projectDeck(client, input.id, { name: input.name }),
+    }),
+    onError: (_error, _input, context) => context?.rollback(),
     mutationFn: (input: { id: string; name: string }) =>
-      request<{ deck: Deck }>(`/decks/${input.id}`, {
-        method: 'PATCH',
-        body: { name: input.name },
-      }),
-    onSuccess: refresh,
+      writeEntities(client, [input.id], () =>
+        request<{ deck: Deck }>(`/decks/${input.id}`, {
+          method: 'PATCH',
+          body: { name: input.name },
+        }),
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' });
+    },
   });
 
   const update = useMutation({
     onMutate: async (input: { id: string; settings: DeckSettings | null }) => {
       const version = ++settingsVersion.current;
-      await client.cancelQueries({ queryKey: DECK_TREE_KEY });
-      const previous = client.getQueryData<{ decks: DeckNode[] }>(DECK_TREE_KEY);
-      if (previous) {
-        const patch = (rows: readonly DeckNode[]): DeckNode[] =>
-          rows.map((row) => ({
-            ...row,
-            ...(row.id === input.id ? { settings: input.settings } : {}),
-            children: patch(row.children),
-          }));
-        client.setQueryData(DECK_TREE_KEY, { decks: patch(previous.decks) });
-      }
-      return { previous, version };
+      const rollback = projectDeck(client, input.id, { settings: input.settings });
+      return { rollback, version };
     },
-    onError: (_error, _input, context) => {
-      if (context?.previous && context.version === settingsVersion.current)
-        client.setQueryData(DECK_TREE_KEY, context.previous);
-    },
+    onError: (_error, _input, context) => context?.rollback(),
     mutationFn: (input: { id: string; settings: DeckSettings | null }) =>
-      request<{ deck: Deck }>(`/decks/${input.id}`, {
-        method: 'PATCH',
-        body: { settings: input.settings },
-      }),
+      writeEntities(client, [input.id], () =>
+        request<{ deck: Deck }>(`/decks/${input.id}`, {
+          method: 'PATCH',
+          body: { settings: input.settings },
+        }),
+      ),
     onSuccess: ({ deck }, _input, context) => {
       if (context.version !== settingsVersion.current) return;
       client.setQueryData<{ decks: DeckNode[] }>(DECK_TREE_KEY, (cached) => {
@@ -201,7 +199,8 @@ export function useDeckActions() {
           }));
         return { decks: replace(cached.decks) };
       });
-      refresh();
+      void client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' });
+      void client.invalidateQueries({ queryKey: ['study-plan'] });
     },
   });
 

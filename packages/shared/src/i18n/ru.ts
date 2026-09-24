@@ -7,6 +7,26 @@ import type { Messages } from './en.js';
  * compilation error rather than a blank space on somebody's screen.
  */
 export const ru = {
+  'note.studyStatus': 'Статус изучения',
+  'study.moreDirections': 'Направления изучения',
+  'study.directionHint':
+    'Включи отдельное направление изучения заметки. Текущий прогресс сохранится.',
+  'study.acceptedAnswers': 'Допустимые ответы при вводе, по одному на строку',
+  'study.direction.production': 'Ввод ответа',
+  'study.direction.listening': 'Аудирование',
+
+  'study.typeAnswer': 'Введи ответ',
+  'study.checkAnswer': 'Проверить ответ',
+  'study.feedback.exact': 'Точный ответ.',
+  'study.feedback.correct': 'Верный ответ.',
+  'study.feedback.close': 'Почти. Сравни написание с ответом.',
+  'study.feedback.incorrect': 'Сравни свой ответ с показанным.',
+  'study.chooseRating': 'Выбери оценку самостоятельно.',
+  'study.listenPrompt': 'Послушай и вспомни слово',
+  'study.replay': 'Воспроизвести / повторить',
+  'study.voiceUnavailable': 'Подходящий голос для этого языка пока недоступен.',
+  'study.listenFallback': 'Можно открыть ответ и продолжить.',
+
   'practice.exit': 'Выйти из Практики',
   'study.scopeDefault': 'Мои учебные колоды',
   'study.scopeAll': 'Выбрать все колоды на эту сессию',
@@ -602,7 +622,7 @@ export const ru = {
   'note.field.separable': 'Отделяемая приставка',
   'note.field.case': 'Требует падеж',
   'note.field.reflexive': 'Возвратный',
-  'note.field.comparative': 'Сравнительная',
+  'note.field.comparative': 'Сравнильная',
   'note.field.superlative': 'Превосходная',
   'note.field.variant': 'Вариант',
   'note.field.irregular': 'Неправильные формы',

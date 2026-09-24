@@ -80,7 +80,9 @@ describe('what a note starts with', () => {
   });
 
   it('does not open a direction the note cannot produce, whatever the ladder says', () => {
-    const cards = openingCards('vocab', WORD, [{ direction: 'listening', opensAtStability: 0 }]);
+    const cards = openingCards('basic', { front: 'Question', back: 'Answer' }, [
+      { direction: 'listening', opensAtStability: 0 },
+    ]);
 
     expect(cards.map((card) => card.direction)).not.toContain('listening');
   });
@@ -96,7 +98,9 @@ describe('what a note starts with', () => {
   });
 
   it('leaves out a direction the note cannot answer', () => {
-    expect(possibleCards('vocab', WORD).map((card) => card.direction)).not.toContain('listening');
+    expect(
+      possibleCards('basic', { front: 'Question', back: 'Answer' }).map((card) => card.direction),
+    ).not.toContain('listening');
   });
 });
 

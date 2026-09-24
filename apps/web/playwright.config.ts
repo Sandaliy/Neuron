@@ -7,7 +7,7 @@ export default defineConfig({
   /*
    * The hosted frame-rate benchmark and the visual snapshot suite are isolated
    * from concurrent work. Keep both on one worker so throttled measurements and
-   * screenshots remain honest; the blocking interaction suite can use two.
+   * screenshots remain honest; interaction runs can use two workers.
    */
   fullyParallel: false,
   workers:
@@ -17,7 +17,18 @@ export default defineConfig({
       : 2,
   forbidOnly: Boolean(process.env['CI']),
   retries: 0,
-  reporter: process.env['CI'] ? 'line' : [['list']],
+  reporter: process.env['CI']
+    ? [
+        ['line'],
+        [
+          'html',
+          {
+            outputFolder: process.env['PLAYWRIGHT_HTML_OUTPUT_DIR'] ?? 'playwright-report',
+            open: 'never',
+          },
+        ],
+      ]
+    : [['list']],
 
   expect: {
     toHaveScreenshot: {
@@ -37,7 +48,7 @@ export default defineConfig({
   projects: [
     {
       name: 'webkit-phone-interaction',
-      testMatch: /stabilization\.spec\.ts/,
+      testMatch: /(?:stabilization|rich-study)\.spec\.ts/,
       use: { ...devices['iPhone 13'] },
     },
     {
@@ -85,10 +96,11 @@ export default defineConfig({
   ],
 
   webServer: {
-    command:
-      process.env['CI'] === 'true'
-        ? 'node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 5173'
-        : 'node ./node_modules/vite/bin/vite.js --host 127.0.0.1',
+    // CI builds the web package first and serves that artifact through Vite's
+    // production-like preview server. Local iteration keeps the faster dev server.
+    command: process.env['CI']
+      ? 'node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 5173 --strictPort'
+      : 'node ./node_modules/vite/bin/vite.js --host',
     url: 'http://127.0.0.1:5173',
     reuseExistingServer: !process.env['CI'],
     timeout: 120_000,

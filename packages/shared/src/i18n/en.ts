@@ -2,6 +2,12 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'note.studyStatus': 'Study status',
+  'study.moreDirections': 'Study directions',
+  'study.directionHint':
+    'Enable an independently scheduled direction for this note. Existing progress stays unchanged.',
+  'study.acceptedAnswers': 'Accepted production answers, one per line',
+
   'practice.exit': 'Exit Practice',
   'time.today': 'Today',
   'time.tomorrow': 'Tomorrow',
@@ -27,6 +33,17 @@ export const en = {
   'study.pause': 'Pause Daily Study',
   'study.participationHint': 'Pausing keeps progress and due dates. Practice stays available.',
   'study.stop': 'Stop',
+  'study.typeAnswer': 'Type your answer',
+  'study.checkAnswer': 'Check answer',
+  'study.feedback.exact': 'Exact answer.',
+  'study.feedback.correct': 'Correct answer.',
+  'study.feedback.close': 'Close. Compare the spelling with the answer.',
+  'study.feedback.incorrect': 'Compare your answer with the answer shown.',
+  'study.chooseRating': 'Choose a rating yourself.',
+  'study.listenPrompt': 'Listen and recall the word',
+  'study.replay': 'Play / replay',
+  'study.voiceUnavailable': 'A usable voice for this language is not available yet.',
+  'study.listenFallback': 'You can always show the answer and continue.',
   'study.direction.recognition': 'Recognition',
   'study.direction.recall': 'Recall',
   'study.direction.production': 'Production',

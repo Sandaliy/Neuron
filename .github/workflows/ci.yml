@@ -114,7 +114,7 @@ jobs:
     name: Browser and screenshot tests
     # Keep this identity stable for existing branch protection.
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     outputs:
       visual: ${{ steps.select.outputs.visual }}
 
@@ -146,7 +146,7 @@ jobs:
           node scripts/select-browser-tests.mjs
 
       - name: Build browser app
-        run: pnpm --filter "@neuron/web^..." build
+        run: pnpm --filter "@neuron/web..." build
 
       - name: Install Chromium
         run: pnpm --filter @neuron/web exec playwright install --with-deps chromium
@@ -177,7 +177,8 @@ jobs:
   visual:
     name: Windows visual contracts
     needs: browser
-    if: ${{ needs.browser.outputs.visual == 'true' }}
+    # The selection output is available even when interaction tests fail.
+    if: ${{ always() && !cancelled() && needs.browser.outputs.visual == 'true' }}
     runs-on: windows-2022
     timeout-minutes: 20
     steps:
@@ -188,7 +189,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter "@neuron/web^..." build
+      - run: pnpm --filter "@neuron/web..." build
       - run: pnpm --filter @neuron/web test:screens:install
       - name: Compare visual contracts
         env:

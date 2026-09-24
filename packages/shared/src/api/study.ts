@@ -26,7 +26,7 @@ export type StudyPreset = z.infer<typeof studyPresetSchema>;
 /** The only Daily Study choices needed to build the first-appearance plan. */
 export const dailyStudySessionRequestSchema = z
   .strictObject({
-    direction: z.enum(['recognition', 'recall']).optional(),
+    direction: z.enum(['recognition', 'recall', 'production', 'listening']).optional(),
     /** Omit to study the whole collection. A folder includes its descendants. */
     deckId: idSchema.optional(),
     /** Explicit temporary leaf scope, including paused Decks. Empty means none. */

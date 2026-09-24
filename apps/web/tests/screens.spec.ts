@@ -67,16 +67,22 @@ for (const theme of THEMES) {
       });
     });
 
-    test('study composition and adjustment', async ({ page }) => {
+    test('study composition and adjustment', async ({ page }, testInfo) => {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);
       await page.goto('/');
       await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
       await page.getByRole('button', { name: 'Adjust', exact: true }).click();
-      await expect.soft(page).toHaveScreenshot(`today-adjust-${theme}.png`, {
-        fullPage: true,
-        maxDiffPixelRatio: 0.001,
-      });
+      await settle(page);
+      await expect
+        .soft(page)
+        .toHaveScreenshot(
+          hostedWindowsSnapshot(`today-adjust-${theme}.png`, testInfo.project.name),
+          {
+            fullPage: true,
+            maxDiffPixelRatio: 0.001,
+          },
+        );
       await page.getByRole('button', { name: 'Study', exact: true }).click();
       await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
       await expect.soft(page).toHaveScreenshot(`study-front-${theme}.png`, {
