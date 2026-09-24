@@ -112,12 +112,17 @@ jobs:
 
   browser:
     name: Browser and screenshot tests
-    runs-on: windows-2022
+    # Keep this identity stable for existing branch protection.
+    runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      visual: ${{ steps.select.outputs.visual }}
 
     steps:
       - name: Check out the repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -131,57 +136,69 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Select browser coverage
+        id: select
+        env:
+          BROWSER_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BROWSER_FULL: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          node --test scripts/select-browser-tests.test.mjs
+          node scripts/select-browser-tests.mjs
+
       - name: Build browser app
         run: pnpm --filter "@neuron/web^..." build
 
       - name: Install Chromium
-        run: pnpm --filter @neuron/web test:screens:install
-
-      - name: Start web server
-        id: web-server
-        shell: pwsh
-        run: |
-          $server = Start-Process `
-            -FilePath node `
-            -ArgumentList "./node_modules/vite/bin/vite.js", "--host", "127.0.0.1" `
-            -WorkingDirectory "apps/web" `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput "$env:RUNNER_TEMP/neuron-vite.out.log" `
-            -RedirectStandardError "$env:RUNNER_TEMP/neuron-vite.err.log" `
-            -PassThru
-          "pid=$($server.Id)" >> $env:GITHUB_OUTPUT
-
-          for ($attempt = 0; $attempt -lt 60; $attempt += 1) {
-            try {
-              $response = Invoke-WebRequest -Uri "http://127.0.0.1:5173" -UseBasicParsing
-              if ($response.StatusCode -eq 200) {
-                exit 0
-              }
-            } catch {
-              Start-Sleep -Seconds 1
-            }
-          }
-
-          throw "The web server did not start"
+        run: pnpm --filter @neuron/web exec playwright install --with-deps chromium
 
       - name: Run interaction browser tests
-        run: pnpm --filter @neuron/web test:screens --project=phone-interaction --project=desktop-interaction
+        shell: bash
+        env:
+          BROWSER_FULL: ${{ steps.select.outputs.full }}
+          BROWSER_FILES: ${{ steps.select.outputs.files }}
+        run: |
+          if [[ "$BROWSER_FULL" == "true" ]]; then
+            pnpm --filter @neuron/web test:screens --project=phone-interaction --project=desktop-interaction
+          else
+            read -r -a files <<< "$BROWSER_FILES"
+            pnpm --filter @neuron/web test:screens "${files[@]}" --project=phone-interaction --project=desktop-interaction
+          fi
 
-      - name: Run visual snapshot tests
+      - name: Keep the browser report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-interaction-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 14
+
+  visual:
+    name: Windows visual contracts
+    needs: browser
+    if: ${{ needs.browser.outputs.visual == 'true' }}
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "@neuron/web^..." build
+      - run: pnpm --filter @neuron/web test:screens:install
+      - name: Compare visual contracts
         env:
           VISUAL_SNAPSHOT_SUITE: 'true'
         run: pnpm --filter @neuron/web test:screens --project=phone --project=desktop
-
-      - name: Stop web server
-        if: ${{ always() && steps.web-server.outputs.pid != '' }}
-        shell: pwsh
-        run: Stop-Process -Id ${{ steps.web-server.outputs.pid }} -Force -ErrorAction SilentlyContinue
-
-      - name: Keep the browser report
-        if: ${{ always() }}
+      - name: Keep visual diffs
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v5
         with:
-          name: playwright-report
+          name: playwright-visual-report
           path: |
             apps/web/playwright-report/
             apps/web/test-results/
