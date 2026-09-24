@@ -1,0 +1,63 @@
+name: Full browser regression
+
+on:
+  schedule:
+    - cron: '23 4 * * 3'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  interaction:
+    name: Full interaction suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "@neuron/web..." build
+      - run: pnpm --filter @neuron/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @neuron/web test:screens --project=phone-interaction --project=desktop-interaction
+      - name: Keep interaction failures
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: full-interaction-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 14
+
+  visual:
+    name: Full Windows visual suite
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "@neuron/web..." build
+      - run: pnpm --filter @neuron/web test:screens:install
+      - name: Compare visual contracts
+        env:
+          VISUAL_SNAPSHOT_SUITE: 'true'
+        run: pnpm --filter @neuron/web test:screens --project=phone --project=desktop
+      - name: Keep visual diffs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: full-visual-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 14

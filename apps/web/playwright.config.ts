@@ -1,29 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
-/**
- * The tests that need a real browser.
- *
- * Everything in `src/**` is jsdom under vitest, which is the right tool for
- * wiring. These are the three questions jsdom cannot answer: what the interface
- * looks like, whether it still moves when the system asks it not to, and
- * whether it holds its frame rate on a phone.
- *
- * The screenshots are the point. Nobody can quietly degrade the interface in a
- * later phase without one of these failing.
- *
- * Baselines carry the platform in their name, which is Playwright's own
- * default, because the interface face is the platform's: the same page is set
- * in SF Pro on a Mac and Segoe UI on Windows and neither is wrong. CI runs this
- * suite on Windows so it compares against the committed win32 baselines.
- */
+/** Browser interactions and Windows-specific visual contracts have separate CI paths. */
 export default defineConfig({
   testDir: './tests',
 
   /*
    * The hosted frame-rate benchmark and the visual snapshot suite are isolated
    * from concurrent work. Keep both on one worker so throttled measurements and
-   * screenshots remain honest. The hosted interaction gate also sets one worker
-   * explicitly; ordinary local runs keep the faster two-worker default.
+   * screenshots remain honest; interaction runs can use two workers.
    */
   fullyParallel: false,
   workers:
@@ -85,7 +69,7 @@ export default defineConfig({
     },
     {
       name: 'phone-interaction',
-      testIgnore: /(?:gallery|screens)\.spec\.ts/,
+      testIgnore: /(?:gallery|screens|performance)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 375, height: 812 },
@@ -101,6 +85,14 @@ export default defineConfig({
         viewport: { width: 1440, height: 900 },
       },
     },
+    {
+      name: 'phone-performance',
+      testMatch: /(?:00-note-list-performance|performance)\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 375, height: 812 },
+      },
+    },
   ],
 
   webServer: {
@@ -110,7 +102,7 @@ export default defineConfig({
       ? 'node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 5173 --strictPort'
       : 'node ./node_modules/vite/bin/vite.js --host',
     url: 'http://127.0.0.1:5173',
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env['CI'],
     timeout: 120_000,
   },
 });

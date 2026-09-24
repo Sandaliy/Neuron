@@ -76,8 +76,10 @@ const plan = (card: typeof base) => ({
   },
 });
 
+// These injected session cases isolate card behavior. The enabling test below
+// separately exercises the shipped Note editor path into Study.
 for (const reduced of [false, true])
-  test(`typed checking is local and preserves explicit verified ratings, reduced=${reduced}`, async ({
+  test(`given a production card, typed checking stays local and ratings stay explicit, reduced=${reduced}`, async ({
     page,
   }, info) => {
     await usePreferences(page, { locale: 'en', theme: 'dark' });
@@ -133,7 +135,7 @@ for (const reduced of [false, true])
     await expect(page.getByRole('button', { name: 'Finish', exact: true })).toBeEnabled();
   });
 
-test('listening survives missing and late voices and replays in the target language', async ({
+test('given a listening card, missing and late voices preserve replay and reveal', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -176,3 +178,42 @@ test('listening survives missing and late voices and replays in the target langu
   await page.getByRole('button', { name: 'Show answer' }).click();
   await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
 });
+
+for (const direction of ['production', 'listening'] as const)
+  test(`enabling ${direction} in the Note editor reaches Study`, async ({ page }) => {
+    await usePreferences(page, { locale: 'en', theme: 'dark' });
+    await useFixtures(page, { decks: [deck], notes: [note] });
+    const cards = [{ ...base, id: id(4), direction: 'recognition' }];
+    let enabled = false;
+    await page.route(`**/api/notes/${note.id}`, (route) =>
+      route.fulfill({ json: { note, cards } }),
+    );
+    await page.route(`**/api/notes/${note.id}/cards`, (route) => {
+      expect(route.request().postDataJSON()).toEqual({ direction });
+      enabled = true;
+      const card = { ...base, direction };
+      cards.push(card);
+      return route.fulfill({ json: { card } });
+    });
+    await page.route('**/api/study/session', (route) =>
+      route.fulfill({
+        json: enabled
+          ? plan({ ...base, direction })
+          : { ...plan(base), cards: [], availableCount: 0, newCount: 0 },
+      }),
+    );
+
+    await page.goto(`/notes/${note.id}`);
+    await page.getByText('Study directions', { exact: true }).click();
+    await page
+      .getByRole('button', { name: direction === 'production' ? 'Production' : 'Listening' })
+      .click();
+    await expect.poll(() => enabled).toBe(true);
+    await page.getByRole('link', { name: 'Today' }).click();
+    await page.getByRole('button', { name: 'Study', exact: true }).click();
+    await expect(
+      page.getByRole('button', {
+        name: direction === 'production' ? 'Check answer' : 'Play / replay',
+      }),
+    ).toBeVisible();
+  });

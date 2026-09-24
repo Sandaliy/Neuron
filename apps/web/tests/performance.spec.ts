@@ -1,3 +1,5 @@
+import { appendFileSync, writeFileSync } from 'node:fs';
+
 import { expect, test } from '@playwright/test';
 
 import { manyDecks, useFixtures, usePreferences } from './fixtures';
@@ -110,7 +112,7 @@ async function scrollFiveHundredRows(page: Page): Promise<Measurement> {
   return { ...frames, blurredRows };
 }
 
-function report(what: string, measured: Measurement): void {
+function report(what: string, measured: Measurement, threshold?: number): void {
   const line =
     `${what}: ${measured.fps.toFixed(1)} fps, worst frame ${measured.worst.toFixed(1)} ms, ` +
     `${measured.blurredRows} blurred rows`;
@@ -120,6 +122,19 @@ function report(what: string, measured: Measurement): void {
   // anybody deciding that.
   console.log(line);
   test.info().annotations.push({ type: 'frame rate', description: line });
+  const passed = threshold === undefined || measured.fps >= threshold;
+  writeFileSync(
+    test.info().outputPath('frame-rate.json'),
+    JSON.stringify({ ...measured, threshold: threshold ?? null, passed, line }, null, 2),
+  );
+  if (process.env['GITHUB_STEP_SUMMARY']) {
+    appendFileSync(
+      process.env['GITHUB_STEP_SUMMARY'],
+      `\n### ${what}\n\n${line}\n\n${threshold === undefined ? 'Measured only.' : `${threshold} fps threshold: **${passed ? 'met' : 'missed'}**.`}\n`,
+    );
+  }
+  if (!passed && process.env['CI'])
+    console.log(`::warning::${line}; threshold ${threshold} fps missed`);
 }
 
 test.describe('scroll performance', () => {
@@ -138,12 +153,13 @@ test.describe('scroll performance', () => {
 
     const measured = await scrollFiveHundredRows(page);
 
-    report(`500 rows, glass full, panels only, ${CPU_THROTTLE}x cpu`, measured);
+    report(`500 rows, glass full, panels only, ${CPU_THROTTLE}x cpu`, measured, BUDGET);
 
     // The default is what the rule protects: nothing in the content flow is
     // glass, so none of the five hundred rows costs a blurred layer.
     expect(measured.blurredRows).toBe(0);
-    expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
+    if (process.env['PERFORMANCE_ENFORCE_THRESHOLD'] === 'true')
+      expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
   });
 
   /**

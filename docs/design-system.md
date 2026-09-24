@@ -268,11 +268,11 @@ again.
 
 ### The budget
 
-The product budget is 55 frames a second. The blocking browser gate protects the structural
-virtualization invariant; the separate visible `Performance benchmark` workflow measures the
+The product budget is 55 frames a second. Focused note-list checks protect normal virtualization
+behavior; the separate visible `Performance benchmark` workflow measures the
 5,000-note scenario in a 375 by 812 viewport at two device pixels per css pixel with the processor
 throttled to a quarter speed through the debugger. That benchmark reports the same 55 fps threshold
-but is non-blocking because hosted Windows runner variance is not a product failure.
+but is informational because hosted Windows runner variance is not a product failure.
 
 Measured, at the default and with the effect carried onto every row:
 
@@ -557,21 +557,40 @@ pnpm test
 ```
 
 `pnpm lint` includes the token check. `pnpm test` includes the contrast measurements and the motion
-source check.
+source check. These checks and the API/database safety gates remain independent of browser selection.
 
 ```
-pnpm --filter @neuron/web test:screens
+pnpm --filter @neuron/web test:screens --project=phone-interaction --project=desktop-interaction
 ```
 
-The Playwright suite: the gallery and the main screens in both themes at 375 and 1440, the reduced
-motion checks, and deterministic interaction plus virtualization invariants. It starts the dev server
-itself. Actual 5,000-note frame-rate measurement runs separately in the visible, non-blocking
-`Performance benchmark` workflow.
+Locally Playwright starts the dev server. In CI it tests the built app through Vite preview. The
+required `Browser and screenshot tests` check retains its branch-protection identity and runs on Linux:
+`smoke.spec.ts` always checks Today to Study, Library to a deck, and Settings to an account action.
+For a screen change, `scripts/select-browser-tests.mjs` adds that surface's existing interaction specs.
+Shared browser infrastructure runs the complete phone and desktop interaction suite. CI workflow
+dispatch also runs the complete interaction suite. The separate `Full browser regression` workflow
+runs interaction and visual suites every Wednesday and on manual dispatch. Interaction workers may run
+concurrently; CPU-sensitive benchmarks and Windows snapshots use one worker.
+Run Windows visual contracts locally with
+`pnpm --filter @neuron/web test:screens --project=phone --project=desktop --workers=1`.
 
 Baselines carry the platform in their name, because the interface face is the platform's own: the same
 page is set in SF Pro on a Mac and Segoe UI on Windows, and neither is wrong. The committed baselines
-are `win32`. The browser job therefore runs on a Windows CI runner, while the other checks run on Linux.
-A baseline is updated deliberately with `test:screens:update`, and the diff is the review.
+are `win32`. The `Windows visual contracts` job runs on PRs that change shared visual primitives,
+styles, theme, config tokens, the screenshot specs, or their baselines. It is separate from the required
+interaction check and still runs when that check fails after selection. Review the rendered diff and
+intended design before updating a baseline. A baseline
+is updated deliberately with `test:screens:update`; an old image does not define product behavior.
+Geometry and timing assertions deserve the same contract review. Fix the implementation when it breaks
+the intended behavior; fix the test when it encodes obsolete behavior. A mocked card or session proves
+the tested renderer and interaction, not that a user can enable that mode. A test claiming a full user
+journey must use a state the product can create and exercise the relevant controls.
+
+The `Performance benchmark` workflow runs weekly, on relevant main changes, and manually. Its hosted
+5,000-note and 500-row results report measured FPS and the 55 fps comparison in the job summary and
+emit a warning on a miss; an infrastructure or structural test failure still fails the workflow. To enforce the threshold in a
+controlled performance task, set `PERFORMANCE_BENCHMARK=true` and
+`PERFORMANCE_ENFORCE_THRESHOLD=true` for the phone-performance project.
 
 ## Learning composition
 

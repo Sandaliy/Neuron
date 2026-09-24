@@ -279,9 +279,9 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
         return;
       }
 
-      // The Today plan is a real response, even in a screen fixture. Keeping
-      // one stable card here lets the planning controls render their normal
-      // ready state instead of an unrelated error panel.
+      // A stable, reachable Basic recognition card exercises the Today and
+      // Study UI. The mocked session tests rendering and interaction, not
+      // whether another card direction can be enabled through the product.
       if (path.endsWith('/api/study/session')) {
         const studyDeckId = '01900000-0000-7000-8000-000000000901';
         const studyNoteId = '01900000-0000-7000-8000-000000000902';
@@ -330,7 +330,14 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
             ],
             nextDue: null,
             scopeDeckIds: [studyDeckId],
-            deckSummaries: [{ deckId: 'd3', due: 0, fresh: 1, nextDue: null }],
+            deckSummaries: [
+              {
+                deckId: decks[0]?.id === studyDeckId ? studyDeckId : 'd3',
+                due: 0,
+                fresh: 1,
+                nextDue: null,
+              },
+            ],
             availableCount: 1,
             estimatedMinutes: 0.1,
             budgetMinutes: 20,
