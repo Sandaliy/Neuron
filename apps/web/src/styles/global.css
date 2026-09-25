@@ -76,6 +76,7 @@
   --color-accent: var(--text-accent);
   --color-on-accent: var(--text-on-accent);
   --color-error: var(--text-error);
+  --color-correct: var(--text-correct);
 
   /* Borders. `--border-accent` and `--text-accent` are the same value. */
   --color-subtle: var(--border-subtle);
@@ -1289,5 +1290,64 @@
   }
 }
 .neu-answer-divider {
-  animation: neu-answer-divider var(--dur-2) ease-out backwards;
+  animation: neu-answer-divider var(--dur-learning) ease-out backwards;
+}
+
+.neu-learning-answer {
+  animation: neu-reveal var(--dur-learning) var(--ease-enter) backwards;
+}
+
+/* A bounded learning screen owns its actions and uses the existing viewport contract. */
+[data-shell-content]:has([data-learning-screen]) {
+  padding-bottom: calc(var(--safe-bottom) + var(--u-4));
+}
+body:has([data-learning-screen]) [data-g='tabbar'] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(var(--u-2));
+}
+.neu-session {
+  height: calc(var(--visual-viewport-height, 100svh) - var(--safe-top) - var(--safe-bottom) - 32px);
+  min-height: 360px;
+}
+.neu-learning-card {
+  min-height: 360px;
+}
+.neu-session .neu-learning-card {
+  min-height: 0;
+}
+.neu-learning-prompt,
+.neu-learning-answer {
+  font-size: var(--type-learning-prompt);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tr-tight);
+  color: var(--text-primary);
+}
+.neu-learning-answer {
+  font-size: var(--type-learning-answer);
+}
+.neu-spelling {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 104px;
+  overflow-y: auto;
+}
+:root[data-keyboard='open'] [data-shell-content]:has([data-learning-screen]) {
+  padding-bottom: var(--u-3);
+}
+:root[data-keyboard='open'] .neu-session {
+  height: calc(var(--visual-viewport-height) - var(--safe-top) - 24px);
+  min-height: 0;
+  gap: var(--u-2);
+}
+:root[data-keyboard='open'] .neu-learning-card {
+  padding: var(--u-4);
+  gap: var(--u-2);
+}
+:root[data-keyboard='open'] .neu-learning-reading {
+  padding-block: var(--u-2);
+}
+:root[data-keyboard='open'] .neu-session:has([data-typed-answer]) .neu-learning-actions {
+  display: none;
 }

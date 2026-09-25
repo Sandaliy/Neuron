@@ -62,9 +62,10 @@ export function noteRoutes(): Hono<RequestBindings> {
     ]);
 
     return context.json({
-      items: page.items.map(({ cardStates, ...note }) => ({
+      items: page.items.map(({ cardStates, studyCards, ...note }) => ({
         ...serialiseNote(note, typeNames),
         cardStates,
+        studyCards,
       })),
       ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
     });

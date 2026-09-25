@@ -68,10 +68,29 @@ export function hasPracticeSide(fields: Record<string, unknown>, side: PracticeS
 export function samePracticeSides(front: PracticeSide, back: PracticeSide): boolean {
   return [...practiceFields(front)].sort().join('|') === [...practiceFields(back)].sort().join('|');
 }
+export const practiceResponseSchema = z.enum(['reveal', 'typing', 'listening']);
+export type PracticeResponse = z.infer<typeof practiceResponseSchema>;
+export function supportsPracticeResponse(
+  fields: Record<string, unknown>,
+  front: PracticeSide,
+  back: PracticeSide,
+  response: PracticeResponse = 'reveal',
+): boolean {
+  if (!hasPracticeSide(fields, front) || !hasPracticeSide(fields, back)) return false;
+  if (response === 'listening')
+    return practiceFields(front).length === 1 && practiceFields(front)[0] === 'term';
+  if (response === 'typing') {
+    const selected = practiceFields(back);
+    const value = selected.length === 1 ? practiceValue(fields, selected[0]!) : undefined;
+    return typeof value === 'string' && value.length <= 200 && !value.includes('\n');
+  }
+  return true;
+}
 export const practiceRunSchema = z.object({
   id: z.uuid(),
   front: practiceSideSchema,
   back: practiceSideSchema,
+  response: practiceResponseSchema.optional(),
   statuses: z.record(z.string(), z.enum(['unseen', 'learning', 'known'])),
   queue: z.array(z.string()),
   round: z.number().int().positive(),
@@ -85,6 +104,7 @@ export const practiceCommandSchema = z.discriminatedUnion('kind', [
     runId: z.uuid(),
     front: practiceSideSchema,
     back: practiceSideSchema,
+    response: practiceResponseSchema.optional(),
   }),
   z.strictObject({
     kind: z.literal('answer'),
@@ -107,8 +127,8 @@ export interface PracticeNote {
   readonly fields: Record<string, unknown>;
 }
 export function reconcilePractice(run: PracticeRun, notes: readonly PracticeNote[]): PracticeRun {
-  const eligible = notes.filter(
-    (n) => hasPracticeSide(n.fields, run.front) && hasPracticeSide(n.fields, run.back),
+  const eligible = notes.filter((n) =>
+    supportsPracticeResponse(n.fields, run.front, run.back, run.response),
   );
   const ids = new Set(eligible.map((n) => n.id));
   const added = eligible.filter((n) => !run.statuses[n.id]).map((n) => n.id);
@@ -131,6 +151,7 @@ export function advancePractice(
         id: command.runId,
         front: command.front,
         back: command.back,
+        ...(command.response ? { response: command.response } : {}),
         statuses: {},
         queue: [],
         round: 1,

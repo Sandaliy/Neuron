@@ -193,6 +193,11 @@ describe('the themes', () => {
         check(`${name} · tertiary on card`, rgb(palette['text-tertiary'] as string), card);
         check(`${name} · accent on card`, rgb(palette['text-accent'] as string), card);
         check(`${name} · error on card`, rgb(palette['text-error'] as string), card);
+        check(
+          `${name} · correct spelling on input`,
+          rgb(palette['text-correct'] as string),
+          rgb(palette['surface-input'] as string),
+        );
       });
 
       it('keeps a label on the accent legible', () => {

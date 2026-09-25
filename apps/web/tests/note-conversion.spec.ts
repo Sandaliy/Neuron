@@ -30,7 +30,16 @@ async function editor(
       importBatchId: null,
       rev: 1,
     },
-    cards: [{ id: 'old-card', direction: 'recognition', slot: 0, reps: options.reviewed ? 1 : 0 }],
+    cards: [
+      {
+        id: 'old-card',
+        direction: 'recognition',
+        slot: 0,
+        reps: options.reviewed ? 1 : 0,
+        state: 'new',
+        due: '2026-01-01T00:00:00Z',
+      },
+    ],
   };
   const writes: Record<string, unknown>[] = [];
   let reads = 0;
@@ -56,6 +65,8 @@ async function editor(
                 direction: body['noteType'] === 'cloze' ? 'cloze' : 'recognition',
                 slot: body['noteType'] === 'cloze' ? 1 : 0,
                 reps: 0,
+                state: 'new',
+                due: '2026-01-01T00:00:00Z',
               },
             ]
           : stored.cards,
@@ -94,9 +105,9 @@ test('marking a note known updates immediately while the server confirms it', as
   const state = await editor(page);
   state.control.statusDelay = 700;
 
-  await page.getByRole('button', { name: 'Already know this', exact: true }).click();
+  await page.getByRole('button', { name: 'Mark as known', exact: true }).click();
 
-  await expect(page.getByRole('button', { name: 'Study it again', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Return to study', exact: true })).toBeVisible();
   await expect.poll(() => state.stored().note.status).toBe('known');
 });
 

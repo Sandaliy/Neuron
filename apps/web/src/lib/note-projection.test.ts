@@ -125,3 +125,51 @@ it('projects Study availability immediately but requires renewed server admissio
   expect(restored.availableCount).toBe(2);
   expect(restored.localProjection).toBe(true);
 });
+
+it('uses complete list summaries before transport and moves note totals without detail requests', () => {
+  const client = setup();
+  client.removeQueries({ queryKey: ['notes', 'a'], exact: true });
+  client.setQueryData(['notes', 'list', ''], {
+    pages: [
+      {
+        items: [
+          {
+            ...note('a'),
+            studyCards: [
+              {
+                direction: 'production',
+                state: 'new',
+                due: '2026-01-01T00:00:00Z',
+                suspendedAt: null,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    pageParams: [null],
+  });
+  const undo = projectNotes(client, ['a'], (note) => ({ ...note, status: 'known' }));
+  expect(client.getQueryData<{ decks: DeckNode[] }>(['decks'])!.decks[0]!.fresh).toBe(1);
+  undo();
+  expect(client.getQueryData<{ decks: DeckNode[] }>(['decks'])!.decks[0]!.fresh).toBe(2);
+});
+
+it('projects direction-filtered summaries without charging other independent cards', () => {
+  const client = setup();
+  const recognition = { ...card('a'), id: 'recognition', direction: 'recognition' as const };
+  client.setQueryData(['notes', 'a'], { note: note('a'), cards: [card('a'), recognition] });
+  const key = ['study-plan', '', 'production'];
+  client.setQueryData(key, {
+    notes: [note('a')],
+    cards: [card('a')],
+    deckSummaries: [{ deckId: 'deck', due: 0, fresh: 3 }],
+    availableCount: 3,
+    estimatedMinutes: 8,
+  });
+  const rollback = projectNotes(client, ['a'], (n) => ({ ...n, status: 'known' }));
+  expect(client.getQueryData<StudyPlanProjection>(key)!.availableCount).toBe(2);
+  rollback();
+  expect(client.getQueryData<StudyPlanProjection>(key)!.availableCount).toBe(3);
+  expect(client.getQueryData<StudyPlanProjection>(key)!.estimatedMinutes).toBe(8);
+});

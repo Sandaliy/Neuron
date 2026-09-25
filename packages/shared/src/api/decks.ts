@@ -31,6 +31,7 @@ export type Deck = z.infer<typeof deckSchema>;
 
 /** A deck with its children, as the library screen draws it. */
 export interface DeckNode extends Deck {
+  readonly noteCount?: number | undefined;
   readonly children: readonly DeckNode[];
   /** Cards waiting, this deck and everything under it. */
   readonly due: number;
@@ -42,6 +43,7 @@ export interface DeckNode extends Deck {
 
 export const deckNodeSchema: z.ZodType<DeckNode> = deckSchema
   .extend({
+    noteCount: z.number().int().min(0).optional(),
     due: z.number().int().min(0),
     fresh: z.number().int().min(0),
     nextDue: z.string().nullable().optional(),

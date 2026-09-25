@@ -66,6 +66,7 @@ export function NoteSelectionBar({
     if (running.current || ids.length === 0) return;
     running.current = true;
     setWorking(true);
+    setDialog('none');
     setError(undefined);
     let total = 0;
     try {

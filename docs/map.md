@@ -371,3 +371,9 @@ Rich Study and interaction responsiveness:
 - `apps/web/src/lib/entity-writes.ts`: per-client serialization of overlapping entity writes.
 - `apps/web/src/lib/note-projection.ts`: shared optimistic Note/page/count patches and inverse rollback.
 - `apps/web/src/lib/deck-projection.ts`: field-local Deck name/settings patches and rollback.
+
+Learning response and acceptance:
+
+- `apps/web/src/ui/typed-response.tsx`: local answer submission and accessible aligned feedback.
+- `apps/web/tests/learning-live.spec.ts`: opt-in real-database activation, rating and Practice journeys.
+- `apps/web/tests/rich-study.spec.ts`: renderer, visual-viewport and held-request responsiveness coverage.

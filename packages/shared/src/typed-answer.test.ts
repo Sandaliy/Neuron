@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checkTypedAnswer } from './typed-answer.js';
+import { checkTypedAnswer, spellingFeedback } from './typed-answer.js';
 
 describe('typed production feedback', () => {
   it('accepts canonical Unicode, whitespace and case without stripping meaningful marks', () => {
@@ -24,4 +24,28 @@ describe('typed production feedback', () => {
     expect(checkTypedAnswer('   ', 'word')).toBe('incorrect');
     expect(checkTypedAnswer('a'.repeat(10000), 'word')).toBe('incorrect');
   });
+});
+
+it('aligns insertions and omissions without marking the following suffix wrong', () => {
+  expect(spellingFeedback('hxouse', 'house').parts.map((part) => part.kind)).toEqual([
+    'correct',
+    'extra',
+    'correct',
+    'correct',
+    'correct',
+    'correct',
+  ]);
+  expect(spellingFeedback('hose', 'house').parts.map((part) => part.kind)).toEqual([
+    'correct',
+    'correct',
+    'missing',
+    'correct',
+    'correct',
+  ]);
+  expect(spellingFeedback('COLOUR', 'color', ['colour']).parts).toEqual([
+    { kind: 'correct', text: 'COLOUR' },
+  ]);
+  expect(
+    spellingFeedback('schon', 'schön').parts.filter((part) => part.kind === 'incorrect'),
+  ).toEqual([{ kind: 'incorrect', text: 'o', expected: 'ö' }]);
 });

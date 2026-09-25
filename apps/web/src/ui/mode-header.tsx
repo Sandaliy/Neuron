@@ -32,11 +32,14 @@ export function ModeHeader({
           aria-label={exitLabel}
           title={exitLabel}
           disabled={disabled}
-          onClick={onExit}
+          onClick={() => {
+            if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+            onExit();
+          }}
         >
           <X size={20} strokeWidth={1.5} aria-hidden="true" />
         </Button>
-        <h1 className="text-14 text-secondary">{title}</h1>
+        <h1 className="text-17 text-primary">{title}</h1>
         <div className="min-w-0 justify-self-end">{action}</div>
       </div>
       {value !== undefined && max !== undefined && (

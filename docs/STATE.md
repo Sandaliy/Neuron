@@ -8,29 +8,23 @@ Last updated: 2026-09-25, merged rich Study and CI updates.
 
 ## Current release slice
 
-PR #25 shipped the rich Study and interaction-responsiveness slice to `main`; PR #26 completed the
-risk-based browser CI redesign. Production now checks vocabulary terms
-locally with conservative Unicode/case/whitespace normalization, explicit accepted alternatives, and
-separate close-spelling feedback. The learner still chooses every rating. Listening uses target-language
-speech playback with replay and a reveal fallback for missing or unusable voices. Both directions use
-existing independent Card identities and explicit manual enabling; progressive unlocking remains deferred.
+PRs #25–27 are the merged baseline. The learning-experience rescue is prepared on
+`work/learning-experience-rescue` for protected PR delivery; it is not yet merged or verified in production.
 
-The shared learning card centers the prompt, then moves it above a drawn divider and revealed answer
-inside a stable reading surface. Note participation is a status badge with separate readiness text and
-equal-weight Study it again / Already know this actions. Practice completion draws its ring and counts
-its percentage without delaying any control, with an immediate final result under reduced motion.
-Future Study and per-Deck availability uses the actual shared eligibility boundary and localized time.
+Deck Study skills now enable missing Typing/Listening Cards on existing and future eligible Notes using
+the existing ladder. Existing identities, schedules and Reviews are preserved. Practice persists Typing
+and Listening response modes without scheduled-learning writes. Mark as known and Return to study alter
+participation only; Restart learning remains the explicit reset with immutable history.
 
-Note status, reset, move and tag changes share immediate cache projections and field/entity-local
-rollback. Overlapping writes serialize per entity while unrelated writes proceed. Late autosave responses
-preserve pending intent. Deck name/settings edits patch only their fields instead of broadly refetching.
-Fresh Study admission remains server-confirmed. The maintained interaction contract is in architecture.md;
-the bounded completion-ring motion exception is scoped in design-system.md.
+Study and Practice share a focused reading surface with prominent prompt/answer typography, visible
+reveal, integrated spelling feedback and no competing global navigation. Existing visual-viewport
+geometry drives compact Typing; Enter checks locally, blurs and restores feedback/rating space.
+Library uses clearer Folder/Deck hierarchy and account-bound live Note counts. Browse Card summaries
+support immediate participation/move projections; fresh workload admission remains server-owned.
 
-Protected PR delivery is complete. Post-merge browser interaction, Windows visual, build, migration-journal,
-performance-monitoring and Vercel checks succeeded. Physical-iPhone acceptance of typed Production,
-Listening audio and the shared Study interactions remains outstanding. Phase 8 offline sync and Phase 9
-progressive unlocking and statistics remain outside this slice.
+Physical-iPhone acceptance remains outstanding. Phase 8 offline sync and Phase 9 progressive unlocking
+and statistics remain outside this slice. The final PR report records the executed test results and
+check state; pending hosted checks must not be interpreted as passing.
 
 ## Now
 
@@ -99,8 +93,8 @@ Today or Study.
   replaces cross-type cards with new IDs and fresh schedules. Answered-card removal requires explicit
   confirmation, with review rows preserved. Real database tests verify rollback of note/cards/revisions;
   focused phone/desktop browser tests cover all target schemas, cancellation, confirmation and retry.
-  Existing notes move only through list selection; full direction/ladder controls remain intentionally
-  deferred to the study-time direction and preset UX in Phase 7.
+  Existing notes move through list selection. Explicit Deck skills and per-session direction choices
+  are implemented; automatic progressive unlocking remains deferred.
 - The note list exposes exact source filtering and per-row live-card summaries. Persistent Deleted/Restore
   UI now covers soft-deleted decks and notes.
 - Server restore integrity is verified by 22 real-database regression cases. Decks restore individually,

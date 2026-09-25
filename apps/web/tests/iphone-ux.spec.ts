@@ -38,7 +38,16 @@ async function setup(page: Page, locale: 'en' | 'ru' = 'en') {
     return route.fulfill({
       json: {
         note,
-        cards: [{ id: 'card', direction: 'recognition', slot: 0, reps: 0, state: 'new' }],
+        cards: [
+          {
+            id: 'card',
+            direction: 'recognition',
+            slot: 0,
+            reps: 0,
+            state: 'new',
+            due: '2026-01-01T00:00:00Z',
+          },
+        ],
       },
     });
   });
@@ -108,29 +117,24 @@ test('Known responds immediately, rejects repeated taps and rolls back on failur
   const { control } = await setup(page);
   control.delay = 1500;
   await page.goto('/notes/mobile');
-  const mark = page.getByRole('button', { name: 'Already know this', exact: true });
+  const mark = page.getByRole('button', { name: 'Mark as known', exact: true });
   await mark.click();
   await expect(page.getByRole('status').filter({ hasText: /^Known$/ })).toBeVisible({
     timeout: 500,
   });
-  const again = page.getByRole('button', { name: 'Study it again', exact: true });
-  await expect(again).toBeDisabled();
-  await again.evaluate((button: HTMLButtonElement) => {
+  const returnToStudy = page.getByRole('button', { name: 'Return to study', exact: true });
+  await expect(returnToStudy).toBeDisabled();
+  await returnToStudy.evaluate((button: HTMLButtonElement) => {
     for (let i = 0; i < 5; i++) button.click();
   });
-  await expect(again).toBeEnabled();
+  await expect(returnToStudy).toBeEnabled();
   expect(control.statuses).toEqual(['known']);
   control.fail = true;
-  await page.route('**/api/notes/mobile/study-again', (route) =>
-    route.fulfill({
-      status: 500,
-      json: { error: { code: 'internal_error', status: 500, correlationId: 'test' } },
-    }),
-  );
-  await again.click();
-  await expect(again).toBeEnabled();
+  await returnToStudy.click();
+  await expect(returnToStudy).toBeEnabled();
   await expect(page.getByRole('status').filter({ hasText: /^Known$/ })).toBeVisible();
   await expect(page.getByRole('alert')).toBeVisible();
+  expect(control.statuses).toEqual(['known', 'active']);
 });
 
 test('empty decks hide browse controls; selection actions stay in the page and offer both status directions', async ({
@@ -233,7 +237,7 @@ test('Safari toolbar measurements do not move the fixed bar; blur restores it af
   expect((await nav.boundingBox())!.y).toBe(original!.y);
 });
 
-test('Study it again retries one reset, preserves the draft and returns the note to Ready', async ({
+test('Restart learning retries one reset, preserves the draft and returns to Studying', async ({
   page,
 }) => {
   const { stored } = await setup(page);
@@ -264,13 +268,16 @@ test('Study it again retries one reset, preserves the draft and returns the note
   await page.goto('/notes/mobile');
   const field = page.getByRole('textbox', { name: 'Translation', exact: true });
   await field.fill('retained during restart');
-  await page.getByRole('button', { name: 'Already know this', exact: true }).click();
-  const again = page.getByRole('button', { name: 'Study it again', exact: true });
+  await page.getByRole('button', { name: 'Mark as known', exact: true }).click();
+  await page.locator('summary').filter({ hasText: 'Restart learning' }).click();
+  const again = page.getByRole('button', { name: 'Restart learning', exact: true });
   await expect(again).toBeEnabled();
   await again.click();
   await expect(page.getByRole('alert')).toBeVisible();
   await again.click();
-  await expect(page.getByLabel('Study status').getByText('Ready', { exact: true })).toBeVisible();
+  await expect(
+    page.getByLabel('Study status').getByText('Studying', { exact: true }),
+  ).toBeVisible();
   await expect(field).toHaveValue('retained during restart');
   expect(ids).toHaveLength(2);
   expect(ids[0]).toBe(ids[1]);

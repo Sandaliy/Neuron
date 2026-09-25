@@ -3,18 +3,24 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import {
   PRACTICE_FIELDS,
-  hasPracticeSide,
+  supportsPracticeResponse,
   practiceFields,
   practiceFieldLabel,
   practiceValue,
   samePracticeSides,
 } from '@neuron/shared';
-import type { Note, PracticeRun, PracticeSide, PracticeField } from '@neuron/shared';
+import type {
+  Note,
+  PracticeRun,
+  PracticeSide,
+  PracticeField,
+  PracticeResponse,
+} from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
-import { findDeck, useDeckTree } from '../../lib/decks';
+import { findDeck, settingsFor, useDeckTree } from '../../lib/decks';
 import { practiceStore } from '../../lib/practice';
 import { Button } from '../../ui/button';
 import { Checkbox } from '../../ui/checkbox';
@@ -22,7 +28,11 @@ import { CompletionProgress } from '../../ui/completion-progress';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 import { LearningCard } from '../../ui/learning-card';
 import { ModeHeader } from '../../ui/mode-header';
+import { Select } from '../../ui/select';
 import { ErrorState, SkeletonRows } from '../../ui/states';
+import { TypedResponse } from '../../ui/typed-response';
+
+import { ListeningPrompt, Speaker } from './listening-prompt';
 
 /** Session completion chooses a deck; every entry resumes the same durable run. */
 export function Practice({
@@ -123,19 +133,22 @@ function PersistentPractice({
   const [back, setBack] = useState<PracticeRun['back']>(fields[1] ?? 'back');
   const [configuring, setConfiguring] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [response, setResponse] = useState<PracticeResponse>('reveal');
+  const [typed, setTyped] = useState('');
+  const decks = useDeckTree();
+  const account = useAccount();
+  const language =
+    settingsFor(decks.data ?? [], deckId).targetLanguage ?? account.data?.settings.targetLanguage;
   const run = state.run;
   const current = notes.find((note) => note.id === run?.queue[0]);
   const statuses = Object.values(run?.statuses ?? {});
   const known = statuses.filter((status) => status === 'known').length;
   const learning = statuses.filter((status) => status === 'learning').length;
-  const eligible = notes.filter(
-    (note) => hasPracticeSide(note.fields, front) && hasPracticeSide(note.fields, back),
+  const eligible = notes.filter((note) =>
+    supportsPracticeResponse(note.fields, front, back, response),
   );
   return (
-    <section
-      data-screen=""
-      className="flex min-h-[calc(100dvh-var(--bar-height)-var(--safe-top)-var(--safe-bottom)-52px)] flex-col gap-16"
-    >
+    <section data-screen="" data-learning-screen="" className="neu-session flex flex-col gap-16">
       <ModeHeader
         title={t('practice.title')}
         exitLabel={t('practice.exit')}
@@ -160,6 +173,42 @@ function PersistentPractice({
       ) : !run || configuring ? (
         <>
           {run && <p className="text-14 text-secondary">{t('practice.changeWarning')}</p>}
+          <p className="text-14 text-secondary">{t('practice.modeHint')}</p>
+          <label className="flex flex-col gap-8 text-14">
+            {t('practice.response')}
+            <Select
+              value={response}
+              onChange={(event) => {
+                const mode = event.target.value as PracticeResponse;
+                setResponse(mode);
+                if (
+                  mode === 'typing' &&
+                  fields.includes('term') &&
+                  fields.includes('translation')
+                ) {
+                  setFront('translation');
+                  setBack('term');
+                }
+                if (mode === 'listening') {
+                  setFront('term');
+                  setBack(fields.includes('translation') ? 'translation' : back);
+                }
+              }}
+            >
+              {(['reveal', 'typing', 'listening'] as const).map((mode) => (
+                <option
+                  key={mode}
+                  value={mode}
+                  disabled={mode === 'listening' && !fields.includes('term')}
+                >
+                  {t(`practice.mode.${mode}`)}
+                </option>
+              ))}
+            </Select>
+          </label>
+          {response !== 'reveal' && (
+            <p className="text-13 text-secondary">{t(`practice.${response}Hint`)}</p>
+          )}
           <div className="grid grid-cols-2 gap-12">
             {(['front', 'back'] as const).map((side) => (
               <PracticeFieldChoice
@@ -178,7 +227,8 @@ function PersistentPractice({
             variant="primary"
             disabled={samePracticeSides(front, back) || !eligible.length || !!state.error}
             onClick={() => {
-              store.act({ kind: 'start', front, back });
+              store.act({ kind: 'start', front, back, response });
+              setTyped('');
               setConfiguring(false);
               setRevealed(false);
             }}
@@ -200,13 +250,57 @@ function PersistentPractice({
                 context={practiceFields(run.front)
                   .map((field) => t(practiceFieldLabel(field)))
                   .join(' · ')}
-                prompt={<PracticeFace fields={current.fields} side={run.front} />}
+                prompt={
+                  run.response === 'listening' ? (
+                    <ListeningPrompt
+                      key={current.id}
+                      text={String(current.fields['term'] ?? '')}
+                      language={language}
+                    />
+                  ) : (
+                    <PracticeFace
+                      fields={current.fields}
+                      side={run.front}
+                      language={language}
+                      identity={current.id}
+                    />
+                  )
+                }
+                response={
+                  run.response === 'typing' ? (
+                    <TypedResponse
+                      value={typed}
+                      onChange={setTyped}
+                      answer={String(
+                        practiceValue(current.fields, practiceFields(run.back)[0]!) ?? '',
+                      )}
+                      alternatives={
+                        practiceFields(run.back)[0] === 'term' &&
+                        Array.isArray(current.fields['acceptedAnswers'])
+                          ? current.fields['acceptedAnswers'].filter(
+                              (value): value is string => typeof value === 'string',
+                            )
+                          : []
+                      }
+                      language={language}
+                      revealed={revealed}
+                      onReveal={() => setRevealed(true)}
+                    />
+                  ) : undefined
+                }
                 answer={
-                  revealed ? <PracticeFace fields={current.fields} side={run.back} /> : undefined
+                  revealed ? (
+                    <PracticeFace
+                      fields={current.fields}
+                      side={run.back}
+                      language={language}
+                      identity={current.id}
+                    />
+                  ) : undefined
                 }
               />
               {revealed ? (
-                <div className="neu-reveal grid grid-cols-2 gap-8">
+                <div className="neu-learning-actions neu-reveal grid shrink-0 grid-cols-2 gap-8">
                   {[false, true].map((value) => (
                     <Button
                       key={String(value)}
@@ -214,6 +308,7 @@ function PersistentPractice({
                       disabled={!!state.error}
                       onClick={() => {
                         store.act({ kind: 'answer', noteId: current.id, known: value });
+                        setTyped('');
                         setRevealed(false);
                       }}
                     >
@@ -222,7 +317,11 @@ function PersistentPractice({
                   ))}
                 </div>
               ) : (
-                <Button variant="primary" onClick={() => setRevealed(true)}>
+                <Button
+                  className="neu-learning-actions shrink-0"
+                  variant="primary"
+                  onClick={() => setRevealed(true)}
+                >
                   {t('study.reveal')}
                 </Button>
               )}
@@ -254,7 +353,14 @@ function PersistentPractice({
                 <Button
                   variant="text"
                   disabled={!!state.error}
-                  onClick={() => store.act({ kind: 'start', front: run.front, back: run.back })}
+                  onClick={() =>
+                    store.act({
+                      kind: 'start',
+                      front: run.front,
+                      back: run.back,
+                      ...(run.response ? { response: run.response } : {}),
+                    })
+                  }
                 >
                   {t('practice.restart')}
                 </Button>
@@ -268,11 +374,12 @@ function PersistentPractice({
           )}
           {current && (
             <Button
-              className="self-start"
+              className="neu-learning-actions shrink-0 self-start"
               variant="text"
               onClick={() => {
                 setFront(run.front);
                 setBack(run.back);
+                setResponse(run.response ?? 'reveal');
                 setConfiguring(true);
               }}
             >
@@ -353,9 +460,13 @@ function PracticeFieldChoice({
 function PracticeFace({
   fields,
   side,
+  language,
+  identity,
 }: {
   readonly fields: Record<string, unknown>;
   readonly side: PracticeSide;
+  readonly language: string | undefined;
+  readonly identity: string;
 }) {
   const t = useTranslate();
   const selected = practiceFields(side);
@@ -380,6 +491,9 @@ function PracticeFace({
               {articleTerm && field === 'term'
                 ? `${practiceValue(fields, 'grammar.article')} ${text}`
                 : text}
+              {field === 'term' && (
+                <Speaker key={identity} text={String(text ?? '')} language={language} />
+              )}
             </p>
           </div>
         );

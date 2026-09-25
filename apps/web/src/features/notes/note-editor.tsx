@@ -2,7 +2,7 @@ import { useBlocker, useNavigate } from '@tanstack/react-router';
 import { ChevronDown, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
-import { availableForStudy, createSchedulerConfig } from '@neuron/core';
+import { availableForStudy, studyAvailableAt, createSchedulerConfig } from '@neuron/core';
 import {
   NOTE_TYPES,
   LANGUAGE_CODES,
@@ -39,6 +39,7 @@ import { Dialog, DialogFooter } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
 import { Menu, MenuItem } from '../../ui/menu';
+import { ReviewTime } from '../../ui/review-time';
 import { Segmented } from '../../ui/segmented';
 import { Select } from '../../ui/select';
 import { ErrorState, SkeletonRows } from '../../ui/states';
@@ -455,7 +456,7 @@ function Editor({
 
       {note && !conversion && (
         <div
-          className="flex flex-col gap-12 rounded-12 border border-subtle bg-raised p-12"
+          className="flex flex-col gap-12 border-y border-subtle py-16"
           aria-label={t('note.studyStatus')}
         >
           <span
@@ -470,40 +471,45 @@ function Editor({
               className="neu-reveal"
             >
               {note.status === 'active' &&
-                t(
-                  note.status !== 'active'
-                    ? `note.status.${note.status}`
-                    : cards.some(
-                          (card) =>
-                            !card.suspendedAt &&
-                            availableForStudy(
-                              { state: card.state, due: new Date(card.due) },
-                              new Date(now),
-                              createSchedulerConfig({
-                                timezone: account.data?.timezone ?? 'UTC',
-                                dayCutoffHour: account.data?.dayCutoffHour ?? 4,
-                              }),
-                            ),
-                        )
-                      ? 'note.ready'
-                      : cards.some((card) => !card.suspendedAt && card.reps > 0)
-                        ? 'note.inReview'
-                        : 'note.status.active',
-                )}
+                (() => {
+                  const config = createSchedulerConfig({
+                    timezone: account.data?.timezone ?? 'UTC',
+                    dayCutoffHour: account.data?.dayCutoffHour ?? 4,
+                  });
+                  const live = cards.filter((card) => !card.suspendedAt);
+                  const ready = live.filter((card) =>
+                    availableForStudy(
+                      { state: card.state, due: new Date(card.due) },
+                      new Date(now),
+                      config,
+                    ),
+                  ).length;
+                  const next = live
+                    .map((card) =>
+                      studyAvailableAt(
+                        { state: card.state, due: new Date(card.due) },
+                        config,
+                      ).toISOString(),
+                    )
+                    .filter((due) => new Date(due).getTime() > now)
+                    .sort()[0];
+                  return (
+                    <span className="flex flex-col gap-4 text-right">
+                      <span>{t('note.readyCards', { count: ready })}</span>
+                      {next && <ReviewTime due={next} />}
+                    </span>
+                  );
+                })()}
             </span>
           </span>
           <div className="grid grid-cols-2 gap-8">
             <Button
               className="px-8"
-              disabled={actions.studyAgain.isPending || actions.setStatus.isPending}
-              aria-busy={actions.studyAgain.isPending}
+              disabled={note.status === 'active' || actions.setStatus.isPending}
               onClick={() => {
                 setStatusError(undefined);
-                void actions.studyAgain
-                  .mutateAsync({ noteId: note.id, id: restartId.current })
-                  .then(() => {
-                    restartId.current = uuidV7();
-                  })
+                void actions.setStatus
+                  .mutateAsync({ ids: [note.id], status: 'active' })
                   .catch(setStatusError);
               }}
             >
@@ -527,6 +533,27 @@ function Editor({
               {t('note.markKnown')}
             </Button>
           </div>
+          <details className="text-13 text-secondary">
+            <summary className="flex min-h-44 cursor-pointer items-center">
+              {t('learning.restart')}
+            </summary>
+            <p>{t('note.restartHint')}</p>
+            <Button
+              variant="text"
+              disabled={actions.studyAgain.isPending || actions.setStatus.isPending}
+              onClick={() => {
+                setStatusError(undefined);
+                void actions.studyAgain
+                  .mutateAsync({ noteId: note.id, id: restartId.current })
+                  .then(() => {
+                    restartId.current = uuidV7();
+                  })
+                  .catch(setStatusError);
+              }}
+            >
+              {t('learning.restart')}
+            </Button>
+          </details>
         </div>
       )}
 

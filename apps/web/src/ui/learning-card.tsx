@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 
+import { cssDuration } from '../lib/css-duration';
 import { motionIsReduced } from '../preferences/motion';
 
 import { Card } from './card';
@@ -12,7 +13,9 @@ export function LearningCard({
   prompt,
   answer,
   identity,
+  response,
 }: {
+  readonly response?: ReactNode;
   readonly context: ReactNode;
   readonly prompt: ReactNode;
   readonly answer?: ReactNode;
@@ -26,6 +29,7 @@ export function LearningCard({
     if (!element) return;
     const top = element.offsetTop;
     const before = previous.current;
+    let animation: Animation | undefined;
     if (
       revealed &&
       before &&
@@ -33,37 +37,45 @@ export function LearningCard({
       !motionIsReduced() &&
       element.animate
     ) {
-      element.animate(
+      animation = element.animate(
         [{ transform: `translateY(${before.top - top}px)` }, { transform: 'translateY(0)' }],
         {
-          duration:
-            parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-2')) ||
-            160,
-          easing: 'ease-out',
+          duration: cssDuration(
+            getComputedStyle(document.documentElement).getPropertyValue('--dur-learning'),
+            340,
+          ),
+          easing:
+            getComputedStyle(document.documentElement).getPropertyValue('--ease-enter').trim() ||
+            'ease-out',
         },
       );
     }
     previous.current = { identity, top };
+    return () => animation?.cancel();
   }, [revealed, identity]);
   return (
-    <Card className="flex h-[clamp(280px,40svh,420px)] shrink-0 flex-col gap-16 overflow-y-auto break-words">
+    <Card className="neu-learning-card flex min-h-0 flex-1 flex-col gap-16 break-words">
       <div className="text-12 text-secondary">{context}</div>
-      <div key={identity} className="relative grid flex-1 grid-rows-2 py-16">
-        <div
-          className={`flex flex-col justify-center font-display text-32 leading-body tracking-tight text-primary ${answer ? '' : 'row-span-2'}`}
-        >
-          <div ref={promptRef}>{prompt}</div>
+      <div
+        key={identity}
+        className="neu-learning-reading relative grid min-h-0 flex-1 grid-rows-2 overflow-y-auto py-16"
+      >
+        <div className={`flex flex-col justify-center text-primary ${answer ? '' : 'row-span-2'}`}>
+          <div ref={promptRef} className="neu-learning-prompt">
+            {prompt}
+          </div>
         </div>
         {answer && (
-          <div className="relative pt-24 text-24 leading-body text-primary">
+          <div className="relative pt-24 text-primary">
             <div
               aria-hidden="true"
-              className="neu-answer-divider absolute inset-x-0 top-0 h-px bg-subtle"
+              className="neu-answer-divider absolute inset-x-0 top-0 h-px bg-strong"
             />
-            <div className="neu-reveal">{answer}</div>
+            <div className="neu-learning-answer">{answer}</div>
           </div>
         )}
       </div>
+      {response}
     </Card>
   );
 }

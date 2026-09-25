@@ -50,6 +50,8 @@ export function projectNotes(
   const plans = client.getQueriesData<DailyStudySession>({ queryKey: ['study-plan'] });
   for (const [, data] of client.getQueriesData<Pages>({ queryKey: ['notes', 'list'] }))
     for (const page of data?.pages ?? []) for (const note of page.items) known.set(note.id, note);
+  for (const [, plan] of plans)
+    for (const note of plan?.notes ?? []) if (!known.has(note.id)) known.set(note.id, note);
   const changes: Change[] = ids.flatMap((id) => {
     const detail = client.getQueryData<Detail>(['notes', id]);
     const before = detail?.note ?? known.get(id);
@@ -188,8 +190,13 @@ function apply(client: QueryClient, changes: Change[]) {
     dayCutoffHour: account?.dayCutoffHour ?? 4,
   });
   const now = new Date();
-  const counts = (note: Note, cards: Card[] | undefined, exact: boolean) => {
-    const live = note.status === 'active' ? (cards?.filter((card) => !card.suspendedAt) ?? []) : [];
+  const counts = (note: Note, cards: Card[] | undefined, exact: boolean, direction?: string) => {
+    const live =
+      note.status === 'active'
+        ? ((cards ?? note.studyCards)?.filter(
+            (card) => !card.suspendedAt && (!direction || card.direction === direction),
+          ) ?? [])
+        : [];
     return {
       fresh: live.filter((card) => card.state === 'new').length,
       due: live.filter(
@@ -201,11 +208,11 @@ function apply(client: QueryClient, changes: Change[]) {
       ).length,
     };
   };
-  const delta = (deckId: string, exact: boolean) =>
+  const delta = (deckId: string, exact: boolean, direction?: string) =>
     changes.reduce(
       (sum, change) => {
-        const before = counts(change.before, change.oldCards, exact);
-        const after = counts(change.after, change.cards, exact);
+        const before = counts(change.before, change.oldCards, exact, direction);
+        const after = counts(change.after, change.cards, exact, direction);
         return {
           due:
             sum.due +
@@ -228,6 +235,26 @@ function apply(client: QueryClient, changes: Change[]) {
         return {
           ...row,
           children,
+          ...(row.noteCount === undefined
+            ? {}
+            : {
+                noteCount: Math.max(
+                  0,
+                  row.noteCount +
+                    changes.reduce(
+                      (sum, change) =>
+                        sum +
+                        Number(change.after.deckId === row.id) -
+                        Number(change.before.deckId === row.id),
+                      0,
+                    ) +
+                    children.reduce(
+                      (sum, child, at) =>
+                        sum + (child.noteCount ?? 0) - (row.children[at]!.noteCount ?? 0),
+                      0,
+                    ),
+                ),
+              }),
           due: Math.max(
             0,
             row.due +
@@ -244,44 +271,49 @@ function apply(client: QueryClient, changes: Change[]) {
       });
     return { decks: visit(data.decks) };
   });
-  client.setQueriesData<StudyPlanProjection>({ queryKey: ['study-plan'] }, (data) => {
-    if (!data) return data;
-    // A projection communicates participation immediately. A fresh server plan
-    // is still required to admit new cards under workload and fairness policy.
-    const notes = data.notes.map(patch);
-    const affectsAdmission = changes.some(
-      (change) =>
-        change.before.status !== change.after.status ||
-        change.before.deckId !== change.after.deckId ||
-        change.oldCards !== change.cards,
-    );
-    if (!affectsAdmission) return { ...data, notes };
-    const cards = data.cards.filter((card) => {
-      const change = byId.get(card.noteId);
-      return (
-        !change ||
-        (change.before.status === change.after.status &&
-          change.before.deckId === change.after.deckId &&
-          change.oldCards === change.cards)
+  for (const [key] of client.getQueriesData<StudyPlanProjection>({ queryKey: ['study-plan'] }))
+    client.setQueryData<StudyPlanProjection>(key, (data) => {
+      if (!data) return data;
+      // A projection communicates participation immediately. A fresh server plan
+      // is still required to admit new cards under workload and fairness policy.
+      const notes = data.notes.map(patch);
+      const affectsAdmission = changes.some(
+        (change) =>
+          change.before.status !== change.after.status ||
+          change.before.deckId !== change.after.deckId ||
+          change.oldCards !== change.cards,
       );
-    });
-    const deckSummaries = data.deckSummaries.map((summary) => {
-      const change = delta(summary.deckId, false);
+      if (!affectsAdmission) return { ...data, notes };
+      const cards = data.cards.filter((card) => {
+        const change = byId.get(card.noteId);
+        return (
+          !change ||
+          (change.before.status === change.after.status &&
+            change.before.deckId === change.after.deckId &&
+            change.oldCards === change.cards)
+        );
+      });
+      const deckSummaries = data.deckSummaries.map((summary) => {
+        const change = delta(
+          summary.deckId,
+          false,
+          typeof key[2] === 'string' ? key[2] : undefined,
+        );
+        return {
+          ...summary,
+          due: Math.max(0, summary.due + change.due),
+          fresh: Math.max(0, summary.fresh + change.fresh),
+        };
+      });
       return {
-        ...summary,
-        due: Math.max(0, summary.due + change.due),
-        fresh: Math.max(0, summary.fresh + change.fresh),
+        ...data,
+        localProjection: true,
+        notes,
+        cards,
+        deckSummaries,
+        availableCount: deckSummaries.reduce((sum, deck) => sum + deck.due + deck.fresh, 0),
+        newCount: cards.filter((card) => card.state === 'new').length,
+        reviewCount: cards.filter((card) => card.state !== 'new').length,
       };
     });
-    return {
-      ...data,
-      localProjection: true,
-      notes,
-      cards,
-      deckSummaries,
-      availableCount: deckSummaries.reduce((sum, deck) => sum + deck.due + deck.fresh, 0),
-      newCount: cards.filter((card) => card.state === 'new').length,
-      reviewCount: cards.filter((card) => card.state !== 'new').length,
-    };
-  });
 }

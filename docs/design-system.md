@@ -312,7 +312,7 @@ fill `forwards`, because something on its way out has to stay where it ended unt
   through their exit. On phones they sit 8px above the tab bar, with safe area counted once; with the
   keyboard open they sit 8px above it. Desktop feedback uses the bottom safe area plus 16px.
 - The learning card keeps a stable reading surface. Before reveal its prompt is vertically centered.
-  Reveal moves the prompt upward using a measured transform over `--dur-2`, draws a divider with
+  Reveal moves the prompt upward using a measured transform over `--dur-learning`, draws a divider with
   scaleX/opacity, and introduces the answer below it. Long content scrolls inside the card.
 - A pushed screen brings its content a beat behind itself: four rows, 26ms apart, then it stops.
 - The focus ring is instant. The halo behind it fades over `--dur-1`.
@@ -647,7 +647,35 @@ The shared reveal is a short fade with 6px vertical settling. Pointer manipulati
 Committed swipe removal starts immediately and retains a departing surface until its leftward exit
 finishes, independently of virtual-row unmounting. Partial gestures preserve row geometry.
 
-Note study participation appears as a status badge in a dedicated panel. Ready/In review is secondary
-card availability, not a persisted Note status. Study it again and Already know this are equal-weight
-controls; Known disables the latter while leaving restart available. Status transitions use the existing
+Note participation appears as a Studying/Known badge in a bordered section. Card readiness is separate
+card availability, not a persisted Note status. Mark as known preserves schedules; Return to study
+reactivates them. Restart learning is a separate disclosed reset action that preserves Review history. Status transitions use the existing
 short reveal animation and never wait for animation completion before publishing local state.
+
+### Focused typing composition
+
+Active Study and Practice own their exit and bottom actions; global navigation is hidden until exit.
+`LearningCard` reserves a stable reading area with internal overflow. The prompt and target answer use
+`--type-learning-prompt` and `--type-learning-answer` (36–56px, platform UI font, primary contrast).
+Reveal moves the same prompt upward over 340ms while the divider draws and the answer enters.
+Animations are cancellable and reduced motion goes directly to the final composition.
+
+The response field belongs inside this learning surface. The existing visual-viewport variables contract
+unused reading space when the software keyboard opens, without scrolling the document or adding another
+keyboard detector. Input stays at least 16px. Enter checks locally, blurs the field and restores the full
+feedback/rating composition. Long reading content scrolls within the card; grading remains outside it.
+
+Spelling alignment preserves submitted casing and text. Correct characters use `--text-correct`;
+errors use the error tone and an underline, with a dotted insertion for omitted characters. The target
+answer remains prominent above this comparison. A single short result and screen-reader descriptions
+replace a permanent legend. Accepted alternatives receive the same accepted treatment as the canonical
+answer. Feedback never chooses an FSRS rating.
+
+Audio has a 44px target and 24px glyph on visible target-language content. A missing voice in Listening
+shows its fallback immediately; a normal word's audio action explains unavailability on tap. Playback
+never exposes a hidden target outside Listening and never blocks Reveal. Completion draws clockwise and
+counts for 900ms without gating controls; reduced motion starts at the final value.
+
+Library leaf Decks use open rows, larger wrapping titles and quieter wrapping Note/workload metadata.
+Folders retain disclosure, indentation and a quieter header surface. Every row keeps its drag grip and
+menu; duplicate count pills are omitted.

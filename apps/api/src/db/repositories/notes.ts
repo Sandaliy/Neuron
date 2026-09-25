@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { CardState } from '@neuron/core';
 import { MAX_NOTE_PAGE_SIZE, parseNoteFields, uuidV7 } from '@neuron/shared';
@@ -69,7 +69,15 @@ export interface DuplicateRow {
 
 /** One page of notes, and where the next one starts. */
 export interface NotePage {
-  readonly items: readonly (NoteRow & { readonly cardStates: CardStateCounts })[];
+  readonly items: readonly (NoteRow & {
+    readonly cardStates: CardStateCounts;
+    readonly studyCards: {
+      state: string;
+      direction: string;
+      due: string;
+      suspendedAt: string | null;
+    }[];
+  })[];
   readonly nextCursor: string | undefined;
 }
 
@@ -477,15 +485,24 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
         const noteRows = rows.slice(0, limit);
         const ids = noteRows.map((row) => row.id);
         const states = new Map<string, CardStateCounts>();
+        const summaries = new Map<
+          string,
+          { state: string; direction: string; due: string; suspendedAt: string | null }[]
+        >();
 
         if (ids.length > 0) {
           const counts = await tx
-            .select({ noteId: cards.noteId, state: cards.state, count: count() })
+            .select({
+              noteId: cards.noteId,
+              state: cards.state,
+              direction: cards.direction,
+              due: cards.due,
+              suspendedAt: cards.suspendedAt,
+            })
             .from(cards)
             .where(
               and(eq(cards.userId, userId), inArray(cards.noteId, ids), isNull(cards.deletedAt)),
-            )
-            .groupBy(cards.noteId, cards.state);
+            );
 
           for (const row of counts) {
             const current = states.get(row.noteId) ?? {
@@ -494,7 +511,15 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
               review: 0,
               relearning: 0,
             };
-            current[row.state as keyof CardStateCounts] = Number(row.count);
+            current[row.state as keyof CardStateCounts]++;
+            const summary = summaries.get(row.noteId) ?? [];
+            summary.push({
+              state: row.state,
+              direction: row.direction,
+              due: row.due.toISOString(),
+              suspendedAt: row.suspendedAt?.toISOString() ?? null,
+            });
+            summaries.set(row.noteId, summary);
             states.set(row.noteId, current);
           }
         }
@@ -502,6 +527,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
         return {
           items: noteRows.map((note) => ({
             ...note,
+            studyCards: summaries.get(note.id) ?? [],
             cardStates: states.get(note.id) ?? { new: 0, learning: 0, review: 0, relearning: 0 },
           })),
           nextCursor: rows.length > limit ? noteRows.at(-1)?.id : undefined,

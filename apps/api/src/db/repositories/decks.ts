@@ -1,9 +1,9 @@
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, eq, getTableColumns, isNull, sql } from 'drizzle-orm';
 
-import { deckSettingsSchema, uuidV7 } from '@neuron/shared';
-import type { DeckSettings } from '@neuron/shared';
+import { deckSettingsSchema, possibleCards, uuidV7 } from '@neuron/shared';
+import type { DeckSettings, NoteFields, NoteTypeName } from '@neuron/shared';
 
-import { decks } from '../schema/index.js';
+import { cards, decks, notes, noteTypes } from '../schema/index.js';
 
 import { requireLiveDeck, restoreDeck, rewriteDeckSubtree, softDeleteDeck } from './restoration.js';
 import { nextRev } from './session.js';
@@ -20,7 +20,7 @@ import type { Runner, Tx } from './session.js';
  * moved, and it has to happen in the transaction that moved it.
  */
 
-export type DeckRow = typeof decks.$inferSelect;
+export type DeckRow = typeof decks.$inferSelect & { readonly noteCount?: number };
 
 export interface CreateDeck {
   /** Supply one when the client made it offline. Otherwise one is generated. */
@@ -163,13 +163,23 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
     },
 
     async list() {
-      return run(async (tx) =>
-        tx
-          .select()
+      return run(async (tx) => {
+        const noteCounts = tx
+          .select({ deckId: notes.deckId, total: count().as('note_count') })
+          .from(notes)
+          .where(and(eq(notes.userId, userId), isNull(notes.deletedAt), isNull(notes.purgedAt)))
+          .groupBy(notes.deckId)
+          .as('note_counts');
+        return tx
+          .select({
+            ...getTableColumns(decks),
+            noteCount: sql<number>`coalesce(${noteCounts.total}, 0)`.mapWith(Number),
+          })
           .from(decks)
+          .leftJoin(noteCounts, eq(noteCounts.deckId, decks.id))
           .where(and(eq(decks.userId, userId), isNull(decks.deletedAt)))
-          .orderBy(asc(decks.position), asc(decks.name)),
-      );
+          .orderBy(asc(decks.position), asc(decks.name));
+      });
     },
 
     async listDeleted() {
@@ -264,6 +274,63 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
           .where(and(eq(decks.userId, userId), eq(decks.id, id), isNull(decks.deletedAt)))
           .returning();
 
+        // Explicit zero-stability rungs enable skills on existing material too.
+        // The user revision lock serializes creation with imports and note edits.
+        // Existing identities (including deleted directions) are never replaced.
+        if (row?.kind === 'deck' && parsed?.ladder) {
+          const enabled = new Set(
+            parsed.ladder
+              .filter((rung) => rung.opensAtStability === 0)
+              .map((rung) => rung.direction),
+          );
+          const material = await tx
+            .select({ note: notes, type: noteTypes.name })
+            .from(notes)
+            .innerJoin(noteTypes, eq(notes.noteTypeId, noteTypes.id))
+            .where(
+              and(
+                eq(notes.userId, userId),
+                eq(notes.deckId, id),
+                isNull(notes.deletedAt),
+                isNull(notes.purgedAt),
+              ),
+            );
+          const existing = await tx
+            .select({ noteId: cards.noteId, direction: cards.direction, slot: cards.slot })
+            .from(cards)
+            .where(and(eq(cards.userId, userId), eq(cards.deckId, id)));
+          const present = new Set(
+            existing.map((card) => `${card.noteId}:${card.direction}:${card.slot}`),
+          );
+          const now = new Date();
+          const missing = material.flatMap(({ note, type }) =>
+            possibleCards(type as NoteTypeName, note.fields as NoteFields)
+              .filter(
+                (card) =>
+                  enabled.has(card.direction) &&
+                  card.front.length > 0 &&
+                  card.back.length > 0 &&
+                  !present.has(`${note.id}:${card.direction}:${card.slot}`),
+              )
+              .map((card) => ({
+                id: uuidV7(),
+                userId,
+                noteId: note.id,
+                deckId: id,
+                direction: card.direction,
+                slot: card.slot,
+                due: now,
+                unlockedAt: now,
+                rev,
+              })),
+          );
+          for (let at = 0; at < missing.length; at += 500) {
+            await tx
+              .insert(cards)
+              .values(missing.slice(at, at + 500))
+              .onConflictDoNothing();
+          }
+        }
         return row;
       });
     },

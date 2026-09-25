@@ -40,8 +40,8 @@ test('Library navigation reaches a deck and its notes', async ({ page }) => {
 
   await page.getByRole('link', { name: 'Library' }).click();
   await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
-  await page.getByRole('button', { name: 'Deutsch', exact: true }).click();
-  await page.getByRole('button', { name: 'Grammatik', exact: true }).click();
+  await page.getByRole('button', { name: /^Deutsch(?:\s|$)/ }).click();
+  await page.getByRole('button', { name: /^Grammatik(?:\s|$)/ }).click();
   await page.getByRole('button', { name: /^Verben mit Dativ/ }).click();
   await expect(page).toHaveURL(/\/notes\?deckId=d3/);
 });

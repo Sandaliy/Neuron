@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { noteStatusSchema, noteTypeSchema } from '../note-types.js';
 
-import { cardStateSchema } from './cards.js';
+import { cardStateSchema, cardDirectionSchema } from './cards.js';
 import { cursorSchema, idSchema, tagSchema } from './common.js';
 
 /**
@@ -38,6 +38,16 @@ export const noteSchema = z.object({
   rev: z.number().int(),
   /** Present on bounded browse pages, never a per-row card request. */
   cardStates: cardStateCountsSchema.optional(),
+  studyCards: z
+    .array(
+      z.object({
+        state: cardStateSchema,
+        direction: cardDirectionSchema,
+        due: z.string(),
+        suspendedAt: z.string().nullable(),
+      }),
+    )
+    .optional(),
 });
 
 export type Note = z.infer<typeof noteSchema>;

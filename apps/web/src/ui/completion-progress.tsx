@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { cssDuration } from '../lib/css-duration';
 import { motionIsReduced } from '../preferences/motion';
 
 /** A quiet completion ring. Draws once on completion; the accessible value is immediately final. */
@@ -17,11 +18,13 @@ export function CompletionProgress({
   useEffect(() => {
     let frame = 0;
     const started = performance.now();
-    const duration =
-      parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-4')) || 340;
+    const duration = cssDuration(
+      getComputedStyle(document.documentElement).getPropertyValue('--dur-completion'),
+      900,
+    );
     const tick = (now: number) => {
       const progress = motionIsReduced() ? 1 : Math.min(1, (now - started) / duration);
-      setDisplay(ratio * (1 - (1 - progress) ** 3));
+      setDisplay(ratio * (1 - (1 - progress) ** 2));
       if (progress < 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
