@@ -299,9 +299,13 @@ for (const submitted of [
     await expect(page.getByRole('link', { name: 'Library', exact: true })).toBeVisible();
   });
 
-// Measure paint after a real click, independently of the unresolved transport.
-async function responsePaint(page: Page, button: Locator) {
-  await button.evaluate((element) => {
+// Measure the first frame with the expected local state, independently of transport.
+async function responsePaint(
+  page: Page,
+  button: Locator,
+  expected: { text: string; visible: boolean },
+) {
+  await button.evaluate((element, expected) => {
     const measured = window as unknown as {
       nextPaint: Promise<{ milliseconds: number; text: string }>;
     };
@@ -310,16 +314,18 @@ async function responsePaint(page: Page, button: Locator) {
         'click',
         () => {
           const started = performance.now();
-          requestAnimationFrame(() =>
-            requestAnimationFrame(() =>
-              resolve({ milliseconds: performance.now() - started, text: document.body.innerText }),
-            ),
-          );
+          const sample = (now: number) => {
+            const text = document.body.innerText;
+            if (text.includes(expected.text) === expected.visible || now - started >= 200)
+              resolve({ milliseconds: now - started, text });
+            else requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
         },
         { once: true },
       ),
     );
-  });
+  }, expected);
   await button.click();
   return page.evaluate(
     () =>
@@ -383,6 +389,7 @@ for (const success of [true, false])
     const measured = await responsePaint(
       page,
       page.getByRole('button', { name: 'Mark as known', exact: true }),
+      { text: 'Known', visible: true },
     );
     console.info('local-paint', info.title, measured.milliseconds);
     expect(measured.milliseconds).toBeLessThan(200);
@@ -416,8 +423,12 @@ test('moving a note projects its row and both Deck counts before transport', asy
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
+  let moveRequested = false;
+  let moveSettled = false;
   await page.route('**/api/notes/move', async (route) => {
+    moveRequested = true;
     await held;
+    moveSettled = true;
     await route.fulfill({
       status: 500,
       json: { error: { code: 'internal_error', correlationId: 'held-move' } },
@@ -430,10 +441,14 @@ test('moving a note projects its row and both Deck counts before transport', asy
   const measured = await responsePaint(
     page,
     page.getByRole('dialog').getByRole('button', { name: 'Move to a deck', exact: true }),
+    { text: 'Sorgfalt', visible: false },
   );
   console.info('local-paint', info.title, measured.milliseconds);
   expect(measured.milliseconds).toBeLessThan(200);
   expect(measured.text).not.toContain('Sorgfalt');
+  await expect.poll(() => moveRequested).toBe(true);
+  const requestHeld = moveRequested && !moveSettled;
+  expect(requestHeld).toBe(true);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Words 0 notes', exact: true })).toBeVisible();
@@ -444,8 +459,10 @@ test('moving a note projects its row and both Deck counts before transport', asy
   await expect(
     page.getByRole('button', { name: 'Words 1 notes · 0 to review · 1 new', exact: true }),
   ).toBeVisible();
+  await page.getByRole('button', { name: /Words 1 notes/ }).click();
+  await expect(page.getByRole('button', { name: /Sorgfalt care/ })).toBeVisible();
   await info.attach('move-paint', {
-    body: JSON.stringify({ milliseconds: measured.milliseconds, requestHeld: true }),
+    body: JSON.stringify({ milliseconds: measured.milliseconds, requestHeld }),
     contentType: 'application/json',
   });
 });
@@ -471,6 +488,7 @@ test('My Study Decks scope reacts locally while a replacement admission plan is 
   const measured = await responsePaint(
     page,
     page.getByRole('button', { name: 'Apply', exact: true }),
+    { text: 'No decks selected', visible: true },
   );
   console.info('local-paint', info.title, measured.milliseconds);
   expect(measured.milliseconds).toBeLessThan(200);

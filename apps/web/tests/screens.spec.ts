@@ -12,6 +12,7 @@ import type { Page } from '@playwright/test';
  * difference in the interface, not in the data.
  */
 const THEMES = ['dark', 'light'] as const;
+const SNAPSHOT_TIME = new Date('2026-09-25T12:00:00Z');
 
 async function settle(page: Page): Promise<void> {
   await page.evaluate(() => document.fonts.ready);
@@ -47,6 +48,7 @@ for (const theme of THEMES) {
     test('today', async ({ page }) => {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);
+      await page.clock.setFixedTime(SNAPSHOT_TIME);
       await page.goto('/');
       await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
       await settle(page);
@@ -54,7 +56,7 @@ for (const theme of THEMES) {
       await expect(page).toHaveScreenshot(`today-${theme}.png`, { fullPage: true });
     });
 
-    test('library', async ({ page }) => {
+    test('library', async ({ page }, testInfo) => {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);
       await page.goto('/library');
@@ -63,13 +65,17 @@ for (const theme of THEMES) {
 
       await expect(page).toHaveScreenshot(`library-${theme}.png`, {
         fullPage: true,
-        maxDiffPixelRatio: 0.001,
+        // Windows Server varies slightly in Cyrillic and tab-glyph rasterization.
+        ...(theme === 'dark' && testInfo.project.name === 'phone' && process.env['CI']
+          ? { maxDiffPixels: 500 }
+          : { maxDiffPixelRatio: 0.001 }),
       });
     });
 
     test('study composition and adjustment', async ({ page }, testInfo) => {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);
+      await page.clock.setFixedTime(SNAPSHOT_TIME);
       await page.goto('/');
       await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
       await page.getByRole('button', { name: 'Adjust', exact: true }).click();
@@ -283,6 +289,7 @@ test('glass on the cards as well', async ({ page }) => {
 test('glass turned off', async ({ page }) => {
   await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'off' });
   await useFixtures(page);
+  await page.clock.setFixedTime(SNAPSHOT_TIME);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   await settle(page);
