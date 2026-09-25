@@ -1,4 +1,4 @@
-import { useIsMutating, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useIsMutating, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
@@ -67,8 +67,13 @@ export function TodayScreen() {
     );
   return (
     <section data-screen="" className="flex flex-col gap-24">
-      <header className="flex items-baseline justify-between gap-12">
-        <h1 className="text-24 tracking-tight text-primary">{t('today.title')}</h1>
+      <header className="flex flex-col gap-4">
+        <time className="text-12 text-secondary" dateTime={new Date().toISOString()}>
+          {new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' }).format(
+            new Date(),
+          )}
+        </time>
+        <h1 className="text-32 tracking-tight text-primary">{t('today.title')}</h1>
       </header>
       {decks.isPending && <Skeleton className="h-56 w-full" />}
       {decks.error && !decks.data && (
@@ -141,14 +146,18 @@ function Waiting({
         }),
       ),
     staleTime: 0,
+    placeholderData: keepPreviousData,
     enabled: mutations === 0,
   });
   const result = plan.data;
-  const caughtUp = result?.availableCount === 0 && selected.length > 0;
-  const waiting = (result?.deckSummaries ?? []).flatMap((summary) => {
-    const deck = live.find((row) => row.id === summary.deckId);
-    return deck ? [{ ...deck, ...summary }] : [];
-  });
+  const updating = plan.isPlaceholderData || result?.localProjection === true;
+  const caughtUp = result?.availableCount === 0 && selected.length > 0 && !plan.isPlaceholderData;
+  const waiting = (result?.deckSummaries ?? [])
+    .filter((summary) => selected.includes(summary.deckId))
+    .flatMap((summary) => {
+      const deck = live.find((row) => row.id === summary.deckId);
+      return deck ? [{ ...deck, ...summary }] : [];
+    });
   return (
     <div className="flex flex-col gap-24">
       <Card className="flex flex-col gap-24">
@@ -175,7 +184,13 @@ function Waiting({
             <div className="flex flex-col gap-4" role="status">
               <span className="text-12 text-secondary">{t('today.nextReview')}</span>
               <span className="text-17 text-primary">
-                {result.nextDue ? <ReviewTime due={result.nextDue} /> : t('today.noneScheduled')}
+                {updating ? (
+                  t('today.updatingPlan')
+                ) : result.nextDue ? (
+                  <ReviewTime due={result.nextDue} />
+                ) : (
+                  t('today.noneScheduled')
+                )}
               </span>
             </div>
             <Button onClick={() => void navigate({ to: '/library' })}>
@@ -192,7 +207,11 @@ function Waiting({
                 <span className="text-17 text-secondary">{t('today.ready')}</span>
               </div>
               <span className="pb-4 text-13 text-secondary">
-                {t('today.estimate', { minutes: Math.max(1, Math.round(result.estimatedMinutes)) })}
+                {updating
+                  ? t('today.updatingPlan')
+                  : t('today.estimate', {
+                      minutes: Math.max(1, Math.round(result.estimatedMinutes)),
+                    })}
               </span>
             </div>
             <div className="flex gap-32 text-13 text-secondary">
@@ -215,6 +234,7 @@ function Waiting({
               disabled={
                 !result.cards.length ||
                 plan.isFetching ||
+                plan.isPlaceholderData ||
                 mutations > 0 ||
                 !!plan.error ||
                 result.localProjection === true

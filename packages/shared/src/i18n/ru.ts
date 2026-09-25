@@ -7,6 +7,34 @@ import type { Messages } from './en.js';
  * compilation error rather than a blank space on somebody's screen.
  */
 export const ru = {
+  'today.updatingPlan': 'Обновляем план…',
+  'study.extraLetter': '1 лишняя буква',
+  'study.missingLetter': '1 пропущенная буква',
+  'study.changedLetter': '1 другая буква',
+  'study.answerAccepted': 'Верно',
+  'study.answerIncorrect': 'Неверно',
+  'study.answerChanges': 'Различий в написании: {count}',
+  'study.spelling.correct': 'Совпадает: {text}.',
+  'study.spelling.extra': 'Лишнее: {text}.',
+  'study.spelling.missing': 'Пропущено: {text}.',
+  'study.spelling.incorrect': 'Замени {text} на {expected}.',
+  'study.skills': 'Навыки обучения',
+  'study.skillsHint':
+    'Включи навыки для существующих и будущих заметок. У каждого своё расписание. Новые карточки добавляются постепенно. История сохраняется; выбирай навыки для занятия в Today.',
+  'study.yourAnswer': 'Твой ответ',
+  'practice.response': 'Режим ответа',
+  'practice.modeHint': 'Практикуйся свободно. Расписание и история повторений не меняются.',
+  'practice.mode.reveal': 'Самопроверка',
+  'practice.mode.typing': 'Ввод ответа',
+  'practice.mode.listening': 'Аудирование',
+  'practice.typingHint':
+    'Выбери одно короткое текстовое поле ответа. Длинный текст, сочетания полей и поля да/нет исключены.',
+  'practice.listeningHint':
+    'Выбери только слово на лицевой стороне. Прослушай его и открой ответ. Заметки без слова исключены.',
+  'note.readyCards': 'Готово карточек: {count}',
+  'note.restartHint':
+    'Начать изучение карточек заново. История повторений сохранится. Для продолжения без сброса выбери «Вернуть в обучение».',
+  'library.noteCount': 'Заметок: {count}',
   'note.studyStatus': 'Статус изучения',
   'study.moreDirections': 'Направления изучения',
   'study.directionHint':
@@ -370,9 +398,9 @@ export const ru = {
   'note.deleteBody':
     'Запись и её карточки переместятся в «Удалённое». Оттуда их можно восстановить.',
   'note.deleted': 'Запись перемещена в «Удалённые»',
-  'note.markKnown': 'Уже знаю',
-  'note.markActive': 'Изучить заново',
-  'note.status.active': 'В повторении',
+  'note.markKnown': 'Отметить как известное',
+  'note.markActive': 'Вернуть в обучение',
+  'note.status.active': 'Изучается',
   'note.status.known': 'Знакомо',
   'note.status.suspended': 'Отложено',
   'note.status.draft': 'Черновик',
@@ -408,7 +436,7 @@ export const ru = {
   'notes.selectAll': 'Выбрать все показанные',
   'notes.clearSelection': 'Снять выбор',
   'notes.bulkStatus': 'Уже знаю',
-  'notes.bulkActive': 'Учить снова',
+  'notes.bulkActive': 'Вернуть в обучение',
   'notes.bulkMove': 'Перенести в набор',
   'notes.bulkTags': 'Изменить теги',
   'notes.bulkDelete': 'Удалить',

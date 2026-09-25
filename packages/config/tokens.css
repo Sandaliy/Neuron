@@ -68,6 +68,8 @@
   /* The signal hue. Error text, and nothing else. Never a large area. */
   --sig-300: #de8a7e;
   --sig-700: #9e3d2e;
+  --ok-300: #83cba2;
+  --ok-700: #246b43;
 
   /*
    * White, held as a raw token because two things genuinely need it in both
@@ -128,6 +130,10 @@
   --dur-1: 90ms; /* a control changing state */
   --dur-2: 160ms; /* a reveal, a toast arriving */
   --dur-3: 240ms; /* a screen change, a scrim */
+  --type-learning-prompt: clamp(36px, 7vw, 56px);
+  --type-learning-answer: clamp(36px, 7vw, 56px);
+  --dur-learning: 340ms;
+  --dur-completion: 900ms;
   --dur-4: 340ms; /* a sheet rising */
 
   /*
@@ -233,6 +239,7 @@
   --text-accent: var(--a-text);
   --text-on-accent: #ffffff;
   --text-error: var(--sig-300);
+  --text-correct: var(--ok-300);
 
   --border-subtle: var(--n-800);
   --border-default: var(--n-700);
@@ -328,6 +335,7 @@
   --text-accent: var(--a-text-lt);
   --text-on-accent: #ffffff;
   --text-error: var(--sig-700);
+  --text-correct: var(--ok-700);
 
   --border-subtle: var(--p-200);
   --border-default: var(--p-300);

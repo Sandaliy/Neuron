@@ -797,7 +797,7 @@ test('touch handle drag keeps the exact insertion target', async ({ page }) => {
   await page.getByRole('button', { name: 'Show what is inside', exact: true }).click();
   const handle = page.getByRole('button', { name: 'Drag Practice deck', exact: true });
   await expect(handle).toHaveCSS('touch-action', 'none');
-  await expect(page.getByRole('button', { name: 'Folder', exact: true })).not.toHaveCSS(
+  await expect(page.getByRole('button', { name: /^Folder(?:\s|$)/ })).not.toHaveCSS(
     'touch-action',
     'none',
   );

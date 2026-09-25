@@ -185,6 +185,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       >
         <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
       </CollectionHeader>
+      {deck && <RestartLearning deck={deck} skillsOnly />}
       {deckId && <PracticeEntry deckId={deckId} onOpen={() => setPracticing(true)} />}
 
       {(rows.length > 0 || filtered || typed !== '') && !selecting ? (

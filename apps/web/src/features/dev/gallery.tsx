@@ -7,6 +7,7 @@ import { Button } from '../../ui/button';
 import { Card, GroupLabel, Panel, RowGroup } from '../../ui/card';
 import { Checkbox } from '../../ui/checkbox';
 import { Chip } from '../../ui/chip';
+import { CompletionProgress } from '../../ui/completion-progress';
 import { Dialog } from '../../ui/dialog';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
@@ -22,6 +23,7 @@ import { Spinner } from '../../ui/spinner';
 import { EmptyState, ErrorState, Skeleton, SkeletonRows } from '../../ui/states';
 import { Switch } from '../../ui/switch';
 import { TextArea } from '../../ui/textarea';
+import { TypedResponse } from '../../ui/typed-response';
 
 import type { GlassLevel } from '../../preferences/glass';
 import type { ReactNode } from 'react';
@@ -112,7 +114,7 @@ export function GalleryScreen() {
               action={<span className="text-12 text-secondary">Saved</span>}
             />
 
-            <LearningCard context="Recognition" prompt="Sorgfalt" answer="care, thoroughness" />
+            <LearningSpecimen />
           </div>
         ))}
       </section>
@@ -652,5 +654,43 @@ function GlassSpecimen({ theme, level }: { readonly theme: string; readonly leve
         <span className="text-13 text-secondary">tertiary reads as secondary here</span>
       </div>
     </div>
+  );
+}
+
+/** Interactive specimens keep reveal, response and completion motion reviewable. */
+function LearningSpecimen() {
+  const [revealed, setRevealed] = useState(false);
+  const [typed, setTyped] = useState('Sorgfaltx');
+  const [complete, setComplete] = useState(false);
+  return (
+    <>
+      <div className="flex h-[560px] flex-col">
+        <LearningCard
+          context="Typing"
+          prompt="care"
+          answer={revealed ? 'Sorgfalt' : undefined}
+          response={
+            <TypedResponse
+              value={typed}
+              onChange={setTyped}
+              answer="Sorgfalt"
+              alternatives={['Genauigkeit']}
+              language="de"
+              revealed={revealed}
+              onReveal={() => setRevealed(true)}
+            />
+          }
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-8">
+        <Button onClick={() => setRevealed(!revealed)}>
+          {revealed ? 'Reset card' : 'Reveal answer'}
+        </Button>
+        <Button onClick={() => setComplete(!complete)}>
+          {complete ? 'Reset result' : 'Show completion'}
+        </Button>
+      </div>
+      {complete && <CompletionProgress value={7} max={10} label="Known" />}
+    </>
   );
 }

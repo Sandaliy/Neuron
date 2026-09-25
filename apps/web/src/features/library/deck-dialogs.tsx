@@ -292,6 +292,40 @@ export function DeckSettingsDialog({
           </div>
         )}
 
+        {deck.kind === 'deck' && (
+          <fieldset className="flex flex-col gap-8 border-t border-subtle pt-16">
+            <legend className="text-17 font-semibold">{t('study.skills')}</legend>
+            <p className="text-13 text-secondary">{t('study.skillsHint')}</p>
+            {(['recognition', 'recall', 'production', 'listening'] as const).map((direction) => {
+              const ladder = draft.ladder ?? inherited.ladder;
+              const enabled = ladder.some(
+                (rung) => rung.direction === direction && rung.opensAtStability === 0,
+              );
+              return (
+                <div key={direction} className="flex min-h-44 items-center justify-between gap-12">
+                  <span className="text-14">{t(`study.direction.${direction}`)}</span>
+                  <Switch
+                    label={t(`study.direction.${direction}`)}
+                    checked={enabled}
+                    disabled={(deck.settings?.ladder ?? inherited.ladder).some(
+                      (rung) => rung.direction === direction && rung.opensAtStability === 0,
+                    )}
+                    onChange={(checked) =>
+                      setDraft({
+                        ...draft,
+                        ladder: [
+                          ...ladder.filter((rung) => rung.direction !== direction),
+                          { direction, opensAtStability: checked ? 0 : 21 },
+                        ],
+                      })
+                    }
+                  />
+                </div>
+              );
+            })}
+          </fieldset>
+        )}
+
         <LanguageField
           label={t('library.targetLanguage')}
           value={draft.targetLanguage}

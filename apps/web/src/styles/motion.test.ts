@@ -103,7 +103,7 @@ describe('motion', () => {
   });
 
   /** Four durations, and every movement is described by one of them. */
-  it('takes every duration from the four tokens', () => {
+  it('takes every duration from maintained duration tokens', () => {
     const animations = [...stylesheet.matchAll(/animation:\s*([^;]+);/g)].map(
       ([, value]) => value as string,
     );
@@ -111,7 +111,7 @@ describe('motion', () => {
     expect(animations.length).toBeGreaterThan(0);
 
     for (const value of animations) {
-      const named = /var\(--dur-[1-4]\)/.test(value);
+      const named = /var\(--dur-(?:[1-4]|learning)\)/.test(value);
       // The three loops are the exceptions the specification names: a spinner,
       // a skeleton sheen, and the one shake an error is allowed.
       const loop = /neu-spin|neu-shimmer|neu-shake/.test(value);

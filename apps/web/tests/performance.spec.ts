@@ -162,15 +162,8 @@ test.describe('scroll performance', () => {
       expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
   });
 
-  /**
-   * The same list with the effect carried onto every row.
-   *
-   * This is a setting a person can turn on, so it is measured rather than
-   * forbidden, and it is the reason the rule underneath it exists. It holds the
-   * budget on this profile and falls apart on a slower one, which is what the
-   * frame rate watchdog is for.
-   */
-  test('panels and cards is measured, and costs what it costs', async ({ page, browserName }) => {
+  /** Integrated Library rows stay opaque even when glass is enabled for standalone cards. */
+  test('all glass scope keeps integrated Library rows opaque', async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'CPU throttling needs the Chrome DevTools Protocol');
 
     await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'full', glassScope: 'all' });
@@ -180,6 +173,6 @@ test.describe('scroll performance', () => {
 
     report(`500 rows, glass full, panels and cards, ${CPU_THROTTLE}x cpu`, measured);
 
-    expect(measured.blurredRows).toBeGreaterThan(100);
+    expect(measured.blurredRows).toBe(0);
   });
 });

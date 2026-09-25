@@ -31,6 +31,126 @@ describe.skipIf(!database)('persistent learning products', () => {
     });
     return { deck, note, card };
   }
+  it('enables deck skills idempotently without replacing schedules, reviews or deleted directions', async () => {
+    const deck = await repo.decks.create({ name: uuidV7(), kind: 'deck' });
+    const note = await repo.notes.create({
+      deckId: deck.id,
+      noteType: 'vocab',
+      fields: { term: 'Sorgfalt', translation: 'care' },
+    });
+    const card = await repo.cards.create({
+      noteId: note.id,
+      direction: 'recognition',
+      due: new Date('2026-01-01'),
+    });
+    await repo.reviews.record({
+      cardId: card.id,
+      rating: RATING.good,
+      now: new Date('2026-02-01'),
+    });
+    const before = await repo.cards.byId(card.id);
+    expect((await repo.decks.list()).find((row) => row.id === deck.id)?.noteCount).toBe(1);
+    const settings = {
+      ladder: [
+        { direction: 'recognition' as const, opensAtStability: 0 },
+        { direction: 'production' as const, opensAtStability: 0 },
+        { direction: 'listening' as const, opensAtStability: 0 },
+      ],
+    };
+    await Promise.all([
+      repo.decks.updateSettings(deck.id, settings),
+      repo.decks.updateSettings(deck.id, settings),
+    ]);
+    const opened = await repo.cards.forNote(note.id);
+    expect(opened.map((item) => item.direction).sort()).toEqual([
+      'listening',
+      'production',
+      'recognition',
+    ]);
+    expect(await repo.cards.byId(card.id)).toEqual(before);
+    expect(await repo.reviews.countForCards(opened.map((item) => item.id))).toBe(1);
+    await repo.notes.setStatus(note.id, 'known');
+    expect(await repo.cards.forSession({ deckIds: [deck.id] })).toHaveLength(0);
+    await repo.notes.setStatus(note.id, 'active');
+    expect(await repo.cards.byId(card.id)).toEqual(before);
+    expect(await repo.reviews.countForCards([card.id])).toBe(1);
+    expect(await other.decks.updateSettings(deck.id, settings)).toBeUndefined();
+    expect((await repo.cards.forNote(note.id)).map((item) => item.id)).toEqual(
+      opened.map((item) => item.id),
+    );
+  });
+  it('counts only this account live notes, including Known, and keeps deleted directions deleted', async () => {
+    const { deck, note, card } = await fixture();
+    await repo.notes.setStatus(note.id, 'known');
+    const deleted = await repo.notes.create({
+      deckId: deck.id,
+      noteType: 'vocab',
+      fields: { term: 'Haus', translation: 'house' },
+    });
+    await repo.notes.softDelete(deleted.id);
+    const purged = await repo.notes.create({
+      deckId: deck.id,
+      noteType: 'basic',
+      fields: { front: 'gone', back: 'gone' },
+    });
+    await repo.notes.softDelete(purged.id);
+    await repo.purge.remove('notes', purged.id);
+    const foreign = await other.decks.create({ name: 'Other account' });
+    await other.notes.create({
+      deckId: foreign.id,
+      noteType: 'basic',
+      fields: { front: 'other', back: 'other' },
+    });
+    const rows = await repo.decks.list();
+    expect(rows.find((row) => row.id === deck.id)?.noteCount).toBe(1);
+    expect(rows.some((row) => row.id === foreign.id)).toBe(false);
+    await repo.cards.softDelete(card.id);
+    await repo.decks.updateSettings(deck.id, {
+      ladder: [
+        { direction: 'recognition', opensAtStability: 0 },
+        { direction: 'production', opensAtStability: 0 },
+      ],
+    });
+    expect(await repo.cards.forNote(note.id)).toHaveLength(0);
+    expect(await repo.cards.forNote(deleted.id)).toHaveLength(0);
+  });
+  it.each(['typing', 'listening'] as const)(
+    'persists %s Practice with no scheduling or review writes',
+    async (response) => {
+      const deck = await repo.decks.create({ name: uuidV7(), kind: 'deck' });
+      const note = await repo.notes.create({
+        deckId: deck.id,
+        noteType: 'vocab',
+        fields: { term: 'Haus', translation: 'house' },
+      });
+      const card = await repo.cards.create({
+        noteId: note.id,
+        direction: 'recognition',
+        due: new Date(),
+      });
+      const runId = uuidV7();
+      const started = await repo.practice.apply(deck.id, {
+        kind: 'start',
+        id: uuidV7(),
+        runId,
+        expectedVersion: 0,
+        front: response === 'typing' ? 'translation' : 'term',
+        back: response === 'typing' ? 'term' : 'translation',
+        response,
+      });
+      expect(started.run?.response).toBe(response);
+      await repo.practice.apply(deck.id, {
+        kind: 'answer',
+        id: uuidV7(),
+        runId,
+        expectedVersion: 1,
+        noteId: note.id,
+        known: true,
+      });
+      expect(await repo.cards.byId(card.id)).toEqual(card);
+      expect(await repo.reviews.countForCards([card.id])).toBe(0);
+    },
+  );
   it('restarts only participating cards, preserves history and replay, and retries exactly once', async () => {
     const { deck, card } = await fixture();
     const before = await repo.reviews.record({

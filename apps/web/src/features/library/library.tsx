@@ -21,7 +21,6 @@ import { describe } from '../../lib/api';
 import { findDeck, useDeckActions, useDeckTree } from '../../lib/decks';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
 import { Button } from '../../ui/button';
-import { Chip } from '../../ui/chip';
 import { CollectionHeader } from '../../ui/collection-header';
 import { Dialog, DialogFooter } from '../../ui/dialog';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
@@ -315,18 +314,37 @@ function Deck({
           position="before"
         />
         <Row
-          title={deck.name}
-          className={
-            deck.kind === 'folder' ? 'gap-8 border-strong bg-sunken font-semibold' : 'gap-8'
+          title={
+            <span
+              className={
+                deck.kind === 'deck'
+                  ? 'block whitespace-normal text-20 leading-snug tracking-tight'
+                  : 'text-15 font-semibold'
+              }
+            >
+              {deck.name}
+            </span>
           }
-          /*
-            Nothing waiting is said by the row carrying no second line, not by a
-            line of zeroes. A count of nothing is the one number worth not
-            printing.
-          */
-          {...(deck.kind === 'deck' && (deck.due > 0 || deck.fresh > 0)
-            ? { subtitle: t('today.deckCounts', { due: deck.due, fresh: deck.fresh }) }
-            : {})}
+          standalone={false}
+          className={
+            deck.kind === 'folder'
+              ? 'gap-8 rounded-12 bg-sunken'
+              : 'gap-8 border-b border-subtle px-8 py-16'
+          }
+          subtitle={
+            <span className="block whitespace-normal text-13 leading-read text-secondary">
+              {[
+                deck.noteCount === undefined
+                  ? ''
+                  : t('library.noteCount', { count: deck.noteCount }),
+                deck.due > 0 || deck.fresh > 0
+                  ? t('today.deckCounts', { due: deck.due, fresh: deck.fresh })
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          }
           leading={
             <>
               <CollectionHandle deck={deck} />
@@ -368,16 +386,6 @@ function Deck({
           interactiveTrailing
           trailing={
             <>
-              {deck.kind === 'deck' && deck.due > 0 ? (
-                <span aria-label={`${t('library.dueLabel')}: ${deck.due}`}>
-                  <Chip tone="due">{deck.due}</Chip>
-                </span>
-              ) : deck.kind === 'deck' && deck.fresh > 0 ? (
-                <span aria-label={`${t('library.newLabel')}: ${deck.fresh}`}>
-                  <Chip tone="new">{deck.fresh}</Chip>
-                </span>
-              ) : undefined}
-
               <Menu label={t('library.deckActions', { name: deck.name })}>
                 <MenuItem
                   icon={<Pencil size={16} strokeWidth={1.5} />}

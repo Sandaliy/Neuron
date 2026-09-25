@@ -81,7 +81,7 @@ for (const storedLocale of ['en', 'ru'] as const)
       await expand.click();
       await expect(page.getByRole('button', { name: /^B1/ }).first()).toBeVisible();
       await expect(page).toHaveURL(/\/library$/);
-      await page.getByRole('button', { name: 'German', exact: true }).click();
+      await page.getByRole('button', { name: /^German(?:\s|$)/ }).click();
       await expect(page).toHaveURL(/folderId=folder/);
       await page.getByRole('button', { name: /^B1/ }).first().click();
       await expect(page).toHaveURL(/notes\?deckId=leaf/);

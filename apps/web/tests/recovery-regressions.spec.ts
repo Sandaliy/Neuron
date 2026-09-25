@@ -61,7 +61,7 @@ test.describe('phone collection row isolation', () => {
   test('the folder body opens its contents and the menu does not reappear on back', async ({
     page,
   }) => {
-    await page.getByRole('button', { name: 'Deutsch', exact: true }).click();
+    await page.getByRole('button', { name: /^Deutsch(?:\s|$)/ }).click();
     await expect(page).toHaveURL(/\/library\?folderId=d1/);
     await page.goBack();
     await expect(page).toHaveURL(/\/library$/);

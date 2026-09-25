@@ -15,7 +15,7 @@ import {
   takeNextSessionCard,
 } from '@neuron/core';
 import type { SessionQueue, WorkloadCard, Rating } from '@neuron/core';
-import { checkTypedAnswer, dailyStudySessionSchema, possibleCards, uuidV7 } from '@neuron/shared';
+import { dailyStudySessionSchema, possibleCards, uuidV7 } from '@neuron/shared';
 import type { Card as StudyCard, DailyStudySession, NoteFields } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
@@ -24,14 +24,14 @@ import { describe, request } from '../../lib/api';
 import { settingsFor, useDeckTree } from '../../lib/decks';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
-import { Input } from '../../ui/input';
 import { LearningCard } from '../../ui/learning-card';
 import { ModeHeader } from '../../ui/mode-header';
 import { ReviewTime } from '../../ui/review-time';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
+import { TypedResponse } from '../../ui/typed-response';
 
-import { ListeningPrompt } from './listening-prompt';
+import { ListeningPrompt, Speaker } from './listening-prompt';
 import { Practice } from './practice';
 
 export function workloadCard(card: StudyCard): WorkloadCard {
@@ -392,29 +392,12 @@ export function StudyScreen({
     current?.direction === 'production' && face?.back.length === 1
       ? face.back[0]?.value
       : undefined;
-  const feedback =
-    typedAnswer && revealed && typed
-      ? checkTypedAnswer(
-          typed,
-          typedAnswer,
-          Array.isArray(note?.fields['acceptedAnswers'])
-            ? note.fields['acceptedAnswers'].filter(
-                (value): value is string => typeof value === 'string',
-              )
-            : [],
-          language,
-        )
-      : undefined;
-
   if (practicing && plan)
     return <Practice notes={plan.notes} onFinish={() => setPracticing(false)} />;
   const completed = Object.values(answeredCards).filter((count) => count > 0).length;
   const total = plan?.cards.length ?? 0;
   return (
-    <section
-      data-screen=""
-      className="flex min-h-[calc(100dvh-var(--bar-height)-var(--safe-top)-var(--safe-bottom)-52px)] flex-col gap-16"
-    >
+    <section data-screen="" data-learning-screen="" className="neu-session flex flex-col gap-16">
       <ModeHeader
         title={t('today.study')}
         exitLabel={t('study.stop')}
@@ -467,59 +450,60 @@ export function StudyScreen({
                     language={language}
                   />
                 ) : (
-                  face.front.map((line) => <p key={line.field}>{line.value}</p>)
+                  face.front.map((line) => (
+                    <p key={line.field}>
+                      {line.value}
+                      {line.field === 'term' && (
+                        <Speaker
+                          key={`${current.id}:${revealed}`}
+                          text={line.value}
+                          language={language}
+                        />
+                      )}
+                    </p>
+                  ))
                 )
               }
+              response={
+                typedAnswer ? (
+                  <TypedResponse
+                    value={typed}
+                    onChange={setTyped}
+                    answer={typedAnswer}
+                    language={language}
+                    alternatives={
+                      Array.isArray(note?.fields['acceptedAnswers'])
+                        ? note.fields['acceptedAnswers'].filter(
+                            (value): value is string => typeof value === 'string',
+                          )
+                        : []
+                    }
+                    revealed={revealed}
+                    onReveal={() => setRevealed(true)}
+                  />
+                ) : undefined
+              }
               answer={
-                revealed ? face.back.map((line) => <p key={line.field}>{line.value}</p>) : undefined
+                revealed
+                  ? face.back.map((line) => (
+                      <p key={line.field}>
+                        {line.value}
+                        {line.field === 'term' && (
+                          <Speaker
+                            key={`${current.id}:${revealed}`}
+                            text={line.value}
+                            language={language}
+                          />
+                        )}
+                      </p>
+                    ))
+                  : undefined
               }
             />
           ) : (
             <EmptyState title={t('study.unavailable')} description={t('study.unavailableBody')} />
           )}
-          {typedAnswer && (
-            <form
-              className="flex flex-col gap-8"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (typed.trim()) {
-                  setRevealed(true);
-                  (
-                    event.currentTarget.elements.namedItem(
-                      'study-answer',
-                    ) as HTMLInputElement | null
-                  )?.blur();
-                }
-              }}
-            >
-              <label className="text-14 text-secondary" htmlFor="study-answer">
-                {t('study.typeAnswer')}
-              </label>
-              <Input
-                id="study-answer"
-                name="study-answer"
-                readOnly={revealed}
-                value={typed}
-                autoComplete="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                enterKeyHint="done"
-                onChange={(event) => setTyped(event.target.value)}
-              />
-              <div className="min-h-44">
-                {revealed ? (
-                  <p role="status" className="neu-reveal text-14 text-secondary">
-                    {feedback ? t(`study.feedback.${feedback}`) : ''} {t('study.chooseRating')}
-                  </p>
-                ) : (
-                  <Button full type="submit" variant="primary" disabled={!typed.trim()}>
-                    {t('study.checkAnswer')}
-                  </Button>
-                )}
-              </div>
-            </form>
-          )}
-          <div className="mt-auto flex min-h-[104px] flex-col justify-end gap-8">
+          <div className="neu-learning-actions mt-auto flex min-h-[72px] flex-col justify-end gap-8">
             {revealed && intervals ? (
               <div className="neu-reveal grid grid-cols-4 gap-8">
                 {RATINGS.map((rating, index) => {
@@ -529,7 +513,7 @@ export function StudyScreen({
                       key={rating}
                       layout="stacked"
                       disabled={failed.length > 0}
-                      className="min-w-0 px-4 py-8"
+                      className="min-w-0 border-strong px-4 py-8 text-primary"
                       onClick={() => grade(index)}
                     >
                       <span>{t(`study.${rating}`)}</span>

@@ -199,7 +199,8 @@ export function useDeckActions() {
           }));
         return { decks: replace(cached.decks) };
       });
-      void client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' });
+      void client.invalidateQueries({ queryKey: DECK_TREE_KEY });
+      if (_input.settings?.ladder) void client.invalidateQueries({ queryKey: ['notes'] });
       void client.invalidateQueries({ queryKey: ['study-plan'] });
     },
   });
@@ -281,6 +282,9 @@ function relocate(
           children,
           ...(row.kind === 'folder'
             ? {
+                ...(row.noteCount === undefined
+                  ? {}
+                  : { noteCount: children.reduce((sum, c) => sum + (c.noteCount ?? 0), 0) }),
                 due: children.reduce((sum, c) => sum + c.due, 0),
                 fresh: children.reduce((sum, c) => sum + c.fresh, 0),
                 nextDue,

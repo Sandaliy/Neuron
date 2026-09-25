@@ -17,7 +17,12 @@ interface Snapshot {
   error: unknown;
 }
 type Action =
-  | { kind: 'start'; front: PracticeRun['front']; back: PracticeRun['back'] }
+  | {
+      kind: 'start';
+      front: PracticeRun['front'];
+      back: PracticeRun['back'];
+      response?: PracticeRun['response'];
+    }
   | { kind: 'answer'; noteId: string; known: boolean }
   | { kind: 'round' };
 const stores = new Map<string, ReturnType<typeof createStore>>();

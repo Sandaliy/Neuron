@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
 
+import { advancePractice } from '@neuron/shared';
+import type { PracticeRun } from '@neuron/shared';
+
 import { useFixtures, usePreferences } from './fixtures';
+
+import type { Locator, Page } from '@playwright/test';
 
 const stamp = '2026-01-01T00:00:00Z';
 const id = (n: number) => `01900000-0000-7000-8000-${String(n).padStart(12, '0')}`;
@@ -115,9 +120,7 @@ for (const reduced of [false, true])
     await page.getByLabel('Type your answer').fill('Sorgfaltx');
     const started = Date.now();
     await page.getByLabel('Type your answer').press('Enter');
-    await expect(
-      page.getByText('Close. Compare the spelling with the answer.', { exact: false }),
-    ).toBeVisible();
+    await expect(page.getByText('1 extra letter', { exact: true })).toBeVisible();
     expect(Date.now() - started).toBeLessThan(1000);
     expect(reviews).toEqual([]);
     await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
@@ -206,7 +209,7 @@ for (const direction of ['production', 'listening'] as const)
     await page.goto(`/notes/${note.id}`);
     await page.getByText('Study directions', { exact: true }).click();
     await page
-      .getByRole('button', { name: direction === 'production' ? 'Production' : 'Listening' })
+      .getByRole('button', { name: direction === 'production' ? 'Typing' : 'Listening' })
       .click();
     await expect.poll(() => enabled).toBe(true);
     await page.getByRole('link', { name: 'Today' }).click();
@@ -216,4 +219,314 @@ for (const direction of ['production', 'listening'] as const)
         name: direction === 'production' ? 'Check answer' : 'Play / replay',
       }),
     ).toBeVisible();
+  });
+
+for (const submitted of [
+  'Sorgfalt',
+  'sorgfalt',
+  'Sorgfaltx',
+  'Sorgfat',
+  'Sorgfelt',
+  'Banane',
+  'Genauigkeit',
+])
+  test(`typing keyboard composition and feedback: ${submitted}`, async ({ page }, info) => {
+    await usePreferences(page, { locale: 'en', theme: 'dark' });
+    await useFixtures(page, { decks: [deck], notes: [note] });
+    await page.route('**/api/study/session', (route) =>
+      route.fulfill({
+        json: {
+          ...plan(base),
+          notes: [{ ...note, fields: { ...note.fields, acceptedAnswers: ['Genauigkeit'] } }],
+        },
+      }),
+    );
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Study', exact: true }).click();
+    const input = page.getByLabel('Type your answer', { exact: true });
+    await input.click();
+    // Stage the same visual viewport source used by the Safari regression harness.
+    await page.evaluate(() => {
+      Object.defineProperty(window.visualViewport, 'height', {
+        configurable: true,
+        get: () => 476,
+      });
+      window.visualViewport!.dispatchEvent(new Event('resize'));
+    });
+    await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'open');
+    const scroll = await page.evaluate(() => window.scrollY);
+    await input.pressSequentially('Sorg');
+    await input.fill('A longer answer stays within the single line input');
+    await expect(input).toBeFocused();
+    expect(await input.evaluate((e) => getComputedStyle(e).fontSize)).toBe('16px');
+    const prompt = await page.locator('.neu-learning-prompt').boundingBox();
+    const field = await input.boundingBox();
+    expect(prompt!.y).toBeGreaterThanOrEqual(0);
+    expect(prompt!.y + prompt!.height).toBeLessThan(field!.y);
+    expect(field!.y + field!.height).toBeLessThanOrEqual(464);
+    expect(await page.evaluate(() => window.scrollY)).toBe(scroll);
+    await page.screenshot({ path: info.outputPath('keyboard.png') });
+    await input.fill(submitted);
+    await input.press('Enter');
+    await expect(input).toHaveCount(0);
+    await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'closed');
+    await page.evaluate(() => {
+      Object.defineProperty(window.visualViewport, 'height', {
+        configurable: true,
+        get: () => window.innerHeight,
+      });
+      window.visualViewport!.dispatchEvent(new Event('resize'));
+    });
+    await expect(page.locator('.neu-spelling')).toContainText(
+      submitted === 'Sorgfat' ? 'Sorgfalt' : submitted,
+    );
+    if (submitted === 'Banane') {
+      await expect(page.getByRole('status')).toContainText('Incorrect');
+      await expect(page.getByRole('status')).not.toContainText('Spelling differences');
+    }
+    await expect(page.locator('[data-g="tabbar"]')).not.toBeVisible();
+    for (const name of ['Again', 'Hard', 'Good', 'Easy']) {
+      const button = page.getByRole('button', { name: new RegExp(`^${name} `) });
+      await expect(button).toBeInViewport({ ratio: 1 });
+    }
+    await page.evaluate(async () => {
+      await Promise.all(
+        document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+      );
+    });
+    await page.screenshot({ path: info.outputPath('feedback.png') });
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    await expect(page.getByRole('link', { name: 'Library', exact: true })).toBeVisible();
+  });
+
+// Measure the first frame with the expected local state, independently of transport.
+async function responsePaint(
+  page: Page,
+  button: Locator,
+  expected: { text: string; visible: boolean },
+) {
+  await button.evaluate((element, expected) => {
+    const measured = window as unknown as {
+      nextPaint: Promise<{ milliseconds: number; text: string }>;
+    };
+    measured.nextPaint = new Promise((resolve) =>
+      element.addEventListener(
+        'click',
+        () => {
+          const started = performance.now();
+          const sample = (now: number) => {
+            const text = document.body.innerText;
+            if (text.includes(expected.text) === expected.visible || now - started >= 200)
+              resolve({ milliseconds: now - started, text });
+            else requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        },
+        { once: true },
+      ),
+    );
+  }, expected);
+  await button.click();
+  return page.evaluate(
+    () =>
+      (window as unknown as { nextPaint: Promise<{ milliseconds: number; text: string }> })
+        .nextPaint,
+  );
+}
+for (const success of [true, false])
+  test(`participation projects through Today and Library before transport, success=${success}`, async ({
+    page,
+  }, info) => {
+    await usePreferences(page, { locale: 'en', theme: 'dark' });
+    const material = {
+      ...note,
+      studyCards: [{ direction: 'production', state: 'new', due: stamp, suspendedAt: null }],
+    };
+    let known = false;
+    await useFixtures(page, { decks: [{ ...deck, noteCount: 1 }], notes: [material] });
+    await page.route(`**/api/notes/${note.id}`, (route) =>
+      route.fulfill({
+        json: { note: { ...material, status: known ? 'known' : 'active' }, cards: [base] },
+      }),
+    );
+    await page.route('**/api/decks', (route) =>
+      route.fulfill({ json: { decks: [{ ...deck, noteCount: 1, fresh: known ? 0 : 1 }] } }),
+    );
+    await page.route('**/api/study/session', (route) =>
+      route.fulfill({
+        json: known
+          ? {
+              ...plan(base),
+              cards: [],
+              notes: [],
+              availableCount: 0,
+              newCount: 0,
+              deckSummaries: [{ deckId: deck.id, due: 0, fresh: 0, nextDue: null }],
+            }
+          : plan(base),
+      }),
+    );
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/notes/status', async (route) => {
+      await held;
+      if (success) known = true;
+      await route.fulfill(
+        success
+          ? { json: { changed: 1 } }
+          : {
+              status: 500,
+              json: { error: { code: 'internal_error', correlationId: 'held-write' } },
+            },
+      );
+    });
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: /Words 0 to review/ }).click();
+    await page.getByRole('button', { name: /Sorgfalt care/ }).click();
+    const measured = await responsePaint(
+      page,
+      page.getByRole('button', { name: 'Mark as known', exact: true }),
+      { text: 'Known', visible: true },
+    );
+    console.info('local-paint', info.title, measured.milliseconds);
+    expect(measured.milliseconds).toBeLessThan(200);
+    expect(measured.text).toContain('Known');
+    expect(known).toBe(false);
+    await page.getByRole('link', { name: 'Today', exact: true }).click();
+    await expect(page.getByText('You are caught up', { exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Library', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Words 1 notes', exact: true })).toBeVisible();
+    release();
+    await page.getByRole('link', { name: 'Today', exact: true }).click();
+    if (success) await expect(page.getByText('You are caught up', { exact: true })).toBeVisible();
+    else await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
+    await info.attach('participation-paint', {
+      body: JSON.stringify({ milliseconds: measured.milliseconds, success, requestHeld: true }),
+      contentType: 'application/json',
+    });
+  });
+
+test('moving a note projects its row and both Deck counts before transport', async ({
+  page,
+}, info) => {
+  const target = { ...deck, id: id(8), name: 'Destination', fresh: 0, noteCount: 0 };
+  const material = {
+    ...note,
+    studyCards: [{ direction: 'production', state: 'new', due: stamp, suspendedAt: null }],
+  };
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [{ ...deck, noteCount: 1 }, target], notes: [material] });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let moveRequested = false;
+  let moveSettled = false;
+  await page.route('**/api/notes/move', async (route) => {
+    moveRequested = true;
+    await held;
+    moveSettled = true;
+    await route.fulfill({
+      status: 500,
+      json: { error: { code: 'internal_error', correlationId: 'held-move' } },
+    });
+  });
+  await page.goto(`/notes?deckId=${deck.id}`);
+  await page.getByRole('button', { name: 'Select notes', exact: true }).click();
+  await page.getByRole('button', { name: /Sorgfalt care/ }).click();
+  await page.getByRole('button', { name: 'Move to a deck', exact: true }).click();
+  const measured = await responsePaint(
+    page,
+    page.getByRole('dialog').getByRole('button', { name: 'Move to a deck', exact: true }),
+    { text: 'Sorgfalt', visible: false },
+  );
+  console.info('local-paint', info.title, measured.milliseconds);
+  expect(measured.milliseconds).toBeLessThan(200);
+  expect(measured.text).not.toContain('Sorgfalt');
+  await expect.poll(() => moveRequested).toBe(true);
+  const requestHeld = moveRequested && !moveSettled;
+  expect(requestHeld).toBe(true);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Words 0 notes', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Destination 1 notes · 0 to review · 1 new', exact: true }),
+  ).toBeVisible();
+  release();
+  await expect(
+    page.getByRole('button', { name: 'Words 1 notes · 0 to review · 1 new', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /Words 1 notes/ }).click();
+  await expect(page.getByRole('button', { name: /Sorgfalt care/ })).toBeVisible();
+  await info.attach('move-paint', {
+    body: JSON.stringify({ milliseconds: measured.milliseconds, requestHeld }),
+    contentType: 'application/json',
+  });
+});
+
+test('My Study Decks scope reacts locally while a replacement admission plan is held', async ({
+  page,
+}, info) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [deck], notes: [note] });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/study/session', async (route) => {
+    if (Array.isArray(route.request().postDataJSON().deckIds)) await held;
+    await route.fulfill({ json: plan(base) });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
+  await page.getByRole('button', { name: 'Choose for this session', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  const measured = await responsePaint(
+    page,
+    page.getByRole('button', { name: 'Apply', exact: true }),
+    { text: 'No decks selected', visible: true },
+  );
+  console.info('local-paint', info.title, measured.milliseconds);
+  expect(measured.milliseconds).toBeLessThan(200);
+  expect(measured.text).toContain('No decks selected');
+  await expect(page.getByRole('button', { name: /Words 0 to review/ })).toHaveCount(0);
+  release();
+});
+
+for (const reduced of [false, true])
+  test(`Practice completion progresses without blocking actions, reduced=${reduced}`, async ({
+    page,
+  }, info) => {
+    await usePreferences(page, { locale: 'en', theme: 'dark' });
+    await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
+    await useFixtures(page, { decks: [deck], notes: [note] });
+    let run: PracticeRun | null = null,
+      version = 0;
+    await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+      if (route.request().method() === 'POST') {
+        run = advancePractice(run, route.request().postDataJSON(), [note]);
+        version++;
+      }
+      return route.fulfill({ json: { run, version } });
+    });
+    await page.goto(`/notes?deckId=${deck.id}`);
+    await page.getByRole('button', { name: 'Practice', exact: true }).click();
+    await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+    await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+    await page.getByRole('button', { name: 'Known', exact: true }).click();
+    const ring = page.getByRole('img', { name: 'Known: 100%', exact: true });
+    await expect(ring).toBeVisible();
+    const initial = await ring.innerText();
+    await expect(page.getByRole('button', { name: 'Finish', exact: true })).toBeEnabled();
+    if (reduced) expect(initial).toBe('100%');
+    else {
+      expect(parseInt(initial)).toBeLessThan(100);
+      await page.screenshot({ path: info.outputPath('completion-drawing.png') });
+    }
+    await expect(ring).toHaveText('100%');
+    await page.screenshot({ path: info.outputPath('completion-final.png') });
   });

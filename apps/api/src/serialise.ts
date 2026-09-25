@@ -157,6 +157,11 @@ export function buildDeckTree(rows: readonly DeckRow[], counts: readonly DeckCou
     }
   }
 
+  const noteCounts = new Map<string, number>();
+  for (const row of rows)
+    for (const id of [row.id, ...row.path])
+      noteCounts.set(id, (noteCounts.get(id) ?? 0) + (row.noteCount ?? 0));
+
   const nodes = new Map<string, DeckNode & { children: DeckNode[] }>();
 
   for (const deck of rows) {
@@ -164,6 +169,7 @@ export function buildDeckTree(rows: readonly DeckRow[], counts: readonly DeckCou
 
     nodes.set(deck.id, {
       ...serialiseDeck(deck),
+      noteCount: noteCounts.get(deck.id) ?? 0,
       due: total.due,
       fresh: total.fresh,
       nextDue: total.nextDue ?? null,

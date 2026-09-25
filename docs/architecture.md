@@ -661,7 +661,8 @@ can save independently. This replaces the shared Note-wide mutation scope that m
 wait behind each other.
 
 `note-projection.ts` updates loaded detail records, every loaded browse page, and affected ancestor
-counts from complete cached cards. Status, Study again, move and tag actions use the same inverse-patch
+counts from complete cached cards or bounded browse summaries containing each live Card state,
+direction, due instant and suspension. Status, Restart learning, move and tag actions use the same inverse-patch
 contract. A rollback restores only its changed fields and entities, preserving unrelated edits. Reset
 projections preserve card IDs and suspended cards; the server still records and verifies immutable reset
 and review events. Late autosave responses retain pending participation/reset intent. Server card
@@ -702,3 +703,26 @@ the independent schedule-free mode.
 `studyAvailableAt` supplies the same eligibility boundary used by Study admission: learning steps use
 the precise due instant, review cards use the start of their study day. Session and per-Deck future
 availability display this boundary in local date/time, including after confirmed reviews.
+
+### Explicit skills and participation
+
+Leaf Deck settings expose explicit zero-stability ladder rungs for Recognition, Recall, Typing and
+Listening. Saving these settings creates only missing eligible Cards on live, unpurged Notes in the
+same user-bound transaction. The user revision lock serializes retries with Note/import planning;
+existing identities, independently deleted directions, schedules and Reviews remain unchanged.
+New Notes use the same ladder. This does not introduce progressive unlocking; new Cards still need
+workload-backed admission before Study. Folder settings remain inherited defaults, not bulk activation.
+
+Mark as known changes Note participation only. Return to study restores participation without changing
+Card schedules. Restart learning uses the existing explicit reset event and preserves immutable Reviews.
+Library Note counts include all live Notes, independently of participation, and exclude deleted/purged
+rows. One account-bound grouped query supplies leaf counts; Folder totals roll up by ancestry.
+
+Practice persists an optional response mode alongside its chosen fields. Old runs default to Self-check.
+Typing requires one short text answer; Listening requires Term alone as its prompt. Unsupported Notes
+are excluded during reconciliation. Neither mode calls the Review API or writes Card schedules.
+
+Local projections filter direction-specific Study summaries and move Note totals between ancestor chains.
+A projected or replacement plan keeps cached content visible but shows Updating plan for an unconfirmed
+estimate. Fresh Study admission remains blocked until authoritative reconciliation. A bulk move closes
+its dialog immediately; affected rows/counts update locally and inverse patches restore them on failure.
