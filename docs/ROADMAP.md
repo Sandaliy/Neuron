@@ -116,7 +116,9 @@ already exist as foundations.
 **Non-goals**
 
 Offline synchronization, a full statistics area, automatic large-list triage, custom note types, and paid
-content are outside this milestone. Advanced drills, typed production expansion, and listening/speech work are deferred from this release slice. Phase 8 offline sync, Phase 9 waves/triage/progressive direction logic, and Phase 10 analytics remain deferred.
+content are outside this milestone. Advanced drills and speech input remain outside this release slice;
+basic typed Production and Listening response modes are shipped. Phase 8 offline sync, Phase 9
+waves/triage/progressive direction logic, and Phase 10 analytics remain deferred.
 
 **Definition of done**
 
