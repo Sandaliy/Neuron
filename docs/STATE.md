@@ -4,12 +4,14 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-25, merged rich Study and CI updates.
+Last updated: 2026-09-26, PR #28 production and physical-iPhone acceptance.
 
 ## Current release slice
 
-PRs #25–27 are the merged baseline. The learning-experience rescue is prepared on
-`work/learning-experience-rescue` for protected PR delivery; it is not yet merged or verified in production.
+PR #28, Restore learning experience, is merged into `main`. Its required CI and Vercel checks passed
+before merge, and the release is deployed to production. A physical-iPhone production acceptance pass
+has also been completed. The visual direction is successful: the new Study surface and animations are an
+improvement, and Typing and Listening are reachable and functional in production.
 
 Deck Study skills now enable missing Typing/Listening Cards on existing and future eligible Notes using
 the existing ladder. Existing identities, schedules and Reviews are preserved. Practice persists Typing
@@ -22,9 +24,9 @@ geometry drives compact Typing; Enter checks locally, blurs and restores feedbac
 Library uses clearer Folder/Deck hierarchy and account-bound live Note counts. Browse Card summaries
 support immediate participation/move projections; fresh workload admission remains server-owned.
 
-Physical-iPhone acceptance remains outstanding. Phase 8 offline sync and Phase 9 progressive unlocking
-and statistics remain outside this slice. The final PR report records the executed test results and
-check state; pending hosted checks must not be interpreted as passing.
+The iPhone pass identified stabilization work below; these are observations to investigate, not settled
+design or architecture decisions. Phase 8 offline sync and Phase 9 progressive unlocking and statistics
+remain outside this slice.
 
 ## Now
 
@@ -70,8 +72,15 @@ Today or Study.
 
 ## Next
 
-1. Complete physical-iPhone acceptance of typed Production, Listening playback/fallback, and shared Study interactions.
-2. Continue review-history presentation and accessibility work without weakening session fairness or replay.
+1. Investigate Today readiness/cooldown behavior after a completed Study and summaries that can remain
+   stale for several seconds after Study.
+2. Stabilize the real iPhone keyboard transition, which can resize or shift the Study card inconsistently.
+3. Revisit Listening's main interaction (possibly Listen → Type), the buried TTS language setup and voice
+   quality, and the deeply buried Study response-mode choice.
+4. Refine Folder/Deck visual hierarchy and replace implementation-oriented Note/Card summaries such as
+   `mixed` and `3 in review` with learner-facing language.
+5. Make broader key flows feel less developer-oriented, consider lightweight navigation motion, and
+   investigate why the bottom tab can occasionally mark Library active on Today or Settings.
 
 ## Open threads
 
@@ -81,6 +90,11 @@ Today or Study.
   keyboard activation. Targeted browser checks pass in both themes at phone and desktop widths.
 - Browser checks and real-iPhone acceptance cover the shipped collection, recovery, import, and keyboard
   flows.
+- PR #28's Typing/Listening learning experience passed required CI and Vercel checks, was deployed, and
+  passed physical-iPhone production acceptance. That pass found the open Today refresh/readiness, keyboard,
+  Listening interaction, hierarchy/status language, TTS setup/quality, response-mode discoverability,
+  broader flow, navigation-motion, and tab-selection issues listed under Next; no proposed remedy is yet
+  an established product contract.
 - Import duplicates use a default plus row overrides in the bounded preview. Only a unique same-type
   match can merge. Ambiguous or incompatible matches inherit Skip instead of Merge, with visible reasons.
   Merge fills schema-defined blanks and grammar leaves under a write lock, preserves existing metadata,
