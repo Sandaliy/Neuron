@@ -70,6 +70,47 @@ describe.skipIf(!database)('POST /study/session', () => {
     expect(after.currentRev).toBe(before.currentRev);
   });
 
+  it('reconciles an answer, sibling separation and Undo without changing either Card identity', async () => {
+    const deck = await repositories.decks.create({ name: 'Related directions' });
+    const note = await repositories.notes.create({
+      deckId: deck.id,
+      noteType: 'basic',
+      fields: { front: 'Shared fact', back: 'Answer' },
+    });
+    const due = new Date('2026-01-01T00:00:00Z');
+    const first = await repositories.cards.create({
+      noteId: note.id,
+      direction: 'recognition',
+      due,
+    });
+    const sibling = await repositories.cards.create({ noteId: note.id, direction: 'recall', due });
+    const request = { deckIds: [deck.id], newCards: 'override' };
+    expect((await build(request)).availableCount).toBe(2);
+
+    const answerId = uuidV7();
+    const result = await repositories.reviews.record({
+      id: answerId,
+      cardId: first.id,
+      rating: 1,
+      now: new Date(),
+    });
+    expect(result.applied).toBe(true);
+    const after = await build(request);
+    expect(after.cards).toEqual([]);
+    expect(after.availableCount).toBe(0);
+    expect(after.deckSummaries).toMatchObject([{ deckId: deck.id, due: 0, fresh: 0 }]);
+    expect(after.nextDue).not.toBeNull();
+    expect(await repositories.cards.byId(sibling.id)).toEqual(sibling);
+
+    await repositories.reviews.undo(answerId, uuidV7());
+    const restored = await build(request);
+    expect(restored.availableCount).toBe(2);
+    expect(restored.cards).toHaveLength(1);
+    expect((await repositories.cards.byId(first.id))?.state).toBe('new');
+    expect(await repositories.cards.byId(sibling.id)).toEqual(sibling);
+    expect(await repositories.reviews.countForCards([first.id, sibling.id])).toBe(1);
+  });
+
   it.each(['production', 'listening'] as const)(
     'plans existing %s cards without changing identity or schedule',
     async (direction) => {

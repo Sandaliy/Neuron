@@ -647,10 +647,13 @@ Inline setup updates the existing Deck settings and tree cache without remountin
 a Note language. The Note draft survives language changes. My study decks denotes persistent
 participation; Choose for this session denotes temporary scope.
 
-Learning/relearning steps become available at their actual instant; reviews retain study-day admission.
-The shared availability predicate drives session assembly and API availability counts. Study advances
-locally and computes its immediate due result using the server's deterministic review seed. Confirmed
-answers replace that projection and reconcile cached plans; broad collection refresh is deferred.
+Learning/relearning steps become available at their actual instant; reviews retain study-day admission
+after the answer's study day. Today's confirmed answers hold unanswered directions of the same Note
+until the next local study day. The shared admission rule drives session assembly, Today counts,
+per-Deck summaries and next-review times without changing Card schedules or immutable Reviews.
+Study advances locally and computes its immediate due result using the server's deterministic review
+seed. Confirmed answers update cached plans and Deck counts at once. Today shows Updating while the
+server reconciles workload-owned admission, and starting another plan waits for that result.
 
 ## Immediate interaction and server confirmation
 
@@ -700,9 +703,10 @@ no speech recognition. Vocabulary directions can be enabled explicitly using the
 endpoint; no existing card is replaced and no progressive unlocking rule is introduced. Practice remains
 the independent schedule-free mode.
 
-`studyAvailableAt` supplies the same eligibility boundary used by Study admission: learning steps use
-the precise due instant, review cards use the start of their study day. Session and per-Deck future
-availability display this boundary in local date/time, including after confirmed reviews.
+`studyAvailableAt` supplies the schedule eligibility boundary: learning steps use the precise due
+instant, review cards use the start of their study day after the last answer. `dailyStudyAvailableAt`
+also applies the next-day Note separation for unanswered sibling directions. Session and per-Deck
+future availability display the effective boundary in local date/time, including after confirmed reviews.
 
 ### Explicit skills and participation
 

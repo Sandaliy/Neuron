@@ -58,6 +58,7 @@ export interface WorkloadCard {
  */
 export interface WorkloadReview extends ReviewLog {
   readonly deckId?: string;
+  readonly noteId?: NoteId;
   readonly cardId: CardId;
   readonly direction: CardDirection;
 }
