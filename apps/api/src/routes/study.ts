@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
 
 import {
-  availableForStudy,
-  studyAvailableAt,
+  availableForDailyStudy,
+  dailyStudyAvailableAt,
+  studyDayAnswers,
   buildSession,
   createBudget,
   createSchedulerConfig,
@@ -113,6 +114,17 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
     const logs = (await repositories.reviews.workload()).filter(
       (log) => log.deckId !== undefined && selected.has(log.deckId),
     );
+    const answers = studyDayAnswers(cards, logs, now, scheduler);
+    const available = (card: WorkloadCard) => availableForDailyStudy(card, answers, now, scheduler);
+    const nextAt = (card: WorkloadCard) => dailyStudyAvailableAt(card, answers, now, scheduler);
+    const future = (pool: readonly WorkloadCard[]) =>
+      pool
+        .filter(
+          (card) =>
+            !available(card) && (card.scheduling.state !== 'new' || answers.notes.has(card.noteId)),
+        )
+        .map((card) => nextAt(card).toISOString())
+        .sort()[0] ?? null;
     const load = forecast({ cards: supported, config, now, logs });
     const session = buildSession({
       cards: supported,
@@ -120,6 +132,7 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       config,
       now,
       logs,
+      answers,
       load,
       rng: createSeededRandom(
         sessionSeed(account.id, scopeDeckIds.join(','), dayIndexOf(now, scheduler)),
@@ -140,32 +153,13 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
         const pool = supported.filter((card) => card.deckId === deckId);
         return {
           deckId,
-          due: pool.filter(
-            (card) =>
-              card.scheduling.state !== 'new' && availableForStudy(card.scheduling, now, scheduler),
-          ).length,
-          fresh: pool.filter((card) => card.scheduling.state === 'new').length,
-          nextDue:
-            pool
-              .filter(
-                (card) =>
-                  card.scheduling.state !== 'new' &&
-                  studyAvailableAt(card.scheduling, scheduler) > now,
-              )
-              .map((card) => studyAvailableAt(card.scheduling, scheduler).toISOString())
-              .sort()[0] ?? null,
+          due: pool.filter((card) => card.scheduling.state !== 'new' && available(card)).length,
+          fresh: pool.filter((card) => card.scheduling.state === 'new' && available(card)).length,
+          nextDue: future(pool),
         };
       }),
-      availableCount: supported.filter((card) => availableForStudy(card.scheduling, now, scheduler))
-        .length,
-      nextDue:
-        supported
-          .filter(
-            (card) =>
-              card.scheduling.state !== 'new' && studyAvailableAt(card.scheduling, scheduler) > now,
-          )
-          .map((card) => studyAvailableAt(card.scheduling, scheduler).toISOString())
-          .sort()[0] ?? null,
+      availableCount: supported.filter(available).length,
+      nextDue: future(supported),
       notes: notes.map((note) => serialiseNote(note, typeNames)),
       cards: session.cards.flatMap((card) => {
         const row = byId.get(card.id);
