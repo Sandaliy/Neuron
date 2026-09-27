@@ -662,12 +662,13 @@ Its starting position is refreshed when the unrevealed reading area resizes, inc
 Animations are cancellable and reduced motion goes directly to the final composition.
 
 The response field belongs inside this learning surface. Active Study and Practice occupy a fixed band
-at `--visual-viewport-top`, sized by `--visual-viewport-height`, with safe-area padding inside it. This
-keeps Safari's independent focus pan from carrying the header above the visible band. The same measured
-height contracts reading space and compact spacing continuously; focus/blur and `data-keyboard` do not
+at `--learning-viewport-top`, sized by `--learning-viewport-height`, with safe-area padding inside it.
+The viewport tracker commits these learning measurements together after a native resize/pan event burst
+ends, so the frame does not chase Safari's own keyboard movement through intermediate positions. The
+committed height also controls reading space and compact spacing. Focus/blur and `data-keyboard` do not
 switch learning geometry or hide Show answer. Do not add document scrolling, a second keyboard detector,
 or dimension transitions. Input stays at least 16px. Enter checks locally and blurs; feedback and ratings
-remain inside the measured band while the keyboard closes. Long reading content scrolls within the card;
+remain inside the committed band while the keyboard closes. Long reading content scrolls within the card;
 grading remains outside it. The frame can scroll if unusually small viewports or enlarged text cannot fit.
 
 Spelling alignment preserves submitted casing and text. Correct characters use `--text-correct`;

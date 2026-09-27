@@ -339,19 +339,17 @@ for (const reduced of [false, true])
         },
         { height, top },
       );
-      // The tracker publishes in a frame; the synthetic viewport getter changes
-      // immediately. Wait until the published values have reached the fixed
-      // frame's layout before comparing its children with that viewport. The
-      // tracker deliberately ignores changes smaller than 3px.
+      // The learning frame commits after the viewport event burst has ended.
+      // Wait for that published contract, not the live dialog measurements.
       await page.waitForFunction(
         ({ height, top }) => {
           const root = document.documentElement;
           const frame = document.querySelector('[data-shell-content]')?.getBoundingClientRect();
           const publishedHeight = Number.parseFloat(
-            root.style.getPropertyValue('--visual-viewport-height'),
+            root.style.getPropertyValue('--learning-viewport-height'),
           );
           const publishedTop = Number.parseFloat(
-            root.style.getPropertyValue('--visual-viewport-top'),
+            root.style.getPropertyValue('--learning-viewport-top'),
           );
           return (
             Math.abs(publishedHeight - height) < 3 &&
@@ -465,6 +463,133 @@ for (const reduced of [false, true])
     await expect(page.getByText('Session complete', { exact: true })).toBeVisible();
   });
 
+for (const screen of ['Study', 'Practice'] as const)
+  for (const reduced of [false, true])
+    test(`${screen} commits one learning frame per keyboard transition, reduced=${reduced}`, async ({
+      page,
+    }) => {
+      await usePreferences(page, { locale: 'en', theme: 'dark' });
+      await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
+      await useFixtures(page, { decks: [deck], notes: [note] });
+      if (screen === 'Study') {
+        await page.route('**/api/study/session', (route) => route.fulfill({ json: plan(base) }));
+        await page.goto('/');
+        await page.getByRole('button', { name: 'Study', exact: true }).click();
+      } else {
+        let run: PracticeRun | null = null;
+        let version = 0;
+        await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+          if (route.request().method() === 'POST') {
+            run = advancePractice(run, route.request().postDataJSON(), [note]);
+            version++;
+          }
+          return route.fulfill({ json: { run, version } });
+        });
+        await page.goto(`/notes?deckId=${deck.id}`);
+        await page.getByRole('button', { name: 'Practice', exact: true }).click();
+        await page.getByRole('combobox', { name: 'Response' }).selectOption('typing');
+        await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Change fields' })).toBeVisible();
+        await expect(page.locator('.neu-session > header [role="status"]')).toHaveText('Saved');
+      }
+
+      await page.evaluate(() => {
+        document.documentElement.style.setProperty('--safe-top', '47px');
+        document.documentElement.style.setProperty('--safe-bottom', '34px');
+      });
+      await page.waitForFunction(() => {
+        const expected = window.matchMedia('(min-width: 640px)').matches ? '42px' : '54px';
+        return (
+          getComputedStyle(document.querySelector('[data-shell-content]')!).paddingBottom ===
+          expected
+        );
+      });
+      const input = page.getByLabel('Type your answer', { exact: true });
+      await page.evaluate(() => document.fonts.ready);
+      const full = await page.evaluate(() => window.innerHeight);
+      async function sequence(steps: [number, number][], expected: [number, number]) {
+        const observations = await page.evaluate(
+          async ({ steps }) => {
+            const root = document.documentElement;
+            const frame = document.querySelector('[data-shell-content]')!;
+            const card = document.querySelector('.neu-learning-card')!;
+            const snapshot = () => ({
+              top: frame.getBoundingClientRect().top,
+              height: frame.getBoundingClientRect().height,
+              cardHeight: card.getBoundingClientRect().height,
+              framePaddingBottom: getComputedStyle(frame).paddingBottom,
+              publishedTop: root.style.getPropertyValue('--learning-viewport-top'),
+              publishedHeight: root.style.getPropertyValue('--learning-viewport-height'),
+            });
+            const first = snapshot();
+            const samples = [];
+            for (const [height, top] of steps) {
+              Object.defineProperties(window.visualViewport, {
+                height: { configurable: true, get: () => height },
+                offsetTop: { configurable: true, get: () => top },
+              });
+              window.visualViewport!.dispatchEvent(new Event('resize'));
+              window.visualViewport!.dispatchEvent(new Event('scroll'));
+              await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+              samples.push(snapshot());
+            }
+            return { first, samples };
+          },
+          { steps },
+        );
+        // Even a reversed pan sample must not reposition or resize the frame.
+        // Text rendering can round the card's flex height by one pixel.
+        for (const sample of observations.samples) {
+          expect(sample.top).toBe(observations.first.top);
+          expect(sample.height).toBe(observations.first.height);
+          expect(sample.framePaddingBottom).toBe(observations.first.framePaddingBottom);
+          expect(sample.publishedTop).toBe(observations.first.publishedTop);
+          expect(sample.publishedHeight).toBe(observations.first.publishedHeight);
+          expect(Math.abs(sample.cardHeight - observations.first.cardHeight)).toBeLessThanOrEqual(
+            2,
+          );
+        }
+        await page.waitForFunction(([height, top]) => {
+          const root = document.documentElement;
+          const frame = document.querySelector('[data-shell-content]')!.getBoundingClientRect();
+          return (
+            root.style.getPropertyValue('--learning-viewport-height') === `${height}px` &&
+            root.style.getPropertyValue('--learning-viewport-top') === `${top}px` &&
+            frame.height === height &&
+            frame.top === top
+          );
+        }, expected);
+        const box = await page.locator('.neu-session').boundingBox();
+        expect(box!.y).toBeGreaterThanOrEqual(expected[1] + 47);
+        expect(box!.y + box!.height).toBeLessThanOrEqual(expected[0] + expected[1] - 34);
+      }
+
+      for (let cycle = 0; cycle < 2; cycle++) {
+        await input.focus();
+        await sequence(
+          [
+            [full - 119, 40],
+            [full - 121, 80],
+            [540, 260],
+            [610, 30],
+            [476, 180],
+          ],
+          [476, 180],
+        );
+        await input.fill('Sorgfalt');
+        await input.blur();
+        await sequence(
+          [
+            [610, 240],
+            [540, 60],
+            [full - 120, 90],
+            [full, 0],
+          ],
+          [full, 0],
+        );
+      }
+    });
+
 for (const submitted of [
   'Sorgfalt',
   'sorgfalt',
@@ -498,6 +623,10 @@ for (const submitted of [
       window.visualViewport!.dispatchEvent(new Event('resize'));
     });
     await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'open');
+    await page.waitForFunction(
+      () =>
+        document.documentElement.style.getPropertyValue('--learning-viewport-height') === '476px',
+    );
     const scroll = await page.evaluate(() => window.scrollY);
     await input.pressSequentially('Sorg');
     await input.fill('A longer answer stays within the single line input');
@@ -521,6 +650,11 @@ for (const submitted of [
       });
       window.visualViewport!.dispatchEvent(new Event('resize'));
     });
+    await page.waitForFunction(
+      () =>
+        document.documentElement.style.getPropertyValue('--learning-viewport-height') ===
+        `${window.innerHeight}px`,
+    );
     await expect(page.locator('.neu-spelling')).toContainText(
       submitted === 'Sorgfat' ? 'Sorgfalt' : submitted,
     );

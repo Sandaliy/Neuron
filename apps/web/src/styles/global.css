@@ -229,6 +229,8 @@
     --keyboard-inset: 0px;
     --visual-viewport-height: 100svh;
     --visual-viewport-top: 0px;
+    --learning-viewport-height: 100svh;
+    --learning-viewport-top: 0px;
 
     /* Native fixed navigation follows browser chrome without an extra lift. */
     --chrome-inset: 0px;
@@ -1297,14 +1299,14 @@
   animation: neu-reveal var(--dur-learning) var(--ease-enter) backwards;
 }
 
-/* Learning owns one visual-viewport band, including Safari's independent pan.
- * Keep its frame out of document flow so native focus scrolling cannot subtract
- * a second offset. Geometry follows measurements, never focus/blur state. */
+/* Learning owns one committed visual-viewport band. Safari pans and resizes
+ * during keyboard animation; following each intermediate sample makes the
+ * fixed frame chase that native movement. */
 [data-shell-content]:has([data-learning-screen]) {
   position: fixed;
-  top: var(--visual-viewport-top);
+  top: var(--learning-viewport-top);
   inset-inline: 0;
-  height: var(--visual-viewport-height);
+  height: var(--learning-viewport-height);
   padding-bottom: calc(var(--safe-bottom) + var(--u-5));
   overflow-y: auto;
 }
@@ -1323,7 +1325,7 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
 .neu-session {
   height: 100%;
   min-height: 0;
-  --learning-space: clamp(8px, calc((var(--visual-viewport-height) - 400px) / 10), 16px);
+  --learning-space: clamp(8px, calc((var(--learning-viewport-height) - 400px) / 10), 16px);
   gap: var(--learning-space);
 }
 .neu-session > header,
@@ -1331,7 +1333,7 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
   flex-shrink: 0;
 }
 .neu-session .neu-learning-actions {
-  min-height: clamp(44px, calc((var(--visual-viewport-height) - 476px) / 4 + 44px), 72px);
+  min-height: clamp(44px, calc((var(--learning-viewport-height) - 476px) / 4 + 44px), 72px);
 }
 .neu-learning-card {
   min-height: 360px;
@@ -1339,7 +1341,7 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
 .neu-session .neu-learning-card {
   min-height: 0;
   gap: var(--learning-space);
-  padding: clamp(16px, calc((var(--visual-viewport-height) - 440px) / 10), 20px);
+  padding: clamp(16px, calc((var(--learning-viewport-height) - 440px) / 10), 20px);
 }
 .neu-session .neu-learning-reading {
   padding-block: var(--learning-space);

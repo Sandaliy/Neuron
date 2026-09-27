@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-27, deployed Daily Study readiness; keyboard stabilization prepared.
+Last updated: 2026-09-28, deployed Daily Study readiness and settled keyboard geometry; native transition follow-up in progress.
 
 ## Current release slice
 
@@ -33,11 +33,13 @@ study day while precise retries remain eligible. Today and per-Deck summaries sh
 rule, and Today shows an updating state after confirmed answers until server-owned admission returns.
 Physical-iPhone production acceptance of completed-session Today reconciliation remains outstanding.
 
-The keyboard stabilization slice anchors active Study and Practice to the measured visual viewport,
-including Safari panning. Available height controls compact spacing; focus/blur no longer changes card
-geometry or hides Show answer. It is prepared for protected PR delivery, with built-application viewport
-regressions. Physical-iPhone production acceptance must still verify the actual keyboard animation,
-repeated focus/blur, checking and advancing; headless viewport injection cannot prove native behavior.
+PR #31 is merged and production-deployed. It anchors active Study and Practice to the measured visual
+viewport, including Safari panning, and fixes their settled compact Typing geometry. Physical-iPhone
+production acceptance found that the native keyboard transition still makes the learning composition
+jump through multiple positions. A narrow follow-up is in progress to commit learning geometry after
+the resize/pan burst instead of applying every intermediate viewport sample. Physical-iPhone acceptance
+must verify the actual transition, repeated focus/blur, checking and advancing after that delivery;
+headless viewport injection cannot prove native compositor behavior.
 
 ## Now
 
@@ -84,8 +86,8 @@ Today or Study.
 ## Next
 
 1. Repeat physical-iPhone production acceptance of completed-session Today reconciliation after PR #30.
-2. Deliver the Study keyboard stabilization slice through protected checks, then verify the actual
-   keyboard transition and repeated Typing lifecycle on a physical iPhone in production.
+2. Deliver the keyboard transition follow-up through protected checks, then verify repeated Typing
+   opening, closing, checking and advancing on a physical iPhone in production.
 3. Revisit Listening's main interaction (possibly Listen → Type), the buried TTS language setup and voice
    quality, and the deeply buried Study response-mode choice.
 4. Refine Folder/Deck visual hierarchy and replace implementation-oriented Note/Card summaries such as
