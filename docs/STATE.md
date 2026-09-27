@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-26, Daily Study readiness stabilization in protected PR preparation.
+Last updated: 2026-09-27, deployed Daily Study readiness; keyboard stabilization prepared.
 
 ## Current release slice
 
@@ -27,12 +27,17 @@ support immediate participation/move projections; fresh workload admission remai
 The iPhone pass identified the stabilization work below. Phase 8 offline sync and Phase 9 progressive
 unlocking and statistics remain outside this slice.
 
-Daily Study readiness stabilization is implemented on a work branch for protected PR delivery.
+Daily Study readiness stabilization shipped in PR #30, merged into `main` and deployed to production.
 Confirmed answers separate other first-appearance directions of the same Note until the next local
 study day while precise retries remain eligible. Today and per-Deck summaries share that admission
 rule, and Today shows an updating state after confirmed answers until server-owned admission returns.
-Real-database, browser and protected CI results must be recorded before calling the slice shipped;
-physical-iPhone production acceptance of this fix remains outstanding.
+Physical-iPhone production acceptance of completed-session Today reconciliation remains outstanding.
+
+The keyboard stabilization slice anchors active Study and Practice to the measured visual viewport,
+including Safari panning. Available height controls compact spacing; focus/blur no longer changes card
+geometry or hides Show answer. It is prepared for protected PR delivery, with built-application viewport
+regressions. Physical-iPhone production acceptance must still verify the actual keyboard animation,
+repeated focus/blur, checking and advancing; headless viewport injection cannot prove native behavior.
 
 ## Now
 
@@ -78,9 +83,9 @@ Today or Study.
 
 ## Next
 
-1. Deliver and validate Daily Study readiness stabilization through protected PR checks, then repeat
-   physical-iPhone production acceptance of completed-session Today reconciliation.
-2. Stabilize the real iPhone keyboard transition, which can resize or shift the Study card inconsistently.
+1. Repeat physical-iPhone production acceptance of completed-session Today reconciliation after PR #30.
+2. Deliver the Study keyboard stabilization slice through protected checks, then verify the actual
+   keyboard transition and repeated Typing lifecycle on a physical iPhone in production.
 3. Revisit Listening's main interaction (possibly Listen → Type), the buried TTS language setup and voice
    quality, and the deeply buried Study response-mode choice.
 4. Refine Folder/Deck visual hierarchy and replace implementation-oriented Note/Card summaries such as
@@ -100,7 +105,7 @@ Today or Study.
   passed physical-iPhone production acceptance. That pass found the Today refresh/readiness, keyboard,
   Listening interaction, hierarchy/status language, TTS setup/quality, response-mode discoverability,
   broader flow, navigation-motion, and tab-selection issues listed under Next. The Today findings are
-  addressed by the current readiness slice pending protected delivery and physical-device verification.
+  addressed by deployed PR #30, pending physical-device verification.
 - Import duplicates use a default plus row overrides in the bounded preview. Only a unique same-type
   match can merge. Ambiguous or incompatible matches inherit Skip instead of Merge, with visible reasons.
   Merge fills schema-defined blanks and grammar leaves under a write lock, preserves existing metadata,

@@ -51,7 +51,19 @@ export function LearningCard({
       );
     }
     previous.current = { identity, top };
-    return () => animation?.cancel();
+    // The keyboard can resize the reading area without a React render. Reveal
+    // must start at the prompt's current position, not its pre-keyboard position.
+    const observer =
+      !revealed && typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            previous.current = { identity, top: element.offsetTop };
+          })
+        : undefined;
+    if (element.parentElement) observer?.observe(element.parentElement);
+    return () => {
+      observer?.disconnect();
+      animation?.cancel();
+    };
   }, [revealed, identity]);
   return (
     <Card className="neu-learning-card flex min-h-0 flex-1 flex-col gap-16 break-words">

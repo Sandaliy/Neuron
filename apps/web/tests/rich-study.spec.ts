@@ -280,6 +280,191 @@ for (const direction of ['production', 'listening'] as const)
     ).toBeVisible();
   });
 
+for (const reduced of [false, true])
+  test(`Study geometry follows the visual viewport through repeated focus and advance, reduced=${reduced}`, async ({
+    page,
+  }, info) => {
+    await usePreferences(page, { locale: 'en', theme: 'dark' });
+    await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
+    await useFixtures(page, { decks: [deck], notes: [note] });
+    const cards = Array.from({ length: 3 }, (_, index) => ({
+      ...base,
+      id: id(30 + index),
+      noteId: id(40 + index),
+    }));
+    await page.route('**/api/study/session', (route) =>
+      route.fulfill({
+        json: {
+          ...plan(base),
+          cards,
+          notes: cards.map((card) => ({ ...note, id: card.noteId })),
+          availableCount: 3,
+          newCount: 3,
+        },
+      }),
+    );
+    await page.route('**/api/reviews', (route) =>
+      route.fulfill({
+        json: {
+          card: {
+            ...cards.find((card) => card.id === route.request().postDataJSON().cardId)!,
+            state: 'review',
+            due: '2027-01-01T04:00:00Z',
+            stability: 10,
+            difficulty: 5,
+            reps: 1,
+            lastReview: stamp,
+          },
+        },
+      }),
+    );
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Study', exact: true }).click();
+    // Model the iOS layout/visual viewport split, not a resized desktop window.
+    // Rectangles remain in layout coordinates; compare against offsetTop + height.
+    // Safe-area values stand in for device env() values unavailable in headless runs.
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty('--safe-top', '47px');
+      document.documentElement.style.setProperty('--safe-bottom', '34px');
+    });
+    async function viewport(height: number, top: number) {
+      await page.evaluate(
+        ({ height, top }) => {
+          Object.defineProperties(window.visualViewport, {
+            height: { configurable: true, get: () => height },
+            offsetTop: { configurable: true, get: () => top },
+          });
+          window.visualViewport!.dispatchEvent(new Event('resize'));
+          window.visualViewport!.dispatchEvent(new Event('scroll'));
+        },
+        { height, top },
+      );
+      // The tracker publishes in a frame; the synthetic viewport getter changes
+      // immediately. Wait until the published values have reached the fixed
+      // frame's layout before comparing its children with that viewport. The
+      // tracker deliberately ignores changes smaller than 3px.
+      await page.waitForFunction(
+        ({ height, top }) => {
+          const root = document.documentElement;
+          const frame = document.querySelector('[data-shell-content]')?.getBoundingClientRect();
+          const publishedHeight = Number.parseFloat(
+            root.style.getPropertyValue('--visual-viewport-height'),
+          );
+          const publishedTop = Number.parseFloat(
+            root.style.getPropertyValue('--visual-viewport-top'),
+          );
+          return (
+            Math.abs(publishedHeight - height) < 3 &&
+            Math.abs(publishedTop - top) < 3 &&
+            frame?.top === publishedTop &&
+            frame.height === publishedHeight
+          );
+        },
+        { height, top },
+      );
+    }
+    async function geometry() {
+      return page.evaluate(() => {
+        const top = window.visualViewport!.offsetTop;
+        return Object.fromEntries(
+          [
+            '.neu-session',
+            '.neu-session > header',
+            '.neu-learning-card',
+            '.neu-learning-actions',
+            '.neu-response',
+          ].map((selector) => {
+            const element = document.querySelector(selector)!;
+            const rect = element.getBoundingClientRect();
+            return [
+              selector,
+              { top: rect.top - top, bottom: rect.bottom - top, height: rect.height },
+            ];
+          }),
+        );
+      });
+    }
+    async function contained() {
+      const boxes = await geometry();
+      const height = await page.evaluate(() => window.visualViewport!.height);
+      for (const [selector, box] of Object.entries(boxes)) {
+        expect(box.top, selector).toBeGreaterThanOrEqual(47);
+        expect(box.bottom, selector).toBeLessThanOrEqual(height - 34);
+        expect(box.height, selector).toBeGreaterThan(0);
+      }
+      return boxes;
+    }
+    const fullHeight = await page.evaluate(() => window.innerHeight);
+    let compact: Awaited<ReturnType<typeof geometry>> | undefined;
+    for (let card = 0; card < 3; card++) {
+      const input = page.getByLabel('Type your answer', { exact: true });
+      await input.focus();
+      // Interleaved resize/pan events, including the old keyboard threshold.
+      let previousHeight = Infinity;
+      for (const [height, top] of [
+        [fullHeight, 0],
+        [fullHeight - 119, 40],
+        [fullHeight - 121, 80],
+        [(fullHeight - 121 + 476) / 2, 120],
+        [476, 180],
+      ]) {
+        await viewport(height!, top!);
+        const boxes = await contained();
+        expect(boxes['.neu-learning-card']!.height).toBeLessThanOrEqual(previousHeight);
+        previousHeight = boxes['.neu-learning-card']!.height;
+      }
+      const settled = await contained();
+      if (compact) expect(settled).toEqual(compact);
+      compact = settled;
+      await input.fill('Sorgfalt');
+      expect(await geometry()).toEqual(compact);
+      // Blur happens before iOS restores the viewport; it must not expand the card.
+      await input.blur();
+      await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'closed');
+      expect(await geometry()).toEqual(compact);
+      await input.focus();
+      await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'open');
+      expect(await geometry()).toEqual(compact);
+      // A different native pan must not change the visible composition.
+      await viewport(476, 70);
+      expect(await geometry()).toEqual(compact);
+      await input.blur();
+      await viewport(fullHeight, 0);
+      await contained();
+      await input.focus();
+      await viewport(476, 180);
+      expect(await geometry()).toEqual(compact);
+      await expect(page.getByRole('button', { name: 'Show answer', exact: true })).toBeVisible();
+      expect(await input.evaluate((element) => getComputedStyle(element).fontSize)).toBe('16px');
+      if (card === 0) await page.screenshot({ path: info.outputPath('viewport-typing.png') });
+      const prompt = page.locator('.neu-learning-prompt');
+      const promptTop = await prompt.evaluate((element) => (element as HTMLElement).offsetTop);
+      await input.press('Enter');
+      await expect(input).toHaveCount(0);
+      if (!reduced) {
+        const reveal = await prompt.evaluate((element) => ({
+          top: (element as HTMLElement).offsetTop,
+          start: (element.getAnimations()[0]?.effect as KeyframeEffect)?.getKeyframes()[0]
+            ?.transform,
+        }));
+        expect(reveal.start).toBe(`translateY(${promptTop - reveal.top}px)`);
+      }
+      await contained();
+      for (const [height, top] of [
+        [(fullHeight - 121 + 476) / 2, 40],
+        [fullHeight - 121, 0],
+        [fullHeight, 0],
+      ]) {
+        await viewport(height!, top!);
+        await contained();
+      }
+      await expect(page.getByRole('button', { name: /^Good / })).toBeEnabled();
+      if (card === 0) await page.screenshot({ path: info.outputPath('viewport-feedback.png') });
+      await page.getByRole('button', { name: /^Good / }).click();
+    }
+    await expect(page.getByText('Session complete', { exact: true })).toBeVisible();
+  });
+
 for (const submitted of [
   'Sorgfalt',
   'sorgfalt',
