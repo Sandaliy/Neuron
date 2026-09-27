@@ -1297,9 +1297,22 @@
   animation: neu-reveal var(--dur-learning) var(--ease-enter) backwards;
 }
 
-/* A bounded learning screen owns its actions and uses the existing viewport contract. */
+/* Learning owns one visual-viewport band, including Safari's independent pan.
+ * Keep its frame out of document flow so native focus scrolling cannot subtract
+ * a second offset. Geometry follows measurements, never focus/blur state. */
 [data-shell-content]:has([data-learning-screen]) {
-  padding-bottom: calc(var(--safe-bottom) + var(--u-4));
+  position: fixed;
+  top: var(--visual-viewport-top);
+  inset-inline: 0;
+  height: var(--visual-viewport-height);
+  padding-bottom: calc(var(--safe-bottom) + var(--u-5));
+  overflow-y: auto;
+}
+@media (min-width: 640px) {
+  [data-shell-content]:has([data-learning-screen]) {
+    padding-top: calc(var(--safe-top) + var(--u-6));
+    padding-bottom: calc(var(--safe-bottom) + var(--u-2));
+  }
 }
 body:has([data-learning-screen]) [data-g='tabbar'] {
   visibility: hidden;
@@ -1308,14 +1321,28 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
   transform: translateY(var(--u-2));
 }
 .neu-session {
-  height: calc(var(--visual-viewport-height, 100svh) - var(--safe-top) - var(--safe-bottom) - 32px);
-  min-height: 360px;
+  height: 100%;
+  min-height: 0;
+  --learning-space: clamp(8px, calc((var(--visual-viewport-height) - 400px) / 10), 16px);
+  gap: var(--learning-space);
+}
+.neu-session > header,
+.neu-session .neu-learning-actions {
+  flex-shrink: 0;
+}
+.neu-session .neu-learning-actions {
+  min-height: clamp(44px, calc((var(--visual-viewport-height) - 476px) / 4 + 44px), 72px);
 }
 .neu-learning-card {
   min-height: 360px;
 }
 .neu-session .neu-learning-card {
   min-height: 0;
+  gap: var(--learning-space);
+  padding: clamp(16px, calc((var(--visual-viewport-height) - 440px) / 10), 20px);
+}
+.neu-session .neu-learning-reading {
+  padding-block: var(--learning-space);
 }
 .neu-learning-prompt,
 .neu-learning-answer {
@@ -1332,22 +1359,4 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
   overflow-wrap: anywhere;
   max-height: 104px;
   overflow-y: auto;
-}
-:root[data-keyboard='open'] [data-shell-content]:has([data-learning-screen]) {
-  padding-bottom: var(--u-3);
-}
-:root[data-keyboard='open'] .neu-session {
-  height: calc(var(--visual-viewport-height) - var(--safe-top) - 24px);
-  min-height: 0;
-  gap: var(--u-2);
-}
-:root[data-keyboard='open'] .neu-learning-card {
-  padding: var(--u-4);
-  gap: var(--u-2);
-}
-:root[data-keyboard='open'] .neu-learning-reading {
-  padding-block: var(--u-2);
-}
-:root[data-keyboard='open'] .neu-session:has([data-typed-answer]) .neu-learning-actions {
-  display: none;
 }

@@ -658,12 +658,17 @@ Active Study and Practice own their exit and bottom actions; global navigation i
 `LearningCard` reserves a stable reading area with internal overflow. The prompt and target answer use
 `--type-learning-prompt` and `--type-learning-answer` (36–56px, platform UI font, primary contrast).
 Reveal moves the same prompt upward over 340ms while the divider draws and the answer enters.
+Its starting position is refreshed when the unrevealed reading area resizes, including keyboard changes.
 Animations are cancellable and reduced motion goes directly to the final composition.
 
-The response field belongs inside this learning surface. The existing visual-viewport variables contract
-unused reading space when the software keyboard opens, without scrolling the document or adding another
-keyboard detector. Input stays at least 16px. Enter checks locally, blurs the field and restores the full
-feedback/rating composition. Long reading content scrolls within the card; grading remains outside it.
+The response field belongs inside this learning surface. Active Study and Practice occupy a fixed band
+at `--visual-viewport-top`, sized by `--visual-viewport-height`, with safe-area padding inside it. This
+keeps Safari's independent focus pan from carrying the header above the visible band. The same measured
+height contracts reading space and compact spacing continuously; focus/blur and `data-keyboard` do not
+switch learning geometry or hide Show answer. Do not add document scrolling, a second keyboard detector,
+or dimension transitions. Input stays at least 16px. Enter checks locally and blurs; feedback and ratings
+remain inside the measured band while the keyboard closes. Long reading content scrolls within the card;
+grading remains outside it. The frame can scroll if unusually small viewports or enlarged text cannot fit.
 
 Spelling alignment preserves submitted casing and text. Correct characters use `--text-correct`;
 errors use the error tone and an underline, with a dotted insertion for omitted characters. The target
