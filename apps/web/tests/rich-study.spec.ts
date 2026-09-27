@@ -329,15 +329,35 @@ for (const reduced of [false, true])
     });
     async function viewport(height: number, top: number) {
       await page.evaluate(
-        async ({ height, top }) => {
+        ({ height, top }) => {
           Object.defineProperties(window.visualViewport, {
             height: { configurable: true, get: () => height },
             offsetTop: { configurable: true, get: () => top },
           });
           window.visualViewport!.dispatchEvent(new Event('resize'));
           window.visualViewport!.dispatchEvent(new Event('scroll'));
-          await new Promise<void>((resolve) =>
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        },
+        { height, top },
+      );
+      // The tracker publishes in a frame; the synthetic viewport getter changes
+      // immediately. Wait until the published values have reached the fixed
+      // frame's layout before comparing its children with that viewport. The
+      // tracker deliberately ignores changes smaller than 3px.
+      await page.waitForFunction(
+        ({ height, top }) => {
+          const root = document.documentElement;
+          const frame = document.querySelector('[data-shell-content]')?.getBoundingClientRect();
+          const publishedHeight = Number.parseFloat(
+            root.style.getPropertyValue('--visual-viewport-height'),
+          );
+          const publishedTop = Number.parseFloat(
+            root.style.getPropertyValue('--visual-viewport-top'),
+          );
+          return (
+            Math.abs(publishedHeight - height) < 3 &&
+            Math.abs(publishedTop - top) < 3 &&
+            frame?.top === publishedTop &&
+            frame.height === publishedHeight
           );
         },
         { height, top },
