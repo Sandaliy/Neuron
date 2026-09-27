@@ -4,7 +4,6 @@ import { Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
-  availableForStudy,
   studyAvailableAt,
   createSchedulerConfig,
   createSeededRandom,
@@ -22,6 +21,7 @@ import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { settingsFor, useDeckTree } from '../../lib/decks';
+import { projectConfirmedReview } from '../../lib/review-projection';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
 import { LearningCard } from '../../ui/learning-card';
@@ -118,6 +118,7 @@ export function StudyScreen({
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const operations = useRef(new Map<string, Promise<void>>());
   const cancelled = useRef(new Set<string>());
+  const projectedAnswers = useRef(new Set<string>());
   const undoOperation = useRef<Promise<void> | undefined>(undefined);
   const retryUndo = useRef<(() => Promise<void>) | undefined>(undefined);
   const queue = useRef<SessionQueue>({ planned: [], retries: [], retryMayRun: false });
@@ -218,36 +219,18 @@ export function StudyScreen({
         body: answer,
       });
       if (!cancelled.current.has(answer.id)) {
+        const before = cards.current.get(result.card.id);
+        await client.cancelQueries({ queryKey: ['study-plan'] });
+        await client.cancelQueries({ queryKey: ['decks'] });
         cards.current.set(result.card.id, result.card);
         queue.current = queueSessionRetry(queue.current, workloadCard(result.card));
         projectedDue.current.delete(result.card.id);
         updateNextDue();
-        client.setQueriesData<DailyStudySession>({ queryKey: ['study-plan'] }, (cached) => {
-          if (!cached || !cached.cards.some((card) => card.id === result.card.id)) return cached;
-          const available = availableForStudy(
-            workloadCard(result.card).scheduling,
-            new Date(),
-            config,
-          );
-          const nextCards = cached.cards.flatMap((card) =>
-            card.id === result.card.id ? (available ? [result.card] : []) : [card],
-          );
-          return {
-            ...cached,
-            cards: nextCards,
-            availableCount: Math.max(0, cached.availableCount - (available ? 0 : 1)),
-            newCount: nextCards.filter((card) => card.state === 'new').length,
-            reviewCount: nextCards.filter((card) => card.state !== 'new').length,
-            nextDue: available
-              ? cached.nextDue
-              : ([
-                  cached.nextDue,
-                  studyAvailableAt(workloadCard(result.card).scheduling, config).toISOString(),
-                ]
-                  .filter((due): due is string => !!due)
-                  .sort()[0] ?? null),
-          };
-        });
+        if (before) {
+          projectConfirmedReview(client, before, result.card, new Date());
+          projectedAnswers.current.add(answer.id);
+        }
+        void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
       }
       setFailed((items) => items.filter((item) => item.id !== answer.id));
       void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
@@ -335,8 +318,20 @@ export function StudyScreen({
       attempting = true;
       try {
         await operations.current.get(previous.answer.id);
-        await request('/reviews', { method: 'POST', body: previous.answer });
-        await request('/reviews/undo', { method: 'POST', body });
+        const confirmed = await request<{ card: StudyCard }>('/reviews', {
+          method: 'POST',
+          body: previous.answer,
+        });
+        const reverted = await request<{ card: StudyCard }>('/reviews/undo', {
+          method: 'POST',
+          body,
+        });
+        if (projectedAnswers.current.delete(previous.answer.id)) {
+          await client.cancelQueries({ queryKey: ['decks'] });
+          projectConfirmedReview(client, confirmed.card, reverted.card, new Date());
+        }
+        cards.current.set(reverted.card.id, reverted.card);
+        client.removeQueries({ queryKey: ['study-plan'], type: 'inactive' });
         void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
         void client.invalidateQueries({ queryKey: ['notes'], refetchType: 'none' });
         void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });

@@ -506,7 +506,12 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
     async workload() {
       return run(async (tx) => {
         const rows = await tx
-          .select({ review: reviews, direction: cards.direction, deckId: cards.deckId })
+          .select({
+            review: reviews,
+            direction: cards.direction,
+            deckId: cards.deckId,
+            noteId: cards.noteId,
+          })
           .from(reviews)
           .innerJoin(cards, and(eq(cards.userId, userId), eq(cards.id, reviews.cardId)))
           .where(
@@ -519,10 +524,11 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
           )
           .orderBy(asc(reviews.reviewedAt), asc(reviews.id));
 
-        return rows.map(({ review: row, direction, deckId }) => ({
+        return rows.map(({ review: row, direction, deckId, noteId }) => ({
           ...toReviewLog(row),
           cardId: row.cardId,
           deckId,
+          noteId,
           direction: direction as WorkloadReview['direction'],
         }));
       });

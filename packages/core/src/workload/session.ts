@@ -33,12 +33,13 @@ import { retrievability } from '../fsrs/scheduler.js';
 import { dayIndexOf } from '../time/day.js';
 
 import { defaultAnswerTimes, type AnswerTimes } from './answer-time.js';
-import { availableForStudy } from './availability.js';
+import { availableForDailyStudy, studyDayAnswers } from './availability.js';
 import { detectBacklog, orderBacklog, type BacklogState } from './backlog.js';
 import { budgetFor, carryOverMinutes, type Budget } from './budget.js';
 import { answerSeconds } from './forecast.js';
 import { marginalCostOfNewCard, newCardAllowance, type NewCardDecision } from './throttle.js';
 
+import type { StudyDayAnswers } from './availability.js';
 import type { WorkloadConfig } from './config.js';
 import type { DailyLoad, WorkloadCard, WorkloadReview } from './types.js';
 import type { RandomSource } from '../fsrs/random.js';
@@ -94,6 +95,8 @@ export interface SessionRequest {
   readonly load?: readonly DailyLoad[];
   /** The review log, read for answer speed and for carry over. */
   readonly logs?: readonly WorkloadReview[];
+  /** Scope-wide answers when cards were filtered to one direction. */
+  readonly answers?: StudyDayAnswers;
   /** Measured answer times, if they have been worked out already. */
   readonly times?: AnswerTimes;
   /** What one new card costs, if it has been worked out already. */
@@ -387,6 +390,7 @@ export function buildSession(request: SessionRequest): Session {
   const preset = request.preset ?? DEFAULT_SESSION_PRESET;
   const times = request.times ?? defaultAnswerTimes(config.answerSeconds);
   const logs = request.logs ?? [];
+  const answers = request.answers ?? studyDayAnswers(cards, logs, now, config.scheduler);
   const today = dayIndexOf(now, config.scheduler);
   const backlog = request.backlog ?? detectBacklog(cards, budget, config, now, times);
 
@@ -402,7 +406,8 @@ export function buildSession(request: SessionRequest): Session {
 
   const due = cards.filter(
     (card) =>
-      card.scheduling.state !== 'new' && availableForStudy(card.scheduling, now, config.scheduler),
+      card.scheduling.state !== 'new' &&
+      availableForDailyStudy(card, answers, now, config.scheduler),
   );
 
   // During a backlog the recovery ordering decides what gets seen, and it is
@@ -444,7 +449,12 @@ export function buildSession(request: SessionRequest): Session {
     if (deck !== undefined) introductions.set(deck, (introductions.get(deck) ?? 0) + 1);
   }
   const newCandidates = orderNewCards(
-    cards.filter((card) => card.scheduling.state === 'new' && !reviewNotes.has(card.noteId)),
+    cards.filter(
+      (card) =>
+        card.scheduling.state === 'new' &&
+        !reviewNotes.has(card.noteId) &&
+        availableForDailyStudy(card, answers, now, config.scheduler),
+    ),
     introductions,
   ).map((card) => candidateFor(card, times, today, config));
   const automaticFresh = fill(newCandidates.slice(0, decision.allowed), roomLeft);

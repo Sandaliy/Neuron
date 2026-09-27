@@ -14,7 +14,7 @@ import {
   takeNextSessionCard,
 } from './session.js';
 
-import type { WorkloadCard } from './types.js';
+import type { WorkloadCard, WorkloadReview } from './types.js';
 
 const NOW = new Date('2026-08-05T12:00:00Z');
 
@@ -26,6 +26,50 @@ const config = createWorkloadConfig({
 const budget = createBudget({ minutesByWeekday: [20, 20, 20, 20, 20, 20, 20] });
 
 const rng = (): (() => number) => createSeededRandom(42);
+
+it('keeps an answered Note sibling out of the next plan while retaining its due retry', () => {
+  const sibling = freshCard({ id: 'sibling', noteId: 'shared' }, NOW);
+  const retry = {
+    ...reviewCard({ id: 'answered', noteId: 'shared' }, 1, new Date(NOW.getTime() + 60_000)),
+    scheduling: {
+      state: 'learning' as const,
+      due: new Date(NOW.getTime() + 60_000),
+      stability: 1,
+      difficulty: 5,
+      lastReview: NOW,
+      reps: 1,
+      lapses: 0,
+      learningStep: 1,
+    },
+  };
+  const log: WorkloadReview = {
+    cardId: retry.id,
+    noteId: retry.noteId,
+    direction: retry.direction,
+    rating: 1,
+    reviewedAt: NOW,
+    placedDue: retry.scheduling.due,
+    stateBefore: 'new',
+    elapsedDays: 0,
+    scheduledDays: 0,
+    stabilityBefore: undefined,
+    difficultyBefore: undefined,
+    durationMs: 1000,
+  };
+  const plan = (at: Date) =>
+    buildSession({
+      cards: [sibling, retry],
+      logs: [log],
+      budget,
+      config,
+      now: at,
+      rng: rng(),
+      newCardMode: 'override',
+    });
+  expect(plan(NOW).cards).toEqual([]);
+  expect(plan(retry.scheduling.due).cards.map((card) => card.id)).toEqual([retry.id]);
+  expect(plan(new Date('2026-08-06T04:00:00Z')).cards.map((card) => card.id)).toEqual([retry.id]);
+});
 
 /** Cards due today. */
 function dueToday(size: number): WorkloadCard[] {

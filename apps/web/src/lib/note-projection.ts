@@ -4,7 +4,10 @@ import type { Card, DailyStudySession, DeckNode, Me, Note } from '@neuron/shared
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 
 type Detail = { note: Note; cards: Card[] };
-export type StudyPlanProjection = DailyStudySession & { localProjection?: boolean };
+export type StudyPlanProjection = DailyStudySession & {
+  localProjection?: boolean;
+  reviewProjection?: boolean;
+};
 type Pages = InfiniteData<{ items: Note[]; nextCursor?: string }>;
 type Change = { before: Note; after: Note; cards?: Card[]; oldCards?: Card[] };
 

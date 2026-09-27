@@ -151,7 +151,8 @@ function Waiting({
   });
   const result = plan.data;
   const updating = plan.isPlaceholderData || result?.localProjection === true;
-  const caughtUp = result?.availableCount === 0 && selected.length > 0 && !plan.isPlaceholderData;
+  const reconciling = plan.isPlaceholderData || result?.reviewProjection === true;
+  const caughtUp = result?.availableCount === 0 && selected.length > 0 && !reconciling;
   const waiting = (result?.deckSummaries ?? [])
     .filter((summary) => selected.includes(summary.deckId))
     .flatMap((summary) => {
@@ -177,6 +178,10 @@ function Waiting({
             <Skeleton className="h-56 w-[60%]" />
             <Skeleton className="h-20 w-[40%]" />
             <Skeleton className="h-48 w-full" />
+          </div>
+        ) : reconciling ? (
+          <div role="status" className="flex min-h-112 items-center text-17 text-secondary">
+            {t('today.updatingPlan')}
           </div>
         ) : caughtUp ? (
           <>
@@ -245,7 +250,7 @@ function Waiting({
             </Button>
           </>
         )}
-        {selected.length > 0 && !caughtUp && (
+        {selected.length > 0 && !caughtUp && !reconciling && (
           <div className="flex items-center justify-between gap-12 border-t border-subtle pt-8">
             <span className="truncate text-12 text-secondary">{scopeLabel}</span>
             <Button
@@ -269,7 +274,7 @@ function Waiting({
             <ChevronDown size={14} aria-hidden="true" />
           </Button>
         )}
-        {adjusting && !caughtUp && selected.length > 0 && (
+        {adjusting && !caughtUp && !reconciling && selected.length > 0 && (
           <div className="neu-reveal flex flex-col gap-16 border-t border-subtle pt-16">
             <div className="flex items-center justify-between gap-12">
               <span className="text-14 text-secondary">{t('study.scope')}</span>
@@ -331,13 +336,17 @@ function Waiting({
                 title={deck.name}
                 onClick={() => void navigate({ to: '/notes', search: { deckId: deck.id } })}
                 subtitle={
-                  deck.due === 0 && deck.fresh === 0 && deck.nextDue ? (
+                  reconciling ? (
+                    t('today.updatingPlan')
+                  ) : deck.due === 0 && deck.fresh === 0 && deck.nextDue ? (
                     <ReviewTime due={deck.nextDue} />
                   ) : (
                     t('today.deckCounts', { due: deck.due, fresh: deck.fresh })
                   )
                 }
-                trailing={deck.due > 0 ? <Chip tone="due">{deck.due}</Chip> : undefined}
+                trailing={
+                  !reconciling && deck.due > 0 ? <Chip tone="due">{deck.due}</Chip> : undefined
+                }
               />
             ))}
           </div>

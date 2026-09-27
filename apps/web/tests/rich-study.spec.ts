@@ -81,6 +81,65 @@ const plan = (card: typeof base) => ({
   },
 });
 
+test('Today hides obsolete Ready state until a confirmed answer is reconciled', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [deck], notes: [note] });
+  let confirmed = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/study/session', async (route) => {
+    if (confirmed) await held;
+    await route.fulfill({
+      json: confirmed
+        ? {
+            ...plan(base),
+            cards: [],
+            availableCount: 0,
+            newCount: 0,
+            deckSummaries: [{ deckId: deck.id, due: 0, fresh: 0, nextDue: '2027-01-01T04:00:00Z' }],
+            nextDue: '2027-01-01T04:00:00Z',
+          }
+        : plan(base),
+    });
+  });
+  await page.route('**/api/decks', async (route) => {
+    if (confirmed) await held;
+    await route.fulfill({ json: { decks: [{ ...deck, fresh: confirmed ? 0 : 1 }] } });
+  });
+  await page.route('**/api/reviews', (route) => {
+    confirmed = true;
+    return route.fulfill({
+      json: {
+        card: {
+          ...base,
+          state: 'review',
+          due: '2027-01-01T04:00:00Z',
+          stability: 10,
+          difficulty: 5,
+          lastReview: new Date().toISOString(),
+          reps: 1,
+        },
+      },
+    });
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Study', exact: true }).click();
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  await page.getByRole('button', { name: /^Good / }).click();
+  await page.getByRole('button', { name: 'Finish', exact: true }).click();
+  await expect(page.getByRole('status').getByText('Updating plan…')).toBeVisible();
+  await expect(page.getByText('Ready', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('You are caught up', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toHaveCount(0);
+  release();
+  await expect(page.getByText('You are caught up', { exact: true })).toBeVisible();
+});
+
 // These injected session cases isolate card behavior. The enabling test below
 // separately exercises the shipped Note editor path into Study.
 for (const reduced of [false, true])

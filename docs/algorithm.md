@@ -393,7 +393,10 @@ New cards follow stable due/id order and are spread through the first two thirds
 rather than blocked at the front, since a wall of unfamiliar cards at the start
 is where sessions get abandoned and the last third is where attention is
 thinnest. Never two cards of one note in the first-appearance plan, because the
-second would be a hint rather than a test. Never three cards above difficulty 8
+second would be a hint rather than a test. A confirmed answer also keeps other
+unanswered directions of that Note out of later plans until the next local study
+day. The answered Card keeps its own precise learning or relearning retry;
+neither sibling schedules nor Review history are changed. Never three cards above difficulty 8
 in a row. Overdue cards mixed in rather than piled at the front. And the session
 ends on a whole card, even if that goes a little over, because stopping mid card
 to respect a budget to the second would be worse than twenty seconds of
@@ -736,4 +739,8 @@ Note Study again uses the same immutable reset stream as Deck Restart learning. 
 active; eligible live unsuspended cards restart with IDs and history intact. Operation receipts include
 Note scope and protect retries, including zero-card operations. Learning and relearning steps wait for
 their exact due instant on both session admission and retry; reviewed cards retain study-day admission.
+An answered review cannot reopen on its answer's study day, including when a one-day interval
+lands there across a clock change. Today counts and per-Deck next-review times use these same
+admission rules. Confirmed answers project known changes immediately; fresh workload admission
+is reconciled by the server before another plan can start.
 FSRS weights and `[1, 10]` / `[10]` steps are unchanged.
