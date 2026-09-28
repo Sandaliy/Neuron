@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { SlidersHorizontal } from 'lucide-react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import {
@@ -23,6 +24,7 @@ import { describe, request } from '../../lib/api';
 import { findDeck, settingsFor, useDeckTree } from '../../lib/decks';
 import { practiceStore } from '../../lib/practice';
 import { Button } from '../../ui/button';
+import { Card } from '../../ui/card';
 import { Checkbox } from '../../ui/checkbox';
 import { CompletionProgress } from '../../ui/completion-progress';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
@@ -132,9 +134,12 @@ function PersistentPractice({
   const [front, setFront] = useState<PracticeRun['front']>(fields[0] ?? 'front');
   const [back, setBack] = useState<PracticeRun['back']>(fields[1] ?? 'back');
   const [configuring, setConfiguring] = useState(false);
+  const [active, setActive] = useState(false);
+  const [confirmNew, setConfirmNew] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [response, setResponse] = useState<PracticeResponse>('reveal');
   const [typed, setTyped] = useState('');
+  const [typingReady, setTypingReady] = useState(false);
   const decks = useDeckTree();
   const account = useAccount();
   const language =
@@ -144,23 +149,99 @@ function PersistentPractice({
   const statuses = Object.values(run?.statuses ?? {});
   const known = statuses.filter((status) => status === 'known').length;
   const learning = statuses.filter((status) => status === 'learning').length;
+  const stillLearning = statuses.length - known;
   const eligible = notes.filter((note) =>
     supportsPracticeResponse(note.fields, front, back, response),
   );
+  const sameRecipe =
+    !!run &&
+    (run.response ?? 'reveal') === response &&
+    JSON.stringify(practiceFields(run.front)) === JSON.stringify(practiceFields(front)) &&
+    JSON.stringify(practiceFields(run.back)) === JSON.stringify(practiceFields(back));
+  const sideLabel = (side: PracticeSide) =>
+    practiceFields(side)
+      .map((field) => t(practiceFieldLabel(field)))
+      .join(' + ');
+  function openSettings() {
+    if (run) {
+      setFront(run.front);
+      setBack(run.back);
+      setResponse(run.response ?? 'reveal');
+    }
+    setConfiguring(true);
+  }
+  function startRun() {
+    store.act({ kind: 'start', front, back, response });
+    setTyped('');
+    setTypingReady(false);
+    setConfiguring(false);
+    setConfirmNew(false);
+    setRevealed(false);
+    setActive(true);
+  }
+  function applySettings() {
+    if (run && !sameRecipe) {
+      setConfirmNew(true);
+    } else if (run) {
+      setConfiguring(false);
+      setActive(true);
+    } else {
+      startRun();
+    }
+  }
   return (
-    <section data-screen="" data-learning-screen="" className="neu-session flex flex-col gap-16">
+    <section
+      data-screen=""
+      data-learning-screen={active && !configuring ? '' : undefined}
+      data-typing-ready={typingReady || undefined}
+      className="neu-session flex flex-col gap-16"
+    >
       <ModeHeader
         title={t('practice.title')}
         exitLabel={t('practice.exit')}
         onExit={onFinish}
-        value={known}
-        max={statuses.length}
+        {...(active && !configuring ? { value: known, max: statuses.length } : {})}
         action={
-          <span role="status" className="text-12 text-secondary">
-            {t(state.saving ? 'practice.saving' : 'practice.saved')}
-          </span>
+          <div className="flex items-center gap-4">
+            {run && (
+              <span role="status" className="text-12 text-secondary">
+                {t(state.saving ? 'practice.saving' : 'practice.saved')}
+              </span>
+            )}
+            {run && active && !configuring && (
+              <Button
+                data-practice-settings=""
+                variant="text"
+                className="w-44 text-secondary"
+                aria-label={t('practice.settings')}
+                title={t('practice.settings')}
+                onClick={openSettings}
+              >
+                <SlidersHorizontal size={18} aria-hidden="true" />
+              </Button>
+            )}
+          </div>
         }
       />
+      {active && !configuring && run && (
+        <div
+          className="grid grid-cols-2 gap-16 text-13 text-secondary"
+          aria-label={t('practice.progressLabel')}
+        >
+          <div className="flex flex-col">
+            <span>{t('practice.learning')}</span>
+            <strong data-numeric="" className="text-20 font-semibold text-primary">
+              {stillLearning}
+            </strong>
+          </div>
+          <div className="flex flex-col items-end text-right">
+            <span>{t('practice.know')}</span>
+            <strong data-numeric="" className="text-20 font-semibold text-primary">
+              {known}
+            </strong>
+          </div>
+        </div>
+      )}
       {state.error ? (
         <ErrorState
           message={t(describe(state.error).key)}
@@ -170,9 +251,33 @@ function PersistentPractice({
       ) : null}
       {state.loading ? (
         <SkeletonRows rows={3} />
+      ) : run && !active && !configuring ? (
+        <Card className="flex flex-col gap-16">
+          <h2 className="text-20 text-primary">{t('practice.currentSetup')}</h2>
+          <p className="text-14 text-secondary">{t(`practice.mode.${run.response ?? 'reveal'}`)}</p>
+          <div className="grid grid-cols-2 gap-12 text-13 text-secondary">
+            <div>
+              <span className="block">{t('practice.front')}</span>
+              <strong className="text-15 font-medium text-primary">{sideLabel(run.front)}</strong>
+            </div>
+            <div>
+              <span className="block">{t('practice.back')}</span>
+              <strong className="text-15 font-medium text-primary">{sideLabel(run.back)}</strong>
+            </div>
+          </div>
+          <p className="text-13 text-secondary">
+            {t('practice.pool', { count: statuses.length, total: notes.length })}
+          </p>
+          <Button full variant="primary" onClick={() => setActive(true)}>
+            {t('practice.resume')}
+          </Button>
+          <Button variant="text" onClick={openSettings}>
+            {t('practice.settings')}
+          </Button>
+        </Card>
       ) : !run || configuring ? (
         <>
-          {run && <p className="text-14 text-secondary">{t('practice.changeWarning')}</p>}
+          <h2 className="text-20 text-primary">{t('practice.settings')}</h2>
           <p className="text-14 text-secondary">{t('practice.modeHint')}</p>
           <label className="flex flex-col gap-8 text-14">
             {t('practice.response')}
@@ -182,6 +287,7 @@ function PersistentPractice({
                 const mode = event.target.value as PracticeResponse;
                 setResponse(mode);
                 if (
+                  !run &&
                   mode === 'typing' &&
                   fields.includes('term') &&
                   fields.includes('translation')
@@ -189,7 +295,7 @@ function PersistentPractice({
                   setFront('translation');
                   setBack('term');
                 }
-                if (mode === 'listening') {
+                if (!run && mode === 'listening') {
                   setFront('term');
                   setBack(fields.includes('translation') ? 'translation' : back);
                 }
@@ -226,14 +332,9 @@ function PersistentPractice({
           <Button
             variant="primary"
             disabled={samePracticeSides(front, back) || !eligible.length || !!state.error}
-            onClick={() => {
-              store.act({ kind: 'start', front, back, response });
-              setTyped('');
-              setConfiguring(false);
-              setRevealed(false);
-            }}
+            onClick={applySettings}
           >
-            {t(run ? 'practice.restart' : 'practice.start')}
+            {t(run ? (sameRecipe ? 'practice.resume' : 'practice.newRun') : 'practice.start')}
           </Button>
           {run && (
             <Button variant="text" onClick={() => setConfiguring(false)}>
@@ -285,6 +386,8 @@ function PersistentPractice({
                       language={language}
                       revealed={revealed}
                       onReveal={() => setRevealed(true)}
+                      ready={typingReady}
+                      onReadyChange={setTypingReady}
                     />
                   ) : undefined
                 }
@@ -309,6 +412,7 @@ function PersistentPractice({
                       onClick={() => {
                         store.act({ kind: 'answer', noteId: current.id, known: value });
                         setTyped('');
+                        setTypingReady(false);
                         setRevealed(false);
                       }}
                     >
@@ -372,22 +476,21 @@ function PersistentPractice({
               {t('study.finish')}
             </Button>
           )}
-          {current && (
-            <Button
-              className="neu-learning-actions shrink-0 self-start"
-              variant="text"
-              onClick={() => {
-                setFront(run.front);
-                setBack(run.back);
-                setResponse(run.response ?? 'reveal');
-                setConfiguring(true);
-              }}
-            >
-              {t('practice.changeFields')}
-            </Button>
-          )}
         </>
       )}
+      <Dialog
+        open={confirmNew}
+        onOpenChange={setConfirmNew}
+        title={t('practice.newRun')}
+        description={t('practice.changeWarning')}
+      >
+        <DialogFooter>
+          <Button onClick={() => setConfirmNew(false)}>{t('common.cancel')}</Button>
+          <Button variant="primary" onClick={startRun}>
+            {t('practice.confirmNewRun')}
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </section>
   );
 }

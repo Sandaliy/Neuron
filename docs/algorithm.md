@@ -204,6 +204,12 @@ contributing set and replays every surviving answer. It never restores an old ca
 snapshot at the later Undo time, which would incorrectly erase an answer made in
 between.
 
+Study's Undo scope is the current Study session's answer sequence. Rewinding a suffix is LIFO in the
+client, while each answer and its compensation remain separate immutable Review events. Re-answering a
+restored card creates another event. The session queue and projected due state rewind locally; canonical
+server replay remains the authority after transport settles. Other bounded actions retain their own
+Undo boundary rather than sharing an application-wide history.
+
 Each newly recorded answer also carries the server-captured state immediately
 before it. That state establishes the origin of the replay and tells the projector
 when a merged or cancelled predecessor changed. From that point, downstream answers

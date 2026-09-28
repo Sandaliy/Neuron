@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-28, deployed Daily Study readiness and settled keyboard geometry; native transition follow-up in progress.
+Last updated: 2026-09-28, learning interaction release in verification.
 
 ## Current release slice
 
@@ -19,8 +19,9 @@ and Listening response modes without scheduled-learning writes. Mark as known an
 participation only; Restart learning remains the explicit reset with immutable history.
 
 Study and Practice share a focused reading surface with prominent prompt/answer typography, visible
-reveal, integrated spelling feedback and no competing global navigation. Existing visual-viewport
-geometry drives compact Typing; Enter checks locally, blurs and restores feedback/rating space.
+reveal, integrated spelling feedback and no competing global navigation. Typing now enters an
+application-owned keyboard-ready composition before native focus while the learning frame stays anchored
+to the layout viewport. Enter checks locally and restores feedback/rating space.
 Library uses clearer Folder/Deck hierarchy and account-bound live Note counts. Browse Card summaries
 support immediate participation/move projections; fresh workload admission remains server-owned.
 
@@ -33,13 +34,14 @@ study day while precise retries remain eligible. Today and per-Deck summaries sh
 rule, and Today shows an updating state after confirmed answers until server-owned admission returns.
 Physical-iPhone production acceptance of completed-session Today reconciliation remains outstanding.
 
-PR #31 is merged and production-deployed. It anchors active Study and Practice to the measured visual
-viewport, including Safari panning, and fixes their settled compact Typing geometry. Physical-iPhone
-production acceptance found that the native keyboard transition still makes the learning composition
-jump through multiple positions. A narrow follow-up is in progress to commit learning geometry after
-the resize/pan burst instead of applying every intermediate viewport sample. Physical-iPhone acceptance
-must verify the actual transition, repeated focus/blur, checking and advancing after that delivery;
-headless viewport injection cannot prove native compositor behavior.
+PR #31 and PR #32 are merged into `main`. Their measured visual-viewport and delayed
+learning-frame commits produced repeatable endpoints but a visibly unacceptable native transition on a
+physical iPhone. The current release branch replaces that interaction with a layout-viewport anchored
+learning frame and a pre-focus keyboard-ready composition. Practice exposes its saved recipe and
+resume path, with Still learning / Known counts. Today exposes temporary Study scope, duration and mode;
+persistent Deck skills remain deliberate Deck settings. Study Undo now traverses only the active
+session's answers, with serialized append-only compensation. Physical-iPhone keyboard transition
+acceptance remains outstanding; browser viewport injection cannot prove native compositor behavior.
 
 ## Now
 
@@ -66,7 +68,7 @@ Phase 7 Daily Study is shipped. Its backend/core session foundation provides a
 deterministic time-based first-appearance plan, workload-backed and explainable new-card admission,
 an explicit one-off override that does not change long-term settings, and a fair due-preserving retry
 pool. Study now plans visibly from one-off time and scheduled-direction choices, keeps reveal and advance
-local after the plan arrives, offers append-only recent-answer Undo, and ends with a useful summary.
+local after the plan arrives, offers append-only current-session Undo, and ends with a useful summary.
 Practice provides configurable front/back rounds without Review or schedule writes. The collection slice
 adds atomic exact-position touch/mouse placement, committed swipe deletion, targeted rapid recovery,
 compact headers and navigation paths, and live-dependency filtering so deleted collections cannot enter
@@ -86,10 +88,9 @@ Today or Study.
 ## Next
 
 1. Repeat physical-iPhone production acceptance of completed-session Today reconciliation after PR #30.
-2. Deliver the keyboard transition follow-up through protected checks, then verify repeated Typing
-   opening, closing, checking and advancing on a physical iPhone in production.
-3. Revisit Listening's main interaction (possibly Listen → Type), the buried TTS language setup and voice
-   quality, and the deeply buried Study response-mode choice.
+2. Complete protected checks for the learning interaction release, then verify repeated Typing opening,
+   closing, checking and advancing on a physical iPhone in production.
+3. Revisit Listening's main interaction (possibly Listen → Type), TTS language setup and voice quality.
 4. Refine Folder/Deck visual hierarchy and replace implementation-oriented Note/Card summaries such as
    `mixed` and `3 in review` with learner-facing language.
 5. Make broader key flows feel less developer-oriented, consider lightweight navigation motion, and

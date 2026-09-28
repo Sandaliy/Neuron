@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { practiceResultSchema } from '@neuron/shared';
+import { practiceFieldLabel, practiceFields, practiceResultSchema } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { request } from '../../lib/api';
@@ -39,6 +39,19 @@ export function PracticeEntry({
           </span>
         )}
       </span>
+      {run && (
+        <span className="text-12 text-secondary">
+          {t('practice.recipe', {
+            mode: t(`practice.mode.${run.response ?? 'reveal'}`),
+            front: practiceFields(run.front)
+              .map((field) => t(practiceFieldLabel(field)))
+              .join(' + '),
+            back: practiceFields(run.back)
+              .map((field) => t(practiceFieldLabel(field)))
+              .join(' + '),
+          })}
+        </span>
+      )}
       {run && <Progress value={known} max={statuses.length} label={t('practice.title')} />}
     </button>
   );

@@ -229,8 +229,6 @@
     --keyboard-inset: 0px;
     --visual-viewport-height: 100svh;
     --visual-viewport-top: 0px;
-    --learning-viewport-height: 100svh;
-    --learning-viewport-top: 0px;
 
     /* Native fixed navigation follows browser chrome without an extra lift. */
     --chrome-inset: 0px;
@@ -1299,16 +1297,16 @@
   animation: neu-reveal var(--dur-learning) var(--ease-enter) backwards;
 }
 
-/* Learning owns one committed visual-viewport band. Safari pans and resizes
- * during keyboard animation; following each intermediate sample makes the
- * fixed frame chase that native movement. */
+/* Learning stays in the layout viewport. Typed focus is placed in a safe
+ * composition before Safari opens the keyboard; the frame never follows its
+ * intermediate visual-viewport samples. */
 [data-shell-content]:has([data-learning-screen]) {
   position: fixed;
-  top: var(--learning-viewport-top);
+  top: 0;
   inset-inline: 0;
-  height: var(--learning-viewport-height);
+  height: 100svh;
   padding-bottom: calc(var(--safe-bottom) + var(--u-5));
-  overflow-y: auto;
+  overflow: hidden;
 }
 @media (min-width: 640px) {
   [data-shell-content]:has([data-learning-screen]) {
@@ -1325,15 +1323,32 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
 .neu-session {
   height: 100%;
   min-height: 0;
-  --learning-space: clamp(8px, calc((var(--learning-viewport-height) - 400px) / 10), 16px);
+  --learning-space: clamp(8px, 1.5svh, 16px);
   gap: var(--learning-space);
+}
+@media (max-width: 639px) {
+  .neu-session[data-typing-ready] {
+    /* Reserve the native keyboard's band before focus. The input and action
+     * remain above it; the card uses all of the remaining learning area. */
+    padding-bottom: clamp(260px, 36svh, 340px);
+    --learning-space: 8px;
+  }
+  .neu-session[data-typing-ready] [aria-label='Practice progress'] > div {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+  }
+}
+[data-keyboard='open'] .neu-session[data-typing-ready] [data-practice-settings] {
+  visibility: hidden;
+  pointer-events: none;
 }
 .neu-session > header,
 .neu-session .neu-learning-actions {
   flex-shrink: 0;
 }
 .neu-session .neu-learning-actions {
-  min-height: clamp(44px, calc((var(--learning-viewport-height) - 476px) / 4 + 44px), 72px);
+  min-height: 44px;
 }
 .neu-learning-card {
   min-height: 360px;
@@ -1341,7 +1356,7 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
 .neu-session .neu-learning-card {
   min-height: 0;
   gap: var(--learning-space);
-  padding: clamp(16px, calc((var(--learning-viewport-height) - 440px) / 10), 20px);
+  padding: clamp(14px, 2svh, 20px);
 }
 .neu-session .neu-learning-reading {
   padding-block: var(--learning-space);

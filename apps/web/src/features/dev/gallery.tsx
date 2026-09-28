@@ -661,6 +661,7 @@ function GlassSpecimen({ theme, level }: { readonly theme: string; readonly leve
 function LearningSpecimen() {
   const [revealed, setRevealed] = useState(false);
   const [typed, setTyped] = useState('Sorgfaltx');
+  const [typingReady, setTypingReady] = useState(false);
   const [complete, setComplete] = useState(false);
   return (
     <>
@@ -678,6 +679,8 @@ function LearningSpecimen() {
               language="de"
               revealed={revealed}
               onReveal={() => setRevealed(true)}
+              ready={typingReady}
+              onReadyChange={setTypingReady}
             />
           }
         />

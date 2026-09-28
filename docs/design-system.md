@@ -595,8 +595,8 @@ controlled performance task, set `PERFORMANCE_BENCHMARK=true` and
 ## Learning composition
 
 Today gives the real ready count the strongest typographic emphasis. Estimated time and review/new
-counts are secondary. Study is the single filled primary action. Adjust is a compact icon-and-label
-utility with a 44px target; its expanded region contains session time, direction, and Study decks.
+counts are secondary. Study is the single filled primary action. Deck scope, session time, and Study
+mode remain visible beside that action, with populated defaults and no required setup step.
 Scope selection lives in a dialog with clean Deck names and quiet ancestor paths. Paused is metadata,
 not another dashboard tile. No decks selected and caught up are distinct states. Caught up keeps next
 review and the Deck Practice entry compact.
@@ -608,7 +608,7 @@ known Notes, including unseen Notes in remaining work. They do not imply SRS mas
 language pairs, grammar, streaks, or statistics not provided by the current model/presentation recipe.
 
 Standalone meaningful actions such as Practice and Undo have a bounded neutral control. Lightweight
-utilities such as Adjust and Change fields may use text treatment when the surrounding group makes
+utilities such as Practice settings may use text treatment when the surrounding group makes
 their role clear. Avoid multiple equal-weight action slabs competing with Study.
 
 Library drag lifts the full collection row. The source retains its footprint at reduced opacity, sibling
@@ -627,7 +627,7 @@ and part of speech; stored/edited values remain discoverable after context chang
 changes data and editing never closes the section. Practice field combinations use human labels and
 populated values, never raw paths.
 
-Meaningful local containers open on the press: menus, Adjust, Grammar, field/scope pickers and
+Meaningful local containers open on the press: menus, Grammar, field/scope pickers and
 confirmation dialogs do not wait for network work. Preserve known content during reconciliation and
 load only unresolved content in place. Learning-card contents and answer/grade regions use the short
 `neu-reveal` motion; the card surface stays fixed. Existing press, switch, dialog and progress motion
@@ -658,18 +658,21 @@ Active Study and Practice own their exit and bottom actions; global navigation i
 `LearningCard` reserves a stable reading area with internal overflow. The prompt and target answer use
 `--type-learning-prompt` and `--type-learning-answer` (36–56px, platform UI font, primary contrast).
 Reveal moves the same prompt upward over 340ms while the divider draws and the answer enters.
-Its starting position is refreshed when the unrevealed reading area resizes, including keyboard changes.
+Its starting position is refreshed when the unrevealed reading area changes for the
+application-owned keyboard-ready composition.
 Animations are cancellable and reduced motion goes directly to the final composition.
 
-The response field belongs inside this learning surface. Active Study and Practice occupy a fixed band
-at `--learning-viewport-top`, sized by `--learning-viewport-height`, with safe-area padding inside it.
-The viewport tracker commits these learning measurements together after a native resize/pan event burst
-ends, so the frame does not chase Safari's own keyboard movement through intermediate positions. The
-committed height also controls reading space and compact spacing. Focus/blur and `data-keyboard` do not
-switch learning geometry or hide Show answer. Do not add document scrolling, a second keyboard detector,
-or dimension transitions. Input stays at least 16px. Enter checks locally and blurs; feedback and ratings
-remain inside the committed band while the keyboard closes. Long reading content scrolls within the card;
-grading remains outside it. The frame can scroll if unusually small viewports or enlarged text cannot fit.
+The response field belongs inside this learning surface. Active Study and Practice stay fixed to the
+layout viewport and do not subscribe to visual-viewport measurements. Before native focus, tapping the
+typed-response activator synchronously establishes a keyboard-ready composition and places the input
+above the expected keyboard band on phone widths. Desktop keeps the normal reading height. Focus remains
+inside that same activation gesture. Safari's keyboard
+then enters below the anchored surface without a second learning-frame geometry commit. The card consumes
+the remaining visible band after header, response, actions, and safe areas; the prompt and action remain
+reachable. Secondary Practice settings leave the keyboard-open composition and return after blur. Input
+stays at least 16px. Enter checks locally and blurs; feedback and ratings remain available without
+transport. Long reading content scrolls within the card; grading remains outside it. Unusually small
+viewports and enlarged text are checked in browser coverage and remain part of physical-device acceptance.
 
 Spelling alignment preserves submitted casing and text. Correct characters use `--text-correct`;
 errors use the error tone and an underline, with a dotted insertion for omitted characters. The target
