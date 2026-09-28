@@ -61,19 +61,10 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
     expect(enabled).toHaveLength(3);
     expect(enabled.find((card) => card.id === original[0]!.id)).toEqual(original[0]);
     await page.getByRole('link', { name: 'Today', exact: true }).click();
-    await page.getByRole('button', { name: 'Adjust', exact: true }).click();
-    await page.getByRole('combobox').last().selectOption('production');
-    await page.getByRole('button', { name: 'Study', exact: true }).click();
-    await page.getByLabel('Type your answer', { exact: true }).fill('Sorgfaltx');
-    await page.getByLabel('Type your answer', { exact: true }).press('Enter');
-    await expect(page.getByText('1 extra letter', { exact: true })).toBeVisible();
-    expect(await repo.reviews.countForCards(enabled.map((card) => card.id))).toBe(0);
-    await page.screenshot({ path: info.outputPath('live-typing.png'), animations: 'disabled' });
-    await page.getByRole('button', { name: /^Easy / }).click();
-    await page.getByRole('button', { name: 'Finish', exact: true }).click();
-    expect(await repo.reviews.countForCards(enabled.map((card) => card.id))).toBe(1);
-    await page.getByRole('button', { name: 'Adjust', exact: true }).click();
-    await page.getByRole('combobox').last().selectOption('listening');
+    await page.getByRole('combobox', { name: 'Study mode' }).selectOption('listening');
+    await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeVisible({
+      timeout: 10_000,
+    });
     await page.getByRole('button', { name: 'Study', exact: true }).click();
     await expect(page.getByText('Sorgfalt', { exact: true })).toHaveCount(0);
     // Desktop voice availability varies. Both paths must keep Reveal reachable.
@@ -88,25 +79,62 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
     await page.getByRole('button', { name: 'Show answer', exact: true }).click();
     await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Study mode' }).selectOption('production');
+    await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.getByRole('button', { name: 'Study', exact: true }).click();
+    await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+    await page.getByLabel('Type your answer', { exact: true }).fill('Sorgfaltx');
+    await page.getByLabel('Type your answer', { exact: true }).press('Enter');
+    await expect(page.getByText('1 extra letter', { exact: true })).toBeVisible();
+    expect(await repo.reviews.countForCards(enabled.map((card) => card.id))).toBe(0);
+    await page.screenshot({ path: info.outputPath('live-typing.png'), animations: 'disabled' });
+    await page.getByRole('button', { name: /^Easy / }).click();
+    await page.getByRole('button', { name: 'Finish', exact: true }).click();
+    expect(await repo.reviews.countForCards(enabled.map((card) => card.id))).toBe(1);
     const beforePractice = await repo.cards.forNote(note.id);
     for (const response of ['typing', 'listening']) {
       await page.goto(`/notes?deckId=${deck.id}`);
       await page
-        .getByRole('button', { name: /Practice|Continue practice/ })
+        .getByRole('button', { name: /Practice|Resume practice/ })
         .first()
         .click();
       if (response === 'listening') {
-        await page.getByRole('button', { name: 'Restart Practice', exact: true }).click();
-        await page.getByRole('button', { name: 'Change fields', exact: true }).click();
+        await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
+        await page.getByRole('button', { name: 'Practice settings', exact: true }).click();
       }
-      await page.getByRole('combobox').first().selectOption(response);
-      await page
-        .getByRole('button', {
-          name: response === 'typing' ? 'Start practice' : 'Restart Practice',
-          exact: true,
-        })
-        .click();
+      await page.getByRole('combobox', { name: 'Response mode' }).selectOption(response);
+      if (response === 'listening') {
+        await expect(page.getByText('0 / 1 notes')).toBeVisible();
+        await page
+          .getByText('Question field', { exact: true })
+          .locator('..')
+          .getByRole('button')
+          .click();
+        await page.getByRole('checkbox', { name: 'Translation', exact: true }).uncheck();
+        await page.getByRole('checkbox', { name: 'Word', exact: true }).check();
+        await page.getByRole('button', { name: 'Apply', exact: true }).click();
+        await page
+          .getByText('Answer field', { exact: true })
+          .locator('..')
+          .getByRole('button')
+          .click();
+        await page.getByRole('checkbox', { name: 'Word', exact: true }).uncheck();
+        await page.getByRole('checkbox', { name: 'Translation', exact: true }).check();
+        await page.getByRole('button', { name: 'Apply', exact: true }).click();
+        await expect(page.getByText('1 / 1 notes')).toBeVisible();
+      }
+      const apply = page.getByRole('button', {
+        name: response === 'typing' ? 'Start practice' : 'Start a new run',
+        exact: true,
+      });
+      await expect(apply).toBeEnabled({ timeout: 10_000 });
+      await apply.click();
+      if (response === 'listening')
+        await page.getByRole('button', { name: 'Replace current run', exact: true }).click();
       if (response === 'typing') {
+        await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
         await page.getByLabel('Type your answer', { exact: true }).fill('Genauigkeit');
         await page.getByLabel('Type your answer', { exact: true }).press('Enter');
         await expect(page.getByText('Correct', { exact: true })).toBeVisible();

@@ -1,4 +1,4 @@
-/** Viewport geometry for dialogs, toasts, and the committed learning frame.
+/** Viewport geometry for dialogs and toasts.
  * Native fixed navigation handles browser chrome. Measurements are batched
  * and never scroll document forms. */
 const KEYBOARD_INSET = '--keyboard-inset';
@@ -13,13 +13,6 @@ const VIEWPORT_HEIGHT = '--visual-viewport-height';
  * this much.
  */
 const VIEWPORT_TOP = '--visual-viewport-top';
-const LEARNING_HEIGHT = '--learning-viewport-height';
-const LEARNING_TOP = '--learning-viewport-top';
-
-// The native keyboard emits resize and pan events throughout its animation.
-// Commit the learning frame only after that burst has stopped; each event
-// restarts this window, rather than moving the frame against Safari's own pan.
-const LEARNING_QUIET_MS = 240;
 
 /** Compatibility variable; native fixed chrome must not receive a second lift. */
 const CHROME_INSET = '--chrome-inset';
@@ -46,9 +39,6 @@ let keyboardWasOpen = false;
  * changed are not written at all.
  */
 let published = { keyboard: -1, chrome: -1, height: -1, top: -1 };
-let learningPublished = { height: -1, top: -1 };
-let learningQuiet: ReturnType<typeof setTimeout> | undefined;
-let learningSample = { height: -1, top: -1 };
 
 let pending = 0;
 
@@ -59,46 +49,6 @@ function settle(next: number, current: number): number {
   }
 
   return Math.abs(next - current) < NOISE_PX ? current : next;
-}
-
-function publishLearning(height: number, top: number): void {
-  const root = document.documentElement;
-  const nextHeight = settle(height, learningPublished.height);
-  const nextTop = settle(top, learningPublished.top);
-
-  if (nextHeight !== learningPublished.height) {
-    learningPublished.height = nextHeight;
-    root.style.setProperty(LEARNING_HEIGHT, `${nextHeight}px`);
-  }
-  if (nextTop !== learningPublished.top) {
-    learningPublished.top = nextTop;
-    root.style.setProperty(LEARNING_TOP, `${nextTop}px`);
-  }
-}
-
-function commitLearning(): void {
-  learningQuiet = undefined;
-  const visual = window.visualViewport;
-  if (!visual) return;
-
-  const height = Math.round(visual.height);
-  const top = Math.max(0, Math.round(visual.offsetTop));
-  // A measurement can arrive without an event while Safari finishes panning.
-  // Require the final read to agree with the last measured frame.
-  if (
-    Math.abs(height - learningSample.height) >= NOISE_PX ||
-    Math.abs(top - learningSample.top) >= NOISE_PX
-  ) {
-    learningSample = { height, top };
-    queueLearning();
-    return;
-  }
-  publishLearning(height, top);
-}
-
-function queueLearning(): void {
-  if (learningQuiet !== undefined) clearTimeout(learningQuiet);
-  learningQuiet = setTimeout(commitLearning, LEARNING_QUIET_MS);
 }
 
 function measure(): void {
@@ -155,18 +105,6 @@ function measure(): void {
     root.style.setProperty(VIEWPORT_TOP, `${top}px`);
   }
 
-  learningSample = {
-    height: Math.round(visual.height),
-    top: Math.max(0, Math.round(visual.offsetTop)),
-  };
-  if (!document.querySelector('[data-learning-screen]')) {
-    if (learningQuiet !== undefined) clearTimeout(learningQuiet);
-    learningQuiet = undefined;
-    publishLearning(learningSample.height, learningSample.top);
-  } else if (learningPublished.height < 0) {
-    publishLearning(learningSample.height, learningSample.top);
-  }
-
   if (keyboardOpen !== keyboardWasOpen || root.dataset['keyboard'] === undefined) {
     keyboardWasOpen = keyboardOpen;
 
@@ -205,7 +143,6 @@ function schedule(): void {
 }
 
 function onViewportEvent(): void {
-  if (document.querySelector('[data-learning-screen]')) queueLearning();
   schedule();
 }
 
@@ -313,8 +250,6 @@ export function trackViewport(): () => void {
       window.cancelAnimationFrame(pending);
       pending = 0;
     }
-    if (learningQuiet !== undefined) clearTimeout(learningQuiet);
-    learningQuiet = undefined;
 
     visual.removeEventListener('resize', onViewportEvent);
     visual.removeEventListener('scroll', onViewportEvent);
@@ -328,13 +263,9 @@ export function trackViewport(): () => void {
     document.documentElement.style.removeProperty(CHROME_INSET);
     document.documentElement.style.removeProperty(VIEWPORT_HEIGHT);
     document.documentElement.style.removeProperty(VIEWPORT_TOP);
-    document.documentElement.style.removeProperty(LEARNING_HEIGHT);
-    document.documentElement.style.removeProperty(LEARNING_TOP);
     delete document.documentElement.dataset['keyboard'];
 
     published = { keyboard: -1, chrome: -1, height: -1, top: -1 };
-    learningPublished = { height: -1, top: -1 };
-    learningSample = { height: -1, top: -1 };
     keyboardWasOpen = false;
     watching = false;
   };

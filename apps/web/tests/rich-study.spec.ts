@@ -176,6 +176,7 @@ for (const reduced of [false, true])
     await page.getByRole('button', { name: 'Study', exact: true }).click();
     const surface = page.locator('[data-g="card"]').first();
     const before = await surface.boundingBox();
+    await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
     await page.getByLabel('Type your answer').fill('Sorgfaltx');
     const started = Date.now();
     await page.getByLabel('Type your answer').press('Enter');
@@ -184,7 +185,7 @@ for (const reduced of [false, true])
     expect(reviews).toEqual([]);
     await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
     const after = await surface.boundingBox();
-    expect(Math.abs(after!.height - before!.height)).toBeLessThan(2);
+    expect(after!.height).toBeLessThan(before!.height);
     expect(
       await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth),
     ).toBe(true);
@@ -275,199 +276,16 @@ for (const direction of ['production', 'listening'] as const)
     await page.getByRole('button', { name: 'Study', exact: true }).click();
     await expect(
       page.getByRole('button', {
-        name: direction === 'production' ? 'Check answer' : 'Play / replay',
+        name: direction === 'production' ? 'Type your answer' : 'Play / replay',
       }),
     ).toBeVisible();
   });
 
-for (const reduced of [false, true])
-  test(`Study geometry follows the visual viewport through repeated focus and advance, reduced=${reduced}`, async ({
-    page,
-  }, info) => {
-    await usePreferences(page, { locale: 'en', theme: 'dark' });
-    await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
-    await useFixtures(page, { decks: [deck], notes: [note] });
-    const cards = Array.from({ length: 3 }, (_, index) => ({
-      ...base,
-      id: id(30 + index),
-      noteId: id(40 + index),
-    }));
-    await page.route('**/api/study/session', (route) =>
-      route.fulfill({
-        json: {
-          ...plan(base),
-          cards,
-          notes: cards.map((card) => ({ ...note, id: card.noteId })),
-          availableCount: 3,
-          newCount: 3,
-        },
-      }),
-    );
-    await page.route('**/api/reviews', (route) =>
-      route.fulfill({
-        json: {
-          card: {
-            ...cards.find((card) => card.id === route.request().postDataJSON().cardId)!,
-            state: 'review',
-            due: '2027-01-01T04:00:00Z',
-            stability: 10,
-            difficulty: 5,
-            reps: 1,
-            lastReview: stamp,
-          },
-        },
-      }),
-    );
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Study', exact: true }).click();
-    // Model the iOS layout/visual viewport split, not a resized desktop window.
-    // Rectangles remain in layout coordinates; compare against offsetTop + height.
-    // Safe-area values stand in for device env() values unavailable in headless runs.
-    await page.evaluate(() => {
-      document.documentElement.style.setProperty('--safe-top', '47px');
-      document.documentElement.style.setProperty('--safe-bottom', '34px');
-    });
-    async function viewport(height: number, top: number) {
-      await page.evaluate(
-        ({ height, top }) => {
-          Object.defineProperties(window.visualViewport, {
-            height: { configurable: true, get: () => height },
-            offsetTop: { configurable: true, get: () => top },
-          });
-          window.visualViewport!.dispatchEvent(new Event('resize'));
-          window.visualViewport!.dispatchEvent(new Event('scroll'));
-        },
-        { height, top },
-      );
-      // The learning frame commits after the viewport event burst has ended.
-      // Wait for that published contract, not the live dialog measurements.
-      await page.waitForFunction(
-        ({ height, top }) => {
-          const root = document.documentElement;
-          const frame = document.querySelector('[data-shell-content]')?.getBoundingClientRect();
-          const publishedHeight = Number.parseFloat(
-            root.style.getPropertyValue('--learning-viewport-height'),
-          );
-          const publishedTop = Number.parseFloat(
-            root.style.getPropertyValue('--learning-viewport-top'),
-          );
-          return (
-            Math.abs(publishedHeight - height) < 3 &&
-            Math.abs(publishedTop - top) < 3 &&
-            frame?.top === publishedTop &&
-            frame.height === publishedHeight
-          );
-        },
-        { height, top },
-      );
-    }
-    async function geometry() {
-      return page.evaluate(() => {
-        const top = window.visualViewport!.offsetTop;
-        return Object.fromEntries(
-          [
-            '.neu-session',
-            '.neu-session > header',
-            '.neu-learning-card',
-            '.neu-learning-actions',
-            '.neu-response',
-          ].map((selector) => {
-            const element = document.querySelector(selector)!;
-            const rect = element.getBoundingClientRect();
-            return [
-              selector,
-              { top: rect.top - top, bottom: rect.bottom - top, height: rect.height },
-            ];
-          }),
-        );
-      });
-    }
-    async function contained() {
-      const boxes = await geometry();
-      const height = await page.evaluate(() => window.visualViewport!.height);
-      for (const [selector, box] of Object.entries(boxes)) {
-        expect(box.top, selector).toBeGreaterThanOrEqual(47);
-        expect(box.bottom, selector).toBeLessThanOrEqual(height - 34);
-        expect(box.height, selector).toBeGreaterThan(0);
-      }
-      return boxes;
-    }
-    const fullHeight = await page.evaluate(() => window.innerHeight);
-    let compact: Awaited<ReturnType<typeof geometry>> | undefined;
-    for (let card = 0; card < 3; card++) {
-      const input = page.getByLabel('Type your answer', { exact: true });
-      await input.focus();
-      // Interleaved resize/pan events, including the old keyboard threshold.
-      let previousHeight = Infinity;
-      for (const [height, top] of [
-        [fullHeight, 0],
-        [fullHeight - 119, 40],
-        [fullHeight - 121, 80],
-        [(fullHeight - 121 + 476) / 2, 120],
-        [476, 180],
-      ]) {
-        await viewport(height!, top!);
-        const boxes = await contained();
-        expect(boxes['.neu-learning-card']!.height).toBeLessThanOrEqual(previousHeight);
-        previousHeight = boxes['.neu-learning-card']!.height;
-      }
-      const settled = await contained();
-      if (compact) expect(settled).toEqual(compact);
-      compact = settled;
-      await input.fill('Sorgfalt');
-      expect(await geometry()).toEqual(compact);
-      // Blur happens before iOS restores the viewport; it must not expand the card.
-      await input.blur();
-      await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'closed');
-      expect(await geometry()).toEqual(compact);
-      await input.focus();
-      await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'open');
-      expect(await geometry()).toEqual(compact);
-      // A different native pan must not change the visible composition.
-      await viewport(476, 70);
-      expect(await geometry()).toEqual(compact);
-      await input.blur();
-      await viewport(fullHeight, 0);
-      await contained();
-      await input.focus();
-      await viewport(476, 180);
-      expect(await geometry()).toEqual(compact);
-      await expect(page.getByRole('button', { name: 'Show answer', exact: true })).toBeVisible();
-      expect(await input.evaluate((element) => getComputedStyle(element).fontSize)).toBe('16px');
-      if (card === 0) await page.screenshot({ path: info.outputPath('viewport-typing.png') });
-      const prompt = page.locator('.neu-learning-prompt');
-      const promptTop = await prompt.evaluate((element) => (element as HTMLElement).offsetTop);
-      await input.press('Enter');
-      await expect(input).toHaveCount(0);
-      if (!reduced) {
-        const reveal = await prompt.evaluate((element) => ({
-          top: (element as HTMLElement).offsetTop,
-          start: (element.getAnimations()[0]?.effect as KeyframeEffect)?.getKeyframes()[0]
-            ?.transform,
-        }));
-        expect(reveal.start).toBe(`translateY(${promptTop - reveal.top}px)`);
-      }
-      await contained();
-      for (const [height, top] of [
-        [(fullHeight - 121 + 476) / 2, 40],
-        [fullHeight - 121, 0],
-        [fullHeight, 0],
-      ]) {
-        await viewport(height!, top!);
-        await contained();
-      }
-      await expect(page.getByRole('button', { name: /^Good / })).toBeEnabled();
-      if (card === 0) await page.screenshot({ path: info.outputPath('viewport-feedback.png') });
-      await page.getByRole('button', { name: /^Good / }).click();
-    }
-    await expect(page.getByText('Session complete', { exact: true })).toBeVisible();
-  });
-
 for (const screen of ['Study', 'Practice'] as const)
   for (const reduced of [false, true])
-    test(`${screen} commits one learning frame per keyboard transition, reduced=${reduced}`, async ({
+    test(`${screen} positions Typing before focus and keeps the learning frame anchored, reduced=${reduced}`, async ({
       page,
-    }) => {
+    }, info) => {
       await usePreferences(page, { locale: 'en', theme: 'dark' });
       await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
       await useFixtures(page, { decks: [deck], notes: [note] });
@@ -487,108 +305,178 @@ for (const screen of ['Study', 'Practice'] as const)
         });
         await page.goto(`/notes?deckId=${deck.id}`);
         await page.getByRole('button', { name: 'Practice', exact: true }).click();
-        await page.getByRole('combobox', { name: 'Response' }).selectOption('typing');
+        await page.getByRole('combobox', { name: 'Response mode' }).selectOption('typing');
         await page.getByRole('button', { name: 'Start practice', exact: true }).click();
-        await expect(page.getByRole('button', { name: 'Change fields' })).toBeVisible();
-        await expect(page.locator('.neu-session > header [role="status"]')).toHaveText('Saved');
       }
-
       await page.evaluate(() => {
         document.documentElement.style.setProperty('--safe-top', '47px');
         document.documentElement.style.setProperty('--safe-bottom', '34px');
       });
-      await page.waitForFunction(() => {
-        const expected = window.matchMedia('(min-width: 640px)').matches ? '42px' : '54px';
-        return (
-          getComputedStyle(document.querySelector('[data-shell-content]')!).paddingBottom ===
-          expected
-        );
-      });
+      const frame = page.locator('[data-shell-content]');
+      const card = page.locator('.neu-learning-card');
+      const normal = await card.boundingBox();
+      const initialFrame = await frame.boundingBox();
+      await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
       const input = page.getByLabel('Type your answer', { exact: true });
-      await page.evaluate(() => document.fonts.ready);
+      await expect(input).toBeFocused();
+      await expect(page.locator('.neu-session')).toHaveAttribute('data-typing-ready', 'true');
+      const phone = page.viewportSize()!.width < 640;
+      if (phone)
+        await expect.poll(async () => (await card.boundingBox())?.height).toBeLessThan(350);
+      const ready = await card.boundingBox();
+      if (phone) {
+        expect(ready!.height).toBeLessThan(normal!.height);
+        expect(ready!.height).toBeGreaterThan(130);
+      } else expect(Math.abs(ready!.height - normal!.height)).toBeLessThanOrEqual(16);
       const full = await page.evaluate(() => window.innerHeight);
-      async function sequence(steps: [number, number][], expected: [number, number]) {
-        const observations = await page.evaluate(
-          async ({ steps }) => {
-            const root = document.documentElement;
-            const frame = document.querySelector('[data-shell-content]')!;
-            const card = document.querySelector('.neu-learning-card')!;
-            const snapshot = () => ({
-              top: frame.getBoundingClientRect().top,
-              height: frame.getBoundingClientRect().height,
-              cardHeight: card.getBoundingClientRect().height,
-              framePaddingBottom: getComputedStyle(frame).paddingBottom,
-              publishedTop: root.style.getPropertyValue('--learning-viewport-top'),
-              publishedHeight: root.style.getPropertyValue('--learning-viewport-height'),
+      const keyboardTop = full - 270;
+      for (const [height, top] of [
+        [full - 119, 40],
+        [full - 340, 120],
+        [full - 270, 0],
+        [full - 450, 180],
+        [full - 340, 70],
+      ]) {
+        await page.evaluate(
+          ([h, y]) => {
+            Object.defineProperties(window.visualViewport!, {
+              height: { configurable: true, get: () => h },
+              offsetTop: { configurable: true, get: () => y },
             });
-            const first = snapshot();
-            const samples = [];
-            for (const [height, top] of steps) {
-              Object.defineProperties(window.visualViewport, {
-                height: { configurable: true, get: () => height },
-                offsetTop: { configurable: true, get: () => top },
-              });
-              window.visualViewport!.dispatchEvent(new Event('resize'));
-              window.visualViewport!.dispatchEvent(new Event('scroll'));
-              await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-              samples.push(snapshot());
-            }
-            return { first, samples };
+            window.visualViewport!.dispatchEvent(new Event('resize'));
+            window.visualViewport!.dispatchEvent(new Event('scroll'));
           },
-          { steps },
+          [height, top],
         );
-        // Even a reversed pan sample must not reposition or resize the frame.
-        // Text rendering can round the card's flex height by one pixel.
-        for (const sample of observations.samples) {
-          expect(sample.top).toBe(observations.first.top);
-          expect(sample.height).toBe(observations.first.height);
-          expect(sample.framePaddingBottom).toBe(observations.first.framePaddingBottom);
-          expect(sample.publishedTop).toBe(observations.first.publishedTop);
-          expect(sample.publishedHeight).toBe(observations.first.publishedHeight);
-          expect(Math.abs(sample.cardHeight - observations.first.cardHeight)).toBeLessThanOrEqual(
-            2,
-          );
-        }
-        await page.waitForFunction(([height, top]) => {
-          const root = document.documentElement;
-          const frame = document.querySelector('[data-shell-content]')!.getBoundingClientRect();
-          return (
-            root.style.getPropertyValue('--learning-viewport-height') === `${height}px` &&
-            root.style.getPropertyValue('--learning-viewport-top') === `${top}px` &&
-            frame.height === height &&
-            frame.top === top
-          );
-        }, expected);
-        const box = await page.locator('.neu-session').boundingBox();
-        expect(box!.y).toBeGreaterThanOrEqual(expected[1] + 47);
-        expect(box!.y + box!.height).toBeLessThanOrEqual(expected[0] + expected[1] - 34);
+        await expect
+          .poll(async () => (await frame.boundingBox())?.height)
+          .toBe(initialFrame!.height);
+        const now = await card.boundingBox();
+        expect(Math.abs(now!.height - ready!.height)).toBeLessThanOrEqual(2);
+        expect((await frame.boundingBox())!.y).toBe(initialFrame!.y);
       }
-
-      for (let cycle = 0; cycle < 2; cycle++) {
-        await input.focus();
-        await sequence(
-          [
-            [full - 119, 40],
-            [full - 121, 80],
-            [540, 260],
-            [610, 30],
-            [476, 180],
-          ],
-          [476, 180],
-        );
-        await input.fill('Sorgfalt');
-        await input.blur();
-        await sequence(
-          [
-            [610, 240],
-            [540, 60],
-            [full - 120, 90],
-            [full, 0],
-          ],
-          [full, 0],
-        );
-      }
+      const field = await input.boundingBox();
+      const action = await page
+        .getByRole('button', { name: 'Show answer', exact: true })
+        .boundingBox();
+      if (phone) {
+        expect(field!.y + field!.height).toBeLessThanOrEqual(keyboardTop - 8);
+        expect(keyboardTop - (action!.y + action!.height)).toBeGreaterThanOrEqual(0);
+        expect(keyboardTop - (action!.y + action!.height)).toBeLessThan(90);
+      } else expect(action!.y - (ready!.y + ready!.height)).toBeLessThan(24);
+      expect(await input.evaluate((element) => getComputedStyle(element).fontSize)).toBe('16px');
+      await page.screenshot({ path: info.outputPath(`typing-ready-${screen}-${reduced}.png`) });
+      await input.fill('Sorgfalt');
+      await input.press('Enter');
+      await expect(page.locator('.neu-spelling')).toBeVisible();
+      await expect(input).toHaveCount(0);
+      await page.evaluate((height) => {
+        Object.defineProperties(window.visualViewport!, {
+          height: { configurable: true, get: () => height },
+          offsetTop: { configurable: true, get: () => 0 },
+        });
+        window.visualViewport!.dispatchEvent(new Event('resize'));
+      }, full);
+      expect((await frame.boundingBox())!.height).toBe(initialFrame!.height);
+      if (screen === 'Study')
+        await expect(page.getByRole('button', { name: /^Good / })).toBeEnabled();
+      else await expect(page.getByRole('button', { name: 'Known', exact: true })).toBeEnabled();
     });
+
+for (const screen of ['Study', 'Practice'] as const)
+  for (const [height, visibleTop] of [
+    [667, 390],
+    [932, 590],
+  ] as const)
+    test(`${screen} fills the keyboard-ready space at ${height}px`, async ({ page }) => {
+      await page.setViewportSize({ width: 375, height });
+      await usePreferences(page, { locale: 'en', theme: 'dark' });
+      await useFixtures(page, { decks: [deck], notes: [note] });
+      if (screen === 'Study') {
+        await page.route('**/api/study/session', (route) => route.fulfill({ json: plan(base) }));
+        await page.goto('/');
+        await page.getByRole('button', { name: 'Study', exact: true }).click();
+      } else {
+        let run: PracticeRun | null = null;
+        await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+          if (route.request().method() === 'POST')
+            run = advancePractice(run, route.request().postDataJSON(), [note]);
+          return route.fulfill({ json: { run, version: run ? 1 : 0 } });
+        });
+        await page.goto(`/notes?deckId=${deck.id}`);
+        await page.getByRole('button', { name: 'Practice', exact: true }).click();
+        await page.getByRole('combobox', { name: 'Response mode' }).selectOption('typing');
+        await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+      }
+      await page.evaluate(() => {
+        document.documentElement.style.setProperty('--safe-top', '47px');
+        document.documentElement.style.setProperty('--safe-bottom', '34px');
+        document.documentElement.style.fontSize = '125%';
+      });
+      await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+      const input = page.getByLabel('Type your answer', { exact: true });
+      await expect(input).toBeFocused();
+      const card = await page.locator('.neu-learning-card').boundingBox();
+      const action = await page.getByRole('button', { name: 'Show answer' }).boundingBox();
+      const field = await input.boundingBox();
+      expect(card!.height).toBeGreaterThan(height === 667 ? 125 : 290);
+      expect(action!.y - (card!.y + card!.height)).toBeLessThan(24);
+      expect(visibleTop - (action!.y + action!.height)).toBeGreaterThanOrEqual(0);
+      expect(visibleTop - (action!.y + action!.height)).toBeLessThan(90);
+      expect(field!.y + field!.height).toBeLessThan(visibleTop - 12);
+    });
+
+for (const screen of ['Study', 'Practice'] as const)
+  test(`${screen} reopens Typing and advances through a second card`, async ({ page }) => {
+    await usePreferences(page, { locale: 'en', theme: 'dark' });
+    const second = { ...note, id: id(20), fields: { term: 'Baum', translation: 'tree' } };
+    await useFixtures(page, { decks: [deck], notes: [note, second] });
+    if (screen === 'Study') {
+      await page.route('**/api/study/session', (route) =>
+        route.fulfill({
+          json: {
+            ...plan(base),
+            cards: [base, { ...base, id: id(21), noteId: second.id }],
+            notes: [note, second],
+            availableCount: 2,
+            newCount: 2,
+          },
+        }),
+      );
+      await page.route('**/api/reviews', (route) => route.fulfill({ json: { card: base } }));
+      await page.goto('/');
+      await page.getByRole('button', { name: 'Study', exact: true }).click();
+    } else {
+      let run: PracticeRun | null = null;
+      let version = 0;
+      await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+        if (route.request().method() === 'POST') {
+          run = advancePractice(run, route.request().postDataJSON(), [note, second]);
+          version++;
+        }
+        return route.fulfill({ json: { run, version } });
+      });
+      await page.goto(`/notes?deckId=${deck.id}`);
+      await page.getByRole('button', { name: 'Practice', exact: true }).click();
+      await page.getByRole('combobox', { name: 'Response mode' }).selectOption('typing');
+      await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+    }
+    await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+    const first = page.getByLabel('Type your answer', { exact: true });
+    await expect(first).toBeFocused();
+    await first.blur();
+    await expect(page.locator('.neu-session')).not.toHaveAttribute('data-typing-ready', 'true');
+    await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+    await expect(first).toBeFocused();
+    await first.fill('Sorgfalt');
+    await first.press('Enter');
+    await expect(page.locator('.neu-spelling')).toBeVisible();
+    if (screen === 'Study') await page.getByRole('button', { name: /^Good / }).click();
+    else await page.getByRole('button', { name: 'Known', exact: true }).click();
+    await expect(page.getByText('tree', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+    await expect(page.getByLabel('Type your answer', { exact: true })).toBeFocused();
+  });
 
 for (const submitted of [
   'Sorgfalt',
@@ -599,7 +487,7 @@ for (const submitted of [
   'Banane',
   'Genauigkeit',
 ])
-  test(`typing keyboard composition and feedback: ${submitted}`, async ({ page }, info) => {
+  test(`typed feedback remains local: ${submitted}`, async ({ page }, info) => {
     await usePreferences(page, { locale: 'en', theme: 'dark' });
     await useFixtures(page, { decks: [deck], notes: [note] });
     await page.route('**/api/study/session', (route) =>
@@ -612,49 +500,10 @@ for (const submitted of [
     );
     await page.goto('/');
     await page.getByRole('button', { name: 'Study', exact: true }).click();
+    await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
     const input = page.getByLabel('Type your answer', { exact: true });
-    await input.click();
-    // Stage the same visual viewport source used by the Safari regression harness.
-    await page.evaluate(() => {
-      Object.defineProperty(window.visualViewport, 'height', {
-        configurable: true,
-        get: () => 476,
-      });
-      window.visualViewport!.dispatchEvent(new Event('resize'));
-    });
-    await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'open');
-    await page.waitForFunction(
-      () =>
-        document.documentElement.style.getPropertyValue('--learning-viewport-height') === '476px',
-    );
-    const scroll = await page.evaluate(() => window.scrollY);
-    await input.pressSequentially('Sorg');
-    await input.fill('A longer answer stays within the single line input');
-    await expect(input).toBeFocused();
-    expect(await input.evaluate((e) => getComputedStyle(e).fontSize)).toBe('16px');
-    const prompt = await page.locator('.neu-learning-prompt').boundingBox();
-    const field = await input.boundingBox();
-    expect(prompt!.y).toBeGreaterThanOrEqual(0);
-    expect(prompt!.y + prompt!.height).toBeLessThan(field!.y);
-    expect(field!.y + field!.height).toBeLessThanOrEqual(464);
-    expect(await page.evaluate(() => window.scrollY)).toBe(scroll);
-    await page.screenshot({ path: info.outputPath('keyboard.png') });
     await input.fill(submitted);
     await input.press('Enter');
-    await expect(input).toHaveCount(0);
-    await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'closed');
-    await page.evaluate(() => {
-      Object.defineProperty(window.visualViewport, 'height', {
-        configurable: true,
-        get: () => window.innerHeight,
-      });
-      window.visualViewport!.dispatchEvent(new Event('resize'));
-    });
-    await page.waitForFunction(
-      () =>
-        document.documentElement.style.getPropertyValue('--learning-viewport-height') ===
-        `${window.innerHeight}px`,
-    );
     await expect(page.locator('.neu-spelling')).toContainText(
       submitted === 'Sorgfat' ? 'Sorgfalt' : submitted,
     );
@@ -663,18 +512,11 @@ for (const submitted of [
       await expect(page.getByRole('status')).not.toContainText('Spelling differences');
     }
     await expect(page.locator('[data-g="tabbar"]')).not.toBeVisible();
-    for (const name of ['Again', 'Hard', 'Good', 'Easy']) {
-      const button = page.getByRole('button', { name: new RegExp(`^${name} `) });
-      await expect(button).toBeInViewport({ ratio: 1 });
-    }
-    await page.evaluate(async () => {
-      await Promise.all(
-        document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
-      );
-    });
+    for (const name of ['Again', 'Hard', 'Good', 'Easy'])
+      await expect(page.getByRole('button', { name: new RegExp(`^${name} `) })).toBeInViewport({
+        ratio: 1,
+      });
     await page.screenshot({ path: info.outputPath('feedback.png') });
-    await page.getByRole('button', { name: 'Stop', exact: true }).click();
-    await expect(page.getByRole('link', { name: 'Library', exact: true })).toBeVisible();
   });
 
 // Measure the first frame with the expected local state, independently of transport.
@@ -860,8 +702,7 @@ test('My Study Decks scope reacts locally while a replacement admission plan is 
   });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
-  await page.getByRole('button', { name: 'Choose for this session', exact: true }).click();
+  await page.getByRole('button', { name: /My study decks/ }).click();
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   const measured = await responsePaint(
     page,

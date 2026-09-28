@@ -134,4 +134,63 @@ describe.skipIf(!database)('append-only recent answer compensation', () => {
       expect(await repo.reviews.countForCards([card.id])).toBe(2);
     }
   });
+
+  it('appends a full suffix of compensations and deterministically replays a new answer', async () => {
+    const deck = await repo.decks.create({ name: uuidV7() });
+    const note = await repo.notes.create({
+      deckId: deck.id,
+      noteType: 'basic',
+      fields: { front: 'Repeated', back: 'Card' },
+    });
+    const card = await repo.cards.create({
+      noteId: note.id,
+      direction: 'recognition',
+      due: new Date('2026-01-01T00:00:00Z'),
+    });
+    const answers: Awaited<ReturnType<Repositories['reviews']['record']>>[] = [];
+    for (const [index, rating] of [RATING.again, RATING.hard, RATING.good].entries()) {
+      answers.push(
+        await repo.reviews.record({
+          id: uuidV7(),
+          cardId: card.id,
+          rating,
+          now: new Date(`2026-09-15T10:0${index}:00Z`),
+        }),
+      );
+    }
+    const cancellations = answers.map(() => uuidV7());
+    for (const [index, answer] of [...answers].reverse().entries()) {
+      await repo.reviews.undo(answer.review.id, cancellations[index]!);
+    }
+    const restored = await repo.reviews.rebuild(card.id);
+    expect(restored).toMatchObject({
+      state: 'new',
+      due: card.due,
+      reps: 0,
+      stability: undefined,
+      lastReview: undefined,
+    });
+    expect(await repo.reviews.rebuild(card.id)).toEqual(restored);
+    expect(await repo.reviews.forCard(card.id)).toEqual([]);
+    const changes = (await repo.sync.pull(0, 1000)).changes.filter(
+      (row) =>
+        row.entity === 'reviews' &&
+        [...answers.map((answer) => answer.review.id), ...cancellations].includes(row.id),
+    );
+    expect(changes).toHaveLength(6);
+    for (const answer of answers)
+      expect(changes.find((row) => row.id === answer.review.id)?.row['cancelsReviewId']).toBeNull();
+    for (const [index, answer] of [...answers].reverse().entries())
+      expect(changes.find((row) => row.id === cancellations[index])?.row['cancelsReviewId']).toBe(
+        answer.review.id,
+      );
+    const replacement = await repo.reviews.record({
+      id: uuidV7(),
+      cardId: card.id,
+      rating: RATING.easy,
+      now: new Date('2026-09-15T10:04:00Z'),
+    });
+    expect(await repo.reviews.rebuild(card.id)).toEqual(replacement.state);
+    expect(await repo.reviews.countForCards([card.id])).toBe(4);
+  });
 });

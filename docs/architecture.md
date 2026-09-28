@@ -480,7 +480,11 @@ card's schedule moves somewhere neither the person nor the algorithm chose.
 The fuzz generator is seeded from that id rather than from the clock, so a retry recomputes exactly what
 the first attempt did and a client that seeds the same way lands its cards on the same days.
 
-Recent-answer Undo follows the same append-only rule. `POST /reviews/undo` writes a compensation row that
+Study keeps a LIFO answer history only for its active session, including its completion state. Each local
+Undo immediately restores the prior queue, card and counts; repeated Undo can reach the first answer
+without waiting for transport. Answer and compensation requests are serialized with stable idempotent
+event ids. A failed request retains its pending intent for Retry, and exiting Study ends this Undo scope.
+`POST /reviews/undo` writes a compensation row that
 names the immutable answer it cancels. The card projection subtracts that answer and canonically replays
 the remaining events by answer time, server revision, and id. The captured predecessor state is replay evidence, not a
 snapshot restored at the Undo timestamp, so a later answer is retained and recomputed against the history

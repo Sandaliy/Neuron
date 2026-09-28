@@ -51,8 +51,8 @@ export function LearningCard({
       );
     }
     previous.current = { identity, top };
-    // The keyboard can resize the reading area without a React render. Reveal
-    // must start at the prompt's current position, not its pre-keyboard position.
+    // Entering the application-owned keyboard-ready composition can move the
+    // prompt without a React render here. Reveal starts at its current position.
     const observer =
       !revealed && typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() => {

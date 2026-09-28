@@ -238,14 +238,15 @@ test('grammar Practice composes selected fields and resumes without schedule wri
   await page.getByRole('button', { name: 'Known', exact: true }).click();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: /Continue practice/ }).click();
+  await page.getByRole('button', { name: /Resume practice/ }).click();
+  await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
   await expect(page.getByText('tree', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
   await expect(page.getByText('der Baum', { exact: true })).toBeVisible();
   expect(writes.every((url) => url.endsWith('/practice'))).toBe(true);
 });
 
-test('Adjust and scope open locally while the initial plan is still unresolved', async ({
+test('Study setup and scope open locally while the initial plan is unresolved', async ({
   page,
 }) => {
   await usePreferences(page, { locale: 'en', theme: 'dark' });
@@ -262,8 +263,7 @@ test('Adjust and scope open locally while the initial plan is still unresolved',
   });
   await page.goto('/');
   await expect.poll(() => received).toBe(true);
-  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
-  await page.getByRole('button', { name: 'Choose for this session', exact: true }).click();
+  await page.getByRole('button', { name: /My study decks|Мои учебные колоды|Study decks/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByText('You are caught up', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No decks selected' })).toHaveCount(0);
@@ -336,9 +336,7 @@ test('Today scopes are temporary and distinguish no decks from caught up', async
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('today.png') });
-  await page.getByRole('button', { name: 'Adjust', exact: true }).click();
-  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('adjust.png') });
-  await page.getByRole('button', { name: 'Choose for this session', exact: true }).click();
+  await page.getByRole('button', { name: /My study decks|Мои учебные колоды|Study decks/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.screenshot({ animations: 'disabled', path: test.info().outputPath('deck-scope.png') });
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
@@ -450,7 +448,7 @@ test('undo is local during a delayed save and regrade follows its compensation',
   await expect(page.getByText('Answer 2', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: /^Good / }).click();
   release();
-  await expect.poll(() => events).toEqual(['easy', 'easy', 'undo', 'good']);
+  await expect.poll(() => events).toEqual(['easy', 'undo', 'good']);
 });
 
 test('ten rapid deletes and restores settle once under delayed responses', async ({ page }) => {
@@ -564,6 +562,7 @@ test('practice persists rounds across reload without schedule writes', async ({
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: /Practice complete/ }).click();
+  await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
   await expect(page.getByText('Practice complete', { exact: true })).toBeVisible();
   await expect(page.getByRole('img').getByText('100%', { exact: true })).toBeVisible();
   await page.screenshot({

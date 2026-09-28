@@ -76,6 +76,14 @@ type Answer = {
   reviewedAt: string;
   durationMs: number;
 };
+type SessionAnswer = {
+  answer: Answer;
+  card: StudyCard;
+  queue: SessionQueue;
+  priorDue: string | undefined;
+};
+type Transport =
+  { kind: 'answer'; entry: SessionAnswer } | { kind: 'undo'; entry: SessionAnswer; id: string };
 const RATINGS = ['again', 'hard', 'good', 'easy'] as const;
 
 export function StudyScreen({
@@ -93,6 +101,7 @@ export function StudyScreen({
   const account = useAccount();
   const decks = useDeckTree();
   const [typed, setTyped] = useState('');
+  const [typingReady, setTypingReady] = useState(false);
   const config = createSchedulerConfig({
     timezone: account.data?.timezone ?? 'UTC',
     dayCutoffHour: account.data?.dayCutoffHour ?? 4,
@@ -105,7 +114,7 @@ export function StudyScreen({
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>();
-  const [failed, setFailed] = useState<Answer[]>([]);
+  const [transportError, setTransportError] = useState<unknown>();
   const [pending, setPending] = useState(0);
   const [answered, setAnswered] = useState(0);
   const [answeredCards, setAnsweredCards] = useState<Record<string, number>>({});
@@ -114,13 +123,13 @@ export function StudyScreen({
   const [morePlanned, setMorePlanned] = useState(false);
   const [nextDue, setNextDue] = useState<string | null>(null);
   const [practicing, setPracticing] = useState(false);
-  const [last, setLast] = useState<{ answer: Answer; card: StudyCard; queue: SessionQueue }>();
+  const [historyCount, setHistoryCount] = useState(0);
   const [ratings, setRatings] = useState<Record<string, number>>({});
-  const operations = useRef(new Map<string, Promise<void>>());
-  const cancelled = useRef(new Set<string>());
+  const history = useRef<SessionAnswer[]>([]);
+  const transport = useRef<Transport[]>([]);
+  const transportBusy = useRef(false);
+  const confirmedAnswers = useRef(new Map<string, StudyCard>());
   const projectedAnswers = useRef(new Set<string>());
-  const undoOperation = useRef<Promise<void> | undefined>(undefined);
-  const retryUndo = useRef<(() => Promise<void>) | undefined>(undefined);
   const queue = useRef<SessionQueue>({ planned: [], retries: [], retryMayRun: false });
   const cards = useRef(new Map<string, StudyCard>());
   const projectedDue = useRef(new Map<string, string>());
@@ -132,13 +141,13 @@ export function StudyScreen({
   const note = plan?.notes.find((item) => item.id === current?.noteId);
   useBlocker({
     shouldBlockFn: () => {
-      if (pending || failed.length) {
+      if (pending) {
         toast.show(t('study.waitForSave'));
         return true;
       }
       return false;
     },
-    enableBeforeUnload: pending > 0 || failed.length > 0,
+    enableBeforeUnload: pending > 0,
   });
 
   function next() {
@@ -156,6 +165,7 @@ export function StudyScreen({
     setReason(step.card ? '' : step.reason);
     setRevealed(false);
     setTyped('');
+    setTypingReady(false);
     shown.current = Date.now();
     locked.current = false;
   }
@@ -211,35 +221,61 @@ export function StudyScreen({
     setNextDue(future.sort()[0] ?? null);
   }
 
-  async function submit(answer: Answer) {
-    setPending((count) => count + 1);
+  async function flushTransport() {
+    if (transportBusy.current) return;
+    transportBusy.current = true;
     try {
-      const result = await request<{ card: StudyCard }>('/reviews', {
-        method: 'POST',
-        body: answer,
-      });
-      if (!cancelled.current.has(answer.id)) {
-        const before = cards.current.get(result.card.id);
-        await client.cancelQueries({ queryKey: ['study-plan'] });
-        await client.cancelQueries({ queryKey: ['decks'] });
-        cards.current.set(result.card.id, result.card);
-        queue.current = queueSessionRetry(queue.current, workloadCard(result.card));
-        projectedDue.current.delete(result.card.id);
-        updateNextDue();
-        if (before) {
-          projectConfirmedReview(client, before, result.card, new Date());
-          projectedAnswers.current.add(answer.id);
+      while (transport.current[0]) {
+        const task = transport.current[0];
+        try {
+          if (task.kind === 'answer') {
+            const result = await request<{ card: StudyCard }>('/reviews', {
+              method: 'POST',
+              body: task.entry.answer,
+            });
+            confirmedAnswers.current.set(task.entry.answer.id, result.card);
+            if (history.current.some((entry) => entry.answer.id === task.entry.answer.id)) {
+              await client.cancelQueries({ queryKey: ['study-plan'] });
+              await client.cancelQueries({ queryKey: ['decks'] });
+              projectConfirmedReview(client, task.entry.card, result.card, new Date());
+              projectedAnswers.current.add(task.entry.answer.id);
+            }
+          } else {
+            const reverted = await request<{ card: StudyCard }>('/reviews/undo', {
+              method: 'POST',
+              body: { id: task.id, reviewId: task.entry.answer.id },
+            });
+            if (projectedAnswers.current.delete(task.entry.answer.id)) {
+              await client.cancelQueries({ queryKey: ['decks'] });
+              projectConfirmedReview(
+                client,
+                confirmedAnswers.current.get(task.entry.answer.id) ?? task.entry.card,
+                reverted.card,
+                new Date(),
+              );
+            }
+            client.removeQueries({ queryKey: ['study-plan'], type: 'inactive' });
+          }
+          transport.current.shift();
+          setPending(transport.current.length);
+          setTransportError(undefined);
+          void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
+          void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
+          void client.invalidateQueries({ queryKey: ['notes'], refetchType: 'none' });
+        } catch (cause) {
+          setTransportError(cause);
+          break;
         }
-        void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
       }
-      setFailed((items) => items.filter((item) => item.id !== answer.id));
-      void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
-      void client.invalidateQueries({ queryKey: ['notes'], refetchType: 'none' });
-    } catch {
-      setFailed((items) => [...items.filter((item) => item.id !== answer.id), answer]);
     } finally {
-      setPending((count) => count - 1);
+      transportBusy.current = false;
     }
+  }
+
+  function enqueue(task: Transport) {
+    transport.current.push(task);
+    setPending(transport.current.length);
+    void flushTransport();
   }
 
   function grade(index: number) {
@@ -248,7 +284,7 @@ export function StudyScreen({
       current.id !== visibleId.current ||
       !revealed ||
       locked.current ||
-      failed.length
+      transportError
     )
       return;
     locked.current = true;
@@ -259,7 +295,14 @@ export function StudyScreen({
       reviewedAt: new Date().toISOString(),
       durationMs: Math.min(3_600_000, Math.max(0, Date.now() - shown.current)),
     };
-    setLast({ answer, card: current, queue: queue.current });
+    const entry: SessionAnswer = {
+      answer,
+      card: current,
+      queue: queue.current,
+      priorDue: projectedDue.current.get(current.id),
+    };
+    history.current.push(entry);
+    setHistoryCount(history.current.length);
     setRatings((values) => ({ ...values, [answer.rating]: (values[answer.rating] ?? 0) + 1 }));
     setAnswered((count) => count + 1);
     setAnsweredCards((counts) => ({
@@ -274,18 +317,29 @@ export function StudyScreen({
       createSeededRandom(seedFromReviewId(answer.id)),
       answer.durationMs,
     );
+    const nextCard: StudyCard = {
+      ...current,
+      state: predicted.next.state,
+      due: predicted.next.due.toISOString(),
+      stability: predicted.next.stability ?? null,
+      difficulty: predicted.next.difficulty ?? null,
+      lastReview: predicted.next.lastReview?.toISOString() ?? null,
+      reps: predicted.next.reps,
+      lapses: predicted.next.lapses,
+      learningStep: predicted.next.learningStep,
+    };
+    cards.current.set(current.id, nextCard);
+    queue.current = queueSessionRetry(queue.current, workloadCard(nextCard));
     projectedDue.current.set(current.id, studyAvailableAt(predicted.next, config).toISOString());
     updateNextDue();
     next();
-    const saving = (undoOperation.current ?? Promise.resolve()).then(() => submit(answer));
-    operations.current.set(answer.id, saving);
+    enqueue({ kind: 'answer', entry });
   }
 
   function undo() {
-    if (!last || undoOperation.current) return;
-    const previous = last;
-    cancelled.current.add(previous.answer.id);
-    setLast(undefined);
+    const previous = history.current.pop();
+    if (!previous) return;
+    setHistoryCount(history.current.length);
     setAnswered((count) => count - 1);
     setAnsweredCards((counts) => ({
       ...counts,
@@ -295,67 +349,24 @@ export function StudyScreen({
       ...values,
       [previous.answer.rating]: Math.max(0, (values[previous.answer.rating] ?? 0) - 1),
     }));
-    queue.current = {
-      ...previous.queue,
-      retries: queue.current.retries.filter((card) => card.id !== previous.card.id),
-    };
+    queue.current = previous.queue;
+    setMorePlanned(queue.current.planned.length > 0);
     cards.current.set(previous.card.id, previous.card);
-    projectedDue.current.delete(previous.card.id);
+    if (previous.priorDue) projectedDue.current.set(previous.card.id, previous.priorDue);
+    else projectedDue.current.delete(previous.card.id);
     updateNextDue();
     visibleId.current = previous.card.id;
     setCurrent(previous.card);
     setRevealed(true);
+    setTypingReady(false);
+    setReason('');
     locked.current = false;
-    setPending((count) => count + 1);
-    const body = { id: uuidV7(), reviewId: previous.answer.id };
-    let resolveUndo!: () => void;
-    undoOperation.current = new Promise<void>((resolve) => {
-      resolveUndo = resolve;
-    });
-    let attempting = false;
-    const attempt = async () => {
-      if (attempting) return;
-      attempting = true;
-      try {
-        await operations.current.get(previous.answer.id);
-        const confirmed = await request<{ card: StudyCard }>('/reviews', {
-          method: 'POST',
-          body: previous.answer,
-        });
-        const reverted = await request<{ card: StudyCard }>('/reviews/undo', {
-          method: 'POST',
-          body,
-        });
-        if (projectedAnswers.current.delete(previous.answer.id)) {
-          await client.cancelQueries({ queryKey: ['decks'] });
-          projectConfirmedReview(client, confirmed.card, reverted.card, new Date());
-        }
-        cards.current.set(reverted.card.id, reverted.card);
-        client.removeQueries({ queryKey: ['study-plan'], type: 'inactive' });
-        void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
-        void client.invalidateQueries({ queryKey: ['notes'], refetchType: 'none' });
-        void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
-        setFailed((items) => items.filter((item) => item.id !== previous.answer.id));
-        setError(undefined);
-        locked.current = false;
-        retryUndo.current = undefined;
-        undoOperation.current = undefined;
-        setPending((count) => count - 1);
-        resolveUndo();
-      } catch (cause) {
-        setError(cause);
-        locked.current = true;
-      } finally {
-        attempting = false;
-      }
-    };
-    retryUndo.current = attempt;
-    void attempt();
+    enqueue({ kind: 'undo', entry: previous, id: uuidV7() });
   }
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.repeat || failed.length) return;
+      if (event.target instanceof HTMLInputElement || event.repeat || transportError) return;
       if (event.code === 'Space' && current && note) {
         event.preventDefault();
         setRevealed(true);
@@ -392,16 +403,21 @@ export function StudyScreen({
   const completed = Object.values(answeredCards).filter((count) => count > 0).length;
   const total = plan?.cards.length ?? 0;
   return (
-    <section data-screen="" data-learning-screen="" className="neu-session flex flex-col gap-16">
+    <section
+      data-screen=""
+      data-learning-screen=""
+      data-typing-ready={typingReady || undefined}
+      className="neu-session flex flex-col gap-16"
+    >
       <ModeHeader
         title={t('today.study')}
         exitLabel={t('study.stop')}
         onExit={onFinish}
-        disabled={pending > 0 || failed.length > 0}
+        disabled={pending > 0}
         value={completed}
         max={total}
         action={
-          last && (
+          historyCount > 0 && (
             <Button
               variant="text"
               className="w-44 text-secondary"
@@ -414,20 +430,18 @@ export function StudyScreen({
           )
         }
       />
-      {failed.length > 0 && (
+      {!!transportError && (
         <ErrorState
           message={t('study.saveFailed')}
           retryLabel={t('common.retry')}
-          onRetry={() => {
-            if (!pending) for (const answer of failed) void submit(answer);
-          }}
+          onRetry={() => void flushTransport()}
         />
       )}
       {!!error && (
         <ErrorState
           message={t(describe(error).key, describe(error).values)}
           retryLabel={t('common.retry')}
-          onRetry={() => void (retryUndo.current ? retryUndo.current() : start())}
+          onRetry={() => void start()}
         />
       )}
       {loading && <SkeletonRows rows={3} />}
@@ -475,6 +489,8 @@ export function StudyScreen({
                     }
                     revealed={revealed}
                     onReveal={() => setRevealed(true)}
+                    ready={typingReady}
+                    onReadyChange={setTypingReady}
                   />
                 ) : undefined
               }
@@ -507,7 +523,7 @@ export function StudyScreen({
                     <Button
                       key={rating}
                       layout="stacked"
-                      disabled={failed.length > 0}
+                      disabled={!!transportError}
                       className="min-w-0 border-strong px-4 py-8 text-primary"
                       onClick={() => grade(index)}
                     >
@@ -530,7 +546,7 @@ export function StudyScreen({
               <Button
                 full
                 variant="primary"
-                disabled={!face || failed.length > 0}
+                disabled={!face || !!transportError}
                 onClick={() => setRevealed(true)}
               >
                 {t('study.reveal')}
@@ -572,7 +588,7 @@ export function StudyScreen({
           <Button
             full
             variant="primary"
-            disabled={pending > 0 || failed.length > 0}
+            disabled={pending > 0}
             busy={pending > 0}
             aria-label={t('study.finish')}
             onClick={onFinish}
@@ -582,7 +598,7 @@ export function StudyScreen({
           {morePlanned && (
             <Button
               full
-              disabled={pending > 0 || failed.length > 0}
+              disabled={pending > 0}
               onClick={() => {
                 started.current = Date.now();
                 next();
@@ -592,7 +608,14 @@ export function StudyScreen({
             </Button>
           )}
           {plan.notes.length > 0 && (
-            <Button disabled={pending > 0 || failed.length > 0} onClick={() => setPracticing(true)}>
+            <Button
+              disabled={pending > 0}
+              onClick={() => {
+                history.current = [];
+                setHistoryCount(0);
+                setPracticing(true);
+              }}
+            >
               {t('practice.title')}
             </Button>
           )}

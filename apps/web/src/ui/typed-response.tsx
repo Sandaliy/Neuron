@@ -1,5 +1,6 @@
 import { ArrowRight, Check } from 'lucide-react';
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
+import { flushSync } from 'react-dom';
 
 import { checkTypedAnswer, spellingFeedback } from '@neuron/shared';
 
@@ -17,6 +18,8 @@ export function TypedResponse({
   language,
   revealed,
   onReveal,
+  ready,
+  onReadyChange,
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -25,9 +28,37 @@ export function TypedResponse({
   readonly language: string | undefined;
   readonly revealed: boolean;
   readonly onReveal: () => void;
+  readonly ready: boolean;
+  readonly onReadyChange: (ready: boolean) => void;
 }) {
   const t = useTranslate();
   const inputId = useId();
+  const formRef = useRef<HTMLFormElement>(null);
+  const stopWaitingForKeyboard = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => () => stopWaitingForKeyboard.current?.(), []);
+  function leaveKeyboardReadyAfterClose() {
+    stopWaitingForKeyboard.current?.();
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      onReadyChange(false);
+      return;
+    }
+    const finish = () => {
+      // This is a one-time exit signal, never a source for learning geometry.
+      if (window.innerHeight - viewport.height > 120) return;
+      viewport.removeEventListener('resize', finish);
+      window.removeEventListener('resize', finish);
+      stopWaitingForKeyboard.current = undefined;
+      onReadyChange(false);
+    };
+    stopWaitingForKeyboard.current = () => {
+      viewport.removeEventListener('resize', finish);
+      window.removeEventListener('resize', finish);
+    };
+    viewport.addEventListener('resize', finish);
+    window.addEventListener('resize', finish);
+    finish();
+  }
   const comparison = spellingFeedback(value, answer, alternatives, language);
   const outcome = checkTypedAnswer(value, answer, alternatives, language);
   const accepted = outcome === 'exact' || outcome === 'correct';
@@ -49,6 +80,7 @@ export function TypedResponse({
     outcome === 'incorrect' ? [{ kind: 'incorrect' as const, text: value }] : comparison.parts;
   return (
     <form
+      ref={formRef}
       className="neu-response flex shrink-0 flex-col gap-8"
       onSubmit={(event) => {
         event.preventDefault();
@@ -101,6 +133,22 @@ export function TypedResponse({
               .join(' ')}
           </span>
         </div>
+      ) : !ready ? (
+        <Button
+          type="button"
+          data-typing-activator=""
+          className="min-h-44 w-full justify-start rounded-12 border border-default bg-input px-16 text-16 text-tertiary"
+          onClick={() => {
+            // iOS requires focus in the activation gesture. Commit the safe
+            // geometry first, then focus the input synchronously in that tap.
+            flushSync(() => onReadyChange(true));
+            const input = formRef.current?.querySelector<HTMLInputElement>('[data-typed-answer]');
+            input?.getBoundingClientRect();
+            input?.focus({ preventScroll: true });
+          }}
+        >
+          {t('study.typeAnswer')}
+        </Button>
       ) : (
         <div className="grid grid-cols-[1fr_44px] items-center gap-8">
           <Input
@@ -115,6 +163,7 @@ export function TypedResponse({
             enterKeyHint="done"
             maxLength={500}
             onChange={(event) => onChange(event.target.value)}
+            onBlur={leaveKeyboardReadyAfterClose}
           />
           <Button
             type="submit"

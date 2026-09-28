@@ -1,6 +1,6 @@
 import { keepPreviousData, useIsMutating, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 import { DEFAULT_ANSWER_SECONDS } from '@neuron/core';
@@ -9,7 +9,7 @@ import type { DeckNode, DailyStudySession } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
-import { flatten, useDeckTree } from '../../lib/decks';
+import { flatten, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
@@ -17,6 +17,8 @@ import { ReviewTime } from '../../ui/review-time';
 import { Row } from '../../ui/row';
 import { Select } from '../../ui/select';
 import { ErrorState, Skeleton } from '../../ui/states';
+import { useToast } from '../../ui/toast';
+import { DeckSettingsDialog } from '../library/deck-dialogs';
 
 import { StudyScreen } from './study';
 import { StudyScope } from './study-scope';
@@ -107,6 +109,8 @@ function Waiting({
 }) {
   const t = useTranslate();
   const navigate = useNavigate();
+  const toast = useToast();
+  const actions = useDeckActions();
   const live = studyDecks(flatten(decks));
   const [scope, setScope] = useState<string[]>();
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -122,7 +126,7 @@ function Waiting({
   const mutations = useIsMutating({ mutationKey: ['note-interaction'] });
   const [direction, setDirection] = useState('');
   const [override, setOverride] = useState(false);
-  const [adjusting, setAdjusting] = useState(false);
+  const [skillSettingsOpen, setSkillSettingsOpen] = useState(false);
   const plan = useQuery<StudyPlanProjection>({
     queryKey: [
       'study-plan',
@@ -152,7 +156,81 @@ function Waiting({
   const result = plan.data;
   const updating = plan.isPlaceholderData || result?.localProjection === true;
   const reconciling = plan.isPlaceholderData || result?.reviewProjection === true;
-  const caughtUp = result?.availableCount === 0 && selected.length > 0 && !reconciling;
+  const unsupported = direction
+    ? selected.filter(
+        (id) =>
+          !settingsFor(decks, id).ladder.some(
+            (rung) => rung.direction === direction && rung.opensAtStability === 0,
+          ),
+      )
+    : [];
+  const singleUnsupported =
+    selected.length === 1 && unsupported.length === 1 && result?.cards.length === 0;
+  const caughtUp =
+    result?.availableCount === 0 && selected.length > 0 && !reconciling && !singleUnsupported;
+  const setup = selected.length > 0 && (
+    <div className="flex flex-col gap-12 border-t border-subtle pt-16">
+      <div className="flex items-center justify-between gap-12">
+        <span className="text-13 text-secondary">{t('study.scope')}</span>
+        <Button variant="text" className="min-w-0 px-8" onClick={() => setScopeOpen(true)}>
+          <span className="truncate">{scopeLabel}</span>
+          <ChevronDown size={14} aria-hidden="true" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 gap-12">
+        <label className="flex flex-col gap-8 text-13 text-secondary">
+          {t('study.minutes')}
+          <Select value={minutes} onChange={(event) => onMinutes(event.target.value)}>
+            <option value="">{t('study.defaultTime')}</option>
+            {[5, 10, 20, 30].map((value) => (
+              <option key={value} value={value}>
+                {t('study.intervalMinutes', { count: value })}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="flex flex-col gap-8 text-13 text-secondary">
+          {t('study.skill')}
+          <Select value={direction} onChange={(event) => setDirection(event.target.value)}>
+            <option value="">{t('study.mixed')}</option>
+            {(['recognition', 'recall', 'production', 'listening'] as const).map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`study.direction.${mode}`)}
+              </option>
+            ))}
+          </Select>
+        </label>
+      </div>
+      {(singleUnsupported || (selected.length > 1 && unsupported.length > 0)) && (
+        <div role="status" className="flex flex-col gap-8 text-13 text-secondary">
+          <p>
+            {t(singleUnsupported ? 'study.modeUnavailableSingle' : 'study.modeUnavailableMulti', {
+              count: unsupported.length,
+            })}
+          </p>
+          {singleUnsupported && (
+            <Button
+              variant="text"
+              className="self-start px-8"
+              onClick={() => setSkillSettingsOpen(true)}
+            >
+              {t('study.enableSkill')}
+            </Button>
+          )}
+        </div>
+      )}
+      {(result?.newCards.overrideAvailable || override) && (
+        <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
+          <input
+            type="checkbox"
+            checked={override}
+            onChange={(event) => setOverride(event.target.checked)}
+          />
+          {t('study.moreNew')}
+        </label>
+      )}
+    </div>
+  );
   const waiting = (result?.deckSummaries ?? [])
     .filter((summary) => selected.includes(summary.deckId))
     .flatMap((summary) => {
@@ -183,6 +261,11 @@ function Waiting({
           <div role="status" className="flex min-h-112 items-center text-17 text-secondary">
             {t('today.updatingPlan')}
           </div>
+        ) : singleUnsupported ? (
+          <>
+            <h2 className="text-24 text-primary">{t('study.modeUnavailable')}</h2>
+            {setup}
+          </>
         ) : caughtUp ? (
           <>
             <h2 className="text-24 text-primary">{t('today.caughtUpTitle')}</h2>
@@ -201,6 +284,7 @@ function Waiting({
             <Button onClick={() => void navigate({ to: '/library' })}>
               {t('today.practiceDeck')}
             </Button>
+            {setup}
           </>
         ) : (
           <>
@@ -233,6 +317,7 @@ function Waiting({
                 {t('study.newMetric')}
               </span>
             </div>
+            {setup}
             <Button
               variant="primary"
               full
@@ -250,74 +335,7 @@ function Waiting({
             </Button>
           </>
         )}
-        {selected.length > 0 && !caughtUp && !reconciling && (
-          <div className="flex items-center justify-between gap-12 border-t border-subtle pt-8">
-            <span className="truncate text-12 text-secondary">{scopeLabel}</span>
-            <Button
-              variant="text"
-              className="shrink-0 px-8 text-secondary"
-              aria-expanded={adjusting}
-              onClick={() => setAdjusting(!adjusting)}
-            >
-              <SlidersHorizontal size={16} aria-hidden="true" />
-              {t('today.adjust')}
-            </Button>
-          </div>
-        )}
-        {caughtUp && (
-          <Button
-            variant="text"
-            className="self-start px-8 text-secondary"
-            onClick={() => setScopeOpen(true)}
-          >
-            {t('study.scope')}
-            <ChevronDown size={14} aria-hidden="true" />
-          </Button>
-        )}
-        {adjusting && !caughtUp && !reconciling && selected.length > 0 && (
-          <div className="neu-reveal flex flex-col gap-16 border-t border-subtle pt-16">
-            <div className="flex items-center justify-between gap-12">
-              <span className="text-14 text-secondary">{t('study.scope')}</span>
-              <Button onClick={() => setScopeOpen(true)}>
-                {t('study.chooseDecks')}
-                <ChevronDown size={14} aria-hidden="true" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-12">
-              <label className="flex flex-col gap-8 text-13 text-secondary">
-                {t('study.minutes')}
-                <Select value={minutes} onChange={(event) => onMinutes(event.target.value)}>
-                  <option value="">{t('study.defaultTime')}</option>
-                  {[5, 10, 20, 30].map((value) => (
-                    <option key={value} value={value}>
-                      {t('study.intervalMinutes', { count: value })}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label className="flex flex-col gap-8 text-13 text-secondary">
-                {t('study.skill')}
-                <Select value={direction} onChange={(event) => setDirection(event.target.value)}>
-                  <option value="">{t('study.mixed')}</option>
-                  <option value="recognition">{t('study.recognition')}</option>
-                  <option value="recall">{t('study.recall')}</option>
-                  <option value="production">{t('study.direction.production')}</option>
-                  <option value="listening">{t('study.direction.listening')}</option>
-                </Select>
-              </label>
-            </div>
-            {(result?.newCards.overrideAvailable || override) && (
-              <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
-                <input
-                  type="checkbox"
-                  checked={override}
-                  onChange={(event) => setOverride(event.target.checked)}
-                />
-                {t('study.moreNew')}
-              </label>
-            )}
-          </div>
-        )}
+        {(!result || reconciling) && setup}
       </Card>
       {plan.error && result && (
         <ErrorState
@@ -360,6 +378,21 @@ function Waiting({
         selected={scope}
         onApply={setScope}
       />
+      {singleUnsupported && live.find((deck) => deck.id === selected[0]) && (
+        <DeckSettingsDialog
+          open={skillSettingsOpen}
+          onOpenChange={setSkillSettingsOpen}
+          deck={live.find((deck) => deck.id === selected[0])!}
+          decks={decks}
+          busy={actions.update.isPending}
+          onSave={(settings) => {
+            void actions.update
+              .mutateAsync({ id: selected[0]!, settings })
+              .then(() => setSkillSettingsOpen(false))
+              .catch((error) => toast.show(t(describe(error).key)));
+          }}
+        />
+      )}
     </div>
   );
 }

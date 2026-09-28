@@ -62,23 +62,13 @@ function variables() {
   };
 }
 
-function learning() {
-  const style = document.documentElement.style;
-  return {
-    height: style.getPropertyValue('--learning-viewport-height'),
-    top: style.getPropertyValue('--learning-viewport-top'),
-  };
-}
-
 describe('tracking the visual viewport', () => {
-  it('commits one learning geometry after interleaved keyboard resize and pan events', async () => {
+  it('leaves learning geometry to its anchored composition during keyboard events', async () => {
     const screen = document.createElement('section');
     screen.dataset['learningScreen'] = '';
     document.body.append(screen);
     const { trackViewport } = await import('./viewport');
     stop = trackViewport();
-    expect(learning()).toEqual({ height: '812px', top: '0px' });
-
     for (const [height, top] of [
       [690, 40],
       [510, 180],
@@ -87,22 +77,10 @@ describe('tracking the visual viewport', () => {
       [476, 180],
     ] as [number, number][]) {
       await report({ height, offsetTop: top });
-      expect(learning()).toEqual({ height: '812px', top: '0px' });
       expect(variables().height).toBe(`${height}px`);
     }
-    await vi.waitFor(() => expect(learning()).toEqual({ height: '476px', top: '180px' }));
-
-    (document.activeElement as HTMLElement).blur();
-    for (const [height, top] of [
-      [610, 260],
-      [510, 90],
-      [720, 0],
-      [812, 0],
-    ] as [number, number][]) {
-      await report({ height, offsetTop: top });
-      expect(learning()).toEqual({ height: '476px', top: '180px' });
-    }
-    await vi.waitFor(() => expect(learning()).toEqual({ height: '812px', top: '0px' }));
+    expect(document.documentElement.style.getPropertyValue('--learning-viewport-height')).toBe('');
+    expect(document.documentElement.style.getPropertyValue('--learning-viewport-top')).toBe('');
   });
   it('reports no keyboard when nothing is covering the page', async () => {
     const { trackViewport } = await import('./viewport');
