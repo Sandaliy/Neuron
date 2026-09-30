@@ -11,6 +11,7 @@ import { ApiFailure, request } from './api';
 import * as storage from './storage';
 
 interface Snapshot {
+  undoEpoch: number;
   run: PracticeRun | null;
   loading: boolean;
   saving: boolean;
@@ -24,6 +25,7 @@ type Action =
       response?: PracticeRun['response'];
     }
   | { kind: 'answer'; noteId: string; known: boolean }
+  | { kind: 'undo'; previous: PracticeRun }
   | { kind: 'round' };
 const stores = new Map<string, ReturnType<typeof createStore>>();
 export function practiceStore(accountId: string, deckId: string, notes: readonly PracticeNote[]) {
@@ -43,7 +45,13 @@ function createStore(key: string, deckId: string, notes: readonly PracticeNote[]
   } catch {
     /* Discard invalid device data. */
   }
-  let snapshot: Snapshot = { run: null, loading: true, saving: false, error: undefined };
+  let snapshot: Snapshot = {
+    undoEpoch: 0,
+    run: null,
+    loading: true,
+    saving: false,
+    error: undefined,
+  };
   let sending = false;
   let loading = false;
   const listeners = new Set<() => void>();
@@ -77,6 +85,7 @@ function createStore(key: string, deckId: string, notes: readonly PracticeNote[]
     } catch (error) {
       if (error instanceof ApiFailure && error.status === 409) {
         pending = [];
+        snapshot = { ...snapshot, undoEpoch: snapshot.undoEpoch + 1 };
         try {
           confirmed = practiceResultSchema.parse(await request(`/decks/${deckId}/practice`));
         } catch {
@@ -93,7 +102,11 @@ function createStore(key: string, deckId: string, notes: readonly PracticeNote[]
     loading = true;
     publish({ loading: confirmed.run === null });
     try {
-      confirmed = practiceResultSchema.parse(await request(`/decks/${deckId}/practice`));
+      const latest = practiceResultSchema.parse(await request(`/decks/${deckId}/practice`));
+      if (!pending.length && JSON.stringify(latest.run) !== JSON.stringify(confirmed.run)) {
+        snapshot = { ...snapshot, undoEpoch: snapshot.undoEpoch + 1 };
+      }
+      confirmed = latest;
       publish({ loading: false, error: undefined });
     } catch (error) {
       publish({ loading: false, error });

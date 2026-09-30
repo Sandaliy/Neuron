@@ -4,6 +4,7 @@ import { advancePractice } from '@neuron/shared';
 import type { PracticeRun } from '@neuron/shared';
 
 import { useFixtures, usePreferences } from './fixtures';
+import { useSpeech } from './speech-fixture';
 
 const stamp = '2026-01-01T00:00:00Z';
 const id = (n: number) => `01900000-0000-7000-8000-${String(n).padStart(12, '0')}`;
@@ -40,9 +41,64 @@ const notes = [
   rev: 1,
 }));
 
+test('Practice Undo traverses this visit through completion, rewinds classified progress, and ends at exit', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [deck], notes });
+  let run: PracticeRun | null = null;
+  let version = 0;
+  await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+    if (route.request().method() === 'POST') {
+      run = advancePractice(run, route.request().postDataJSON(), notes);
+      version++;
+    }
+    return route.fulfill({ json: { run, version } });
+  });
+  await page.goto(`/notes?deckId=${deck.id}`);
+  await page.getByRole('button', { name: 'Practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+  const counts = page.locator('.neu-practice-progress strong');
+  const progress = page.getByRole('progressbar', { name: 'Practice', exact: true });
+  const undo = page.getByRole('button', { name: 'Undo last answer', exact: true });
+  await expect(counts).toHaveText(['0', '0']);
+  await expect(undo).toBeDisabled();
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  await page.getByRole('button', { name: 'Still learning', exact: true }).click();
+  await expect(counts).toHaveText(['1', '0']);
+  await expect(progress).toHaveAttribute('aria-valuenow', '50');
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  await page.getByRole('button', { name: 'Known', exact: true }).click();
+  await expect(counts).toHaveText(['1', '1']);
+  await expect(progress).toHaveAttribute('aria-valuenow', '100');
+  await page.getByRole('button', { name: 'Repeat still learning', exact: true }).click();
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  await page.getByRole('button', { name: 'Known', exact: true }).click();
+  await expect(counts).toHaveText(['0', '2']);
+  await undo.click();
+  await expect(counts).toHaveText(['1', '1']);
+  await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
+  await undo.click();
+  await expect(counts).toHaveText(['1', '0']);
+  await expect(page.getByText('Baum', { exact: true })).toBeVisible();
+  await undo.click();
+  await expect(counts).toHaveText(['0', '0']);
+  await expect(progress).toHaveAttribute('aria-valuenow', '0');
+  await expect(undo).toBeDisabled();
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  await page.getByRole('button', { name: 'Known', exact: true }).click();
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Exit Practice' }).click();
+  await page.getByRole('button', { name: /Resume practice/ }).click();
+  await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
+  await expect(counts).toHaveText(['0', '1']);
+  await expect(undo).toBeDisabled();
+});
+
 test('Practice exposes its recipe on every entry, resumes exactly, and confirms a changed run', async ({
   page,
 }, info) => {
+  await useSpeech(page);
   await usePreferences(page, { locale: 'en', theme: 'dark' });
   await useFixtures(page, { decks: [deck], notes });
   let run: PracticeRun | null = null;
@@ -79,21 +135,17 @@ test('Practice exposes its recipe on every entry, resumes exactly, and confirms 
   await expect(page.getByText('2 / 3 notes')).toBeVisible();
   await page.getByRole('button', { name: 'Start practice', exact: true }).click();
   const counts = page.locator('[aria-label="Practice progress"] strong');
-  await expect(counts.nth(0)).toHaveText('2');
+  await expect(counts.nth(0)).toHaveText('0');
   await expect(counts.nth(1)).toHaveText('0');
   await page.screenshot({ path: info.outputPath('practice-progress.png'), animations: 'disabled' });
   await expect.poll(() => run?.id).toBeTruthy();
   const firstRun = run?.id;
-  await page.getByRole('button', { name: 'Practice settings', exact: true }).click();
-  await expect(page.getByRole('combobox', { name: 'Response mode' })).toHaveValue('reveal');
-  await expect(page.getByRole('button', { name: 'Word', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Translation', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Practice settings', exact: true })).toHaveCount(0);
   expect(run?.id).toBe(firstRun);
   await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Show answer' }).click();
   await page.getByRole('button', { name: 'Known', exact: true }).click();
-  await expect(counts.nth(0)).toHaveText('1');
+  await expect(counts.nth(0)).toHaveText('0');
   await expect(counts.nth(1)).toHaveText('1');
   releaseAnswer();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
@@ -106,11 +158,14 @@ test('Practice exposes its recipe on every entry, resumes exactly, and confirms 
   await page.screenshot({ path: info.outputPath('practice-resume.png'), animations: 'disabled' });
   await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
   await expect(page.getByText('Baum', { exact: true })).toBeVisible();
-  await expect(counts.nth(0)).toHaveText('1');
+  await expect(counts.nth(0)).toHaveText('0');
   await expect(counts.nth(1)).toHaveText('1');
   expect(run?.id).toBe(firstRun);
   expect(run).toEqual(resumedRun);
 
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
+  await page.getByRole('button', { name: /Resume practice/ }).click();
   await page.getByRole('button', { name: 'Practice settings', exact: true }).click();
   await page.getByText('Question field', { exact: true }).locator('..').getByRole('button').click();
   await page.getByRole('checkbox', { name: 'Word', exact: true }).uncheck();
@@ -135,8 +190,11 @@ test('Practice exposes its recipe on every entry, resumes exactly, and confirms 
   expect(run?.front).toBe('translation');
   expect(run?.back).toBe('term');
   const fieldRun = run?.id;
-  await expect(counts.nth(0)).toHaveText('2');
+  await expect(counts.nth(0)).toHaveText('0');
   await expect(counts.nth(1)).toHaveText('0');
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
+  await page.getByRole('button', { name: /Resume practice/ }).click();
   await page.getByRole('button', { name: 'Practice settings', exact: true }).click();
   await page.getByRole('combobox', { name: 'Response mode' }).selectOption('typing');
   await expect(page.getByText('2 / 3 notes')).toBeVisible();
@@ -151,10 +209,13 @@ test('Practice exposes its recipe on every entry, resumes exactly, and confirms 
   expect(run?.id).toBe(fieldRun);
   await page.getByRole('button', { name: 'Start a new run', exact: true }).click();
   await page.getByRole('button', { name: 'Replace current run', exact: true }).click();
-  await expect(counts.nth(0)).toHaveText('2');
+  await expect(counts.nth(0)).toHaveText('0');
   await expect(counts.nth(1)).toHaveText('0');
   await expect(page.getByRole('button', { name: 'Type your answer', exact: true })).toBeVisible();
   await expect.poll(() => run?.id).not.toBe(fieldRun);
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
+  await page.getByRole('button', { name: /Resume practice/ }).click();
   await page.getByRole('button', { name: 'Practice settings', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Response mode' })).toHaveValue('typing');
   await expect(page.getByRole('option', { name: 'Listening' })).toBeAttached();

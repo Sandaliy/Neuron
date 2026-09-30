@@ -1,12 +1,14 @@
 import { expect, test } from '@playwright/test';
 
 import { usePreferences } from './fixtures';
+import { useSpeech } from './speech-fixture';
 
 // Opt-in: uses only the guarded throwaway DATABASE_URL_TEST database. Transport,
-// validation, RLS, admission and persistence are real; only sign-in is substituted.
+// validation, RLS, admission and persistence are real; sign-in and speech are fixtures.
 test('real Deck activation, Study ratings and schedule-free Practice', async ({ page }, info) => {
   test.skip(process.env['LEARNING_DATABASE_E2E'] !== 'true', 'Requires the throwaway database');
   test.setTimeout(180_000);
+  await useSpeech(page);
   const { serve } = await import('../../api/node_modules/@hono/node-server/dist/index.mjs');
   const { testDatabase, createUser, repositoriesFor } =
     await import('../../api/src/db/testing/database.js');
@@ -61,13 +63,14 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
     expect(enabled).toHaveLength(3);
     expect(enabled.find((card) => card.id === original[0]!.id)).toEqual(original[0]);
     await page.getByRole('link', { name: 'Today', exact: true }).click();
+    await page.getByRole('button', { name: 'Study setup', exact: true }).click();
     await page.getByRole('combobox', { name: 'Study mode' }).selectOption('listening');
     await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeVisible({
       timeout: 10_000,
     });
     await page.getByRole('button', { name: 'Study', exact: true }).click();
     await expect(page.getByText('Sorgfalt', { exact: true })).toHaveCount(0);
-    // Desktop voice availability varies. Both paths must keep Reveal reachable.
+    // The system voice fixture keeps this database check independent of host audio.
     const replay = page.getByRole('button', { name: 'Play / replay', exact: true });
     if (await replay.isEnabled()) {
       await replay.click();
@@ -79,6 +82,7 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
     await page.getByRole('button', { name: 'Show answer', exact: true }).click();
     await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    await page.getByRole('button', { name: 'Study setup', exact: true }).click();
     await page.getByRole('combobox', { name: 'Study mode' }).selectOption('production');
     await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeVisible({
       timeout: 10_000,
@@ -101,7 +105,6 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
         .first()
         .click();
       if (response === 'listening') {
-        await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
         await page.getByRole('button', { name: 'Practice settings', exact: true }).click();
       }
       await page.getByRole('combobox', { name: 'Response mode' }).selectOption(response);
@@ -133,14 +136,15 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
       await apply.click();
       if (response === 'listening')
         await page.getByRole('button', { name: 'Replace current run', exact: true }).click();
-      if (response === 'typing') {
-        await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
-        await page.getByLabel('Type your answer', { exact: true }).fill('Genauigkeit');
-        await page.getByLabel('Type your answer', { exact: true }).press('Enter');
-        await expect(page.getByText('Correct', { exact: true })).toBeVisible();
-      } else await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+      await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+      await page.getByLabel('Type your answer', { exact: true }).fill('Genauigkeit');
+      await page.getByLabel('Type your answer', { exact: true }).press('Enter');
+      await expect(page.getByText('Correct', { exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'Known', exact: true }).click();
       await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Undo last answer', exact: true }).click();
+      await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+      expect((await repo.practice.get(deck.id)).run!.statuses[note.id]).toBe('unseen');
       expect(await repo.cards.forNote(note.id)).toEqual(beforePractice);
       expect(await repo.reviews.countForCards(enabled.map((card) => card.id))).toBe(1);
     }

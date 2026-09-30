@@ -312,6 +312,74 @@ describe.skipIf(!database)('persistent learning products', () => {
     await repo.reviews.restartDeck(deck.id, uuidV7());
     expect((await repo.practice.get(deck.id)).run).toEqual(completed.run);
   });
+  it('persists repeated Practice Undo through completion, retry and round boundaries without scheduling writes', async () => {
+    const { deck, note, card } = await fixture();
+    const second = await repo.notes.create({
+      deckId: deck.id,
+      noteType: 'basic',
+      fields: { front: 'Second', back: 'Answer' },
+    });
+    const runId = uuidV7();
+    let state = await repo.practice.apply(deck.id, {
+      kind: 'start',
+      id: uuidV7(),
+      runId,
+      expectedVersion: 0,
+      front: 'front',
+      back: 'back',
+    });
+    const history = [state.run!];
+    state = await repo.practice.apply(deck.id, {
+      kind: 'answer',
+      id: uuidV7(),
+      runId,
+      expectedVersion: state.version,
+      noteId: note.id,
+      known: false,
+    });
+    history.push(state.run!);
+    state = await repo.practice.apply(deck.id, {
+      kind: 'answer',
+      id: uuidV7(),
+      runId,
+      expectedVersion: state.version,
+      noteId: second.id,
+      known: true,
+    });
+    state = await repo.practice.apply(deck.id, {
+      kind: 'round',
+      id: uuidV7(),
+      runId,
+      expectedVersion: state.version,
+    });
+    history.push(state.run!);
+    state = await repo.practice.apply(deck.id, {
+      kind: 'answer',
+      id: uuidV7(),
+      runId,
+      expectedVersion: state.version,
+      noteId: note.id,
+      known: true,
+    });
+    expect(state.run!.queue).toEqual([]);
+    for (const previous of [...history].reverse()) {
+      const command = {
+        kind: 'undo' as const,
+        id: uuidV7(),
+        runId,
+        expectedVersion: state.version,
+        previous,
+      };
+      state = await repo.practice.apply(deck.id, command);
+      expect(await repo.practice.apply(deck.id, command)).toEqual(state);
+      expect(await repo.practice.get(deck.id)).toEqual(state);
+      expect(state.run).toEqual(previous);
+      await expect(other.practice.apply(deck.id, command)).rejects.toThrow();
+      await expect(repo.practice.apply(deck.id, { ...command, id: uuidV7() })).rejects.toThrow();
+    }
+    expect(await repo.reviews.countForCards([card.id])).toBe(0);
+    expect(await repo.cards.byId(card.id)).toEqual(card);
+  });
   it('resumes composed grammar Practice without writing Reviews or changing cards', async () => {
     const deck = await repo.decks.create({ name: 'Grammar' });
     const note = await repo.notes.create({

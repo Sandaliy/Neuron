@@ -595,6 +595,11 @@ Note statuses, queue, and round. The shared reducer is independent of FSRS. GET 
 membership and persists removals/admissions; POST commands use operation IDs and expected versions
 under the account lock. A repeated last operation returns its result; conflicting changes return 409.
 The client serializes optimistic commands and retains unacknowledged IDs for retry across reloads.
+Active Practice keeps a local LIFO stack of pre-answer states for this visit only. The versioned `undo`
+command validates a single classification inverse, including the subsequent round boundary, and
+reconciles it against live membership. It uses the same serialized transport and retry IDs as answers.
+Completion permits Undo; leaving the visit, replacing the run, or reconciling a conflicting external
+state ends its local history. The history is not an account-wide or persisted Undo catalogue.
 Completion remains saved until explicit restart. Field changes explicitly restart the run. Practice
 never writes Reviews or card schedules; this narrow retry mechanism is not Phase 8 offline sync.
 
@@ -701,8 +706,14 @@ preserved. One edit or adjacent transposition on words of at least four characte
 correct. Feedback never chooses a rating: the learner explicitly selects Again, Hard, Good or Easy.
 
 Listening uses the term and the Deck/account target language through browser speech synthesis.
-Recordings are optional. Playback starts on a user gesture, follows late voice availability, supports
-replay and cancels when the card leaves. Missing/unusable voices leave Show answer available. There is
+The learner types the heard term; the same local accepted-answer comparison used by Production provides
+feedback before an explicit FSRS rating. Meaning/context appears only after check or Show answer.
+Playback starts on a user gesture, follows `voiceschanged`, supports replay and cancels when the card
+leaves. Voice resolution prefers an exact compatible locale, then a compatible device locale and stable
+system metadata, never an unrelated language. Setup exposes a device-local voice preference and preview
+when multiple compatible voices exist. Explicit Listening setup requires a usable language/voice;
+language recovery opens the existing individual Deck settings. Voice loss during a session leaves typing
+and Show answer available. There is
 no speech recognition. Vocabulary directions can be enabled explicitly using the existing manual card
 endpoint; no existing card is replaced and no progressive unlocking rule is introduced. Practice remains
 the independent schedule-free mode.
@@ -728,7 +739,8 @@ rows. One account-bound grouped query supplies leaf counts; Folder totals roll u
 
 Practice persists an optional response mode alongside its chosen fields. Old runs default to Self-check.
 Typing requires one short text answer; Listening requires Term alone as its prompt. Unsupported Notes
-are excluded during reconciliation. Neither mode calls the Review API or writes Card schedules.
+are excluded during reconciliation. Listening checks the term plus accepted answers; its configured
+Back is reveal context, not the typed target. Neither mode calls the Review API or writes Card schedules.
 
 Local projections filter direction-specific Study summaries and move Note totals between ancestor chains.
 A projected or replacement plan keeps cached content visible but shows Updating plan for an unconfirmed

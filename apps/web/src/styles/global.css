@@ -1333,15 +1333,10 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
     padding-bottom: clamp(260px, 36svh, 340px);
     --learning-space: 8px;
   }
-  .neu-session[data-typing-ready] [aria-label='Practice progress'] > div {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 6px;
-  }
 }
-[data-keyboard='open'] .neu-session[data-typing-ready] [data-practice-settings] {
-  visibility: hidden;
-  pointer-events: none;
+.neu-session .neu-practice-progress {
+  /* The persistent header and classification row retain their normal anchors. */
+  margin-top: calc(clamp(8px, 1.5svh, 16px) - var(--learning-space));
 }
 .neu-session > header,
 .neu-session .neu-learning-actions {

@@ -395,9 +395,11 @@ export function StudyScreen({
       account.data?.settings.targetLanguage)
     : undefined;
   const typedAnswer =
-    current?.direction === 'production' && face?.back.length === 1
-      ? face.back[0]?.value
-      : undefined;
+    current?.direction === 'listening'
+      ? String(note?.fields['term'] ?? '')
+      : current?.direction === 'production' && face?.back.length === 1
+        ? face.back[0]?.value
+        : undefined;
   if (practicing && plan)
     return <Practice notes={plan.notes} onFinish={() => setPracticing(false)} />;
   const completed = Object.values(answeredCards).filter((count) => count > 0).length;
@@ -476,6 +478,7 @@ export function StudyScreen({
               response={
                 typedAnswer ? (
                   <TypedResponse
+                    key={current.id}
                     value={typed}
                     onChange={setTyped}
                     answer={typedAnswer}
@@ -496,7 +499,17 @@ export function StudyScreen({
               }
               answer={
                 revealed
-                  ? face.back.map((line) => (
+                  ? [
+                      ...face.back,
+                      ...(current.direction === 'listening'
+                        ? ['translation', 'definition', 'example'].flatMap((field) => {
+                            const value = note?.fields[field];
+                            return typeof value === 'string' && value.trim()
+                              ? [{ field, value }]
+                              : [];
+                          })
+                        : []),
+                    ].map((line) => (
                       <p key={line.field}>
                         {line.value}
                         {line.field === 'term' && (
@@ -545,7 +558,7 @@ export function StudyScreen({
             ) : (
               <Button
                 full
-                variant="primary"
+                variant={typedAnswer ? 'quiet' : 'primary'}
                 disabled={!face || !!transportError}
                 onClick={() => setRevealed(true)}
               >

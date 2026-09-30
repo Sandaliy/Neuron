@@ -1,11 +1,11 @@
 import { keepPreviousData, useIsMutating, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
 
 import { DEFAULT_ANSWER_SECONDS } from '@neuron/core';
 import { dailyStudySessionSchema, studyDecks } from '@neuron/shared';
-import type { DeckNode, DailyStudySession } from '@neuron/shared';
+import type { DeckNode, DailyStudySession, MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
@@ -20,6 +20,7 @@ import { ErrorState, Skeleton } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { DeckSettingsDialog } from '../library/deck-dialogs';
 
+import { ListeningSetup, useListeningAvailability } from './listening-setup';
 import { StudyScreen } from './study';
 import { StudyScope } from './study-scope';
 
@@ -127,6 +128,10 @@ function Waiting({
   const [direction, setDirection] = useState('');
   const [override, setOverride] = useState(false);
   const [skillSettingsOpen, setSkillSettingsOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const selectedDecks = live.filter((deck) => selected.includes(deck.id));
+  const listening = useListeningAvailability(decks, selectedDecks);
+  const listeningBlocked = direction === 'listening' && listening.some((item) => !item.voice);
   const plan = useQuery<StudyPlanProjection>({
     queryKey: [
       'study-plan',
@@ -168,67 +173,97 @@ function Waiting({
     selected.length === 1 && unsupported.length === 1 && result?.cards.length === 0;
   const caughtUp =
     result?.availableCount === 0 && selected.length > 0 && !reconciling && !singleUnsupported;
+  const expanded = setupOpen || unsupported.length > 0 || listeningBlocked;
   const setup = selected.length > 0 && (
     <div className="flex flex-col gap-12 border-t border-subtle pt-16">
-      <div className="flex items-center justify-between gap-12">
-        <span className="text-13 text-secondary">{t('study.scope')}</span>
-        <Button variant="text" className="min-w-0 px-8" onClick={() => setScopeOpen(true)}>
-          <span className="truncate">{scopeLabel}</span>
-          <ChevronDown size={14} aria-hidden="true" />
-        </Button>
-      </div>
-      <div className="grid grid-cols-2 gap-12">
-        <label className="flex flex-col gap-8 text-13 text-secondary">
-          {t('study.minutes')}
-          <Select value={minutes} onChange={(event) => onMinutes(event.target.value)}>
-            <option value="">{t('study.defaultTime')}</option>
-            {[5, 10, 20, 30].map((value) => (
-              <option key={value} value={value}>
-                {t('study.intervalMinutes', { count: value })}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="flex flex-col gap-8 text-13 text-secondary">
-          {t('study.skill')}
-          <Select value={direction} onChange={(event) => setDirection(event.target.value)}>
-            <option value="">{t('study.mixed')}</option>
-            {(['recognition', 'recall', 'production', 'listening'] as const).map((mode) => (
-              <option key={mode} value={mode}>
-                {t(`study.direction.${mode}`)}
-              </option>
-            ))}
-          </Select>
-        </label>
-      </div>
-      {(singleUnsupported || (selected.length > 1 && unsupported.length > 0)) && (
-        <div role="status" className="flex flex-col gap-8 text-13 text-secondary">
-          <p>
-            {t(singleUnsupported ? 'study.modeUnavailableSingle' : 'study.modeUnavailableMulti', {
-              count: unsupported.length,
-            })}
-          </p>
-          {singleUnsupported && (
-            <Button
-              variant="text"
-              className="self-start px-8"
-              onClick={() => setSkillSettingsOpen(true)}
-            >
-              {t('study.enableSkill')}
+      <Button
+        variant="text"
+        className="w-full justify-start px-0 text-left"
+        aria-label={t('study.setup')}
+        aria-expanded={expanded}
+        aria-controls="study-setup"
+        onClick={() => setSetupOpen(!expanded)}
+      >
+        <SlidersHorizontal size={18} className="shrink-0" aria-hidden="true" />
+        <span className="flex min-w-0 flex-1 flex-col gap-4">
+          <span className="text-14">{t('study.setup')}</span>
+          <span className="truncate text-12 text-secondary">
+            {scopeLabel} ·{' '}
+            {minutes
+              ? t('study.intervalMinutes', { count: Number(minutes) })
+              : t('study.defaultTime')}{' '}
+            · {direction ? t(`study.direction.${direction}` as MessageKey) : t('study.mixed')}
+          </span>
+        </span>
+        <ChevronDown size={14} aria-hidden="true" />
+      </Button>
+      <div id="study-setup" hidden={!expanded}>
+        <div className="flex flex-col gap-12">
+          <div className="flex items-center justify-between gap-12">
+            <span className="text-13 text-secondary">{t('study.scope')}</span>
+            <Button variant="text" className="min-w-0 px-8" onClick={() => setScopeOpen(true)}>
+              <span className="truncate">{scopeLabel}</span>
+              <ChevronDown size={14} aria-hidden="true" />
             </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-12">
+            <label className="flex flex-col gap-8 text-13 text-secondary">
+              {t('study.minutes')}
+              <Select value={minutes} onChange={(event) => onMinutes(event.target.value)}>
+                <option value="">{t('study.defaultTime')}</option>
+                {[5, 10, 20, 30].map((value) => (
+                  <option key={value} value={value}>
+                    {t('study.intervalMinutes', { count: value })}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="flex flex-col gap-8 text-13 text-secondary">
+              {t('study.skill')}
+              <Select value={direction} onChange={(event) => setDirection(event.target.value)}>
+                <option value="">{t('study.mixed')}</option>
+                {(['recognition', 'recall', 'production', 'listening'] as const).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {t(`study.direction.${mode}`)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
+          {(singleUnsupported || (selected.length > 1 && unsupported.length > 0)) && (
+            <div role="status" className="flex flex-col gap-8 text-13 text-secondary">
+              <p>
+                {t(
+                  singleUnsupported ? 'study.modeUnavailableSingle' : 'study.modeUnavailableMulti',
+                  {
+                    count: unsupported.length,
+                  },
+                )}
+              </p>
+              {singleUnsupported && (
+                <Button
+                  variant="text"
+                  className="self-start px-8"
+                  onClick={() => setSkillSettingsOpen(true)}
+                >
+                  {t('study.enableSkill')}
+                </Button>
+              )}
+            </div>
           )}
+          {(result?.newCards.overrideAvailable || override) && (
+            <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
+              <input
+                type="checkbox"
+                checked={override}
+                onChange={(event) => setOverride(event.target.checked)}
+              />
+              {t('study.moreNew')}
+            </label>
+          )}
+          {direction === 'listening' && <ListeningSetup decks={decks} selected={selectedDecks} />}
         </div>
-      )}
-      {(result?.newCards.overrideAvailable || override) && (
-        <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
-          <input
-            type="checkbox"
-            checked={override}
-            onChange={(event) => setOverride(event.target.checked)}
-          />
-          {t('study.moreNew')}
-        </label>
-      )}
+      </div>
     </div>
   );
   const waiting = (result?.deckSummaries ?? [])
@@ -323,6 +358,7 @@ function Waiting({
               full
               disabled={
                 !result.cards.length ||
+                listeningBlocked ||
                 plan.isFetching ||
                 plan.isPlaceholderData ||
                 mutations > 0 ||

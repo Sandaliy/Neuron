@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { SlidersHorizontal } from 'lucide-react';
+import { Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import {
@@ -35,6 +35,7 @@ import { ErrorState, SkeletonRows } from '../../ui/states';
 import { TypedResponse } from '../../ui/typed-response';
 
 import { ListeningPrompt, Speaker } from './listening-prompt';
+import { ListeningSetup, useListeningAvailability } from './listening-setup';
 
 /** Session completion chooses a deck; every entry resumes the same durable run. */
 export function Practice({
@@ -140,16 +141,24 @@ function PersistentPractice({
   const [response, setResponse] = useState<PracticeResponse>('reveal');
   const [typed, setTyped] = useState('');
   const [typingReady, setTypingReady] = useState(false);
+  const [undo, setUndo] = useState<{ epoch: number; entries: PracticeRun[] }>({
+    epoch: state.undoEpoch,
+    entries: [],
+  });
+  const history = undo.epoch === state.undoEpoch ? undo.entries : [];
+  const setHistory = (entries: PracticeRun[]) => setUndo({ epoch: state.undoEpoch, entries });
   const decks = useDeckTree();
   const account = useAccount();
   const language =
     settingsFor(decks.data ?? [], deckId).targetLanguage ?? account.data?.settings.targetLanguage;
   const run = state.run;
+  const deck = findDeck(decks.data ?? [], deckId);
+  const listening = useListeningAvailability(decks.data ?? [], deck ? [deck] : []);
+  const listeningBlocked = !listening.length || listening.some((item) => !item.voice);
   const current = notes.find((note) => note.id === run?.queue[0]);
   const statuses = Object.values(run?.statuses ?? {});
   const known = statuses.filter((status) => status === 'known').length;
   const learning = statuses.filter((status) => status === 'learning').length;
-  const stillLearning = statuses.length - known;
   const eligible = notes.filter((note) =>
     supportsPracticeResponse(note.fields, front, back, response),
   );
@@ -171,6 +180,7 @@ function PersistentPractice({
     setConfiguring(true);
   }
   function startRun() {
+    setHistory([]);
     store.act({ kind: 'start', front, back, response });
     setTyped('');
     setTypingReady(false);
@@ -200,24 +210,32 @@ function PersistentPractice({
         title={t('practice.title')}
         exitLabel={t('practice.exit')}
         onExit={onFinish}
-        {...(active && !configuring ? { value: known, max: statuses.length } : {})}
+        {...(active && !configuring ? { value: learning + known, max: statuses.length } : {})}
         action={
           <div className="flex items-center gap-4">
             {run && (
-              <span role="status" className="text-12 text-secondary">
+              <span role="status" className="w-56 text-right text-12 text-secondary">
                 {t(state.saving ? 'practice.saving' : 'practice.saved')}
               </span>
             )}
             {run && active && !configuring && (
               <Button
-                data-practice-settings=""
                 variant="text"
                 className="w-44 text-secondary"
-                aria-label={t('practice.settings')}
-                title={t('practice.settings')}
-                onClick={openSettings}
+                aria-label={t('study.undo')}
+                title={t('study.undo')}
+                disabled={!history.length || !!state.error || history.at(-1)?.id !== run.id}
+                onClick={() => {
+                  const previous = history.at(-1);
+                  if (!previous) return;
+                  store.act({ kind: 'undo', previous });
+                  setHistory(history.slice(0, -1));
+                  setTyped('');
+                  setTypingReady(false);
+                  setRevealed(false);
+                }}
               >
-                <SlidersHorizontal size={18} aria-hidden="true" />
+                <Undo2 size={20} strokeWidth={1.5} aria-hidden="true" />
               </Button>
             )}
           </div>
@@ -225,18 +243,18 @@ function PersistentPractice({
       />
       {active && !configuring && run && (
         <div
-          className="grid grid-cols-2 gap-16 text-13 text-secondary"
+          className="neu-practice-progress grid shrink-0 grid-cols-2 gap-16 text-12 text-secondary"
           aria-label={t('practice.progressLabel')}
         >
-          <div className="flex flex-col">
+          <div className="flex items-baseline gap-8">
             <span>{t('practice.learning')}</span>
-            <strong data-numeric="" className="text-20 font-semibold text-primary">
-              {stillLearning}
+            <strong data-numeric="" className="text-15 font-medium text-primary">
+              {learning}
             </strong>
           </div>
-          <div className="flex flex-col items-end text-right">
+          <div className="flex items-baseline justify-end gap-8 text-right">
             <span>{t('practice.know')}</span>
-            <strong data-numeric="" className="text-20 font-semibold text-primary">
+            <strong data-numeric="" className="text-15 font-medium text-primary">
               {known}
             </strong>
           </div>
@@ -268,11 +286,31 @@ function PersistentPractice({
           <p className="text-13 text-secondary">
             {t('practice.pool', { count: statuses.length, total: notes.length })}
           </p>
-          <Button full variant="primary" onClick={() => setActive(true)}>
+          {run.response === 'listening' && (
+            <ListeningSetup decks={decks.data ?? []} selected={deck ? [deck] : []} />
+          )}
+          <Button
+            full
+            variant="primary"
+            disabled={run.response === 'listening' && listeningBlocked}
+            onClick={() => setActive(true)}
+          >
             {t('practice.resume')}
           </Button>
           <Button variant="text" onClick={openSettings}>
             {t('practice.settings')}
+          </Button>
+          <Button
+            variant="text"
+            disabled={run.response === 'listening' && listeningBlocked}
+            onClick={() => {
+              setFront(run.front);
+              setBack(run.back);
+              setResponse(run.response ?? 'reveal');
+              setConfirmNew(true);
+            }}
+          >
+            {t('practice.newRun')}
           </Button>
         </Card>
       ) : !run || configuring ? (
@@ -315,6 +353,9 @@ function PersistentPractice({
           {response !== 'reveal' && (
             <p className="text-13 text-secondary">{t(`practice.${response}Hint`)}</p>
           )}
+          {response === 'listening' && (
+            <ListeningSetup decks={decks.data ?? []} selected={deck ? [deck] : []} />
+          )}
           <div className="grid grid-cols-2 gap-12">
             {(['front', 'back'] as const).map((side) => (
               <PracticeFieldChoice
@@ -331,7 +372,12 @@ function PersistentPractice({
           </p>
           <Button
             variant="primary"
-            disabled={samePracticeSides(front, back) || !eligible.length || !!state.error}
+            disabled={
+              samePracticeSides(front, back) ||
+              !eligible.length ||
+              !!state.error ||
+              (response === 'listening' && listeningBlocked)
+            }
             onClick={applySettings}
           >
             {t(run ? (sameRecipe ? 'practice.resume' : 'practice.newRun') : 'practice.start')}
@@ -368,15 +414,19 @@ function PersistentPractice({
                   )
                 }
                 response={
-                  run.response === 'typing' ? (
+                  run.response === 'typing' || run.response === 'listening' ? (
                     <TypedResponse
+                      key={current.id}
                       value={typed}
                       onChange={setTyped}
                       answer={String(
-                        practiceValue(current.fields, practiceFields(run.back)[0]!) ?? '',
+                        practiceValue(
+                          current.fields,
+                          run.response === 'listening' ? 'term' : practiceFields(run.back)[0]!,
+                        ) ?? '',
                       )}
                       alternatives={
-                        practiceFields(run.back)[0] === 'term' &&
+                        (run.response === 'listening' || practiceFields(run.back)[0] === 'term') &&
                         Array.isArray(current.fields['acceptedAnswers'])
                           ? current.fields['acceptedAnswers'].filter(
                               (value): value is string => typeof value === 'string',
@@ -395,7 +445,11 @@ function PersistentPractice({
                   revealed ? (
                     <PracticeFace
                       fields={current.fields}
-                      side={run.back}
+                      side={
+                        run.response === 'listening'
+                          ? [...new Set(['term' as const, ...practiceFields(run.back)])]
+                          : run.back
+                      }
                       language={language}
                       identity={current.id}
                     />
@@ -410,6 +464,7 @@ function PersistentPractice({
                       variant={value ? 'primary' : 'quiet'}
                       disabled={!!state.error}
                       onClick={() => {
+                        setHistory([...history, run]);
                         store.act({ kind: 'answer', noteId: current.id, known: value });
                         setTyped('');
                         setTypingReady(false);
@@ -423,7 +478,9 @@ function PersistentPractice({
               ) : (
                 <Button
                   className="neu-learning-actions shrink-0"
-                  variant="primary"
+                  variant={
+                    run.response === 'typing' || run.response === 'listening' ? 'quiet' : 'primary'
+                  }
                   onClick={() => setRevealed(true)}
                 >
                   {t('study.reveal')}
@@ -442,7 +499,7 @@ function PersistentPractice({
                   {t(learning ? 'practice.roundComplete' : 'practice.cleared')}
                 </h2>
                 <p className="text-14 text-secondary">
-                  {t('practice.completionCounts', { known, learning: statuses.length - known })}
+                  {t('practice.completionCounts', { known, learning })}
                 </p>
               </div>
               {learning > 0 ? (
@@ -457,14 +514,15 @@ function PersistentPractice({
                 <Button
                   variant="text"
                   disabled={!!state.error}
-                  onClick={() =>
+                  onClick={() => {
+                    setHistory([]);
                     store.act({
                       kind: 'start',
                       front: run.front,
                       back: run.back,
                       ...(run.response ? { response: run.response } : {}),
-                    })
-                  }
+                    });
+                  }}
                 >
                   {t('practice.restart')}
                 </Button>
