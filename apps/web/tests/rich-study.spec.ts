@@ -4,6 +4,7 @@ import { advancePractice } from '@neuron/shared';
 import type { PracticeRun } from '@neuron/shared';
 
 import { useFixtures, usePreferences } from './fixtures';
+import { useSpeech } from './speech-fixture';
 
 import type { Locator, Page } from '@playwright/test';
 
@@ -242,6 +243,80 @@ test('given a listening card, missing and late voices preserve replay and reveal
   await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
 });
 
+for (const screen of ['Study', 'Practice'] as const)
+  test(`${screen} Listen to Type checks the heard term, keeps context hidden, and waits for an explicit decision`, async ({
+    page,
+  }, info) => {
+    await useSpeech(page);
+    await usePreferences(page, { locale: 'en', theme: 'dark' });
+    await useFixtures(page, { decks: [deck], notes: [note] });
+    const writes: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST') writes.push(new URL(request.url()).pathname);
+    });
+    if (screen === 'Study') {
+      await page.route('**/api/study/session', (route) =>
+        route.fulfill({ json: plan({ ...base, direction: 'listening' }) }),
+      );
+      await page.route('**/api/reviews', (route) => route.fulfill({ json: { card: base } }));
+      await page.goto('/');
+      await page.getByRole('button', { name: 'Study', exact: true }).click();
+    } else {
+      let run: PracticeRun | null = null;
+      let version = 0;
+      await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+        if (route.request().method() === 'POST') {
+          run = advancePractice(run, route.request().postDataJSON(), [note]);
+          version++;
+        }
+        return route.fulfill({ json: { run, version } });
+      });
+      await page.goto(`/notes?deckId=${deck.id}`);
+      await page.getByRole('button', { name: 'Practice', exact: true }).click();
+      await page.getByRole('combobox', { name: 'Response mode' }).selectOption('listening');
+      const voices = page.getByRole('combobox', { name: /Voice on this device/ });
+      await expect(voices).toHaveValue('de-DE|Alpha|alpha');
+      await voices.selectOption('de-DE|Beta|beta');
+      await page.getByRole('button', { name: 'Preview', exact: true }).click();
+      await expect(page.locator('html')).toHaveAttribute('data-spoken-voice', 'Beta');
+      await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+    }
+    await expect(page.getByText('Sorgfalt', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('care', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Play / replay', exact: true }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-spoken-text', 'Sorgfalt');
+    await page.evaluate(() => {
+      document.documentElement.dataset['speechFail'] = 'true';
+    });
+    await page.getByRole('button', { name: 'Play / replay', exact: true }).click();
+    await expect(
+      page.getByText('A usable voice for this language is not available yet.'),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Type your answer' }).fill('Sorgfaltx');
+    if (screen === 'Study')
+      await page.getByRole('textbox', { name: 'Type your answer' }).press('Enter');
+    else await page.getByRole('button', { name: 'Check answer', exact: true }).click();
+    await expect(page.getByText('1 extra letter', { exact: true })).toBeVisible();
+    await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
+    await expect(page.getByText('care', { exact: true })).toBeVisible();
+    expect(writes.filter((path) => path.endsWith('/reviews'))).toHaveLength(0);
+    await page.screenshot({
+      path: info.outputPath(`listen-type-${screen}.png`),
+      animations: 'disabled',
+    });
+    if (screen === 'Study') {
+      for (const rating of ['Again', 'Hard', 'Good', 'Easy'])
+        await expect(page.getByRole('button', { name: new RegExp(`^${rating} `) })).toBeEnabled();
+      await page.getByRole('button', { name: /^Easy / }).click();
+      await expect.poll(() => writes.filter((path) => path.endsWith('/reviews')).length).toBe(1);
+    } else {
+      await page.getByRole('button', { name: 'Known', exact: true }).click();
+      expect(writes.every((path) => path.endsWith('/practice'))).toBe(true);
+    }
+    await expect(page.locator('html')).toHaveAttribute('data-speech-canceled', 'true');
+  });
+
 for (const direction of ['production', 'listening'] as const)
   test(`enabling ${direction} in the Note editor reaches Study`, async ({ page }) => {
     await usePreferences(page, { locale: 'en', theme: 'dark' });
@@ -316,10 +391,16 @@ for (const screen of ['Study', 'Practice'] as const)
       const card = page.locator('.neu-learning-card');
       const normal = await card.boundingBox();
       const initialFrame = await frame.boundingBox();
+      const header = await page.locator('.neu-session > header').boundingBox();
+      const progress =
+        screen === 'Practice' ? await page.locator('.neu-practice-progress').boundingBox() : null;
       await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
       const input = page.getByLabel('Type your answer', { exact: true });
       await expect(input).toBeFocused();
       await expect(page.locator('.neu-session')).toHaveAttribute('data-typing-ready', 'true');
+      expect(await page.locator('.neu-session > header').boundingBox()).toEqual(header);
+      if (progress)
+        expect(await page.locator('.neu-practice-progress').boundingBox()).toEqual(progress);
       const phone = page.viewportSize()!.width < 640;
       if (phone)
         await expect.poll(async () => (await card.boundingBox())?.height).toBeLessThan(350);
@@ -464,10 +545,14 @@ for (const screen of ['Study', 'Practice'] as const)
     await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
     const first = page.getByLabel('Type your answer', { exact: true });
     await expect(first).toBeFocused();
+    await first.press('Enter');
+    await expect(page.locator('.neu-spelling')).toHaveCount(0);
+    await first.fill('Sorgfaltx');
     await first.blur();
     await expect(page.locator('.neu-session')).not.toHaveAttribute('data-typing-ready', 'true');
     await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
     await expect(first).toBeFocused();
+    await expect(first).toHaveValue('Sorgfaltx');
     await first.fill('Sorgfalt');
     await first.press('Enter');
     await expect(page.locator('.neu-spelling')).toBeVisible();
@@ -702,6 +787,7 @@ test('My Study Decks scope reacts locally while a replacement admission plan is 
   });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
   await page.getByRole('button', { name: /My study decks/ }).click();
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   const measured = await responsePaint(

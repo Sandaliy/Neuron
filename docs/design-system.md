@@ -603,12 +603,14 @@ review and the Deck Practice entry compact.
 
 Study and Practice use `LearningCard`: a generous reading surface, quiet truthful context, large prompt,
 and a separated revealed answer. Compact session controls and a thin semantic Progress line precede
-it; reveal/grade actions stay in a predictable lower region. Practice counters measure remaining and
-known Notes, including unseen Notes in remaining work. They do not imply SRS mastery. Never invent
+it; reveal/grade actions stay in a predictable lower region. Practice counters measure currently learning
+and known Notes; unseen Notes contribute to neither. The thin progress line measures classified Notes
+over eligible Notes. The compact label/count row retains identical anchors during Typing. They do not
+imply SRS mastery. Never invent
 language pairs, grammar, streaks, or statistics not provided by the current model/presentation recipe.
 
 Standalone meaningful actions such as Practice and Undo have a bounded neutral control. Lightweight
-utilities such as Practice settings may use text treatment when the surrounding group makes
+utilities such as the Practice entry settings may use text treatment when the surrounding group makes
 their role clear. Avoid multiple equal-weight action slabs competing with Study.
 
 Library drag lifts the full collection row. The source retains its footprint at reduced opacity, sibling
@@ -638,6 +640,8 @@ collapses animation through the existing global preference contract.
 
 `ModeHeader` uses equal side columns with a centered title, a quiet 44px exit target and optional
 secondary action. Study uses an accessible Undo icon. Thin progress sits directly below the header.
+Active Practice uses the same Undo icon; recipe/settings belong to the entry/resume surface. Undo
+traverses this active visit, including completion, and restores the current card and classified counts.
 Practice completion uses a restrained percentage ring and known/remaining counts, with explicit
 continue, finish and restart actions. A Deck's Practice entry is a full-width secondary surface showing
 saved progress; it never gates Deck loading. Completed runs remain completed until explicit restart.
@@ -669,8 +673,11 @@ above the expected keyboard band on phone widths. Desktop keeps the normal readi
 inside that same activation gesture. Safari's keyboard
 then enters below the anchored surface without a second learning-frame geometry commit. The card consumes
 the remaining visible band after header, response, actions, and safe areas; the prompt and action remain
-reachable. Secondary Practice settings leave the keyboard-open composition and return after blur. Input
-stays at least 16px. Enter checks locally and blurs; feedback and ratings remain available without
+reachable. Persistent header and progress controls keep their anchors through focus. Input
+stays at least 16px. Return, explicit newline insertion and Check share one local submission path;
+submitted text is captured before blur, and ordinary blur retains the draft visibly in the activator.
+The input remains mounted through keyboard dismissal so a late native submit can still reach its form.
+Empty or composing Return does not check. Feedback and ratings remain available without
 transport. Long reading content scrolls within the card; grading remains outside it. Unusually small
 viewports and enlarged text are checked in browser coverage and remain part of physical-device acceptance.
 
@@ -679,6 +686,16 @@ errors use the error tone and an underline, with a dotted insertion for omitted 
 answer remains prominent above this comparison. A single short result and screen-reader descriptions
 replace a permanent legend. Accepted alternatives receive the same accepted treatment as the canonical
 answer. Feedback never chooses an FSRS rating.
+
+Listening reuses this Typing composition. The hidden term is spoken on request and checked against the
+term plus accepted answers. Back/meaning/context appears after checking; Show answer stays a secondary
+escape. Listening setup explains missing language/voices and opens individual Deck settings directly.
+Multiple compatible voices can be previewed and selected there, with device-local preference.
+
+Today keeps Ready, review/new counts, estimate and Study prominent. A labelled Study setup disclosure
+summarizes scope, duration and mode; its expanded controls retain their temporary choices when closed.
+Valid setup defaults closed. Unavailable modes or Listening configuration requiring intervention expose
+the controls automatically. Persistent Deck skills remain separate, deliberate settings.
 
 Audio has a 44px target and 24px glyph on visible target-language content. A missing voice in Listening
 shows its fallback immediately; a normal word's audio action explains unavailability on tap. Playback

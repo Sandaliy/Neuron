@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-09-28, learning interaction release in verification.
+Last updated: 2026-10-01, Listen → Type and acceptance polish prepared for protected PR review.
 
 ## Current release slice
 
@@ -34,14 +34,27 @@ study day while precise retries remain eligible. Today and per-Deck summaries sh
 rule, and Today shows an updating state after confirmed answers until server-owned admission returns.
 Physical-iPhone production acceptance of completed-session Today reconciliation remains outstanding.
 
-PR #31 and PR #32 are merged into `main`. Their measured visual-viewport and delayed
-learning-frame commits produced repeatable endpoints but a visibly unacceptable native transition on a
-physical iPhone. The current release branch replaces that interaction with a layout-viewport anchored
-learning frame and a pre-focus keyboard-ready composition. Practice exposes its saved recipe and
-resume path, with Still learning / Known counts. Today exposes temporary Study scope, duration and mode;
-persistent Deck skills remain deliberate Deck settings. Study Undo now traverses only the active
-session's answers, with serialized append-only compensation. Physical-iPhone keyboard transition
-acceptance remains outstanding; browser viewport injection cannot prove native compositor behavior.
+PR #33 is merged at `b4f3c53`. Its layout-viewport anchored learning frame and pre-focus keyboard-ready
+composition are accepted on the physical iPhone and remain the baseline. Study Undo traverses only the
+active session's answers, with serialized append-only compensation.
+
+The next slice is prepared on `work/listen-type-polish`, not yet merged or production-verified. It keeps
+header/progress anchors stable, unifies native Return and Check, and preserves drafts through blur.
+Practice starts at 0 learning / 0 known, measures classified progress, and provides visit-local,
+versioned multi-step Undo without Review/schedule writes. Recipe settings stay at entry/resume. Today
+uses a discoverable Study setup disclosure. Scheduled and Practice Listening now check the typed heard
+term, reveal context afterwards, and leave the learner's rating/classification explicit. Listening
+setup exposes Deck-language recovery and deterministic compatible system voices with device-local choice.
+
+Local verification is complete: 326 shared/web unit tests, 11 real-Postgres learning-product tests,
+the opt-in live API/database browser flow, the built-app serial interaction gate (256 passed, 4 skipped),
+31 WebKit learning tests, and 10 affected screenshot checks passed. Typechecks, lint, formatting and
+the web build passed. Only the six inspected Today baselines changed. Hosted PR checks and physical
+acceptance remain separate from this local evidence.
+
+Physical-iPhone acceptance is still required for native Done, header stability, Practice counters/Undo,
+Today disclosure, and Listening quality/flow. Browser evidence cannot prove native keyboard or audio
+quality. External TTS, Library hierarchy/status language, and navigation/tab selection remain deferred.
 
 ## Now
 
@@ -88,9 +101,8 @@ Today or Study.
 ## Next
 
 1. Repeat physical-iPhone production acceptance of completed-session Today reconciliation after PR #30.
-2. Complete protected checks for the learning interaction release, then verify repeated Typing opening,
-   closing, checking and advancing on a physical iPhone in production.
-3. Revisit Listening's main interaction (possibly Listen → Type), TTS language setup and voice quality.
+2. Complete protected delivery and physical-iPhone acceptance of Listen → Type and interaction polish.
+3. Reassess system speech quality after device acceptance before considering external TTS.
 4. Refine Folder/Deck visual hierarchy and replace implementation-oriented Note/Card summaries such as
    `mixed` and `3 in review` with learner-facing language.
 5. Make broader key flows feel less developer-oriented, consider lightweight navigation motion, and

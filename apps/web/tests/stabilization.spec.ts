@@ -263,6 +263,7 @@ test('Study setup and scope open locally while the initial plan is unresolved', 
   });
   await page.goto('/');
   await expect.poll(() => received).toBe(true);
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
   await page.getByRole('button', { name: /My study decks|Мои учебные колоды|Study decks/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByText('You are caught up', { exact: true })).toHaveCount(0);
@@ -336,6 +337,7 @@ test('Today scopes are temporary and distinguish no decks from caught up', async
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('today.png') });
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
   await page.getByRole('button', { name: /My study decks|Мои учебные колоды|Study decks/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.screenshot({ animations: 'disabled', path: test.info().outputPath('deck-scope.png') });

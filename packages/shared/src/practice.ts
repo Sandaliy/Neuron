@@ -115,6 +115,13 @@ export const practiceCommandSchema = z.discriminatedUnion('kind', [
     known: z.boolean(),
   }),
   z.strictObject({
+    kind: z.literal('undo'),
+    id: z.uuid(),
+    expectedVersion: z.number().int().nonnegative(),
+    runId: z.uuid(),
+    previous: practiceRunSchema,
+  }),
+  z.strictObject({
     kind: z.literal('round'),
     id: z.uuid(),
     expectedVersion: z.number().int().nonnegative(),
@@ -161,6 +168,40 @@ export function advancePractice(
   }
   if (!run || run.id !== command.runId) throw new Error('Practice run changed');
   const current = reconcilePractice(run, notes);
+  if (command.kind === 'undo') {
+    const previous = command.previous;
+    if (
+      previous.id !== current.id ||
+      JSON.stringify(previous.front) !== JSON.stringify(current.front) ||
+      JSON.stringify(previous.back) !== JSON.stringify(current.back) ||
+      previous.response !== current.response ||
+      new Set(previous.queue).size !== previous.queue.length
+    )
+      throw new Error('Practice run changed');
+    // Only reverse one classification, optionally crossing its subsequent round boundary.
+    // The expected version protects the inverse from concurrent commands.
+    const restored = reconcilePractice(previous, notes);
+    const noteId = restored.queue[0];
+    if (!noteId || current.statuses[noteId] === 'unseen')
+      throw new Error('Practice position changed');
+    const after = {
+      ...restored,
+      statuses: { ...restored.statuses, [noteId]: current.statuses[noteId] },
+      queue: restored.queue.slice(1),
+    };
+    if (current.round === after.round + 1 && !after.queue.length) {
+      after.round++;
+      after.queue = Object.keys(after.statuses).filter((id) => after.statuses[id] !== 'known');
+    }
+    if (
+      after.round !== current.round ||
+      JSON.stringify(after.queue) !== JSON.stringify(current.queue) ||
+      Object.keys(current.statuses).some((id) => current.statuses[id] !== after.statuses[id])
+    ) {
+      throw new Error('Practice position changed');
+    }
+    return restored;
+  }
   if (command.kind === 'round') {
     if (current.queue.length) throw new Error('Round is unfinished');
     return {

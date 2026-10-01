@@ -78,7 +78,7 @@ for (const theme of THEMES) {
       await page.clock.setFixedTime(SNAPSHOT_TIME);
       await page.goto('/');
       await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
-      await expect(page.getByRole('combobox', { name: 'Study mode' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Study setup', exact: true })).toBeVisible();
       await settle(page);
       await page.getByRole('button', { name: 'Study', exact: true }).click();
       await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();

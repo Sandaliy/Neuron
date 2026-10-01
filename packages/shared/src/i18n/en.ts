@@ -2,6 +2,10 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'study.setup': 'Study setup',
+  'study.languageRequired': 'Set a target language for Listening.',
+  'study.systemVoice': 'Voice on this device',
+  'study.previewVoice': 'Preview',
   'today.updatingPlan': 'Updating plan…',
   'study.extraLetter': '1 extra letter',
   'study.missingLetter': '1 missing letter',
@@ -25,7 +29,7 @@ export const en = {
   'practice.typingHint':
     'Choose one short text field for the answer. Long text, combined fields and yes/no fields are excluded.',
   'practice.listeningHint':
-    'Choose Term alone on the front. Play the word, then reveal your chosen answer fields. Notes without a term are excluded.',
+    'Choose Word alone on the front. Listen, type the word, then check it. Back provides meaning or context after checking.',
   'note.readyCards': '{count} cards ready now',
   'note.restartHint':
     'Start these cards from new again. Review history is preserved. To resume without resetting, use Return to study.',
@@ -74,7 +78,7 @@ export const en = {
   'study.feedback.close': 'Close. Compare the spelling with the answer.',
   'study.feedback.incorrect': 'Compare your answer with the answer shown.',
   'study.chooseRating': 'Choose a rating yourself.',
-  'study.listenPrompt': 'Listen and recall the word',
+  'study.listenPrompt': 'Listen, then type the word',
   'study.replay': 'Play / replay',
   'study.voiceUnavailable': 'A usable voice for this language is not available yet.',
   'study.listenFallback': 'You can always show the answer and continue.',

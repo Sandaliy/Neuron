@@ -7,6 +7,10 @@ import type { Messages } from './en.js';
  * compilation error rather than a blank space on somebody's screen.
  */
 export const ru = {
+  'study.setup': 'Настройка занятия',
+  'study.languageRequired': 'Выбери изучаемый язык для аудирования.',
+  'study.systemVoice': 'Голос на этом устройстве',
+  'study.previewVoice': 'Прослушать',
   'today.updatingPlan': 'Обновляем план…',
   'study.extraLetter': '1 лишняя буква',
   'study.missingLetter': '1 пропущенная буква',
@@ -30,7 +34,7 @@ export const ru = {
   'practice.typingHint':
     'Выбери одно короткое текстовое поле ответа. Длинный текст, сочетания полей и поля да/нет исключены.',
   'practice.listeningHint':
-    'Выбери только слово на лицевой стороне. Прослушай его и открой ответ. Заметки без слова исключены.',
+    'Выбери только слово на лицевой стороне. Прослушай, введи слово и проверь его. Обратная сторона покажет значение или контекст после проверки.',
   'note.readyCards': 'Готово карточек: {count}',
   'note.restartHint':
     'Начать изучение карточек заново. История повторений сохранится. Для продолжения без сброса выбери «Вернуть в обучение».',
@@ -50,7 +54,7 @@ export const ru = {
   'study.feedback.close': 'Почти. Сравни написание с ответом.',
   'study.feedback.incorrect': 'Сравни свой ответ с показанным.',
   'study.chooseRating': 'Выбери оценку самостоятельно.',
-  'study.listenPrompt': 'Послушай и вспомни слово',
+  'study.listenPrompt': 'Послушай и введи слово',
   'study.replay': 'Воспроизвести / повторить',
   'study.voiceUnavailable': 'Подходящий голос для этого языка пока недоступен.',
   'study.listenFallback': 'Можно открыть ответ и продолжить.',

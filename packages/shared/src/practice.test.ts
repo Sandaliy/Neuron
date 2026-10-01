@@ -20,6 +20,90 @@ const start = {
   back: 'back' as const,
 };
 describe('durable Practice rounds', () => {
+  it('reconciles an inverse against live membership and rejects unrelated state changes', () => {
+    const previous = advancePractice(null, start, notes);
+    const run = advancePractice(
+      previous,
+      {
+        kind: 'answer',
+        id: uuidV7(),
+        runId: previous.id,
+        expectedVersion: 1,
+        noteId: notes[0]!.id,
+        known: true,
+      },
+      notes,
+    );
+    const undo = {
+      kind: 'undo' as const,
+      id: uuidV7(),
+      runId: run.id,
+      expectedVersion: 2,
+      previous,
+    };
+    const survivors = [notes[0]!, notes[2]!];
+    expect(advancePractice(run, undo, survivors)).toEqual(reconcilePractice(previous, survivors));
+    expect(() =>
+      advancePractice(
+        run,
+        {
+          ...undo,
+          previous: { ...previous, statuses: { ...previous.statuses, [notes[2]!.id]: 'known' } },
+        },
+        notes,
+      ),
+    ).toThrow('Practice position changed');
+    expect(() =>
+      advancePractice(run, { ...undo, previous: { ...previous, id: uuidV7() } }, notes),
+    ).toThrow('Practice run changed');
+  });
+  it('rewinds classifications and exact queue order repeatedly through completion and rounds', () => {
+    let run = advancePractice(null, start, notes);
+    const history: (typeof run)[] = [];
+    const decide = (known: boolean) => {
+      history.push(run);
+      run = advancePractice(
+        run,
+        {
+          kind: 'answer',
+          id: uuidV7(),
+          runId: run.id,
+          expectedVersion: 1,
+          noteId: run.queue[0]!,
+          known,
+        },
+        notes,
+      );
+    };
+    expect(Object.values(run.statuses).filter((status) => status !== 'unseen')).toHaveLength(0);
+    decide(false);
+    decide(true);
+    decide(true);
+    run = advancePractice(
+      run,
+      { kind: 'round', id: uuidV7(), runId: run.id, expectedVersion: 1 },
+      notes,
+    );
+    decide(false);
+    expect(Object.values(run.statuses).filter((status) => status === 'learning')).toHaveLength(1);
+    run = advancePractice(
+      run,
+      { kind: 'round', id: uuidV7(), runId: run.id, expectedVersion: 1 },
+      notes,
+    );
+    decide(true);
+    expect(Object.values(run.statuses)).toEqual(['known', 'known', 'known']);
+    while (history.length) {
+      const previous = history.pop()!;
+      run = advancePractice(
+        run,
+        { kind: 'undo', id: uuidV7(), runId: run.id, expectedVersion: 1, previous },
+        notes,
+      );
+      expect(run).toEqual(previous);
+    }
+    expect(run).toEqual(advancePractice(null, start, notes));
+  });
   it('keeps scalar runs compatible and requires every populated field in a composed side', () => {
     const legacy = advancePractice(null, start, notes);
     expect(practiceRunSchema.parse(legacy)).toEqual(legacy);

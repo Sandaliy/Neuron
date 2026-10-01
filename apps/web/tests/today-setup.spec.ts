@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { useFixtures, usePreferences } from './fixtures';
+import { useSpeech } from './speech-fixture';
 
 const stamp = '2026-01-01T00:00:00Z';
 const id = (n: number) => `01900000-0000-7000-8000-${String(n).padStart(12, '0')}`;
@@ -95,6 +96,12 @@ test('Study setup is visible, temporary, and gives a direct single-Deck skill ac
   });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Study setup', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await expect(page.getByRole('combobox', { name: 'Study mode' })).not.toBeVisible();
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
   await expect(page.getByRole('button', { name: 'My study decks' })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Time for this session' })).toBeVisible();
   const mode = page.getByRole('combobox', { name: 'Study mode' });
@@ -102,6 +109,10 @@ test('Study setup is visible, temporary, and gives a direct single-Deck skill ac
   for (const label of ['Mixed', 'Recognition', 'Recall', 'Typing', 'Listening'])
     await expect(mode.getByRole('option', { name: label })).toBeAttached();
   await page.getByRole('combobox', { name: 'Time for this session' }).selectOption('5');
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
+  await expect(mode).not.toBeVisible();
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Time for this session' })).toHaveValue('5');
   await mode.selectOption('production');
   await expect.poll(() => bodies.at(-1)).toMatchObject({ minutes: 5, direction: 'production' });
   await expect(page.getByText('Nothing ready in this mode')).toBeVisible();
@@ -154,6 +165,7 @@ test('multi-Deck Study mode explains missing skills without bulk editing', async
     }),
   );
   await page.goto('/');
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
   await page.getByRole('combobox', { name: 'Study mode' }).selectOption('listening');
   await expect(
     page.getByText(
@@ -162,4 +174,52 @@ test('multi-Deck Study mode explains missing skills without bulk editing', async
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open Deck skills' })).toHaveCount(0);
   expect(writes).toEqual([]);
+});
+
+test('Listening setup recovers a missing Deck language through existing settings and detects disappearing voices', async ({
+  page,
+}, info) => {
+  await useSpeech(page);
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  const listeningDeck = {
+    ...deck(1),
+    settings: { ladder: [{ direction: 'listening', opensAtStability: 0 }] },
+  };
+  await useFixtures(page, { decks: [listeningDeck], notes: [note] });
+  const patches: unknown[] = [];
+  await page.route(`**/api/decks/${listeningDeck.id}`, (route) => {
+    const body = route.request().postDataJSON();
+    patches.push(body);
+    Object.assign(listeningDeck.settings, body.settings);
+    return route.fulfill({ json: { deck: { ...listeningDeck, settings: body.settings } } });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Study mode' }).selectOption('listening');
+  await expect(page.getByText(/Set a target language for Listening/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Language being learned', exact: true }).click();
+  await page
+    .getByRole('combobox', { name: 'Language being learned', exact: true })
+    .selectOption('de');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
+  expect(patches).toEqual([{ settings: { ...listeningDeck.settings, targetLanguage: 'de' } }]);
+  await page.screenshot({ path: info.outputPath('listening-setup.png'), animations: 'disabled' });
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Study setup', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await page.evaluate(() => {
+    window.speechSynthesis.getVoices = () => [];
+    window.speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  });
+  await expect(page.getByRole('button', { name: 'Study setup', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+  await expect(page.getByText(/A usable voice for this language/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeDisabled();
 });

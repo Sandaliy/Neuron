@@ -1,5 +1,5 @@
 import { ArrowRight, Check } from 'lucide-react';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { checkTypedAnswer, spellingFeedback } from '@neuron/shared';
@@ -34,6 +34,49 @@ export function TypedResponse({
   const t = useTranslate();
   const inputId = useId();
   const formRef = useRef<HTMLFormElement>(null);
+  const submitted = useRef(false);
+  const [submittedText, setSubmittedText] = useState<string>();
+  if (!revealed && submittedText !== undefined) setSubmittedText(undefined);
+  const composing = useRef(false);
+  useEffect(() => {
+    if (!revealed) submitted.current = false;
+  }, [revealed, answer]);
+  function check(input?: HTMLInputElement | null) {
+    const text = input?.value ?? value;
+    if (submitted.current || revealed || composing.current || !text.trim()) return;
+    submitted.current = true;
+    // Capture the DOM value before blur can replace the focused composition.
+    // Blur retains the existing one-time keyboard-close signal from this input.
+    input?.blur();
+    flushSync(() => {
+      setSubmittedText(text);
+      onChange(text);
+      onReveal();
+    });
+  }
+  useEffect(() => {
+    const form = formRef.current;
+    // Mobile editing can deliver insertion independently of keyboard events.
+    const insertion = (event: Event) => {
+      const input = event as InputEvent;
+      if (input.isComposing || composing.current || !(event.target instanceof HTMLInputElement))
+        return;
+      if (
+        input.inputType !== 'insertLineBreak' &&
+        input.inputType !== 'insertParagraph' &&
+        !(event.type === 'textInput' && (input.data === '\n' || input.data === '\r'))
+      )
+        return;
+      event.preventDefault();
+      check(event.target);
+    };
+    form?.addEventListener('beforeinput', insertion);
+    form?.addEventListener('textInput', insertion);
+    return () => {
+      form?.removeEventListener('beforeinput', insertion);
+      form?.removeEventListener('textInput', insertion);
+    };
+  });
   const stopWaitingForKeyboard = useRef<(() => void) | undefined>(undefined);
   useEffect(() => () => stopWaitingForKeyboard.current?.(), []);
   function leaveKeyboardReadyAfterClose() {
@@ -59,8 +102,9 @@ export function TypedResponse({
     window.addEventListener('resize', finish);
     finish();
   }
-  const comparison = spellingFeedback(value, answer, alternatives, language);
-  const outcome = checkTypedAnswer(value, answer, alternatives, language);
+  const checkedText = submittedText ?? value;
+  const comparison = spellingFeedback(checkedText, answer, alternatives, language);
+  const outcome = checkTypedAnswer(checkedText, answer, alternatives, language);
   const accepted = outcome === 'exact' || outcome === 'correct';
   const errors = comparison.parts.filter((part) => part.kind !== 'correct');
   const result = accepted
@@ -77,17 +121,17 @@ export function TypedResponse({
           )
         : t('study.answerChanges', { count: errors.length });
   const parts =
-    outcome === 'incorrect' ? [{ kind: 'incorrect' as const, text: value }] : comparison.parts;
+    outcome === 'incorrect'
+      ? [{ kind: 'incorrect' as const, text: checkedText }]
+      : comparison.parts;
+  if (revealed && submittedText === undefined) return null;
   return (
     <form
       ref={formRef}
       className="neu-response flex shrink-0 flex-col gap-8"
       onSubmit={(event) => {
         event.preventDefault();
-        if (value.trim()) {
-          (event.currentTarget.elements.namedItem('typed-answer') as HTMLInputElement)?.blur();
-          onReveal();
-        }
+        check(event.currentTarget.elements.namedItem('typed-answer') as HTMLInputElement | null);
       }}
     >
       <label htmlFor={inputId} className="sr-only">
@@ -97,7 +141,7 @@ export function TypedResponse({
         <div role="status" className="flex flex-col gap-8">
           <div
             className="neu-spelling rounded-12 bg-input px-16 py-12 text-20"
-            aria-label={`${t('study.yourAnswer')}: ${value}. ${result}`}
+            aria-label={`${t('study.yourAnswer')}: ${checkedText}. ${result}`}
           >
             {parts.map((part, index) => (
               <span
@@ -133,48 +177,78 @@ export function TypedResponse({
               .join(' ')}
           </span>
         </div>
-      ) : !ready ? (
-        <Button
-          type="button"
-          data-typing-activator=""
-          className="min-h-44 w-full justify-start rounded-12 border border-default bg-input px-16 text-16 text-tertiary"
-          onClick={() => {
-            // iOS requires focus in the activation gesture. Commit the safe
-            // geometry first, then focus the input synchronously in that tap.
-            flushSync(() => onReadyChange(true));
-            const input = formRef.current?.querySelector<HTMLInputElement>('[data-typed-answer]');
-            input?.getBoundingClientRect();
-            input?.focus({ preventScroll: true });
-          }}
-        >
-          {t('study.typeAnswer')}
-        </Button>
       ) : (
-        <div className="grid grid-cols-[1fr_44px] items-center gap-8">
-          <Input
-            id={inputId}
-            data-typed-answer=""
-            name="typed-answer"
-            value={value}
-            placeholder={t('study.typeAnswer')}
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            enterKeyHint="done"
-            maxLength={500}
-            onChange={(event) => onChange(event.target.value)}
-            onBlur={leaveKeyboardReadyAfterClose}
-          />
-          <Button
-            type="submit"
-            variant="primary"
-            className="size-44 p-8"
-            aria-label={t('study.checkAnswer')}
-            disabled={!value.trim()}
+        <>
+          {!ready && (
+            <Button
+              type="button"
+              data-typing-activator=""
+              aria-label={t('study.typeAnswer')}
+              className="min-h-44 w-full justify-start rounded-12 border border-default bg-input px-16 text-16 text-tertiary"
+              onClick={() => {
+                // iOS requires focus in the activation gesture. Commit the safe
+                // geometry first, then focus the input synchronously in that tap.
+                flushSync(() => onReadyChange(true));
+                const input =
+                  formRef.current?.querySelector<HTMLInputElement>('[data-typed-answer]');
+                input?.getBoundingClientRect();
+                input?.focus({ preventScroll: true });
+              }}
+            >
+              {value || t('study.typeAnswer')}
+            </Button>
+          )}
+          <div
+            hidden={!ready}
+            className={ready ? 'grid grid-cols-[1fr_44px] items-center gap-8' : 'hidden'}
           >
-            <ArrowRight size={20} aria-hidden="true" />
-          </Button>
-        </div>
+            <Input
+              id={inputId}
+              data-typed-answer=""
+              name="typed-answer"
+              value={value}
+              placeholder={t('study.typeAnswer')}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              enterKeyHint="done"
+              maxLength={500}
+              onChange={(event) => onChange(event.target.value)}
+              onCompositionStart={() => {
+                composing.current = true;
+              }}
+              onCompositionEnd={() => {
+                composing.current = false;
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key !== 'Enter' ||
+                  event.nativeEvent.isComposing ||
+                  composing.current ||
+                  event.keyCode === 229
+                )
+                  return;
+                event.preventDefault();
+                check(event.currentTarget);
+              }}
+              onBlur={(event) => {
+                if (!submitted.current) onChange(event.currentTarget.value);
+                leaveKeyboardReadyAfterClose();
+              }}
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              className="size-44 p-8"
+              aria-label={t('study.checkAnswer')}
+              disabled={!value.trim()}
+              onPointerDown={(event) => event.preventDefault()}
+            >
+              <ArrowRight size={20} aria-hidden="true" />
+            </Button>
+          </div>
+        </>
       )}
     </form>
   );

@@ -368,6 +368,8 @@ Rich Study and interaction responsiveness:
 
 - `packages/shared/src/typed-answer.ts`: conservative local production feedback, separate from ratings.
 - `apps/web/src/features/today/listening-prompt.tsx`: target-language speech playback and fallback.
+- `apps/web/src/lib/speech.ts`: deterministic compatible system voices and device-local preference.
+- `apps/web/src/features/today/listening-setup.tsx`: Deck-language recovery and system voice preview.
 - `apps/web/src/lib/entity-writes.ts`: per-client serialization of overlapping entity writes.
 - `apps/web/src/lib/note-projection.ts`: shared optimistic Note/page/count patches and inverse rollback.
 - `apps/web/src/lib/deck-projection.ts`: field-local Deck name/settings patches and rollback.
