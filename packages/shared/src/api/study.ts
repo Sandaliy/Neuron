@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { languageCodeSchema } from '../languages.js';
 import { noteTypeSchema } from '../note-types.js';
 
 import { cardSchema } from './cards.js';
@@ -27,6 +28,8 @@ export type StudyPreset = z.infer<typeof studyPresetSchema>;
 export const dailyStudySessionRequestSchema = z
   .strictObject({
     direction: z.enum(['recognition', 'recall', 'production', 'listening']).optional(),
+    /** Presentation boundary only. Null selects Decks without a target language. */
+    targetLanguage: languageCodeSchema.nullable().optional(),
     /** Omit to study the whole collection. A folder includes its descendants. */
     deckId: idSchema.optional(),
     /** Explicit temporary leaf scope, including paused Decks. Empty means none. */
@@ -56,6 +59,9 @@ export const newCardAdmissionSchema = z.object({
 });
 
 export const dailyStudySessionSchema = z.object({
+  targetLanguage: languageCodeSchema.nullable().default(null),
+  languages: z.array(languageCodeSchema.nullable()).default([]),
+  aggregateReady: z.number().int().min(0).default(0),
   scopeDeckIds: z.array(z.string()).default([]),
   deckSummaries: z
     .array(

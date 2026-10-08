@@ -9,6 +9,7 @@ import { settingsFor, useDeckActions } from '../../lib/decks';
 import {
   compatibleVoices,
   preferVoice,
+  recommendedVoices,
   resolveVoice,
   speak,
   useSystemVoices,
@@ -48,6 +49,7 @@ export function ListeningSetup({
   const [editing, setEditing] = useState<DeckNode>();
   const [, rerender] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [moreVoices, setMoreVoices] = useState(false);
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
   return (
     <div className="flex flex-col gap-8 text-13 text-secondary">
@@ -58,47 +60,74 @@ export function ListeningSetup({
             <p>
               {deck.name}: {t(language ? 'study.voiceUnavailable' : 'study.languageRequired')}
             </p>
-            <Button variant="text" className="self-start px-8" onClick={() => setEditing(deck)}>
-              {t('library.targetLanguage')}
-            </Button>
+            {!language && (
+              <Button variant="text" className="self-start px-8" onClick={() => setEditing(deck)}>
+                {t('library.targetLanguage')}
+              </Button>
+            )}
           </div>
         ))}
       {[...new Set(availability.map((item) => item.language))].flatMap((language) => {
         if (!language) return [];
         const compatible = compatibleVoices(voices, language, navigator.languages);
         const voice = resolveVoice(voices, language);
-        if (compatible.length < 2 || !voice) return [];
+        if (!voice) return [];
+        const recommended = recommendedVoices(compatible, voice);
+        const remaining = compatible.filter(
+          (item) => !recommended.some((candidate) => voiceKey(candidate) === voiceKey(item)),
+        );
         return (
-          <div key={language} className="flex items-end gap-8">
-            <label className="flex min-w-0 flex-1 flex-col gap-4">
-              {t('study.systemVoice')} · {language}
-              <Select
-                value={voiceKey(voice)}
-                onChange={(event) => {
-                  window.speechSynthesis?.cancel();
-                  preferVoice(language, event.target.value);
+          <div key={language} className="flex flex-col gap-4">
+            <div className="flex items-end gap-8">
+              <label className="flex min-w-0 flex-1 flex-col gap-4">
+                {t('study.systemVoice')} · {language}
+                <Select
+                  value={voiceKey(voice)}
+                  onChange={(event) => {
+                    window.speechSynthesis?.cancel();
+                    preferVoice(language, event.target.value);
+                    setFailed(false);
+                    rerender((value) => value + 1);
+                  }}
+                >
+                  {recommended.map((item) => (
+                    <option key={voiceKey(item)} value={voiceKey(item)}>
+                      {item.name} · {item.lang}
+                    </option>
+                  ))}
+                  {moreVoices && remaining.length > 0 && (
+                    <optgroup label={t('study.moreVoices')}>
+                      {remaining.map((item) => (
+                        <option key={voiceKey(item)} value={voiceKey(item)}>
+                          {item.name} · {item.lang}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </Select>
+              </label>
+              <Button
+                onClick={() => {
                   setFailed(false);
-                  rerender((value) => value + 1);
+                  const sample =
+                    new Intl.DisplayNames([voice.lang], { type: 'language' }).of(language) ??
+                    language;
+                  speak(sample, voice, () => setFailed(true));
                 }}
               >
-                {compatible.map((item) => (
-                  <option key={voiceKey(item)} value={voiceKey(item)}>
-                    {item.name} · {item.lang}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <Button
-              onClick={() => {
-                setFailed(false);
-                const sample =
-                  new Intl.DisplayNames([voice.lang], { type: 'language' }).of(language) ??
-                  language;
-                speak(sample, voice, () => setFailed(true));
-              }}
-            >
-              {t('study.previewVoice')}
-            </Button>
+                {t('study.previewVoice')}
+              </Button>
+            </div>
+            {remaining.length > 0 && (
+              <Button
+                variant="text"
+                className="self-start px-0 text-13"
+                aria-expanded={moreVoices}
+                onClick={() => setMoreVoices(!moreVoices)}
+              >
+                {t(moreVoices ? 'study.fewerVoices' : 'study.moreVoices')}
+              </Button>
+            )}
           </div>
         );
       })}

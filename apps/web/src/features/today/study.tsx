@@ -31,8 +31,11 @@ import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { TypedResponse } from '../../ui/typed-response';
 
+import { DEFAULT_CARD_DISPLAY, displayedFace, RevealedStudyContent } from './card-display';
 import { ListeningPrompt, Speaker } from './listening-prompt';
 import { Practice } from './practice';
+
+import type { CardDisplay } from './card-display';
 
 export function workloadCard(card: StudyCard): WorkloadCard {
   const counters = {
@@ -90,7 +93,9 @@ export function StudyScreen({
   onFinish,
   minutes,
   initialPlan,
+  display = DEFAULT_CARD_DISPLAY,
 }: {
+  readonly display?: CardDisplay;
   readonly initialPlan?: DailyStudySession;
   readonly minutes: string;
   readonly onFinish: () => void;
@@ -102,6 +107,7 @@ export function StudyScreen({
   const decks = useDeckTree();
   const [typed, setTyped] = useState('');
   const [typingReady, setTypingReady] = useState(false);
+  const [interaction, setInteraction] = useState(0);
   const config = createSchedulerConfig({
     timezone: account.data?.timezone ?? 'UTC',
     dayCutoffHour: account.data?.dayCutoffHour ?? 4,
@@ -164,6 +170,7 @@ export function StudyScreen({
     setCurrent(step.card ? cards.current.get(step.card.id) : undefined);
     setReason(step.card ? '' : step.reason);
     setRevealed(false);
+    setInteraction((value) => value + 1);
     setTyped('');
     setTypingReady(false);
     shown.current = Date.now();
@@ -357,6 +364,8 @@ export function StudyScreen({
     updateNextDue();
     visibleId.current = previous.card.id;
     setCurrent(previous.card);
+    setInteraction((value) => value + 1);
+    setTyped('');
     setRevealed(true);
     setTypingReady(false);
     setReason('');
@@ -383,12 +392,13 @@ export function StudyScreen({
   const intervals = current
     ? preview(workloadCard(current).scheduling, new Date(), config)
     : undefined;
-  const face =
+  const scheduledFace =
     note && current
       ? possibleCards(note.noteType, note.fields as NoteFields).find(
           (card) => card.direction === current.direction && card.slot === current.slot,
         )
       : undefined;
+  const face = note && scheduledFace ? displayedFace(note, scheduledFace, display) : undefined;
 
   const language = note
     ? (settingsFor(decks.data ?? [], note.deckId).targetLanguage ??
@@ -451,6 +461,7 @@ export function StudyScreen({
         <>
           {face ? (
             <LearningCard
+              key={`${current.id}:${interaction}`}
               identity={current.id}
               context={t(`study.direction.${current.direction}`)}
               prompt={
@@ -498,30 +509,15 @@ export function StudyScreen({
                 ) : undefined
               }
               answer={
-                revealed
-                  ? [
-                      ...face.back,
-                      ...(current.direction === 'listening'
-                        ? ['translation', 'definition', 'example'].flatMap((field) => {
-                            const value = note?.fields[field];
-                            return typeof value === 'string' && value.trim()
-                              ? [{ field, value }]
-                              : [];
-                          })
-                        : []),
-                    ].map((line) => (
-                      <p key={line.field}>
-                        {line.value}
-                        {line.field === 'term' && (
-                          <Speaker
-                            key={`${current.id}:${revealed}`}
-                            text={line.value}
-                            language={language}
-                          />
-                        )}
-                      </p>
-                    ))
-                  : undefined
+                revealed && note && scheduledFace ? (
+                  <RevealedStudyContent
+                    note={note}
+                    face={scheduledFace}
+                    display={display}
+                    language={language}
+                    identity={`${current.id}:${interaction}`}
+                  />
+                ) : undefined
               }
             />
           ) : (

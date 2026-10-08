@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Undo2 } from 'lucide-react';
+import { SlidersHorizontal, Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import {
@@ -65,7 +65,9 @@ export function Practice({
 export function DeckPractice({
   deckId,
   onFinish,
+  entry,
 }: {
+  readonly entry?: 'resume' | 'setup';
   readonly deckId: string;
   readonly onFinish: () => void;
 }) {
@@ -91,6 +93,7 @@ export function DeckPractice({
   if (pool.data && account.data)
     return (
       <PersistentPractice
+        entry={entry}
         accountId={account.data.id}
         deckId={deckId}
         notes={pool.data}
@@ -117,7 +120,9 @@ function PersistentPractice({
   deckId,
   notes,
   onFinish,
+  entry,
 }: {
+  readonly entry?: 'resume' | 'setup' | undefined;
   readonly accountId: string;
   readonly deckId: string;
   readonly notes: readonly Note[];
@@ -135,12 +140,13 @@ function PersistentPractice({
   const [front, setFront] = useState<PracticeRun['front']>(fields[0] ?? 'front');
   const [back, setBack] = useState<PracticeRun['back']>(fields[1] ?? 'back');
   const [configuring, setConfiguring] = useState(false);
-  const [active, setActive] = useState(false);
+  const [active, setActive] = useState(entry === 'resume');
   const [confirmNew, setConfirmNew] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [response, setResponse] = useState<PracticeResponse>('reveal');
   const [typed, setTyped] = useState('');
   const [typingReady, setTypingReady] = useState(false);
+  const [interaction, setInteraction] = useState(0);
   const [undo, setUndo] = useState<{ epoch: number; entries: PracticeRun[] }>({
     epoch: state.undoEpoch,
     entries: [],
@@ -152,9 +158,19 @@ function PersistentPractice({
   const language =
     settingsFor(decks.data ?? [], deckId).targetLanguage ?? account.data?.settings.targetLanguage;
   const run = state.run;
+  const [setupEntered, setSetupEntered] = useState(false);
+  if (entry === 'setup' && !state.loading && !setupEntered) {
+    setSetupEntered(true);
+    if (run) {
+      setFront(run.front);
+      setBack(run.back);
+      setResponse(run.response ?? 'reveal');
+    }
+    setConfiguring(true);
+  }
   const deck = findDeck(decks.data ?? [], deckId);
   const listening = useListeningAvailability(decks.data ?? [], deck ? [deck] : []);
-  const listeningBlocked = !listening.length || listening.some((item) => !item.voice);
+  const listeningBlocked = !listening.length || listening.some((item) => !item.language);
   const current = notes.find((note) => note.id === run?.queue[0]);
   const statuses = Object.values(run?.statuses ?? {});
   const known = statuses.filter((status) => status === 'known').length;
@@ -202,7 +218,7 @@ function PersistentPractice({
   return (
     <section
       data-screen=""
-      data-learning-screen={active && !configuring ? '' : undefined}
+      data-learning-screen={run && active && !configuring ? '' : undefined}
       data-typing-ready={typingReady || undefined}
       className="neu-session flex flex-col gap-16"
     >
@@ -210,14 +226,11 @@ function PersistentPractice({
         title={t('practice.title')}
         exitLabel={t('practice.exit')}
         onExit={onFinish}
-        {...(active && !configuring ? { value: learning + known, max: statuses.length } : {})}
+        {...(run && active && !configuring
+          ? { value: learning + known, max: statuses.length }
+          : {})}
         action={
           <div className="flex items-center gap-4">
-            {run && (
-              <span role="status" className="w-56 text-right text-12 text-secondary">
-                {t(state.saving ? 'practice.saving' : 'practice.saved')}
-              </span>
-            )}
             {run && active && !configuring && (
               <Button
                 variant="text"
@@ -231,6 +244,7 @@ function PersistentPractice({
                   store.act({ kind: 'undo', previous });
                   setHistory(history.slice(0, -1));
                   setTyped('');
+                  setInteraction((value) => value + 1);
                   setTypingReady(false);
                   setRevealed(false);
                 }}
@@ -246,14 +260,20 @@ function PersistentPractice({
           className="neu-practice-progress grid shrink-0 grid-cols-2 gap-16 text-12 text-secondary"
           aria-label={t('practice.progressLabel')}
         >
-          <div className="flex items-baseline gap-8">
-            <span>{t('practice.learning')}</span>
+          <div
+            role="group"
+            className="flex items-baseline gap-8"
+            aria-label={t('practice.learningCount', { count: learning })}
+          >
             <strong data-numeric="" className="text-15 font-medium text-primary">
               {learning}
             </strong>
           </div>
-          <div className="flex items-baseline justify-end gap-8 text-right">
-            <span>{t('practice.know')}</span>
+          <div
+            role="group"
+            className="flex items-baseline justify-end gap-8 text-right"
+            aria-label={t('practice.knownIndicator', { count: known })}
+          >
             <strong data-numeric="" className="text-15 font-medium text-primary">
               {known}
             </strong>
@@ -271,7 +291,13 @@ function PersistentPractice({
         <SkeletonRows rows={3} />
       ) : run && !active && !configuring ? (
         <Card className="flex flex-col gap-16">
-          <h2 className="text-20 text-primary">{t('practice.currentSetup')}</h2>
+          <div className="flex items-center justify-between gap-12">
+            <h2 className="text-20 text-primary">{t('practice.currentSetup')}</h2>
+            <Button variant="text" className="px-0 text-12 text-secondary" onClick={openSettings}>
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              {t('practice.settings')}
+            </Button>
+          </div>
           <p className="text-14 text-secondary">{t(`practice.mode.${run.response ?? 'reveal'}`)}</p>
           <div className="grid grid-cols-2 gap-12 text-13 text-secondary">
             <div>
@@ -296,9 +322,6 @@ function PersistentPractice({
             onClick={() => setActive(true)}
           >
             {t('practice.resume')}
-          </Button>
-          <Button variant="text" onClick={openSettings}>
-            {t('practice.settings')}
           </Button>
           <Button
             variant="text"
@@ -393,6 +416,7 @@ function PersistentPractice({
           {current ? (
             <>
               <LearningCard
+                key={`${current.id}:${interaction}`}
                 identity={current.id}
                 context={practiceFields(run.front)
                   .map((field) => t(practiceFieldLabel(field)))
@@ -467,6 +491,7 @@ function PersistentPractice({
                         setHistory([...history, run]);
                         store.act({ kind: 'answer', noteId: current.id, known: value });
                         setTyped('');
+                        setInteraction((value) => value + 1);
                         setTypingReady(false);
                         setRevealed(false);
                       }}

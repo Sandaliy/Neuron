@@ -100,13 +100,7 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
     const beforePractice = await repo.cards.forNote(note.id);
     for (const response of ['typing', 'listening']) {
       await page.goto(`/notes?deckId=${deck.id}`);
-      await page
-        .getByRole('button', { name: /Practice|Resume practice/ })
-        .first()
-        .click();
-      if (response === 'listening') {
-        await page.getByRole('button', { name: 'Practice settings', exact: true }).click();
-      }
+      await page.getByRole('button', { name: 'Practice setup', exact: true }).first().click();
       await page.getByRole('combobox', { name: 'Response mode' }).selectOption(response);
       if (response === 'listening') {
         await expect(page.getByText('0 / 1 notes')).toBeVisible();
@@ -141,9 +135,13 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
       await page.getByLabel('Type your answer', { exact: true }).press('Enter');
       await expect(page.getByText('Correct', { exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'Known', exact: true }).click();
-      await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+      await expect
+        .poll(async () => (await repo.practice.get(deck.id)).run!.statuses[note.id])
+        .toBe('known');
       await page.getByRole('button', { name: 'Undo last answer', exact: true }).click();
-      await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+      await expect
+        .poll(async () => (await repo.practice.get(deck.id)).run!.statuses[note.id])
+        .toBe('unseen');
       expect((await repo.practice.get(deck.id)).run!.statuses[note.id]).toBe('unseen');
       expect(await repo.cards.forNote(note.id)).toEqual(beforePractice);
       expect(await repo.reviews.countForCards(enabled.map((card) => card.id))).toBe(1);

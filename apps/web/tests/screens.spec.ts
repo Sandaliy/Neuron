@@ -45,13 +45,18 @@ for (const theme of THEMES) {
       await expect(page).toHaveScreenshot(`sign-up-${theme}.png`, { fullPage: true });
     });
 
-    test('today', async ({ page }) => {
+    test('today', async ({ page }, info) => {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);
       await page.clock.setFixedTime(SNAPSHOT_TIME);
       await page.goto('/');
       await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
       await settle(page);
+      await page.screenshot({
+        path: info.outputPath('today.png'),
+        fullPage: true,
+        animations: 'disabled',
+      });
 
       await expect(page).toHaveScreenshot(`today-${theme}.png`, { fullPage: true });
     });
@@ -277,7 +282,7 @@ test('glass on the cards as well', async ({ page }) => {
   await expect(page).toHaveScreenshot('settings-glass-cards.png', { fullPage: true });
 });
 
-test('glass turned off', async ({ page }) => {
+test('glass turned off', async ({ page }, info) => {
   await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'off' });
   await useFixtures(page);
   await page.clock.setFixedTime(SNAPSHOT_TIME);
@@ -285,5 +290,10 @@ test('glass turned off', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   await settle(page);
 
+  await page.screenshot({
+    path: info.outputPath('today-glass-off.png'),
+    fullPage: true,
+    animations: 'disabled',
+  });
   await expect(page).toHaveScreenshot('today-glass-off.png', { fullPage: true });
 });

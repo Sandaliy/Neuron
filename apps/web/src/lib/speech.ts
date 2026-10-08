@@ -14,11 +14,30 @@ const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 export const voiceKey = (voice: SpeechSynthesisVoice) =>
   `${voice.lang}|${voice.name}|${voice.voiceURI}`;
 
+// Exact Apple system names observed as effects, not language-learning narration.
+const appleEffects = new Set([
+  'bad news',
+  'bells',
+  'boing',
+  'bubbles',
+  'cellos',
+  'good news',
+  'hysterical',
+  'organ',
+  'trinoids',
+  'whisper',
+  'zarvox',
+]);
+const isApple = (platform: string) => /Mac|iPhone|iPad|iPod/i.test(platform);
+const automaticVoice = (voice: SpeechSynthesisVoice, platform: string) =>
+  !isApple(platform) || voice.name.trim().toLowerCase() !== 'albert';
+
 /** Exact Deck locale, then a compatible device locale, then stable system metadata. */
 export function compatibleVoices(
   voices: readonly SpeechSynthesisVoice[],
   language: string | undefined,
   deviceLanguages: readonly string[] = [],
+  platform: string = navigator.platform,
 ): SpeechSynthesisVoice[] {
   if (!language || !locale(language)) return [];
   const target = locale(language)!;
@@ -28,6 +47,7 @@ export function compatibleVoices(
       target);
   return voices
     .filter((voice) => base(voice.lang) === base(target))
+    .filter((voice) => !isApple(platform) || !appleEffects.has(voice.name.trim().toLowerCase()))
     .sort(
       (a, b) =>
         Number(locale(b.lang) === preferred) - Number(locale(a.lang) === preferred) ||
@@ -35,6 +55,18 @@ export function compatibleVoices(
         Number(b.localService) - Number(a.localService) ||
         compare(voiceKey(a), voiceKey(b)),
     );
+}
+
+/** A small suitable set; an explicit ordinary voice remains visible even outside it. */
+export function recommendedVoices(
+  compatible: readonly SpeechSynthesisVoice[],
+  selected?: SpeechSynthesisVoice,
+  platform: string = navigator.platform,
+) {
+  const recommended = compatible.filter((voice) => automaticVoice(voice, platform)).slice(0, 3);
+  if (selected && !recommended.some((voice) => voiceKey(voice) === voiceKey(selected)))
+    recommended.push(selected);
+  return recommended;
 }
 
 export function useSystemVoices() {
@@ -54,10 +86,14 @@ const preferenceKey = (language: string) => `neuron.speech.voice:${locale(langua
 export function resolveVoice(
   voices: readonly SpeechSynthesisVoice[],
   language: string | undefined,
+  platform: string = navigator.platform,
 ) {
-  const compatible = compatibleVoices(voices, language, navigator.languages);
+  const compatible = compatibleVoices(voices, language, navigator.languages, platform);
   const preference = language ? storage.read(preferenceKey(language)) : undefined;
-  return compatible.find((voice) => voiceKey(voice) === preference) ?? compatible[0];
+  return (
+    compatible.find((voice) => voiceKey(voice) === preference) ??
+    compatible.find((voice) => automaticVoice(voice, platform))
+  );
 }
 export function preferVoice(language: string, key: string) {
   storage.write(preferenceKey(language), key);

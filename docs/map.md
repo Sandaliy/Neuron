@@ -351,9 +351,10 @@ hierarchies and note dependencies, and `purge-action.tsx` owns irreversible conf
 - `apps/api/src/db/schema/practice.ts`: versioned runs and immutable restart receipts (migration 0015).
 - `apps/api/src/db/repositories/practice.ts`: account-isolated persistent Practice with version conflicts.
 - `apps/api/src/db/repositories/reviews.ts`: restart events and canonical card projection.
-- `apps/api/src/routes/study.ts`: scope-first workload planning and per-Deck summaries.
+- `apps/api/src/routes/study.ts`: shared workload planning, target-language sessions and per-Deck summaries.
 - `apps/web/src/lib/practice.ts`: optimistic serialized Practice commands and pending retry IDs.
-- `apps/web/src/features/today/study-scope.tsx`: temporary exact Deck selection.
+- `apps/web/src/features/today/study-scope.tsx`: temporary leaf Deck selection through Folder ancestry.
+- `apps/web/src/features/today/card-display.tsx`: session-local meaning/support choices and semantic reveals.
 - `apps/web/src/features/notes/restart-learning.tsx`: Deck participation and explicit restart actions.
 - `apps/web/src/ui/learning-card.tsx`: common reading surface for Daily Study and Practice.
 

@@ -102,7 +102,7 @@ test('Study setup is visible, temporary, and gives a direct single-Deck skill ac
   );
   await expect(page.getByRole('combobox', { name: 'Study mode' })).not.toBeVisible();
   await page.getByRole('button', { name: 'Study setup', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'My study decks' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Deck 1', exact: true })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Time for this session' })).toBeVisible();
   const mode = page.getByRole('combobox', { name: 'Study mode' });
   await expect(mode).toBeVisible();
@@ -116,7 +116,7 @@ test('Study setup is visible, temporary, and gives a direct single-Deck skill ac
   await mode.selectOption('production');
   await expect.poll(() => bodies.at(-1)).toMatchObject({ minutes: 5, direction: 'production' });
   await expect(page.getByText('Nothing ready in this mode')).toBeVisible();
-  await page.getByRole('button', { name: 'Open Deck skills' }).click();
+  await page.getByRole('button', { name: 'Enable', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('switch', { name: 'Typing' })).not.toBeChecked();
   await page.keyboard.press('Escape');
@@ -167,12 +167,12 @@ test('multi-Deck Study mode explains missing skills without bulk editing', async
   await page.goto('/');
   await page.getByRole('button', { name: 'Study setup', exact: true }).click();
   await page.getByRole('combobox', { name: 'Study mode' }).selectOption('listening');
-  await expect(
-    page.getByText(
-      'This Study skill is off in 2 selected Decks. Change each Deck deliberately in its settings.',
-    ),
-  ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Open Deck skills' })).toHaveCount(0);
+  await expect(page.getByText('Listening off in 2 decks')).toBeVisible();
+  await expect(page.getByText('Deck 1, Deck 2', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Review decks', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Deck 2', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
   expect(writes).toEqual([]);
 });
 
@@ -221,5 +221,5 @@ test('Listening setup recovers a missing Deck language through existing settings
     'true',
   );
   await expect(page.getByText(/A usable voice for this language/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
 });

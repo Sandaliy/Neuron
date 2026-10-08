@@ -7,9 +7,28 @@ import type { Messages } from './en.js';
  * compilation error rather than a blank space on somebody's screen.
  */
 export const ru = {
+  'study.language': 'Язык занятия',
+  'study.unspecifiedLanguage': 'Без изучаемого языка',
+  'study.aggregateReady': '{count} готовы на {languages} языках',
+  'study.cardDisplay': 'Содержание карточки',
+  'study.cardDisplayHint': 'Дополнительное содержание после раскрытия. Навык остаётся прежним.',
+  'study.meaningSource': 'Источник значения',
+  'study.pattern': 'Модель употребления',
+  'study.skillUnavailable': '{mode} недоступно',
+  'study.skillOff': '{mode} выключено в {count} колодах',
+  'study.reviewDecks': 'Проверить колоды',
+  'study.scopeDaily': 'Участие в Daily Study',
+  'study.scopeCustom': 'Временный выбор',
+  'study.useDailyDecks': 'Использовать колоды Daily Study',
+  'study.dailyParticipant': 'В Daily Study',
+  'practice.classified': '{count} / {total} распределены',
+  'practice.learningCount': 'Ещё учу {count}',
+  'practice.knownIndicator': 'Знаю {count}',
   'study.setup': 'Настройка занятия',
   'study.languageRequired': 'Выбери изучаемый язык для аудирования.',
   'study.systemVoice': 'Голос на этом устройстве',
+  'study.moreVoices': 'Больше голосов',
+  'study.fewerVoices': 'Меньше голосов',
   'study.previewVoice': 'Прослушать',
   'today.updatingPlan': 'Обновляем план…',
   'study.extraLetter': '1 лишняя буква',
@@ -61,7 +80,6 @@ export const ru = {
 
   'practice.exit': 'Выйти из Практики',
   'study.scopeDefault': 'Мои учебные колоды',
-  'study.scopeAll': 'Выбрать все колоды на эту сессию',
   'study.chooseDecks': 'Выбрать на эту сессию',
   'learning.restartBody':
     'Запланированное изучение активных подходящих заметок начнётся заново. История повторений сохранится. Уже известные заметки останутся известными, Практика не изменится.',
@@ -70,7 +88,7 @@ export const ru = {
   'time.relative': 'через {hours} ч {minutes} мин',
   'practice.resume': 'Продолжить практику',
   'practice.currentSetup': 'Текущая практика',
-  'practice.settings': 'Настройки практики',
+  'practice.settings': 'Настройка практики',
   'practice.newRun': 'Начать новый подход',
   'practice.confirmNewRun': 'Заменить текущий подход',
   'practice.progressLabel': 'Прогресс практики',
@@ -110,11 +128,7 @@ export const ru = {
   'study.skill': 'Режим обучения',
   'study.mixed': 'Смешанный',
   'study.modeUnavailable': 'В этом режиме сейчас нечего изучать',
-  'study.modeUnavailableSingle':
-    'В этой колоде пока не создаются новые карточки для этого режима. Включи навык, чтобы добавить подходящие карточки без сброса прогресса.',
-  'study.modeUnavailableMulti':
-    'В {count} выбранных колодах этот навык выключен. Измени настройки каждой колоды отдельно.',
-  'study.enableSkill': 'Открыть навыки колоды',
+  'study.enableSkill': 'Включить',
   'study.recognition': 'Узнавание: слово → значение',
   'study.recall': 'Вспоминание: значение → слово',
   'study.policyPause': 'Новое ограничено, чтобы оставить время для повторений.',

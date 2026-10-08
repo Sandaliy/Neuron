@@ -21,7 +21,7 @@ export function Checkbox({
   children,
   disabled = false,
 }: {
-  readonly checked: boolean;
+  readonly checked: boolean | 'indeterminate';
   readonly onChange: (checked: boolean) => void;
   readonly children: ReactNode;
   readonly disabled?: boolean;
@@ -42,7 +42,9 @@ export function Checkbox({
           'data-[state=checked]:border-transparent data-[state=checked]:bg-fill-accent',
           'disabled:cursor-not-allowed disabled:border-subtle disabled:bg-sunken',
         ].join(' ')}
-      />
+      >
+        {checked === 'indeterminate' && <span aria-hidden="true" className="h-px w-8 bg-strong" />}
+      </RadixCheckbox.Root>
 
       <label htmlFor={id} className="cursor-pointer text-14 leading-body text-secondary">
         {children}

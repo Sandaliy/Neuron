@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { compatibleVoices, preferVoice, resolveVoice, voiceKey } from './speech';
+import { compatibleVoices, preferVoice, recommendedVoices, resolveVoice, voiceKey } from './speech';
 
 const voice = (name: string, lang: string, defaults = false) =>
   ({ name, lang, voiceURI: name, default: defaults, localService: true }) as SpeechSynthesisVoice;
@@ -25,5 +25,64 @@ describe('system voice resolution', () => {
     expect(resolveVoice(voices.slice(1), 'de')?.lang.startsWith('de')).toBe(true);
     preferVoice('de', voiceKey(voices[1]!));
     expect(resolveVoice(voices, 'de')?.lang.startsWith('de')).toBe(true);
+  });
+  it('excludes named Apple effects while keeping ordinary voices and locale priority', () => {
+    const effects = [
+      'Bad News',
+      'Bells',
+      'Boing',
+      'Bubbles',
+      'Cellos',
+      'Organ',
+      'Whisper',
+      'Zarvox',
+    ];
+    const apple = [
+      ...effects.map((name) => voice(name, 'en-US', true)),
+      voice('Samantha', 'en-US'),
+      voice('Daniel', 'en-GB', true),
+      voice('Anna', 'de-DE'),
+    ];
+    expect(compatibleVoices(apple, 'en-US', [], 'MacIntel').map((item) => item.name)).toEqual([
+      'Samantha',
+      'Daniel',
+    ]);
+    expect(compatibleVoices(apple, 'en-GB', [], 'iPhone')[0]?.name).toBe('Daniel');
+    expect(compatibleVoices(apple, 'de', [], 'iPad').map((item) => item.name)).toEqual(['Anna']);
+    expect(compatibleVoices(apple, 'en', [], 'Win32')).toHaveLength(effects.length + 2);
+  });
+  it('avoids Albert automatically, preserves explicit human choices and falls back deterministically', () => {
+    const apple = [
+      voice('Albert', 'en-US', true),
+      voice('Samantha', 'en-US'),
+      voice('Daniel', 'en-GB'),
+    ];
+    preferVoice('en', 'missing');
+    expect(resolveVoice(apple, 'en', 'MacIntel')?.name).toBe('Samantha');
+    preferVoice('en', voiceKey(apple[0]!));
+    expect(resolveVoice(apple, 'en', 'iPhone')?.name).toBe('Albert');
+    expect(resolveVoice(apple.slice(1).reverse(), 'en', 'iPhone')?.name).toBe('Samantha');
+    preferVoice('en', voiceKey(voice('Bells', 'en-US')));
+    expect(resolveVoice([voice('Bells', 'en-US'), ...apple], 'en', 'MacIntel')?.name).toBe(
+      'Samantha',
+    );
+    expect(
+      resolveVoice([apple[0]!, voice('Zarvox', 'en-US'), voice('Anna', 'de-DE')], 'en', 'MacIntel'),
+    ).toBeUndefined();
+  });
+  it('prefers a suitable default within a locale and exposes a small set plus explicit selection', () => {
+    const pool = ['Amy', 'Brian', 'Daniel', 'Emma', 'Samantha'].map((name) =>
+      voice(name, 'en-US', name === 'Samantha'),
+    );
+    const compatible = compatibleVoices(pool, 'en-US', [], 'MacIntel');
+    expect(compatible[0]?.name).toBe('Samantha');
+    expect(recommendedVoices(compatible, undefined, 'MacIntel')).toHaveLength(3);
+    expect(recommendedVoices(compatible, pool[3], 'MacIntel').map((item) => item.name)).toEqual([
+      'Samantha',
+      'Amy',
+      'Brian',
+      'Emma',
+    ]);
+    expect(compatibleVoices([...pool].reverse(), 'en-US', [], 'MacIntel')).toEqual(compatible);
   });
 });

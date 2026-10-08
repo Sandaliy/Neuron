@@ -27,6 +27,144 @@ const budget = createBudget({ minutesByWeekday: [20, 20, 20, 20, 20, 20, 20] });
 
 const rng = (): (() => number) => createSeededRandom(42);
 
+describe('shared automatic admission across session filters', () => {
+  const pool = ['de', 'en'].flatMap((deckId) =>
+    Array.from({ length: 12 }, (_, index) => ({
+      ...freshCard({ id: `${deckId}-${index}`, noteId: `${deckId}-${index}` }, NOW),
+      deckId,
+    })),
+  );
+  const capped = createWorkloadConfig({ ...config, maximumNewCardsPerDay: 4 });
+  const logOf = (card: WorkloadCard): WorkloadReview => ({
+    cardId: card.id,
+    noteId: card.noteId,
+    deckId: card.deckId!,
+    direction: card.direction,
+    rating: 3,
+    reviewedAt: NOW,
+    placedDue: new Date(NOW.getTime() + MS_PER_DAY),
+    stateBefore: 'new',
+    elapsedDays: 0,
+    scheduledDays: 1,
+    stabilityBefore: undefined,
+    difficultyBefore: undefined,
+    durationMs: 1000,
+  });
+  const plan = (
+    cards: readonly WorkloadCard[],
+    logs: readonly WorkloadReview[] = [],
+    limit?: number,
+  ) =>
+    buildSession({
+      cards,
+      logs,
+      config: capped,
+      budget,
+      now: NOW,
+      rng: rng(),
+      marginalCost: 1,
+      ...(limit === undefined ? {} : { automaticNewCardLimit: limit }),
+    });
+  it('charges German introductions against the same remaining capacity used by English', () => {
+    const snapshot = JSON.stringify(pool);
+    const global = plan(pool);
+    const german = plan(
+      pool.filter((card) => card.deckId === 'de'),
+      [],
+      global.newCount,
+    );
+    const logs = german.cards.slice(0, 2).map(logOf);
+    const remaining = pool.filter((card) => !logs.some((log) => log.cardId === card.id));
+    const shared = plan(remaining, logs);
+    const english = plan(
+      remaining.filter((card) => card.deckId === 'en'),
+      logs,
+      shared.newCount,
+    );
+    expect(global.newCount).toBe(4);
+    expect(english.newCount).toBe(2);
+    expect(logs.length + english.newCount).toBe(global.newCount);
+    const allLogs = [...logs, ...english.cards.map(logOf)];
+    expect(
+      plan(
+        pool.filter((card) => !allLogs.some((log) => log.cardId === card.id)),
+        allLogs,
+      ).newCount,
+    ).toBe(0);
+    expect(JSON.stringify(pool)).toBe(snapshot);
+  });
+  it('does not refill automatic time when a new sitting follows completed reviews', () => {
+    const short = createBudget({ minutesByWeekday: [1, 1, 1, 1, 1, 1, 1] });
+    const reviews = dueToday(3);
+    const first = buildSession({
+      cards: [...reviews, ...pool],
+      config: capped,
+      budget: short,
+      now: NOW,
+      rng: rng(),
+      marginalCost: 1,
+    });
+    const logs = reviews.map((card) => ({
+      ...logOf(card),
+      stateBefore: 'review' as const,
+      durationMs: 20_000,
+    }));
+    const second = buildSession({
+      cards: pool.filter((card) => card.deckId === 'en'),
+      config: capped,
+      budget: short,
+      now: NOW,
+      rng: rng(),
+      logs,
+      marginalCost: 1,
+    });
+    expect(first.newCount).toBe(0);
+    expect(second.newCount).toBe(0);
+  });
+  it('debits the daily ceiling without charging introductions twice against forecast headroom', () => {
+    const logs = pool.slice(0, 2).map(logOf);
+    const session = buildSession({
+      cards: pool.filter((card) => card.deckId === 'en'),
+      logs,
+      config,
+      budget,
+      now: NOW,
+      rng: rng(),
+      marginalCost: 1,
+      load: [{ dayIndex: 0, date: NOW, reviewCount: 100, newCardCount: 0, minutes: 12 }],
+      automaticNewCardLimit: 4,
+    });
+    expect(session.newCards.headroomMinutes).toBe(4);
+    expect(session.newCount).toBe(4);
+  });
+  it('retains intentional override and starts fresh at the next study-day boundary', () => {
+    const logs = pool.slice(0, 4).map(logOf);
+    expect(
+      buildSession({
+        cards: pool.slice(4),
+        logs,
+        config: capped,
+        budget,
+        now: NOW,
+        rng: rng(),
+        marginalCost: 1,
+        newCardMode: 'override',
+      }).newCount,
+    ).toBeGreaterThan(4);
+    expect(
+      buildSession({
+        cards: pool.slice(4),
+        logs,
+        config: capped,
+        budget,
+        now: new Date(NOW.getTime() + MS_PER_DAY),
+        rng: rng(),
+        marginalCost: 1,
+      }).newCount,
+    ).toBe(4);
+  });
+});
+
 it('keeps an answered Note sibling out of the next plan while retaining its due retry', () => {
   const sibling = freshCard({ id: 'sibling', noteId: 'shared' }, NOW);
   const retry = {

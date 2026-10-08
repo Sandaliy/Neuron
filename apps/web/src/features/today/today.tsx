@@ -5,14 +5,16 @@ import { useState } from 'react';
 
 import { DEFAULT_ANSWER_SECONDS } from '@neuron/core';
 import { dailyStudySessionSchema, studyDecks } from '@neuron/shared';
-import type { DeckNode, DailyStudySession, MessageKey } from '@neuron/shared';
+import type { DeckNode, DailyStudySession, MessageKey, LanguageCode } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
+import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { flatten, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
+import { Dialog, DialogBody } from '../../ui/dialog';
 import { ReviewTime } from '../../ui/review-time';
 import { Row } from '../../ui/row';
 import { Select } from '../../ui/select';
@@ -20,10 +22,12 @@ import { ErrorState, Skeleton } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { DeckSettingsDialog } from '../library/deck-dialogs';
 
+import { CardDisplaySetup, DEFAULT_CARD_DISPLAY } from './card-display';
 import { ListeningSetup, useListeningAvailability } from './listening-setup';
 import { StudyScreen } from './study';
 import { StudyScope } from './study-scope';
 
+import type { CardDisplay } from './card-display';
 import type { StudyPlanProjection } from '../../lib/note-projection';
 
 /**
@@ -57,13 +61,19 @@ export function TodayScreen() {
   const decks = useDeckTree();
   const [studying, setStudying] = useState<DailyStudySession>();
   const [minutes, setMinutes] = useState('');
+  const [choices, setChoices] = useState<StudyChoices>({
+    direction: '',
+    display: DEFAULT_CARD_DISPLAY,
+  });
   if (studying)
     return (
       <StudyScreen
         initialPlan={studying}
         minutes={minutes}
+        display={choices.display}
         onFinish={() => {
           setStudying(undefined);
+          setChoices((current) => ({ ...current, scope: undefined }));
           void decks.refetch();
         }}
       />
@@ -92,17 +102,29 @@ export function TodayScreen() {
           onMinutes={setMinutes}
           decks={decks.data}
           onStart={setStudying}
+          choices={choices}
+          onChoices={setChoices}
         />
       )}
     </section>
   );
+}
+interface StudyChoices {
+  readonly scope?: string[] | undefined;
+  readonly language?: LanguageCode | null;
+  readonly direction: string;
+  readonly display: CardDisplay;
 }
 function Waiting({
   decks,
   onStart,
   minutes,
   onMinutes,
+  choices,
+  onChoices,
 }: {
+  readonly choices: StudyChoices;
+  readonly onChoices: (choices: StudyChoices) => void;
   readonly minutes: string;
   readonly onMinutes: (value: string) => void;
   readonly decks: readonly DeckNode[];
@@ -112,26 +134,44 @@ function Waiting({
   const navigate = useNavigate();
   const toast = useToast();
   const actions = useDeckActions();
+  const account = useAccount();
   const live = studyDecks(flatten(decks));
-  const [scope, setScope] = useState<string[]>();
+  const { scope, direction } = choices;
   const [scopeOpen, setScopeOpen] = useState(false);
-  const selected =
+  const baseSelected =
     scope ??
     live.filter((deck) => deck.settings?.dailyStudyIncluded !== false).map((deck) => deck.id);
+  const languageFor = (deck: DeckNode) =>
+    settingsFor(decks, deck.id).targetLanguage ?? account.data?.settings.targetLanguage ?? null;
+  const languages = [
+    ...new Set(
+      live
+        .filter((deck) =>
+          baseSelected.length === 0
+            ? deck.settings?.dailyStudyIncluded !== false
+            : baseSelected.includes(deck.id),
+        )
+        .map(languageFor),
+    ),
+  ].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
+  const language =
+    choices.language !== undefined && languages.includes(choices.language)
+      ? choices.language
+      : (languages[0] ?? (live[0] ? languageFor(live[0]) : null));
+  const relevantDecks = live.filter((deck) => languageFor(deck) === language);
+  const selected = baseSelected.filter((id) => relevantDecks.some((deck) => deck.id === id));
   const scopeLabel =
-    scope === undefined
-      ? t('study.scopeDefault')
-      : scope.length === 1
-        ? (live.find((deck) => deck.id === scope[0])?.name ?? t('study.scopeCount', { count: 1 }))
-        : t('study.scopeCount', { count: scope.length });
+    selected.length === 1
+      ? (live.find((deck) => deck.id === selected[0])?.name ?? '')
+      : t('study.scopeCount', { count: selected.length });
   const mutations = useIsMutating({ mutationKey: ['note-interaction'] });
-  const [direction, setDirection] = useState('');
   const [override, setOverride] = useState(false);
-  const [skillSettingsOpen, setSkillSettingsOpen] = useState(false);
+  const [skillDeckId, setSkillDeckId] = useState<string>();
+  const [skillReviewOpen, setSkillReviewOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const selectedDecks = live.filter((deck) => selected.includes(deck.id));
   const listening = useListeningAvailability(decks, selectedDecks);
-  const listeningBlocked = direction === 'listening' && listening.some((item) => !item.voice);
+  const listeningNeedsSetup = direction === 'listening' && listening.some((item) => !item.voice);
   const plan = useQuery<StudyPlanProjection>({
     queryKey: [
       'study-plan',
@@ -139,7 +179,13 @@ function Waiting({
       direction,
       override,
       scope,
-      live.map((deck) => [deck.id, deck.settings?.dailyStudyIncluded]),
+      language,
+      live.map((deck) => [
+        deck.id,
+        deck.settings?.dailyStudyIncluded,
+        languageFor(deck),
+        settingsFor(decks, deck.id).ladder,
+      ]),
     ],
     queryFn: async ({ signal }) =>
       dailyStudySessionSchema.parse(
@@ -151,12 +197,13 @@ function Waiting({
             ...(direction ? { direction } : {}),
             ...(override ? { newCards: 'override' } : {}),
             ...(scope === undefined ? {} : { deckIds: scope }),
+            targetLanguage: language,
           },
         }),
       ),
     staleTime: 0,
     placeholderData: keepPreviousData,
-    enabled: mutations === 0,
+    enabled: mutations === 0 && !!account.data,
   });
   const result = plan.data;
   const updating = plan.isPlaceholderData || result?.localProjection === true;
@@ -173,8 +220,8 @@ function Waiting({
     selected.length === 1 && unsupported.length === 1 && result?.cards.length === 0;
   const caughtUp =
     result?.availableCount === 0 && selected.length > 0 && !reconciling && !singleUnsupported;
-  const expanded = setupOpen || unsupported.length > 0 || listeningBlocked;
-  const setup = selected.length > 0 && (
+  const expanded = setupOpen || unsupported.length > 0 || listeningNeedsSetup;
+  const setup = live.length > 0 && (
     <div className="flex flex-col gap-12 border-t border-subtle pt-16">
       <Button
         variant="text"
@@ -185,20 +232,36 @@ function Waiting({
         onClick={() => setSetupOpen(!expanded)}
       >
         <SlidersHorizontal size={18} className="shrink-0" aria-hidden="true" />
-        <span className="flex min-w-0 flex-1 flex-col gap-4">
-          <span className="text-14">{t('study.setup')}</span>
-          <span className="truncate text-12 text-secondary">
-            {scopeLabel} ·{' '}
-            {minutes
-              ? t('study.intervalMinutes', { count: Number(minutes) })
-              : t('study.defaultTime')}{' '}
-            · {direction ? t(`study.direction.${direction}` as MessageKey) : t('study.mixed')}
+        <span className="min-w-0 flex-1 text-14">{t('study.setup')}</span>
+        {languages.length > 1 && (
+          <span className="text-12 text-secondary">
+            {language ? t(`lang.${language}`) : t('study.unspecifiedLanguage')}
           </span>
-        </span>
+        )}
         <ChevronDown size={14} aria-hidden="true" />
       </Button>
       <div id="study-setup" hidden={!expanded}>
         <div className="flex flex-col gap-12">
+          {languages.length > 1 && (
+            <label className="flex items-center justify-between gap-12 text-13 text-secondary">
+              {t('study.language')}
+              <Select
+                value={language ?? ''}
+                onChange={(event) =>
+                  onChoices({
+                    ...choices,
+                    language: (event.target.value || null) as LanguageCode | null,
+                  })
+                }
+              >
+                {languages.map((item) => (
+                  <option key={item ?? 'unspecified'} value={item ?? ''}>
+                    {item ? t(`lang.${item}`) : t('study.unspecifiedLanguage')}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          )}
           <div className="flex items-center justify-between gap-12">
             <span className="text-13 text-secondary">{t('study.scope')}</span>
             <Button variant="text" className="min-w-0 px-8" onClick={() => setScopeOpen(true)}>
@@ -220,7 +283,10 @@ function Waiting({
             </label>
             <label className="flex flex-col gap-8 text-13 text-secondary">
               {t('study.skill')}
-              <Select value={direction} onChange={(event) => setDirection(event.target.value)}>
+              <Select
+                value={direction}
+                onChange={(event) => onChoices({ ...choices, direction: event.target.value })}
+              >
                 <option value="">{t('study.mixed')}</option>
                 {(['recognition', 'recall', 'production', 'listening'] as const).map((mode) => (
                   <option key={mode} value={mode}>
@@ -230,25 +296,34 @@ function Waiting({
               </Select>
             </label>
           </div>
-          {(singleUnsupported || (selected.length > 1 && unsupported.length > 0)) && (
-            <div role="status" className="flex flex-col gap-8 text-13 text-secondary">
-              <p>
-                {t(
-                  singleUnsupported ? 'study.modeUnavailableSingle' : 'study.modeUnavailableMulti',
-                  {
-                    count: unsupported.length,
-                  },
-                )}
+          {unsupported.length > 0 && (
+            <div
+              role="status"
+              className="flex flex-col gap-4 rounded-12 border border-subtle bg-sunken p-12 text-13 text-secondary"
+            >
+              <p className="text-primary">
+                {t(unsupported.length === 1 ? 'study.skillUnavailable' : 'study.skillOff', {
+                  mode: t(`study.direction.${direction}` as MessageKey),
+                  count: unsupported.length,
+                })}
               </p>
-              {singleUnsupported && (
-                <Button
-                  variant="text"
-                  className="self-start px-8"
-                  onClick={() => setSkillSettingsOpen(true)}
-                >
-                  {t('study.enableSkill')}
-                </Button>
-              )}
+              <p>
+                {live
+                  .filter((deck) => unsupported.includes(deck.id))
+                  .map((deck) => deck.name)
+                  .join(', ')}
+              </p>
+              <Button
+                variant="text"
+                className="self-start px-8"
+                onClick={() =>
+                  unsupported.length === 1
+                    ? setSkillDeckId(unsupported[0])
+                    : setSkillReviewOpen(true)
+                }
+              >
+                {t(unsupported.length === 1 ? 'study.enableSkill' : 'study.reviewDecks')}
+              </Button>
             </div>
           )}
           {(result?.newCards.overrideAvailable || override) && (
@@ -261,7 +336,18 @@ function Waiting({
               {t('study.moreNew')}
             </label>
           )}
-          {direction === 'listening' && <ListeningSetup decks={decks} selected={selectedDecks} />}
+          {direction === 'listening' && (
+            <ListeningSetup
+              key={language ?? 'unspecified'}
+              decks={decks}
+              selected={selectedDecks}
+            />
+          )}
+          <CardDisplaySetup
+            notes={result?.notes ?? []}
+            value={choices.display}
+            onChange={(display) => onChoices({ ...choices, display })}
+          />
         </div>
       </div>
     </div>
@@ -279,6 +365,7 @@ function Waiting({
           <>
             <h2 className="text-24 text-primary">{t('study.noDecks')}</h2>
             <Button onClick={() => setScopeOpen(true)}>{t('study.chooseDecks')}</Button>
+            {setup}
           </>
         ) : plan.error && !result ? (
           <ErrorState
@@ -352,13 +439,21 @@ function Waiting({
                 {t('study.newMetric')}
               </span>
             </div>
+            {languages.length > 1 && !updating && (
+              <p className="-mt-12 text-12 text-secondary">
+                {t('study.aggregateReady', {
+                  count: result.aggregateReady,
+                  languages: languages.length,
+                })}
+              </p>
+            )}
             {setup}
             <Button
               variant="primary"
               full
               disabled={
                 !result.cards.length ||
-                listeningBlocked ||
+                (direction === 'listening' && listening.some((item) => !item.language)) ||
                 plan.isFetching ||
                 plan.isPlaceholderData ||
                 mutations > 0 ||
@@ -371,7 +466,7 @@ function Waiting({
             </Button>
           </>
         )}
-        {(!result || reconciling) && setup}
+        {selected.length > 0 && (!result || reconciling) && setup}
       </Card>
       {plan.error && result && (
         <ErrorState
@@ -382,7 +477,7 @@ function Waiting({
       )}
       {selected.length > 0 && waiting.length > 0 && (
         <div className="flex flex-col gap-12">
-          <GroupLabel>{t('study.scopeDefault')}</GroupLabel>
+          <GroupLabel>{t(scope === undefined ? 'study.scopeDefault' : 'study.scope')}</GroupLabel>
           <div className="flex flex-col gap-8">
             {waiting.map((deck) => (
               <Row
@@ -409,22 +504,46 @@ function Waiting({
       <StudyScope
         open={scopeOpen}
         onOpenChange={setScopeOpen}
-        decks={live}
+        decks={relevantDecks}
         collections={flatten(decks)}
         selected={scope}
-        onApply={setScope}
+        onApply={(next) => onChoices({ ...choices, scope: next })}
       />
-      {singleUnsupported && live.find((deck) => deck.id === selected[0]) && (
+      <Dialog
+        open={skillReviewOpen}
+        onOpenChange={setSkillReviewOpen}
+        title={t('study.reviewDecks')}
+      >
+        <DialogBody>
+          {live
+            .filter((deck) => unsupported.includes(deck.id))
+            .map((deck) => (
+              <Button
+                key={deck.id}
+                full
+                onClick={() => {
+                  setSkillReviewOpen(false);
+                  setSkillDeckId(deck.id);
+                }}
+              >
+                {deck.name}
+              </Button>
+            ))}
+        </DialogBody>
+      </Dialog>
+      {skillDeckId && live.find((deck) => deck.id === skillDeckId) && (
         <DeckSettingsDialog
-          open={skillSettingsOpen}
-          onOpenChange={setSkillSettingsOpen}
-          deck={live.find((deck) => deck.id === selected[0])!}
+          open
+          onOpenChange={(open) => {
+            if (!open) setSkillDeckId(undefined);
+          }}
+          deck={live.find((deck) => deck.id === skillDeckId)!}
           decks={decks}
           busy={actions.update.isPending}
           onSave={(settings) => {
             void actions.update
-              .mutateAsync({ id: selected[0]!, settings })
-              .then(() => setSkillSettingsOpen(false))
+              .mutateAsync({ id: skillDeckId, settings })
+              .then(() => setSkillDeckId(undefined))
               .catch((error) => toast.show(t(describe(error).key)));
           }}
         />
