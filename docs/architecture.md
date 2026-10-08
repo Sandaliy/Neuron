@@ -585,9 +585,15 @@ only the Deck; cards, due dates, Note Known/excluded state, Reviews, and Practic
 `POST /study/session` accepts optional `deckIds`. Omitted uses included live leaf Decks; an explicit
 array is a temporary exact subset and may include paused Decks; an empty array means no selection.
 Foreign, deleted, or non-leaf IDs are rejected. Legacy `deckId` subtree scope remains supported but
-cannot be combined with `deckIds`. Scope filters repository candidates and workload logs before
-forecast, new admission, time estimation and assembly. Responses include scope IDs and per-Deck
-summaries. Within-Deck new-card order remains stable; streams merge by today's introduction count
+cannot be combined with `deckIds`. Explicit Deck scope filters candidates and workload logs before
+forecasting. Default Daily Study forecasts all participating live Decks and accounts for today's
+introductions across the account, including Decks subsequently paused. Optional `targetLanguage`
+selects one effective inherited Deck/account language; omitted chooses the first stable language,
+and null selects Decks without a target language. Language and direction filter this sitting's
+candidates only after a shared plan establishes automatic admission. They never create independent
+budgets. Responses include the chosen language, scope IDs, per-Deck summaries and the shared plan's
+aggregate Ready count, never a sum of separately budgeted plans. Within-Deck new-card order remains
+stable; streams merge by today's introduction count
 plus within-Deck offset, preventing a large import from monopolizing admission without equal quotas.
 
 `practice_runs` holds one versioned run per account and Deck: chosen fields, unseen/learning/known
@@ -710,13 +716,28 @@ The learner types the heard term; the same local accepted-answer comparison used
 feedback before an explicit FSRS rating. Meaning/context appears only after check or Show answer.
 Playback starts on a user gesture, follows `voiceschanged`, supports replay and cancels when the card
 leaves. Voice resolution prefers an exact compatible locale, then a compatible device locale and stable
-system metadata, never an unrelated language. Setup exposes a device-local voice preference and preview
-when multiple compatible voices exist. Explicit Listening setup requires a usable language/voice;
-language recovery opens the existing individual Deck settings. Voice loss during a session leaves typing
+system metadata, never an unrelated language. On Apple platforms, an exact-name exclusion removes
+identified system effects. Albert remains an explicit ordinary-voice option but is never selected
+automatically. Suitable compatible defaults win within the preferred locale; otherwise selection is
+stable by exposed metadata. No Enhanced/Premium quality is inferred from browser properties. Setup
+shows three recommended compatible voices plus the explicit selection, with other ordinary voices
+behind More voices. A disappearing selection falls back deterministically. Setup exposes a device-local
+voice preference and preview
+for the active Study language. Preferences remain independent per language. Listening setup requires
+a target language; a device without a compatible voice explains the limitation and still allows
+typed/Show answer fallback. Language recovery opens individual Deck settings. Voice loss leaves typing
 and Show answer available. There is
 no speech recognition. Vocabulary directions can be enabled explicitly using the existing manual card
 endpoint; no existing card is replaced and no progressive unlocking rule is introduced. Practice remains
 the independent schedule-free mode.
+
+Study Card display is session-local presentation state. Vocabulary meaning may prefer Translation or
+Definition, falling back to Translation when needed. Optional populated supporting fields use quiet
+human labels; grammar leaves are named and Pattern is a separate group. Recognition still tests
+meaning, Recall/Typing test the term, and Listening checks the heard term. Display choices never reach
+the planning/review API or change Card identity, direction, slot or schedule. Each advance and Undo
+starts a new mounted interaction, including feedback, playback and reading content. Undo deliberately
+reveals the restored Study answer without retaining another Card's draft or spelling result.
 
 `studyAvailableAt` supplies the schedule eligibility boundary: learning steps use the precise due
 instant, review cards use the start of their study day after the last answer. `dailyStudyAvailableAt`

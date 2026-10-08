@@ -51,6 +51,7 @@ const CARD_STATE_ORDER = ['new', 'learning', 'review', 'relearning'] as const;
  */
 export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const [practicing, setPracticing] = useState(false);
+  const [practiceEntry, setPracticeEntry] = useState<'resume' | 'setup'>('resume');
   const t = useTranslate();
   const toast = useToast();
   const { mutateAsync: deleteNote } = useNoteActions().remove;
@@ -157,7 +158,9 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   }
 
   if (practicing && deckId)
-    return <DeckPractice deckId={deckId} onFinish={() => setPracticing(false)} />;
+    return (
+      <DeckPractice deckId={deckId} entry={practiceEntry} onFinish={() => setPracticing(false)} />
+    );
   return (
     <section data-screen="" className="flex flex-col gap-16">
       <CollectionHeader
@@ -186,7 +189,15 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
       </CollectionHeader>
       {deck && <RestartLearning deck={deck} skillsOnly />}
-      {deckId && <PracticeEntry deckId={deckId} onOpen={() => setPracticing(true)} />}
+      {deckId && (
+        <PracticeEntry
+          deckId={deckId}
+          onOpen={(entry) => {
+            setPracticeEntry(entry);
+            setPracticing(true);
+          }}
+        />
+      )}
 
       {(rows.length > 0 || filtered || typed !== '') && !selecting ? (
         <div className="flex flex-col gap-12">

@@ -91,6 +91,8 @@ export interface SessionRequest {
   readonly oneOffMinutes?: number;
   /** How new material is handled for this sitting. */
   readonly newCardMode?: NewCardMode;
+  /** Remaining shared admission when this sitting shows a subset of the workload. */
+  readonly automaticNewCardLimit?: number;
   /** The forecast, so the throttle can see whether there is room. */
   readonly load?: readonly DailyLoad[];
   /** The review log, read for answer speed and for carry over. */
@@ -435,7 +437,31 @@ export function buildSession(request: SessionRequest): Session {
 
   const marginalCost =
     request.marginalCost ?? marginalCostOfNewCard(config, logs, now, 'recall', config.horizonDays);
-  const decision = newCardAllowance(request.load ?? [], budget, marginalCost, config, now, backlog);
+  const allowance = newCardAllowance(
+    request.load ?? [],
+    budget,
+    marginalCost,
+    config,
+    now,
+    backlog,
+  );
+  const todayLogs = logs.filter((log) => dayIndexOf(log.reviewedAt, config.scheduler) === today);
+  const introduced = new Set(
+    todayLogs.filter((log) => log.stateBefore === 'new').map((log) => log.cardId),
+  ).size;
+  // Forecast headroom already includes introduced Cards' future reviews. Only
+  // the daily ceiling needs a separate debit; charging headroom again would
+  // unnecessarily suppress the remaining account capacity.
+  const decision = {
+    ...allowance,
+    allowed: Math.min(allowance.allowed, Math.max(0, config.maximumNewCardsPerDay - introduced)),
+  };
+  const spentMinutes = todayLogs.reduce(
+    (sum, log) =>
+      sum +
+      Math.max(log.durationMs / 60_000, answerSeconds(times, log.direction, log.stateBefore) / 60),
+    0,
+  );
 
   const roomLeft = Math.max(budgetMinutes - reviewMinutes, 0);
   const mode: NewCardMode = request.newCardMode ?? (preset.allowNewCards ? 'automatic' : 'exclude');
@@ -457,7 +483,13 @@ export function buildSession(request: SessionRequest): Session {
     ),
     introductions,
   ).map((card) => candidateFor(card, times, today, config));
-  const automaticFresh = fill(newCandidates.slice(0, decision.allowed), roomLeft);
+  const automaticFresh = fill(
+    newCandidates.slice(
+      0,
+      Math.min(decision.allowed, request.automaticNewCardLimit ?? decision.allowed),
+    ),
+    Math.max(0, roomLeft - spentMinutes),
+  );
   const overrideFresh = fill(newCandidates, roomLeft);
   const fresh = mode === 'exclude' ? [] : mode === 'override' ? overrideFresh : automaticFresh;
   const limitedBy: SessionNewCardDecision['limitedBy'] =

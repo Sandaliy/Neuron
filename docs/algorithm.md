@@ -736,7 +736,16 @@ remove the restart or erase later answers. The normal `[1, 10]` learning steps a
 remain unchanged. Reset events are not rating samples and do not count as introduced material.
 
 Daily session scope is resolved before forecasting. Paused Decks are absent from the default scope;
-temporary selection does not alter them. New candidates merge stable Deck streams by today's prior
+temporary selection does not alter them. Target language and scheduled skill are sitting filters, not
+workload universes. The default forecast/backlog covers all participating Decks before either filter.
+The shared plan bounds automatic admission in the filtered sitting. Today's introductions consume
+the same daily ceiling across languages, including introductions from a Deck subsequently paused;
+canceled answers are excluded by canonical workload history. Introduced Cards' future reviews already
+consume forecast headroom, so introductions are not subtracted from that headroom a second time.
+Estimated or measured answer time already spent
+today also consumes automatic new-material room, so completing reviews cannot refill it. Reviews and
+intentional one-off override retain their sitting time semantics. Planning only reads Cards and Reviews;
+it never changes FSRS state or combines direction schedules. New candidates merge stable Deck streams by today's prior
 introductions plus their position in each stream. This prevents trivial large-Deck starvation, including
 successive short sessions, while allowing any Deck to use spare capacity. Due/overdue review priority,
 related-Note separation, automatic workload admission, and the whole-card time boundary still apply.

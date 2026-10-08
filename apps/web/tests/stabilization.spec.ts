@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { advancePractice } from '@neuron/shared';
 import type { PracticeRun } from '@neuron/shared';
 
-import { useFixtures, usePreferences } from './fixtures';
+import { useFixtures, usePreferences, waitForPracticeSave } from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -211,7 +211,7 @@ test('grammar Practice composes selected fields and resumes without schedule wri
     return route.fulfill({ json: { run, version } });
   });
   await page.goto(`/notes?deckId=${deck.id}`);
-  await page.getByRole('button', { name: 'Practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
   await page.getByRole('button', { name: 'Word', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Word', exact: true }).uncheck();
   await page.getByRole('checkbox', { name: 'Translation', exact: true }).check();
@@ -236,9 +236,9 @@ test('grammar Practice composes selected fields and resumes without schedule wri
     path: testInfo.outputPath('grammar-practice.png'),
   });
   await page.getByRole('button', { name: 'Known', exact: true }).click();
-  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await expect.poll(() => run?.statuses[words[0]!.id]).toBe('known');
+  await waitForPracticeSave(page);
   await page.reload();
-  await page.getByRole('button', { name: /Resume practice/ }).click();
   await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
   await expect(page.getByText('tree', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
@@ -264,7 +264,7 @@ test('Study setup and scope open locally while the initial plan is unresolved', 
   await page.goto('/');
   await expect.poll(() => received).toBe(true);
   await page.getByRole('button', { name: 'Study setup', exact: true }).click();
-  await page.getByRole('button', { name: /My study decks|Мои учебные колоды|Study decks/ }).click();
+  await page.getByRole('button', { name: 'Practice deck', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByText('You are caught up', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No decks selected' })).toHaveCount(0);
@@ -338,10 +338,10 @@ test('Today scopes are temporary and distinguish no decks from caught up', async
   await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('today.png') });
   await page.getByRole('button', { name: 'Study setup', exact: true }).click();
-  await page.getByRole('button', { name: /My study decks|Мои учебные колоды|Study decks/ }).click();
+  await page.getByRole('button', { name: 'Practice deck', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.screenshot({ animations: 'disabled', path: test.info().outputPath('deck-scope.png') });
-  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('checkbox', { name: /Practice deck/ }).uncheck();
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'No decks selected' })).toBeVisible();
   await expect.poll(() => bodies.at(-1)?.deckIds).toEqual([]);
@@ -514,7 +514,9 @@ test('ten rapid deletes and restores settle once under delayed responses', async
   restores.reverse().forEach((release) => release());
   await expect.poll(() => deleted.size).toBe(0);
   await page.goto(`/notes?deckId=${deck.id}`);
-  await expect(page.getByRole('button', { name: /Question \d/ })).toHaveCount(10);
+  await page.getByRole('button', { name: 'Select notes', exact: true }).click();
+  await page.getByRole('button', { name: 'Select all shown', exact: true }).click();
+  await expect(page.getByText('Selected: 10', { exact: true })).toBeVisible();
   expect(recoveryReads - readsBefore).toBeLessThanOrEqual(1);
 });
 
@@ -541,9 +543,9 @@ test('practice persists rounds across reload without schedule writes', async ({
     return route.fulfill({ json: { run, version } });
   });
   await page.goto(`/notes?deckId=${deck.id}`);
-  await expect(page.getByRole('button', { name: 'Practice', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeVisible();
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('deck-browser.png') });
-  await page.getByRole('button', { name: 'Practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
   await page.getByRole('button', { name: 'Start practice', exact: true }).click();
   await expect(page.getByText('Question 1', { exact: true })).toBeVisible();
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('practice.png') });
@@ -561,9 +563,11 @@ test('practice persists rounds across reload without schedule writes', async ({
     animations: 'disabled',
     path: test.info().outputPath('practice-complete.png'),
   });
-  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await expect
+    .poll(() => Object.values(run?.statuses ?? {}).every((status) => status === 'known'))
+    .toBe(true);
+  await waitForPracticeSave(page);
   await page.reload();
-  await page.getByRole('button', { name: /Practice complete/ }).click();
   await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
   await expect(page.getByText('Practice complete', { exact: true })).toBeVisible();
   await expect(page.getByRole('img').getByText('100%', { exact: true })).toBeVisible();
@@ -627,6 +631,7 @@ test('a committed touch swipe deletes on release without a second tap', async ({
   });
   await page.goto(`/notes?deckId=${deck.id}`);
   const row = page.getByRole('button', { name: /Question 1 Answer 1/ }).first();
+  await row.hover();
   const box = (await row.boundingBox())!;
   await page.mouse.move(box.x + box.width - 20, box.y + box.height / 2);
   await page.mouse.down();

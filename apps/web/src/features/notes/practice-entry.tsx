@@ -1,17 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
+import { SlidersHorizontal } from 'lucide-react';
 
 import { practiceFieldLabel, practiceFields, practiceResultSchema } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
-import { request } from '../../lib/api';
+import { request, describe } from '../../lib/api';
+import { Button } from '../../ui/button';
+import { Card } from '../../ui/card';
 import { Progress } from '../../ui/progress';
+import { ErrorState, Skeleton } from '../../ui/states';
 
 export function PracticeEntry({
   deckId,
   onOpen,
 }: {
   readonly deckId: string;
-  readonly onOpen: () => void;
+  readonly onOpen: (entry: 'resume' | 'setup') => void;
 }) {
   const t = useTranslate();
   const summary = useQuery({
@@ -21,21 +25,14 @@ export function PracticeEntry({
   });
   const run = summary.data?.run;
   const statuses = Object.values(run?.statuses ?? {});
-  const known = statuses.filter((status) => status === 'known').length;
-  const complete = !!run && !run.queue.length && statuses.every((status) => status === 'known');
+  const classified = statuses.filter((status) => status !== 'unseen').length;
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="flex min-h-48 w-full flex-col gap-8 rounded-12 border border-subtle bg-sunken p-16 text-left transition-colors hover:bg-raised active:bg-selected"
-    >
+    <Card className="flex flex-col gap-16">
       <span className="flex w-full items-center justify-between gap-12">
-        <span className="text-15 text-primary">
-          {t(complete ? 'practice.cleared' : run ? 'practice.resume' : 'practice.title')}
-        </span>
+        <span className="text-15 text-primary">{t('practice.title')}</span>
         {run && (
           <span className="text-12 text-secondary" data-numeric="">
-            {t('practice.knownCount', { known, total: statuses.length })}
+            {t('practice.classified', { count: classified, total: statuses.length })}
           </span>
         )}
       </span>
@@ -52,7 +49,30 @@ export function PracticeEntry({
           })}
         </span>
       )}
-      {run && <Progress value={known} max={statuses.length} label={t('practice.title')} />}
-    </button>
+      {summary.isPending ? (
+        <Skeleton className="h-44 w-full" />
+      ) : summary.error ? (
+        <ErrorState
+          message={t(describe(summary.error).key)}
+          retryLabel={t('common.retry')}
+          onRetry={() => void summary.refetch()}
+        />
+      ) : (
+        <>
+          {run && <Progress value={classified} max={statuses.length} label={t('practice.title')} />}
+          <Button full variant="primary" onClick={() => onOpen('resume')}>
+            {t(run ? 'practice.resume' : 'practice.start')}
+          </Button>
+          <Button
+            variant="text"
+            className="self-start px-0 text-13 text-secondary"
+            onClick={() => onOpen('setup')}
+          >
+            <SlidersHorizontal size={16} aria-hidden="true" />
+            {t('practice.settings')}
+          </Button>
+        </>
+      )}
+    </Card>
   );
 }

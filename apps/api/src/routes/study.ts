@@ -81,7 +81,8 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       maximumNewCardsPerDay: settings.maximumNewCardsPerDay,
     });
     const now = new Date();
-    const liveDecks = studyDecks(await repositories.decks.list());
+    const collections = await repositories.decks.list();
+    const liveDecks = studyDecks(collections);
     let scope = body.deckIds;
     if (body.deckId !== undefined) {
       const subtree = new Set(
@@ -108,11 +109,35 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       direction: row.direction as WorkloadCard['direction'],
       scheduling: toSchedulingState(row),
     }));
+    const languageByDeck = new Map(
+      scopeDeckIds.map((id) => {
+        const chain: DeckSettings[] = [];
+        let deck = collections.find((item) => item.id === id);
+        const seen = new Set<string>();
+        while (deck && !seen.has(deck.id)) {
+          seen.add(deck.id);
+          chain.unshift((deck.settings ?? {}) as DeckSettings);
+          deck = collections.find((item) => item.id === deck!.parentId);
+        }
+        return [
+          id,
+          resolveDeckSettings([account.settings, ...chain]).targetLanguage ?? null,
+        ] as const;
+      }),
+    );
+    const languages = [...new Set(languageByDeck.values())].sort((a, b) =>
+      (a ?? '').localeCompare(b ?? ''),
+    );
+    const targetLanguage =
+      body.targetLanguage === undefined ? (languages[0] ?? null) : body.targetLanguage;
+    const sessionDeckIds = scopeDeckIds.filter((id) => languageByDeck.get(id) === targetLanguage);
     const supported = cards.filter(
-      (card) => body.direction === undefined || card.direction === body.direction,
+      (card) =>
+        sessionDeckIds.includes(card.deckId!) &&
+        (body.direction === undefined || card.direction === body.direction),
     );
     const logs = (await repositories.reviews.workload()).filter(
-      (log) => log.deckId !== undefined && selected.has(log.deckId),
+      (log) => scope === undefined || (log.deckId !== undefined && selected.has(log.deckId)),
     );
     const answers = studyDayAnswers(cards, logs, now, scheduler);
     const available = (card: WorkloadCard) => availableForDailyStudy(card, answers, now, scheduler);
@@ -125,20 +150,27 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
         )
         .map((card) => nextAt(card).toISOString())
         .sort()[0] ?? null;
-    const load = forecast({ cards: supported, config, now, logs });
-    const session = buildSession({
-      cards: supported,
+    // Language and skill never own a copy of the account's automatic allowance.
+    // Explicit temporary Deck scope retains its existing workload universe.
+    const load = forecast({ cards, config, now, logs });
+    const sharedRequest = {
       budget,
       config,
       now,
       logs,
       answers,
       load,
-      rng: createSeededRandom(
-        sessionSeed(account.id, scopeDeckIds.join(','), dayIndexOf(now, scheduler)),
-      ),
       ...(body.minutes === undefined ? {} : { oneOffMinutes: body.minutes }),
       newCardMode: body.newCards,
+    };
+    const seed = sessionSeed(account.id, scopeDeckIds.join(','), dayIndexOf(now, scheduler));
+    const aggregate = buildSession({ ...sharedRequest, cards, rng: createSeededRandom(seed) });
+    const session = buildSession({
+      ...sharedRequest,
+      cards: supported,
+      backlog: aggregate.backlog,
+      automaticNewCardLimit: aggregate.newCount,
+      rng: createSeededRandom(seed),
     });
     const byId = new Map(rows.map((row) => [row.id, row]));
     const [notes, typeNames] = await Promise.all([
@@ -148,8 +180,11 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
 
     return context.json({
       ...session,
-      scopeDeckIds,
-      deckSummaries: scopeDeckIds.map((deckId) => {
+      scopeDeckIds: sessionDeckIds,
+      targetLanguage,
+      languages,
+      aggregateReady: aggregate.cards.length,
+      deckSummaries: sessionDeckIds.map((deckId) => {
         const pool = supported.filter((card) => card.deckId === deckId);
         return {
           deckId,

@@ -1,4 +1,22 @@
+import { expect } from '@playwright/test';
+
 import type { Page } from '@playwright/test';
+
+/** Wait for acknowledged Practice transport before navigating or reloading. */
+export async function waitForPracticeSave(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith('neuron.practice.pending:'))
+          .reduce(
+            (sum, key) => sum + (JSON.parse(localStorage.getItem(key) ?? '[]') as unknown[]).length,
+            0,
+          ),
+      ),
+    )
+    .toBe(0);
+}
 
 /**
  * The api, answered from here instead of from a server.

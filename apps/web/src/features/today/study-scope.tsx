@@ -1,3 +1,5 @@
+import { Folder, Layers } from 'lucide-react';
+
 import type { DeckNode } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
@@ -27,18 +29,65 @@ export function StudyScope({
     .map((deck) => deck.id);
   const [draft, setDraft] = useDialogState<readonly string[] | undefined>(open, selected);
   const chosen = draft ?? defaults;
-  function path(deck: DeckNode) {
-    const names: string[] = [];
+  const visible = new Set(decks.map((deck) => deck.id));
+  for (const deck of decks) {
     const seen = new Set<string>();
     let parent = deck.parentId;
     while (parent && !seen.has(parent)) {
       seen.add(parent);
       const row = collections.find((item) => item.id === parent);
       if (!row) break;
-      names.unshift(row.name);
+      visible.add(row.id);
       parent = row.parentId;
     }
-    return names.join(' / ');
+  }
+  const rows = collections.filter((row) => visible.has(row.id));
+  function leaves(row: DeckNode): string[] {
+    return row.kind === 'deck'
+      ? [row.id]
+      : rows.filter((child) => child.parentId === row.id).flatMap(leaves);
+  }
+  function render(parentId: string | null): React.ReactNode {
+    return rows
+      .filter((row) => row.parentId === parentId)
+      .map((row) => {
+        const ids = leaves(row);
+        const count = ids.filter((id) => chosen.includes(id)).length;
+        const folder = row.kind === 'folder';
+        return (
+          <div key={row.id}>
+            <Checkbox
+              checked={count === ids.length ? true : count ? 'indeterminate' : false}
+              onChange={(checked) =>
+                setDraft(
+                  checked
+                    ? [...new Set([...chosen, ...ids])]
+                    : chosen.filter((id) => !ids.includes(id)),
+                )
+              }
+            >
+              <span className="flex items-center gap-8 text-15 text-primary">
+                {folder ? (
+                  <Folder size={16} aria-hidden="true" />
+                ) : (
+                  <Layers size={16} aria-hidden="true" />
+                )}
+                {row.name}
+              </span>
+              {!folder && (
+                <span className="block text-12 text-secondary">
+                  {t(
+                    row.settings?.dailyStudyIncluded === false
+                      ? 'study.paused'
+                      : 'study.dailyParticipant',
+                  )}
+                </span>
+              )}
+            </Checkbox>
+            {folder && <div className="ml-12 border-l border-subtle pl-8">{render(row.id)}</div>}
+          </div>
+        );
+      });
   }
   return (
     <Dialog
@@ -48,34 +97,15 @@ export function StudyScope({
       description={t('study.scopeTemporary')}
     >
       <DialogBody>
-        <div className="flex flex-wrap gap-8">
-          <Button aria-pressed={draft === undefined} onClick={() => setDraft(undefined)}>
-            {t('study.scopeDefault')}
+        <p role="status" className="text-13 text-secondary">
+          {t(draft === undefined ? 'study.scopeDaily' : 'study.scopeCustom')}
+        </p>
+        {draft !== undefined && (
+          <Button variant="text" className="self-start" onClick={() => setDraft(undefined)}>
+            {t('study.useDailyDecks')}
           </Button>
-          <Button onClick={() => setDraft(decks.map((deck) => deck.id))}>
-            {t('study.scopeAll')}
-          </Button>
-          <Button variant="text" onClick={() => setDraft([])}>
-            {t('study.scopeNone')}
-          </Button>
-        </div>
-        <div className="flex flex-col">
-          {decks.map((deck) => (
-            <Checkbox
-              key={deck.id}
-              checked={chosen.includes(deck.id)}
-              onChange={(checked) =>
-                setDraft(checked ? [...chosen, deck.id] : chosen.filter((id) => id !== deck.id))
-              }
-            >
-              <span className="text-15 text-primary">{deck.name}</span>
-              {path(deck) && <span className="block text-12 text-secondary">{path(deck)}</span>}
-              {deck.settings?.dailyStudyIncluded === false && (
-                <span className="ml-8 text-12 text-secondary">{t('study.paused')}</span>
-              )}
-            </Checkbox>
-          ))}
-        </div>
+        )}
+        <div className="flex flex-col">{render(null)}</div>
       </DialogBody>
       <DialogFooter>
         <Button

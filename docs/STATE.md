@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-01, Listen → Type and acceptance polish prepared for protected PR review.
+Last updated: 2026-10-08, language-scoped Study and learning presentation prepared for protected review.
 
 ## Current release slice
 
@@ -38,7 +38,7 @@ PR #33 is merged at `b4f3c53`. Its layout-viewport anchored learning frame and p
 composition are accepted on the physical iPhone and remain the baseline. Study Undo traverses only the
 active session's answers, with serialized append-only compensation.
 
-The next slice is prepared on `work/listen-type-polish`, not yet merged or production-verified. It keeps
+PR #34 is merged into protected `main` at `bf9cce8`. It keeps
 header/progress anchors stable, unifies native Return and Check, and preserves drafts through blur.
 Practice starts at 0 learning / 0 known, measures classified progress, and provides visit-local,
 versioned multi-step Undo without Review/schedule writes. Recipe settings stay at entry/resume. Today
@@ -46,15 +46,35 @@ uses a discoverable Study setup disclosure. Scheduled and Practice Listening now
 term, reveal context afterwards, and leave the learner's rating/classification explicit. Listening
 setup exposes Deck-language recovery and deterministic compatible system voices with device-local choice.
 
-Local verification is complete: 326 shared/web unit tests, 11 real-Postgres learning-product tests,
-the opt-in live API/database browser flow, the built-app serial interaction gate (256 passed, 4 skipped),
-31 WebKit learning tests, and 10 affected screenshot checks passed. Typechecks, lint, formatting and
-the web build passed. Only the six inspected Today baselines changed. Hosted PR checks and physical
-acceptance remain separate from this local evidence.
+The next slice is prepared on `work/study-language-presentation`, without merge authorization. Study
+uses one effective target language per sitting. Persistent Daily Study Deck participation remains the
+workload universe; language and direction filter the sitting after a shared forecast/admission decision.
+Today's introductions and spent answer time consume the same automatic capacity across languages,
+including introductions in a subsequently paused Deck. Explicit temporary Deck scope retains its own
+existing semantics and resets when the sitting ends. Planning writes no Card schedules or Reviews.
 
-Physical-iPhone acceptance is still required for native Done, header stability, Practice counters/Undo,
-Today disclosure, and Listening quality/flow. Browser evidence cannot prove native keyboard or audio
-quality. External TTS, Library hierarchy/status language, and navigation/tab selection remain deferred.
+Today metrics describe the selected language and mode, with an aggregate indication from the shared
+plan. Quiet setup contains a Folder/leaf Deck picker and session-local meaning/support choices. Reveals
+separate the main answer from labeled supporting content. Card encounters start fresh, including on
+Undo, and device-local voices remain compatible with the active target language. Apple system effects
+are excluded; automatic selection avoids Albert, while deliberate ordinary-voice preferences remain
+available. The normal picker shows a small recommended set with More voices for other compatible
+ordinary voices, without inferring undocumented quality tiers. Practice entry/resume
+uses classified progress, a quiet recipe/setup affordance and numeric active counters; its persistence
+and Undo protocol remain unchanged.
+
+Local scheduler/shared/web verification passed 595 tests and 25 real-Postgres Study/learning tests.
+The final built-app serial interaction gate passed 326 tests across phone, desktop and WebKit, with
+4 skips recorded separately; WebKit accounts for 58 passing tests. The opt-in real API/database browser
+flow passed. All 58 phone/desktop visual tests passed; affected setup, hierarchy, voice, reveal and
+Practice screenshots were inspected, with only six intentional Today references refreshed. Typechecks,
+lint, formatting and production build passed. Hosted PR checks and physical acceptance remain separate
+from local evidence.
+
+Physical-iPhone acceptance is required for final Study setup, multi-language switching, voice filtering,
+three consecutive Listen → Type cards, and Practice ergonomics, including native Done and header
+stability. Browser evidence cannot prove native keyboard or audio quality. External TTS, Library
+hierarchy/status language, and navigation/tab selection remain deferred.
 
 ## Now
 
@@ -101,7 +121,8 @@ Today or Study.
 ## Next
 
 1. Repeat physical-iPhone production acceptance of completed-session Today reconciliation after PR #30.
-2. Complete protected delivery and physical-iPhone acceptance of Listen → Type and interaction polish.
+2. Complete protected review and physical-iPhone acceptance of language-scoped Study/configuration and
+   learning presentation, including the PR #34 Listen → Type and Practice interaction contracts.
 3. Reassess system speech quality after device acceptance before considering external TTS.
 4. Refine Folder/Deck visual hierarchy and replace implementation-oriented Note/Card summaries such as
    `mixed` and `3 in review` with learner-facing language.

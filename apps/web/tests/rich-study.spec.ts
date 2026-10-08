@@ -175,7 +175,10 @@ for (const reduced of [false, true])
     });
     await page.goto('/');
     await page.getByRole('button', { name: 'Study', exact: true }).click();
-    const surface = page.locator('[data-g="card"]').first();
+    const surface = page.locator('.neu-learning-card');
+    await expect(surface).toBeVisible();
+    await expect(page.locator('[data-shell-content]')).toHaveCSS('position', 'fixed');
+    await page.evaluate(() => document.fonts.ready);
     const before = await surface.boundingBox();
     await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
     await page.getByLabel('Type your answer').fill('Sorgfaltx');
@@ -272,7 +275,7 @@ for (const screen of ['Study', 'Practice'] as const)
         return route.fulfill({ json: { run, version } });
       });
       await page.goto(`/notes?deckId=${deck.id}`);
-      await page.getByRole('button', { name: 'Practice', exact: true }).click();
+      await page.getByRole('button', { name: 'Start practice', exact: true }).click();
       await page.getByRole('combobox', { name: 'Response mode' }).selectOption('listening');
       const voices = page.getByRole('combobox', { name: /Voice on this device/ });
       await expect(voices).toHaveValue('de-DE|Alpha|alpha');
@@ -379,7 +382,7 @@ for (const screen of ['Study', 'Practice'] as const)
           return route.fulfill({ json: { run, version } });
         });
         await page.goto(`/notes?deckId=${deck.id}`);
-        await page.getByRole('button', { name: 'Practice', exact: true }).click();
+        await page.getByRole('button', { name: 'Start practice', exact: true }).click();
         await page.getByRole('combobox', { name: 'Response mode' }).selectOption('typing');
         await page.getByRole('button', { name: 'Start practice', exact: true }).click();
       }
@@ -389,6 +392,11 @@ for (const screen of ['Study', 'Practice'] as const)
       });
       const frame = page.locator('[data-shell-content]');
       const card = page.locator('.neu-learning-card');
+      await expect(frame).toHaveCSS(
+        'padding-top',
+        page.viewportSize()!.width < 640 ? '59px' : '71px',
+      );
+      await page.evaluate(() => document.fonts.ready);
       const normal = await card.boundingBox();
       const initialFrame = await frame.boundingBox();
       const header = await page.locator('.neu-session > header').boundingBox();
@@ -485,7 +493,7 @@ for (const screen of ['Study', 'Practice'] as const)
           return route.fulfill({ json: { run, version: run ? 1 : 0 } });
         });
         await page.goto(`/notes?deckId=${deck.id}`);
-        await page.getByRole('button', { name: 'Practice', exact: true }).click();
+        await page.getByRole('button', { name: 'Start practice', exact: true }).click();
         await page.getByRole('combobox', { name: 'Response mode' }).selectOption('typing');
         await page.getByRole('button', { name: 'Start practice', exact: true }).click();
       }
@@ -538,7 +546,7 @@ for (const screen of ['Study', 'Practice'] as const)
         return route.fulfill({ json: { run, version } });
       });
       await page.goto(`/notes?deckId=${deck.id}`);
-      await page.getByRole('button', { name: 'Practice', exact: true }).click();
+      await page.getByRole('button', { name: 'Start practice', exact: true }).click();
       await page.getByRole('combobox', { name: 'Response mode' }).selectOption('typing');
       await page.getByRole('button', { name: 'Start practice', exact: true }).click();
     }
@@ -788,8 +796,8 @@ test('My Study Decks scope reacts locally while a replacement admission plan is 
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Study setup', exact: true }).click();
-  await page.getByRole('button', { name: /My study decks/ }).click();
-  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('button', { name: 'Words', exact: true }).click();
+  await page.getByRole('checkbox', { name: /Words/ }).uncheck();
   const measured = await responsePaint(
     page,
     page.getByRole('button', { name: 'Apply', exact: true }),
@@ -819,7 +827,7 @@ for (const reduced of [false, true])
       return route.fulfill({ json: { run, version } });
     });
     await page.goto(`/notes?deckId=${deck.id}`);
-    await page.getByRole('button', { name: 'Practice', exact: true }).click();
+    await page.getByRole('button', { name: 'Start practice', exact: true }).click();
     await page.getByRole('button', { name: 'Start practice', exact: true }).click();
     await page.getByRole('button', { name: 'Show answer', exact: true }).click();
     await page.getByRole('button', { name: 'Known', exact: true }).click();

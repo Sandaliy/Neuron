@@ -643,8 +643,11 @@ secondary action. Study uses an accessible Undo icon. Thin progress sits directl
 Active Practice uses the same Undo icon; recipe/settings belong to the entry/resume surface. Undo
 traverses this active visit, including completion, and restores the current card and classified counts.
 Practice completion uses a restrained percentage ring and known/remaining counts, with explicit
-continue, finish and restart actions. A Deck's Practice entry is a full-width secondary surface showing
-saved progress; it never gates Deck loading. Completed runs remain completed until explicit restart.
+continue, finish and restart actions. A Deck's Practice entry shows classified progress/run size, one
+quiet recipe, a progress line and a full-width primary Resume (or Start) action. Compact sliders-style
+Practice setup belongs to the entry or the Current practice card header. Active Practice uses aligned
+numeric counters with accessible Still learning/Known labels; normal persistence has no visible Saved
+label. Only saving errors require attention. Completed runs remain completed until explicit restart.
 
 Grammar has its own bordered secondary surface, compact disclosure and inline Deck-language setup.
 The shared reveal is a short fade with 6px vertical settling. Pointer manipulation has no interpolation.
@@ -690,10 +693,19 @@ answer. Feedback never chooses an FSRS rating.
 Listening reuses this Typing composition. The hidden term is spoken on request and checked against the
 term plus accepted answers. Back/meaning/context appears after checking; Show answer stays a secondary
 escape. Listening setup explains missing language/voices and opens individual Deck settings directly.
-Multiple compatible voices can be previewed and selected there, with device-local preference.
+The normal picker shows a small recommended compatible set and preserves the explicit device-local
+selection. Other ordinary voices live behind More voices. Identified Apple effects are excluded;
+Albert is available only by deliberate selection. No browser quality tiers are presented.
 
-Today keeps Ready, review/new counts, estimate and Study prominent. A labelled Study setup disclosure
-summarizes scope, duration and mode; its expanded controls retain their temporary choices when closed.
+Today keeps Ready, review/new counts, estimate and Study prominent for the selected language/sitting.
+When multiple distinct effective target languages participate, the selected language appears quietly
+beside Study setup; the shared aggregate Ready count sits below review/new metrics as secondary text.
+One effective language has neither a selector nor an aggregate language count. Study setup collapses
+to a sliders icon, label, optional language context and disclosure; expanded controls retain
+their temporary choices when closed. Deck selection has one value row and a hierarchical picker:
+Folders select descendant leaf Decks, language filtering preserves ancestry, and normal Daily Study
+participation remains distinct from temporary selection. Card display controls populated supporting
+content with a dominant answer and quiet labels/groups; scheduled skills retain their meanings.
 Valid setup defaults closed. Unavailable modes or Listening configuration requiring intervention expose
 the controls automatically. Persistent Deck skills remain separate, deliberate settings.
 
