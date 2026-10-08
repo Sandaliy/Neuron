@@ -24,7 +24,7 @@ import { Button } from '../../ui/button';
 import { CollectionHeader } from '../../ui/collection-header';
 import { Dialog, DialogFooter } from '../../ui/dialog';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
-import { TreeChildren, Row } from '../../ui/row';
+import { TreeChildren, Row, RowChevron } from '../../ui/row';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
@@ -318,8 +318,8 @@ function Deck({
             <span
               className={
                 deck.kind === 'deck'
-                  ? 'block whitespace-normal text-20 leading-snug tracking-tight'
-                  : 'text-15 font-semibold'
+                  ? 'block whitespace-normal text-17 leading-snug'
+                  : 'block whitespace-normal text-17 font-semibold leading-snug'
               }
             >
               {deck.name}
@@ -327,18 +327,21 @@ function Deck({
           }
           standalone={false}
           className={
-            deck.kind === 'folder'
-              ? 'gap-8 rounded-12 bg-sunken'
-              : 'gap-8 border-b border-subtle px-8 py-16'
+            deck.kind === 'folder' ? 'gap-8 rounded-12 bg-sunken px-8 py-8' : 'gap-8 px-8 py-8'
           }
           subtitle={
             <span className="block whitespace-normal text-13 leading-read text-secondary">
               {[
+                deck.kind === 'folder'
+                  ? t('library.deckCount', {
+                      count: countDecks(deck),
+                    })
+                  : '',
                 deck.noteCount === undefined
                   ? ''
                   : t('library.noteCount', { count: deck.noteCount }),
-                deck.due > 0 || deck.fresh > 0
-                  ? t('today.deckCounts', { due: deck.due, fresh: deck.fresh })
+                deck.kind === 'deck' && (deck.due > 0 || deck.fresh > 0)
+                  ? t('library.cardCounts', { due: deck.due, fresh: deck.fresh })
                   : '',
               ]
                 .filter(Boolean)
@@ -386,6 +389,7 @@ function Deck({
           interactiveTrailing
           trailing={
             <>
+              <RowChevron />
               <Menu label={t('library.deckActions', { name: deck.name })}>
                 <MenuItem
                   icon={<Pencil size={16} strokeWidth={1.5} />}
@@ -503,6 +507,13 @@ function Deck({
         </TreeChildren>
       ) : undefined}
     </div>
+  );
+}
+
+function countDecks(folder: DeckNode): number {
+  return folder.children.reduce(
+    (count, child) => count + (child.kind === 'deck' ? 1 : countDecks(child)),
+    0,
   );
 }
 

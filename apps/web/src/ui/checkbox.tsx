@@ -20,11 +20,13 @@ export function Checkbox({
   onChange,
   children,
   disabled = false,
+  labelClassName = '',
 }: {
   readonly checked: boolean | 'indeterminate';
   readonly onChange: (checked: boolean) => void;
   readonly children: ReactNode;
   readonly disabled?: boolean;
+  readonly labelClassName?: string;
 }) {
   const id = useId();
 
@@ -46,7 +48,10 @@ export function Checkbox({
         {checked === 'indeterminate' && <span aria-hidden="true" className="h-px w-8 bg-strong" />}
       </RadixCheckbox.Root>
 
-      <label htmlFor={id} className="cursor-pointer text-14 leading-body text-secondary">
+      <label
+        htmlFor={id}
+        className={`cursor-pointer text-14 leading-body text-secondary ${labelClassName}`}
+      >
         {children}
       </label>
     </div>

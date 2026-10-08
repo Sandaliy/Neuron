@@ -53,6 +53,8 @@ export const en = {
   'note.restartHint':
     'Start these cards from new again. Review history is preserved. To resume without resetting, use Return to study.',
   'library.noteCount': '{count} notes',
+  'library.deckCount': 'Decks: {count}',
+  'library.cardCounts': 'Cards: {due} due · {fresh} new',
   'note.studyStatus': 'Study status',
   'study.moreDirections': 'Study directions',
   'study.directionHint':
@@ -503,9 +505,15 @@ export const en = {
   'notes.filterStatus': 'Study participation',
   'notes.filterTag': 'Tag or topic',
   'notes.filterSource': 'Import source name',
-  'notes.filterCardState': 'Review stage',
+  'notes.filterCardState': 'Card progress',
   'notes.cardSummaryNone': 'No cards',
-  'notes.cardSummaryMixed': 'Mixed · {count}',
+  'notes.partlyStarted': 'Partly started',
+  'notes.progressHint':
+    'Each card is a separate direction. Practiced cards may be due or scheduled; open a note for timing.',
+  'notes.progress.new': 'New cards: {count}',
+  'notes.progress.learning': 'Learning cards: {count}',
+  'notes.progress.relearning': 'Learning again: {count}',
+  'notes.progress.review': 'Practiced cards: {count}',
   'notes.any': 'Any',
   'notes.sort': 'Order',
   'notes.sort.created': 'Oldest first',
@@ -543,8 +551,8 @@ export const en = {
   'notes.import': 'Import',
   'cardState.new': 'New',
   'cardState.learning': 'Learning',
-  'cardState.review': 'In review',
-  'cardState.relearning': 'Forgotten',
+  'cardState.review': 'Practiced',
+  'cardState.relearning': 'Learning again',
 
   'notes.studyFilterHint':
     'Study participation applies to the whole note. Review stage finds notes with at least one card at that stage.',

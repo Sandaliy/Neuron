@@ -7,6 +7,7 @@ import { useDialogState } from '../../lib/dialog-state';
 import { Button } from '../../ui/button';
 import { Checkbox } from '../../ui/checkbox';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
+import { TreeChildren } from '../../ui/row';
 
 export function StudyScope({
   open,
@@ -55,36 +56,53 @@ export function StudyScope({
         const count = ids.filter((id) => chosen.includes(id)).length;
         const folder = row.kind === 'folder';
         return (
-          <div key={row.id}>
-            <Checkbox
-              checked={count === ids.length ? true : count ? 'indeterminate' : false}
-              onChange={(checked) =>
-                setDraft(
-                  checked
-                    ? [...new Set([...chosen, ...ids])]
-                    : chosen.filter((id) => !ids.includes(id)),
-                )
-              }
+          <div key={row.id} className="flex flex-col gap-8">
+            <div
+              className={`rounded-12 ${folder ? 'bg-sunken' : count > 0 ? 'bg-fill-accent-quiet' : ''}`}
             >
-              <span className="flex items-center gap-8 text-15 text-primary">
-                {folder ? (
-                  <Folder size={16} aria-hidden="true" />
-                ) : (
-                  <Layers size={16} aria-hidden="true" />
-                )}
-                {row.name}
-              </span>
-              {!folder && (
-                <span className="block text-12 text-secondary">
-                  {t(
-                    row.settings?.dailyStudyIncluded === false
-                      ? 'study.paused'
-                      : 'study.dailyParticipant',
+              <Checkbox
+                labelClassName="min-w-0 flex-1"
+                checked={count === ids.length ? true : count ? 'indeterminate' : false}
+                onChange={(checked) =>
+                  setDraft(
+                    checked
+                      ? [...new Set([...chosen, ...ids])]
+                      : chosen.filter((id) => !ids.includes(id)),
+                  )
+                }
+              >
+                <span
+                  className={`flex items-center gap-8 text-15 text-primary ${folder ? 'font-semibold' : ''}`}
+                >
+                  {folder ? (
+                    <Folder
+                      size={18}
+                      strokeWidth={1.5}
+                      className="shrink-0 text-secondary"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Layers
+                      size={18}
+                      strokeWidth={1.5}
+                      className="shrink-0 text-secondary"
+                      aria-hidden="true"
+                    />
                   )}
+                  {row.name}
                 </span>
-              )}
-            </Checkbox>
-            {folder && <div className="ml-12 border-l border-subtle pl-8">{render(row.id)}</div>}
+                {!folder && (
+                  <span className="block text-12 text-secondary">
+                    {t(
+                      row.settings?.dailyStudyIncluded === false
+                        ? 'study.paused'
+                        : 'study.dailyParticipant',
+                    )}
+                  </span>
+                )}
+              </Checkbox>
+            </div>
+            {folder && <TreeChildren>{render(row.id)}</TreeChildren>}
           </div>
         );
       });
@@ -105,7 +123,7 @@ export function StudyScope({
             {t('study.useDailyDecks')}
           </Button>
         )}
-        <div className="flex flex-col">{render(null)}</div>
+        <div className="flex flex-col gap-8">{render(null)}</div>
       </DialogBody>
       <DialogFooter>
         <Button

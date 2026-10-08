@@ -77,6 +77,17 @@ for (const theme of THEMES) {
       });
     });
 
+    test('expanded library hierarchy', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/library');
+      await page.getByRole('button', { name: 'Show what is inside', exact: true }).first().click();
+      await page.getByRole('button', { name: 'Show what is inside', exact: true }).first().click();
+      await expect(page.getByRole('button', { name: /^Verben mit Dativ/ })).toBeVisible();
+      await settle(page);
+      await expect(page).toHaveScreenshot(`library-hierarchy-${theme}.png`, { fullPage: true });
+    });
+
     test('study composition and visible setup', async ({ page }) => {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);

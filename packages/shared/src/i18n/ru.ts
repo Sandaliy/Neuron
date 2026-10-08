@@ -58,6 +58,8 @@ export const ru = {
   'note.restartHint':
     'Начать изучение карточек заново. История повторений сохранится. Для продолжения без сброса выбери «Вернуть в обучение».',
   'library.noteCount': 'Заметок: {count}',
+  'library.deckCount': 'Колоды: {count}',
+  'library.cardCounts': 'Карточки: {due} к повторению · {fresh} новых',
   'note.studyStatus': 'Статус изучения',
   'study.moreDirections': 'Направления изучения',
   'study.directionHint':
@@ -457,9 +459,15 @@ export const ru = {
   'notes.filterStatus': 'Участие в изучении',
   'notes.filterTag': 'Тег или тема',
   'notes.filterSource': 'Название источника импорта',
-  'notes.filterCardState': 'Этап повторения',
+  'notes.filterCardState': 'Прогресс карточек',
   'notes.cardSummaryNone': 'Нет карточек',
-  'notes.cardSummaryMixed': 'Разные · {count}',
+  'notes.partlyStarted': 'Частично начато',
+  'notes.progressHint':
+    'Каждая карточка — отдельное направление. Пройденные карточки могут ждать повторения или быть запланированы; открой заметку, чтобы увидеть сроки.',
+  'notes.progress.new': 'Новые карточки: {count}',
+  'notes.progress.learning': 'В изучении: {count}',
+  'notes.progress.relearning': 'Изучаются снова: {count}',
+  'notes.progress.review': 'Пройденные карточки: {count}',
   'notes.any': 'Любое',
   'notes.sort': 'Порядок',
   'notes.sort.created': 'Сначала добавленные раньше',
@@ -497,8 +505,8 @@ export const ru = {
   'notes.import': 'Импорт',
   'cardState.new': 'Новая',
   'cardState.learning': 'Учится',
-  'cardState.review': 'В повторении',
-  'cardState.relearning': 'Забыто',
+  'cardState.review': 'Пройдено',
+  'cardState.relearning': 'Изучается снова',
 
   'notes.studyFilterHint':
     'Участие в изучении относится ко всей записи. Этап повторения находит записи, у которых хотя бы одна карточка находится на этом этапе.',

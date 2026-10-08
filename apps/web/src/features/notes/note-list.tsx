@@ -5,7 +5,7 @@ import { Plus, Upload, Trash2, Search } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { NOTE_SORTS, NOTE_STATUSES, termOf } from '@neuron/shared';
-import type { CardStateCounts, MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
+import type { MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
@@ -23,6 +23,7 @@ import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
 import { DeckPractice } from '../today/practice';
 
+import { NoteProgressSummary } from './note-progress';
 import { NoteSelectionBar } from './note-selection';
 import { PracticeEntry } from './practice-entry';
 import { RestartLearning } from './restart-learning';
@@ -34,7 +35,6 @@ const PAGE = 1000;
 
 /** How tall a row is. The virtualiser needs a number before it can measure. */
 const ROW_HEIGHT = 52;
-const CARD_STATE_ORDER = ['new', 'learning', 'review', 'relearning'] as const;
 
 /**
  * A deck's notes, however many there are.
@@ -242,6 +242,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           </div>
           {filtersOpen && (
             <div className="flex flex-col gap-12 rounded-12 border border-default p-16">
+              <p className="text-13 leading-read text-secondary">{t('notes.progressHint')}</p>
               <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
                 <Select
                   value={status}
@@ -542,9 +543,9 @@ const NoteRow = memo(function NoteRow({
         trailing={
           <>
             {note.status !== 'active' ? (
-              <Chip tone="due">{t(`note.status.${note.status}`)}</Chip>
+              <Chip tone="new">{t(`note.status.${note.status}`)}</Chip>
             ) : (
-              <CardStateSummary counts={note.cardStates} />
+              <NoteProgressSummary counts={note.cardStates} />
             )}
             {selecting && (
               <span
@@ -578,29 +579,3 @@ const NoteRow = memo(function NoteRow({
     </SwipeDelete>
   );
 });
-
-function CardStateSummary({ counts }: { readonly counts: CardStateCounts | undefined }) {
-  const t = useTranslate();
-  const values = CARD_STATE_ORDER.map((state) => ({ state, count: counts?.[state] ?? 0 })).filter(
-    (entry) => entry.count > 0,
-  );
-  const total = values.reduce((sum, entry) => sum + entry.count, 0);
-  const description =
-    values.length === 0
-      ? t('notes.cardSummaryNone')
-      : values
-          .map(({ state, count }) => `${count} ${t(`cardState.${state}` as MessageKey)}`)
-          .join(', ');
-  const label =
-    values.length === 0
-      ? description
-      : values.length === 1
-        ? description
-        : t('notes.cardSummaryMixed', { count: total });
-
-  return (
-    <span aria-label={description} title={description} className="max-w-120 truncate">
-      <Chip tone="plain">{label}</Chip>
-    </span>
-  );
-}
