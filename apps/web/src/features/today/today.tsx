@@ -440,7 +440,7 @@ function Waiting({
               </span>
             </div>
             {languages.length > 1 && !updating && (
-              <p className="-mt-12 text-12 text-secondary">
+              <p className="-mt-12 max-w-full self-end text-right text-12 leading-read text-secondary">
                 {t('study.aggregateReady', {
                   count: result.aggregateReady,
                   languages: languages.length,

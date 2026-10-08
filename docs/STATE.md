@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-08, language-scoped Study and learning presentation prepared for protected review.
+Last updated: 2026-10-08, Library hierarchy and learner-facing progress prepared for protected review.
 
 ## Current release slice
 
@@ -46,7 +46,7 @@ uses a discoverable Study setup disclosure. Scheduled and Practice Listening now
 term, reveal context afterwards, and leave the learner's rating/classification explicit. Listening
 setup exposes Deck-language recovery and deterministic compatible system voices with device-local choice.
 
-The next slice is prepared on `work/study-language-presentation`, without merge authorization. Study
+PR #35 is merged into protected `main` at `bc75c05`. Study
 uses one effective target language per sitting. Persistent Daily Study Deck participation remains the
 workload universe; language and direction filter the sitting after a shared forecast/admission decision.
 Today's introductions and spent answer time consume the same automatic capacity across languages,
@@ -73,8 +73,28 @@ from local evidence.
 
 Physical-iPhone acceptance is required for final Study setup, multi-language switching, voice filtering,
 three consecutive Listen → Type cards, and Practice ergonomics, including native Done and header
-stability. Browser evidence cannot prove native keyboard or audio quality. External TTS, Library
-hierarchy/status language, and navigation/tab selection remain deferred.
+stability. Browser evidence cannot prove native keyboard or audio quality. External TTS and
+navigation/tab selection remain deferred.
+
+The next slice is prepared on `work/library-hierarchy-progress`, without merge authorization. Library
+Folders show descendant Deck counts and aggregate Note counts; leaf Decks separate their Note totals
+from due/new Card counts. Quiet Folder surfaces, open Deck rows, wrapping names, common Folder/Deck
+icons and the existing indentation guide align Library, Study multi-selection and Import destinations.
+Destination search retains matching ancestors and omits unrelated branches. Note rows describe New,
+Partly started, Learning or Practiced progress, with an accessible count breakdown for independently
+scheduled Cards. Practiced is not a due or mastery claim; explicit Known/Set aside/Draft participation
+remains separate. Missing progress data does not claim zero Cards. Today places its shared aggregate
+Ready label on the right below the estimate, above the setup divider. Persistence, optimistic
+reconciliation, scheduling, workload admission and Review history are unchanged.
+
+This slice passed 335 shared/web unit tests, 278 built-app serial phone/desktop interaction tests and
+8 focused WebKit tests. Four opt-in live API tests were skipped. All 62 built-app phone/desktop visual
+tests passed; both-theme hierarchy, destination, progress and narrow Today screenshots were inspected,
+with only eight intentional Library references added or refreshed. Four large-list performance tests
+passed the enforced 55 fps budget at 4× CPU slowdown: 5,000 Notes measured 60.0 fps with 12 mounted rows,
+and 500 Decks measured 58.7 fps in both row treatments. Lint, typechecks, formatting and production build
+passed. Hosted checks and physical-iPhone acceptance of hierarchy touch/drag, moves, selection, pickers
+and the Today aggregate placement remain required separately.
 
 ## Now
 
@@ -121,11 +141,11 @@ Today or Study.
 ## Next
 
 1. Repeat physical-iPhone production acceptance of completed-session Today reconciliation after PR #30.
-2. Complete protected review and physical-iPhone acceptance of language-scoped Study/configuration and
+2. Complete remaining physical-iPhone acceptance of merged language-scoped Study/configuration and
    learning presentation, including the PR #34 Listen → Type and Practice interaction contracts.
 3. Reassess system speech quality after device acceptance before considering external TTS.
-4. Refine Folder/Deck visual hierarchy and replace implementation-oriented Note/Card summaries such as
-   `mixed` and `3 in review` with learner-facing language.
+4. Complete protected review and physical-iPhone acceptance of Library hierarchy, learner-facing
+   Note/Card progress, consistent destination/Study pickers and Today aggregate placement.
 5. Make broader key flows feel less developer-oriented, consider lightweight navigation motion, and
    investigate why the bottom tab can occasionally mark Library active on Today or Settings.
 

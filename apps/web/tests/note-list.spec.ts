@@ -135,8 +135,8 @@ test('source filtering and card summaries stay bounded', async ({ page }) => {
 
   const alphaRow = page.getByRole('button', { name: /^Alpha First source/ });
   await expect(alphaRow).toBeVisible();
-  await expect(alphaRow.getByText('Mixed · 3', { exact: true })).toBeVisible();
-  await expect(alphaRow.locator('[aria-label="2 New, 1 Learning"]')).toHaveCount(1);
+  await expect(alphaRow.getByText('Partly started', { exact: true })).toBeVisible();
+  await expect(alphaRow.locator('[aria-label="New cards: 2, Learning cards: 1"]')).toHaveCount(1);
   expect((await alphaRow.boundingBox())?.height).toBe(52);
   await expect
     .poll(() => requests.some((request) => request.searchParams.get('cursor') === 'next-page'))

@@ -107,6 +107,60 @@ const plan = (cards: ReturnType<typeof card>[], targetLanguage = 'de') => ({
   },
 });
 
+for (const theme of ['light', 'dark'] as const) {
+  test(`aggregate Ready aligns with the estimate and hierarchy choices in ${theme}`, async ({
+    page,
+  }, info) => {
+    await usePreferences(page, { locale: 'en', theme });
+    await useFixtures(page, { decks: [{ ...folder, children: [de, en] }], notes });
+    await page.route('**/api/study/session', (route) =>
+      route.fulfill({ json: { ...plan([card(0, 'recognition')]), aggregateReady: 44 } }),
+    );
+    await page.goto('/');
+    const aggregate = page.getByText('44 ready across 2 languages', { exact: true });
+    const estimate = page.getByText('About 1 min', { exact: true });
+    await expect(aggregate).toBeVisible();
+    const a = await aggregate.boundingBox();
+    const e = await estimate.boundingBox();
+    expect(Math.abs(a!.x + a!.width - e!.x - e!.width)).toBeLessThan(1);
+    expect(a!.y).toBeGreaterThan(e!.y + e!.height);
+    await page.screenshot({
+      path: info.outputPath('today-aggregate.png'),
+      fullPage: true,
+      animations: 'disabled',
+    });
+    await page.getByRole('button', { name: 'Study setup' }).click();
+    await page.getByRole('button', { name: 'German words', exact: true }).click();
+    const picker = page.getByRole('dialog', { name: 'Decks' });
+    const parent = picker.getByRole('checkbox', { name: 'Languages', exact: true });
+    await expect(parent).toBeChecked();
+    await page.keyboard.press('Tab');
+    await parent.focus();
+    expect(await parent.evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe('none');
+    await page.screenshot({ path: info.outputPath('study-hierarchy.png'), animations: 'disabled' });
+    await page.keyboard.press('Space');
+    await expect(parent).not.toBeChecked();
+    await page.keyboard.press('Space');
+    await expect(parent).toBeChecked();
+    await picker.getByRole('button', { name: 'Use Daily Study decks' }).click();
+    await picker.getByRole('button', { name: 'Apply' }).click();
+    if (info.project.name !== 'desktop-interaction') {
+      await page.setViewportSize({ width: 320, height: 812 });
+      await page.getByRole('button', { name: /Study setup/ }).click();
+      await expect(aggregate).toBeVisible();
+      expect(await aggregate.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await page.screenshot({
+        path: info.outputPath('today-narrow.png'),
+        fullPage: true,
+        animations: 'disabled',
+      });
+    }
+  });
+}
+
 test('one inherited participating language keeps Ready dominant without redundant language controls', async ({
   page,
 }) => {

@@ -766,11 +766,11 @@ test('moving a note projects its row and both Deck counts before transport', asy
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Words 0 notes', exact: true })).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Destination 1 notes · 0 to review · 1 new', exact: true }),
+    page.getByRole('button', { name: 'Destination 1 notes · Cards: 0 due · 1 new', exact: true }),
   ).toBeVisible();
   release();
   await expect(
-    page.getByRole('button', { name: 'Words 1 notes · 0 to review · 1 new', exact: true }),
+    page.getByRole('button', { name: 'Words 1 notes · Cards: 0 due · 1 new', exact: true }),
   ).toBeVisible();
   await page.getByRole('button', { name: /Words 1 notes/ }).click();
   await expect(page.getByRole('button', { name: /Sorgfalt care/ })).toBeVisible();

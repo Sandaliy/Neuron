@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Folder, Layers } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Folder, Layers } from 'lucide-react';
 import { useState } from 'react';
 
 import type { DeckNode } from '@neuron/shared';
@@ -8,6 +8,7 @@ import { flatten } from '../../lib/decks';
 import { Button } from '../../ui/button';
 import { Dialog, DialogBody } from '../../ui/dialog';
 import { Input } from '../../ui/input';
+import { TreeChildren } from '../../ui/row';
 
 export function collectionPath(tree: readonly DeckNode[], item: DeckNode) {
   const names = new Map(flatten(tree).map((row) => [row.id, row.name]));
@@ -35,8 +36,28 @@ export function CollectionPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-  const options = flatten(tree).filter((row) => row.kind === 'deck');
+  const all = flatten(tree);
+  const names = new Map(all.map((row) => [row.id, row.name]));
+  const paths = new Map(
+    all.map((row) => [
+      row.id,
+      row.path
+        .map((id) => names.get(id))
+        .filter(Boolean)
+        .join(' / '),
+    ]),
+  );
+  const options = all.filter((row) => row.kind === 'deck');
   const selected = options.find((row) => row.id === value);
+  const search = query.trim().toLocaleLowerCase();
+  const matches = new Set(
+    options
+      .filter((row) => `${row.name} ${paths.get(row.id)}`.toLocaleLowerCase().includes(search))
+      .map((row) => row.id),
+  );
+  function hasMatch(row: DeckNode): boolean {
+    return row.kind === 'deck' ? matches.has(row.id) : row.children.some(hasMatch);
+  }
   return (
     <>
       <Button
@@ -52,7 +73,7 @@ export function CollectionPicker({
         <span className="flex min-w-0 flex-col">
           <span className="truncate">{selected?.name ?? t('library.notSet')}</span>
           {selected && (
-            <span className="truncate text-12 text-tertiary">{collectionPath(tree, selected)}</span>
+            <span className="truncate text-12 text-secondary">{paths.get(selected.id)}</span>
           )}
         </span>
         <ChevronDown size={16} aria-hidden="true" />
@@ -69,21 +90,16 @@ export function CollectionPicker({
               function render(rows: readonly DeckNode[]): React.ReactNode {
                 return rows.map((row) => {
                   const folder = row.kind === 'folder';
-                  const expanded = !collapsed.has(row.id) || query !== '';
-                  if (
-                    query &&
-                    !folder &&
-                    !`${row.name} ${collectionPath(tree, row)}`
-                      .toLocaleLowerCase()
-                      .includes(query.toLocaleLowerCase())
-                  )
-                    return null;
+                  const expanded = !collapsed.has(row.id) || search !== '';
+                  if (search && !hasMatch(row)) return null;
                   return (
                     <div key={row.id} className="flex flex-col gap-4">
-                      <Button
+                      <button
+                        type="button"
+                        data-row=""
                         aria-expanded={folder ? expanded : undefined}
                         aria-pressed={folder ? undefined : row.id === value}
-                        className={`w-full justify-start text-left ${row.id === value ? 'bg-selected border-accent' : ''}`}
+                        className={`flex min-h-44 w-full items-center gap-8 rounded-12 px-12 py-12 text-left hover:bg-raised ${row.id === value ? 'bg-fill-accent-quiet' : folder ? 'bg-sunken' : ''}`}
                         onClick={() => {
                           if (folder)
                             setCollapsed((current) => {
@@ -99,32 +115,54 @@ export function CollectionPicker({
                       >
                         {folder ? (
                           <>
-                            <ChevronRight size={14} className={expanded ? 'rotate-90' : ''} />
-                            <Folder size={16} />
+                            <ChevronRight
+                              size={12}
+                              aria-hidden="true"
+                              className={`shrink-0 transition-transform dur-control ${expanded ? 'rotate-90' : ''}`}
+                            />
+                            <Folder
+                              size={18}
+                              strokeWidth={1.5}
+                              aria-hidden="true"
+                              className="shrink-0 text-secondary"
+                            />
                           </>
                         ) : (
-                          <Layers size={16} />
+                          <Layers
+                            size={18}
+                            strokeWidth={1.5}
+                            aria-hidden="true"
+                            className="shrink-0 text-secondary"
+                          />
                         )}
-                        <span className="flex min-w-0 flex-col">
-                          <span className="truncate">{row.name}</span>
+                        <span className="flex min-w-0 flex-1 flex-col gap-4">
+                          <span
+                            className={`text-15 leading-read text-primary ${folder ? 'font-semibold' : ''}`}
+                          >
+                            {row.name}
+                          </span>
                           {!folder && (
-                            <span className="truncate text-12 text-secondary">
-                              {collectionPath(tree, row)}
+                            <span className="text-12 leading-read text-secondary">
+                              {paths.get(row.id)}
                             </span>
                           )}
                         </span>
-                      </Button>
-                      {folder && expanded && (
-                        <div className="ml-12 flex flex-col gap-4 border-l border-subtle pl-8">
-                          {render(row.children)}
-                        </div>
-                      )}
+                        {row.id === value && (
+                          <Check size={16} aria-hidden="true" className="shrink-0 text-accent" />
+                        )}
+                      </button>
+                      {folder && expanded && <TreeChildren>{render(row.children)}</TreeChildren>}
                     </div>
                   );
                 });
               }
               return render(tree);
             })()}
+            {search && matches.size === 0 && (
+              <p role="status" className="p-12 text-14 text-secondary">
+                {t('notes.noMatchTitle')}
+              </p>
+            )}
           </div>
         </DialogBody>
       </Dialog>
