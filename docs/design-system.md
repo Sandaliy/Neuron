@@ -233,16 +233,14 @@ prints every ratio on each run.
 
 A second setting, and the reason the first rule exists.
 
-| Scope      | What carries the effect                        |
-| ---------- | ---------------------------------------------- |
-| `floating` | Bars, the tab bar, sheets, toasts. The default |
-| `all`      | Those, plus every card and every list row      |
+| Scope      | What carries the effect                                                 |
+| ---------- | ----------------------------------------------------------------------- |
+| `floating` | Bars, the tab bar, sheets, toasts. The default                          |
+| `all`      | Those, plus eligible cards and rows; collection hierarchies stay opaque |
 
-`floating` is the rule the system is designed around. `all` is offered because it is the person's
-phone that pays for it and they can hear the difference: on the five hundred row library the same
-scroll goes from **60.0 fps with no blurred rows** to **56.5 fps with five hundred of them**, and on a
-device half as fast again it falls apart. Both numbers come from `tests/performance.spec.ts`, which
-measures each scope on every run.
+`floating` is the rule the system is designed around. `all` remains a device choice. Collection
+hierarchies use opaque surfaces in either scope: nesting needs stable separation and large trees must
+not pay for one blurred layer per row. `tests/performance.spec.ts` measures both scopes on every run.
 
 With the effect off the scope has nothing to act on, so the group dims to 40% and its cells report
 `aria-disabled` rather than disappearing. A control that vanishes teaches nobody why it went.
@@ -274,16 +272,17 @@ behavior; the separate visible `Performance benchmark` workflow measures the
 throttled to a quarter speed through the debugger. That benchmark reports the same 55 fps threshold
 but is informational because hosted Windows runner variance is not a product failure.
 
-Measured, at the default and with the effect carried onto every row:
+Measured in the 2026-10-09 built-app refinement pass, at 4× CPU slowdown:
 
 | Scope            | Frames a second | Worst frame | Blurred rows |
 | ---------------- | --------------- | ----------- | ------------ |
 | Panels only      | **60.0**        | 16.8 ms     | 0            |
-| Panels and cards | 56.5            | 33.4 ms     | 500          |
+| Panels and cards | **60.0**        | 16.8 ms     | 0            |
 
-Sixty is the display cap with no frame dropped. The same harness reports 58.7 fps at ten times
-throttling for the default and 23.4 for panels and cards, so the number is a measurement and not a
-ceiling the test cannot see past.
+The pre-refinement 500-Deck baseline measured 58.7 fps in both scopes. The 5,000-Note scenario retained
+60.0 fps, with a bounded 14 mounted rows after the change versus 12 before. The compact entry leaves
+more content visible. These local observations preserve the existing 55 fps budget; small differences
+near the 60 Hz display cap are not evidence of a general production speedup.
 
 ---
 
@@ -699,7 +698,8 @@ Albert is available only by deliberate selection. No browser quality tiers are p
 
 Today keeps Ready, review/new counts, estimate and Study prominent for the selected language/sitting.
 When multiple distinct effective target languages participate, the selected language appears quietly
-beside Study setup; the shared aggregate Ready count sits below review/new metrics as secondary text.
+beside Study setup with a small accent indicator. The shared aggregate Ready count lives inside the
+expanded setup, alongside language and scope choices, rather than competing with the main metrics.
 One effective language has neither a selector nor an aggregate language count. Study setup collapses
 to a sliders icon, label, optional language context and disclosure; expanded controls retain
 their temporary choices when closed. Deck selection has one value row and a hierarchical picker:
@@ -712,8 +712,49 @@ the controls automatically. Persistent Deck skills remain separate, deliberate s
 Audio has a 44px target and 24px glyph on visible target-language content. A missing voice in Listening
 shows its fallback immediately; a normal word's audio action explains unavailability on tap. Playback
 never exposes a hidden target outside Listening and never blocks Reveal. Completion draws clockwise and
-counts for 900ms without gating controls; reduced motion starts at the final value.
+counts for 340ms without gating controls; reduced motion starts at the final value. An interrupted
+counter continues from its displayed value rather than restarting at zero.
 
-Library leaf Decks use open rows, larger wrapping titles and quieter wrapping Note/workload metadata.
-Folders retain disclosure, indentation and a quieter header surface. Every row keeps its drag grip and
-menu; duplicate count pills are omitted.
+Library Folders and leaf Decks share opaque, subtly outlined 18px surfaces and a 96px minimum row
+height. Folders use a filled icon shell and semibold title; Decks use the layered-card icon and regular
+title. Only the Folder icon carries disclosure. The title opens the collection; every row retains its
+drag grip and action menu. Titles and concise Deck/Note counts wrap naturally. Due/new Card detail is
+available in the action menu, rather than repeated on every row.
+
+Destination and Study scope pickers reuse these identities on compact 56px surfaces with indentation
+and a quiet tree guide. Destination selection remains single-choice; Study scope retains independent
+leaf selection and Folder tri-state selection. Ancestor paths are shown for search results, while
+ordinary nested rows rely on their visible hierarchy.
+
+Labelled inline disclosures use a full-width 44px target with a trailing chevron. Content remains
+mounted to preserve local choices, becomes inert and hidden to assistive technology when closed, and
+enters/exits with tokenized opacity/translation only. Reduced motion changes visibility immediately.
+Note Card previews use this pattern; a type conversion that removes Cards keeps the preview open.
+
+Listening reveals replace the instruction and large playback prompt with an answer-focused group:
+target word, adjacent 44px audio control, and selected supporting fields. The group centers when it
+fits and scrolls naturally when it does not; spelling feedback remains in the anchored response area.
+The ordinary recognition/Typing prompt-and-answer composition remains unchanged.
+
+Practice entry shows classified progress and clear Start/Resume and setup controls. Field recipes are
+available through setup and a compact Card fields disclosure, rather than repeated in active rounds.
+Schedule independence is explained at setup and destructive replacement, not on every primary surface.
+Collection headers allow long titles and wrap actions without truncating the collection identity.
+
+### Confirmed writes and perceived responsiveness
+
+Collection creation inserts the confirmed empty Folder/Deck from the write response, then reconciles
+ordering and aggregate counts in the background. Failed writes retain the editable dialog and never
+insert a row. Study configuration projects settings locally but gates admission until the write
+settles, applies the authoritative returned settings, and requests the server-owned plan directly.
+It does not require a redundant collection read first. A local projection is never ready evidence.
+
+Controlled built-app probes use 250ms write/read delays. On the same phone-sized Chromium harness,
+creation acknowledgement was approximately 487ms in both builds; visibility changed from 1,050–1,067ms
+to approximately 558ms. These end-to-end observations include browser automation overhead and are not
+production API latency measurements. The baseline configuration probe started admission 59–85ms before
+write acknowledgement; the refined flow makes one request after acknowledgement. Its longer measured
+ready interval reflects waiting for an authoritative plan, rather than claiming readiness prematurely.
+Existing local participation/move feedback remains approximately 25–28ms and temporary scope feedback
+approximately 11ms in the same harness. The 700ms autosave and 300ms search batching remain deliberate;
+network transport and reconciliation must be measured separately from those timers.

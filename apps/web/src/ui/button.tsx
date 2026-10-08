@@ -63,6 +63,7 @@ const PADDED: Record<ButtonVariant, boolean> = {
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  readonly contentAlign?: 'center' | 'spread';
   /** Stacked label and secondary detail, such as a study rating and interval. */
   readonly layout?: 'inline' | 'stacked';
   readonly variant?: ButtonVariant;
@@ -90,6 +91,7 @@ export function Button({
   full = false,
   busy = false,
   layout = 'inline',
+  contentAlign = 'center',
   disabled,
   className = '',
   children,
@@ -127,7 +129,7 @@ export function Button({
         starts waiting does not change width and move everything under it.
       */}
       <span
-        className={`inline-flex min-w-0 items-center justify-center ${layout === 'stacked' ? 'flex-col gap-4' : 'gap-8'} ${busy ? 'invisible' : ''}`}
+        className={`inline-flex min-w-0 items-center ${contentAlign === 'spread' ? 'w-full justify-between' : 'justify-center'} ${layout === 'stacked' ? 'flex-col gap-4' : 'gap-8'} ${busy ? 'invisible' : ''}`}
       >
         {children}
       </span>

@@ -43,9 +43,9 @@ function body({ title, subtitle, trailing, leading }: RowShape) {
       {leading}
 
       <span className="flex min-w-0 flex-1 flex-col gap-4 text-left">
-        <span className="truncate text-14 text-primary">{title}</span>
+        <span className="min-w-0 text-14 text-primary">{title}</span>
         {subtitle === undefined ? undefined : (
-          <span className="truncate text-12 text-tertiary">{subtitle}</span>
+          <span className="min-w-0 text-12 text-secondary">{subtitle}</span>
         )}
       </span>
 

@@ -125,7 +125,7 @@ for (const storedLocale of ['en', 'ru'] as const)
         })
         .click();
       const picker = page.getByRole('dialog');
-      await expect(picker.getByRole('button', { name: /^B1/ })).toContainText('German');
+      await expect(picker.getByRole('button', { name: 'German', exact: true })).toBeVisible();
       await expect(picker.getByRole('button', { name: /^B1/ })).not.toContainText('—');
       await picker.getByRole('button', { name: 'Oxford 5000', exact: true }).click();
       await page.screenshot({
@@ -225,7 +225,7 @@ test('creation sends the kind and moves offer only folders', async ({ page }) =>
     if (route.request().method() === 'POST') {
       const data = route.request().postDataJSON() as Record<string, unknown>;
       created.push(data);
-      return route.fulfill({ json: { ...rootDeck, ...data, parentId: null } });
+      return route.fulfill({ json: { deck: { ...rootDeck, ...data, parentId: null } } });
     }
     return route.fulfill({ json: { decks: [folder, rootDeck] } });
   });

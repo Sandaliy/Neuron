@@ -36,6 +36,7 @@ import { useNote, useNoteActions } from '../../lib/notes';
 import { Button } from '../../ui/button';
 import { GroupLabel } from '../../ui/card';
 import { Dialog, DialogFooter } from '../../ui/dialog';
+import { Disclosure } from '../../ui/disclosure';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
 import { Menu, MenuItem } from '../../ui/menu';
@@ -160,6 +161,7 @@ function Editor({
     [...filledPaths(note?.fields)].some((path) => path.startsWith('grammar.')),
   );
   const [tags, setTags] = useState((note?.tags ?? []).join(', '));
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [save, setSave] = useState<SaveState>('clean');
   const draft = useRef({ fields: storedFields, tags, version: 0 });
   const savedVersion = useRef(0);
@@ -672,6 +674,7 @@ function Editor({
                 type="button"
                 variant="text"
                 className="justify-between text-secondary"
+                contentAlign="spread"
                 aria-expanded={grammarOpen}
                 aria-controls="note-grammar"
                 onClick={() => setGrammarOpen(!grammarOpen)}
@@ -797,7 +800,18 @@ function Editor({
         </p>
       )}
 
-      <CardPreview cards={preview} />
+      {conversion || preview.some((card) => card.change === 'removes') ? (
+        <CardPreview cards={preview} />
+      ) : (
+        <Disclosure
+          title={t('note.preview')}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          className="border-t border-subtle pt-8"
+        >
+          <CardPreview cards={preview} labelled={false} />
+        </Disclosure>
+      )}
 
       {conversion && (
         <div ref={conversionActions} className="flex flex-col gap-8">

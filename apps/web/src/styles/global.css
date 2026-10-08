@@ -1369,6 +1369,26 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
 .neu-learning-answer {
   font-size: var(--type-learning-answer);
 }
+
+/* Collection objects share a surface; Folder identity carries the hierarchy. */
+.neu-collection-surface {
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+.neu-details > summary {
+  list-style: none;
+}
+.neu-details > summary::-webkit-details-marker {
+  display: none;
+}
+.neu-details > summary svg {
+  transition: transform var(--dur-2) var(--ease-inout);
+}
+.neu-details[open] > summary svg {
+  transform: rotate(180deg);
+}
+.neu-details[open] > :not(summary) {
+  animation: neu-reveal var(--dur-2) var(--ease-enter) backwards;
+}
 .neu-spelling {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

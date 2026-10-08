@@ -41,7 +41,7 @@ export function SettingsScreen() {
   const account = useAccount();
 
   return (
-    <section data-screen="" className="flex flex-col gap-32">
+    <section data-screen="" className="flex flex-col gap-24">
       <h1 className="font-display text-24 tracking-tight text-primary">{t('settings.title')}</h1>
 
       {account.isPending ? <SkeletonRows rows={6} /> : undefined}
@@ -130,7 +130,7 @@ function Appearance() {
 
   return (
     <Group title={t('settings.appearance')}>
-      <Card className="flex flex-col gap-20">
+      <Card className="grid grid-cols-1 gap-20 sm:grid-cols-2">
         <Setting label={t('settings.theme')}>
           <Segmented
             label={t('settings.theme')}
@@ -177,7 +177,7 @@ function Appearance() {
           reads the way every other switch in the interface does: on is the
           thing happening. It was "Less movement", where on meant off.
         */}
-        <div className="flex items-center justify-between gap-16">
+        <div className="flex items-center justify-between gap-16 self-end">
           <span className="text-13 font-semibold text-secondary">{t('settings.motion')}</span>
 
           <Switch

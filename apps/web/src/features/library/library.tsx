@@ -2,7 +2,6 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import {
   ArrowDown,
   ArrowUp,
-  Layers,
   FolderInput,
   Folder,
   ChevronRight,
@@ -21,10 +20,11 @@ import { describe } from '../../lib/api';
 import { findDeck, useDeckActions, useDeckTree } from '../../lib/decks';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
 import { Button } from '../../ui/button';
+import { CollectionIcon, collectionSurface } from '../../ui/collection';
 import { CollectionHeader } from '../../ui/collection-header';
 import { Dialog, DialogFooter } from '../../ui/dialog';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
-import { TreeChildren, Row, RowChevron } from '../../ui/row';
+import { TreeChildren, Row } from '../../ui/row';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
@@ -316,6 +316,7 @@ function Deck({
         <Row
           title={
             <span
+              id={`collection-title-${deck.id}`}
               className={
                 deck.kind === 'deck'
                   ? 'block whitespace-normal text-17 leading-snug'
@@ -326,23 +327,20 @@ function Deck({
             </span>
           }
           standalone={false}
-          className={
-            deck.kind === 'folder' ? 'gap-8 rounded-12 bg-sunken px-8 py-8' : 'gap-8 px-8 py-8'
-          }
+          className={`${collectionSurface} min-h-96 gap-4 px-8 py-12`}
           subtitle={
             <span className="block whitespace-normal text-13 leading-read text-secondary">
               {[
                 deck.kind === 'folder'
-                  ? t('library.deckCount', {
+                  ? t(countDecks(deck) === 1 ? 'library.oneDeck' : 'library.deckCount', {
                       count: countDecks(deck),
                     })
                   : '',
                 deck.noteCount === undefined
                   ? ''
-                  : t('library.noteCount', { count: deck.noteCount }),
-                deck.kind === 'deck' && (deck.due > 0 || deck.fresh > 0)
-                  ? t('library.cardCounts', { due: deck.due, fresh: deck.fresh })
-                  : '',
+                  : t(deck.noteCount === 1 ? 'library.oneNote' : 'library.noteCount', {
+                      count: deck.noteCount,
+                    }),
               ]
                 .filter(Boolean)
                 .join(' · ')}
@@ -356,32 +354,27 @@ function Deck({
                   <button
                     type="button"
                     aria-label={t(expanded ? 'library.collapse' : 'library.expand')}
+                    aria-describedby={`collection-title-${deck.id}`}
                     aria-expanded={expanded}
-                    className="-mx-8 flex size-44 shrink-0 items-center justify-center gap-4"
+                    className="relative flex size-44 shrink-0 items-center justify-center rounded-12 text-secondary hover:bg-fill-neutral"
                     onClick={() => onToggle(deck.id)}
                   >
                     <ChevronRight
                       size={12}
-                      className={`transition-transform dur-control ${expanded ? 'rotate-90' : ''}`}
+                      className={`absolute bottom-0 right-0 transition-transform dur-control ${expanded ? 'rotate-90' : ''}`}
                       aria-hidden="true"
                     />
-                    <Folder size={18} strokeWidth={1.5} aria-hidden="true" />
+                    <CollectionIcon kind="folder" />
                   </button>
                 ) : (
-                  <Folder
-                    size={18}
-                    strokeWidth={1.5}
-                    aria-hidden="true"
-                    className="text-secondary"
-                  />
+                  <span className="flex size-44 shrink-0 items-center justify-center">
+                    <CollectionIcon kind="folder" />
+                  </span>
                 )
               ) : (
-                <Layers
-                  size={18}
-                  strokeWidth={1.5}
-                  aria-hidden="true"
-                  className="shrink-0 text-secondary"
-                />
+                <span className="flex size-44 shrink-0 items-center justify-center">
+                  <CollectionIcon kind="deck" />
+                </span>
               )}
             </>
           }
@@ -389,8 +382,11 @@ function Deck({
           interactiveTrailing
           trailing={
             <>
-              <RowChevron />
               <Menu label={t('library.deckActions', { name: deck.name })}>
+                <div className="px-12 py-8 text-13 text-secondary">
+                  {t('library.cardCounts', { due: deck.due, fresh: deck.fresh })}
+                </div>
+                <MenuSeparator />
                 <MenuItem
                   icon={<Pencil size={16} strokeWidth={1.5} />}
                   onSelect={() => onAct({ kind: 'rename', deck })}

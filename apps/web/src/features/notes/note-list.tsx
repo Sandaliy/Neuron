@@ -188,9 +188,11 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           </>
         }
       >
-        <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
+        <div className="flex flex-wrap items-center justify-between gap-8">
+          <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
+          {deck && <RestartLearning deck={deck} skillsOnly />}
+        </div>
       </CollectionHeader>
-      {deck && <RestartLearning deck={deck} skillsOnly />}
       {deckId && (
         <PracticeEntry
           deckId={deckId}
@@ -213,6 +215,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
             <Input
               className="pl-40"
               type="search"
+              busy={notes.isFetching || typed !== search || source.trim() !== sourceFilter}
               value={typed}
               aria-label={t('notes.search')}
               placeholder={t('notes.searchPlaceholder')}
@@ -220,8 +223,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
               onChange={(event) => setTyped(event.target.value)}
             />
           </div>
-          <div className="flex items-center gap-8">
-            <div className="min-w-0 max-w-[60%]">
+          <div className="flex flex-wrap items-center gap-8">
+            <div className="min-w-0 flex-1">
               <Select
                 value={sort}
                 aria-label={t('notes.sort')}
@@ -242,6 +245,17 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
               {t('notes.filters')}
               {filtered ? ' ·' : ''}
             </Button>
+            {rows.length > 0 && (
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  setSelecting(true);
+                  setSelected(new Set());
+                }}
+              >
+                {t('notes.select')}
+              </Button>
+            )}
           </div>
           {filtersOpen && (
             <div className="flex flex-col gap-12 rounded-12 border border-default p-16">
@@ -294,25 +308,12 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
               </div>
             </div>
           )}
-          <div className="flex justify-between gap-8">
-            {rows.length > 0 && (
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  setSelecting(true);
-                  setSelected(new Set());
-                }}
-              >
-                {t('notes.select')}
-              </Button>
-            )}
-            {filtered && (
-              <Button variant="text" onClick={clearFilters}>
-                {t('notes.clearFilters')}
-              </Button>
-            )}
-          </div>
-          <p role="status" className="min-h-20 text-13 text-secondary">
+          {filtered && (
+            <Button variant="text" onClick={clearFilters}>
+              {t('notes.clearFilters')}
+            </Button>
+          )}
+          <p role="status" className="sr-only">
             {notes.isFetching || typed !== search || source.trim() !== sourceFilter
               ? t('notes.updating')
               : ''}

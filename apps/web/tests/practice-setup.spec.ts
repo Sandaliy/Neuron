@@ -95,7 +95,7 @@ test('Practice Undo traverses this visit through completion, rewinds classified 
   await expect(undo).toBeDisabled();
 });
 
-test('Practice exposes its recipe on every entry, resumes exactly, and confirms a changed run', async ({
+test('Practice keeps setup accessible, resumes exactly, and confirms a changed run', async ({
   page,
 }, info) => {
   await useSpeech(page);
@@ -156,7 +156,7 @@ test('Practice exposes its recipe on every entry, resumes exactly, and confirms 
   await waitForPracticeSave(page);
   const resumedRun = structuredClone(run);
   await page.reload();
-  await expect(page.getByText('Self-check · Word → Translation', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Practice setup', exact: true })).toBeVisible();
   await expect(page.getByText('1 / 2 classified', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('practice-entry.png'), animations: 'disabled' });
   await page.getByRole('button', { name: /Resume practice/ }).click();
@@ -180,7 +180,7 @@ test('Practice exposes its recipe on every entry, resumes exactly, and confirms 
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await page.getByRole('button', { name: 'Start a new run', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Start a new run' })).toContainText(
-    'current Practice progress will be replaced',
+    'This replaces your current Practice progress',
   );
   await page
     .getByRole('dialog', { name: 'Start a new run' })
@@ -203,7 +203,7 @@ test('Practice exposes its recipe on every entry, resumes exactly, and confirms 
   await expect(page.getByText('2 / 3 notes')).toBeVisible();
   await page.getByRole('button', { name: 'Start a new run', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Start a new run' })).toContainText(
-    'current Practice progress will be replaced',
+    'This replaces your current Practice progress',
   );
   await page
     .getByRole('dialog', { name: 'Start a new run' })

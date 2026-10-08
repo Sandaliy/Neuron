@@ -373,9 +373,6 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
           {stage.batchId ? (
             <>
               <p className="text-14 leading-body text-secondary">{t('import.undoBoundary')}</p>
-
-              {/* The triage sweep lands here in phase 9. */}
-              <p className="text-13 text-tertiary">{t('import.triageLater')}</p>
             </>
           ) : undefined}
 

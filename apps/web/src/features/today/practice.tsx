@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { SlidersHorizontal, Undo2 } from 'lucide-react';
+import { SlidersHorizontal, Undo2, ChevronDown } from 'lucide-react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import {
@@ -268,6 +268,7 @@ function PersistentPractice({
             <strong data-numeric="" className="text-15 font-medium text-primary">
               {learning}
             </strong>
+            <span>{t('practice.learning')}</span>
           </div>
           <div
             role="group"
@@ -277,6 +278,7 @@ function PersistentPractice({
             <strong data-numeric="" className="text-15 font-medium text-primary">
               {known}
             </strong>
+            <span>{t('practice.know')}</span>
           </div>
         </div>
       )}
@@ -293,22 +295,28 @@ function PersistentPractice({
         <Card className="flex flex-col gap-16">
           <div className="flex items-center justify-between gap-12">
             <h2 className="text-20 text-primary">{t('practice.currentSetup')}</h2>
-            <Button variant="text" className="px-0 text-12 text-secondary" onClick={openSettings}>
+            <Button variant="quiet" className="text-13" onClick={openSettings}>
               <SlidersHorizontal size={16} aria-hidden="true" />
               {t('practice.settings')}
             </Button>
           </div>
           <p className="text-14 text-secondary">{t(`practice.mode.${run.response ?? 'reveal'}`)}</p>
-          <div className="grid grid-cols-2 gap-12 text-13 text-secondary">
-            <div>
-              <span className="block">{t('practice.front')}</span>
-              <strong className="text-15 font-medium text-primary">{sideLabel(run.front)}</strong>
+          <details className="neu-details text-13 text-secondary">
+            <summary className="flex min-h-44 cursor-pointer items-center justify-between gap-12">
+              {t('practice.fields')}
+              <ChevronDown size={16} aria-hidden="true" />
+            </summary>
+            <div className="grid grid-cols-2 gap-12 py-12 text-13 text-secondary">
+              <div>
+                <span className="block">{t('practice.front')}</span>
+                <strong className="text-15 font-medium text-primary">{sideLabel(run.front)}</strong>
+              </div>
+              <div>
+                <span className="block">{t('practice.back')}</span>
+                <strong className="text-15 font-medium text-primary">{sideLabel(run.back)}</strong>
+              </div>
             </div>
-            <div>
-              <span className="block">{t('practice.back')}</span>
-              <strong className="text-15 font-medium text-primary">{sideLabel(run.back)}</strong>
-            </div>
-          </div>
+          </details>
           <p className="text-13 text-secondary">
             {t('practice.pool', { count: statuses.length, total: notes.length })}
           </p>
@@ -324,7 +332,7 @@ function PersistentPractice({
             {t('practice.resume')}
           </Button>
           <Button
-            variant="text"
+            variant="quiet"
             disabled={run.response === 'listening' && listeningBlocked}
             onClick={() => {
               setFront(run.front);
@@ -406,7 +414,7 @@ function PersistentPractice({
             {t(run ? (sameRecipe ? 'practice.resume' : 'practice.newRun') : 'practice.start')}
           </Button>
           {run && (
-            <Button variant="text" onClick={() => setConfiguring(false)}>
+            <Button variant="quiet" onClick={() => setConfiguring(false)}>
               {t('common.cancel')}
             </Button>
           )}
@@ -418,9 +426,8 @@ function PersistentPractice({
               <LearningCard
                 key={`${current.id}:${interaction}`}
                 identity={current.id}
-                context={practiceFields(run.front)
-                  .map((field) => t(practiceFieldLabel(field)))
-                  .join(' · ')}
+                answerFocused={run.response === 'listening'}
+                context={t(`practice.mode.${run.response ?? 'reveal'}`)}
                 prompt={
                   run.response === 'listening' ? (
                     <ListeningPrompt
@@ -537,7 +544,7 @@ function PersistentPractice({
                 </Button>
               ) : (
                 <Button
-                  variant="text"
+                  variant="quiet"
                   disabled={!!state.error}
                   onClick={() => {
                     setHistory([]);
@@ -673,14 +680,16 @@ function PracticeFace({
             {index > 0 && (
               <p className="mb-4 text-12 text-secondary">{t(practiceFieldLabel(field))}</p>
             )}
-            <p className="whitespace-pre-line">
-              {articleTerm && field === 'term'
-                ? `${practiceValue(fields, 'grammar.article')} ${text}`
-                : text}
+            <div className={field === 'term' ? 'flex items-start gap-12' : ''}>
+              <span className="min-w-0 whitespace-pre-line">
+                {articleTerm && field === 'term'
+                  ? `${practiceValue(fields, 'grammar.article')} ${text}`
+                  : text}
+              </span>
               {field === 'term' && (
                 <Speaker key={identity} text={String(text ?? '')} language={language} />
               )}
-            </p>
+            </div>
           </div>
         );
       })}

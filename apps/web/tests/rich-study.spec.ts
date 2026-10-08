@@ -232,7 +232,7 @@ test('given a listening card, missing and late voices preserve replay and reveal
   );
   await page.goto('/');
   await page.getByRole('button', { name: 'Study', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Play / replay' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Play audio' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Show answer' })).toBeEnabled();
   await page.evaluate(() => {
     window.speechSynthesis.getVoices = () => [
@@ -240,7 +240,7 @@ test('given a listening card, missing and late voices preserve replay and reveal
     ];
     window.speechSynthesis.dispatchEvent(new Event('voiceschanged'));
   });
-  await page.getByRole('button', { name: 'Play / replay' }).click();
+  await page.getByRole('button', { name: 'Play audio' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-spoken-language', 'de-DE');
   await page.getByRole('button', { name: 'Show answer' }).click();
   await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
@@ -286,12 +286,12 @@ for (const screen of ['Study', 'Practice'] as const)
     }
     await expect(page.getByText('Sorgfalt', { exact: true })).toHaveCount(0);
     await expect(page.getByText('care', { exact: true })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Play / replay', exact: true }).click();
+    await page.getByRole('button', { name: 'Play audio', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-spoken-text', 'Sorgfalt');
     await page.evaluate(() => {
       document.documentElement.dataset['speechFail'] = 'true';
     });
-    await page.getByRole('button', { name: 'Play / replay', exact: true }).click();
+    await page.getByRole('button', { name: 'Play audio', exact: true }).click();
     await expect(
       page.getByText('A usable voice for this language is not available yet.'),
     ).toBeVisible();
@@ -303,6 +303,8 @@ for (const screen of ['Study', 'Practice'] as const)
     await expect(page.getByText('1 extra letter', { exact: true })).toBeVisible();
     await expect(page.getByText('Sorgfalt', { exact: true })).toBeVisible();
     await expect(page.getByText('care', { exact: true })).toBeVisible();
+    await expect(page.getByText('Listen, then type the word', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Play audio', exact: true })).toHaveCount(1);
     expect(writes.filter((path) => path.endsWith('/reviews'))).toHaveLength(0);
     await page.screenshot({
       path: info.outputPath(`listen-type-${screen}.png`),
@@ -354,7 +356,7 @@ for (const direction of ['production', 'listening'] as const)
     await page.getByRole('button', { name: 'Study', exact: true }).click();
     await expect(
       page.getByRole('button', {
-        name: direction === 'production' ? 'Type your answer' : 'Play / replay',
+        name: direction === 'production' ? 'Type your answer' : 'Play audio',
       }),
     ).toBeVisible();
   });
@@ -711,7 +713,7 @@ for (const success of [true, false])
     await page.getByRole('link', { name: 'Today', exact: true }).click();
     await expect(page.getByText('You are caught up', { exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'Library', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Words 1 notes', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Words 1 note', exact: true })).toBeVisible();
     release();
     await page.getByRole('link', { name: 'Today', exact: true }).click();
     if (success) await expect(page.getByText('You are caught up', { exact: true })).toBeVisible();
@@ -765,14 +767,10 @@ test('moving a note projects its row and both Deck counts before transport', asy
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Words 0 notes', exact: true })).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'Destination 1 notes · Cards: 0 due · 1 new', exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Destination 1 note', exact: true })).toBeVisible();
   release();
-  await expect(
-    page.getByRole('button', { name: 'Words 1 notes · Cards: 0 due · 1 new', exact: true }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: /Words 1 notes/ }).click();
+  await expect(page.getByRole('button', { name: 'Words 1 note', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /Words 1 note/ }).click();
   await expect(page.getByRole('button', { name: /Sorgfalt care/ })).toBeVisible();
   await info.attach('move-paint', {
     body: JSON.stringify({ milliseconds: measured.milliseconds, requestHeld }),

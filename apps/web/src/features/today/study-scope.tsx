@@ -1,11 +1,10 @@
-import { Folder, Layers } from 'lucide-react';
-
 import type { DeckNode } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { useDialogState } from '../../lib/dialog-state';
 import { Button } from '../../ui/button';
 import { Checkbox } from '../../ui/checkbox';
+import { CollectionIcon, collectionSurface } from '../../ui/collection';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 import { TreeChildren } from '../../ui/row';
 
@@ -58,7 +57,7 @@ export function StudyScope({
         return (
           <div key={row.id} className="flex flex-col gap-8">
             <div
-              className={`rounded-12 ${folder ? 'bg-sunken' : count > 0 ? 'bg-fill-accent-quiet' : ''}`}
+              className={`${collectionSurface} ${count > 0 && !folder ? 'bg-fill-accent-quiet' : ''}`}
             >
               <Checkbox
                 labelClassName="min-w-0 flex-1"
@@ -74,24 +73,10 @@ export function StudyScope({
                 <span
                   className={`flex items-center gap-8 text-15 text-primary ${folder ? 'font-semibold' : ''}`}
                 >
-                  {folder ? (
-                    <Folder
-                      size={18}
-                      strokeWidth={1.5}
-                      className="shrink-0 text-secondary"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Layers
-                      size={18}
-                      strokeWidth={1.5}
-                      className="shrink-0 text-secondary"
-                      aria-hidden="true"
-                    />
-                  )}
+                  <CollectionIcon kind={row.kind} />
                   {row.name}
                 </span>
-                {!folder && (
+                {!folder && row.settings?.dailyStudyIncluded === false && (
                   <span className="block text-12 text-secondary">
                     {t(
                       row.settings?.dailyStudyIncluded === false

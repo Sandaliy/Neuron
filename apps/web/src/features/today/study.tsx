@@ -463,6 +463,7 @@ export function StudyScreen({
             <LearningCard
               key={`${current.id}:${interaction}`}
               identity={current.id}
+              answerFocused={current.direction === 'listening'}
               context={t(`study.direction.${current.direction}`)}
               prompt={
                 current.direction === 'listening' ? (

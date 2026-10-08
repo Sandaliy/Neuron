@@ -71,7 +71,7 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
     await page.getByRole('button', { name: 'Study', exact: true }).click();
     await expect(page.getByText('Sorgfalt', { exact: true })).toHaveCount(0);
     // The system voice fixture keeps this database check independent of host audio.
-    const replay = page.getByRole('button', { name: 'Play / replay', exact: true });
+    const replay = page.getByRole('button', { name: 'Play audio', exact: true });
     if (await replay.isEnabled()) {
       await replay.click();
       await replay.click();

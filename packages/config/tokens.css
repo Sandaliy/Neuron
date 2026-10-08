@@ -133,7 +133,7 @@
   --type-learning-prompt: clamp(36px, 7vw, 56px);
   --type-learning-answer: clamp(36px, 7vw, 56px);
   --dur-learning: 340ms;
-  --dur-completion: 900ms;
+  --dur-completion: 340ms;
   --dur-4: 340ms; /* a sheet rising */
 
   /*
