@@ -1,4 +1,4 @@
-import { Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { Outlet, useLinkProps, useRouterState } from '@tanstack/react-router';
 import { Suspense } from 'react';
 
 import type { MessageKey } from '@neuron/shared';
@@ -11,7 +11,7 @@ import type { CSSProperties } from 'react';
 
 /** Native fixed positioning follows Safari's toolbar. Viewport measurements
  * are reserved for keyboard-aware dialogs and feedback. */
-const TABS: readonly { to: string; label: MessageKey }[] = [
+const TABS: readonly { to: '/' | '/library' | '/settings'; label: MessageKey }[] = [
   { to: '/', label: 'nav.today' },
   { to: '/library', label: 'nav.library' },
   { to: '/settings', label: 'nav.settings' },
@@ -19,11 +19,10 @@ const TABS: readonly { to: string; label: MessageKey }[] = [
 
 export function Shell() {
   const t = useTranslate();
-  const path = useRouterState({ select: (state) => state.location.pathname });
-
-  const current = TABS.findIndex((tab) =>
-    tab.to === '/' ? path === '/' : path.startsWith(tab.to),
-  );
+  // The committed match owns both the screen and its tab, including collection
+  // screens outside /library. A pending address must not remount the old screen.
+  const match = useRouterState({ select: (state) => state.matches.at(-1) });
+  const current = TABS.findIndex((tab) => tab.to === match?.staticData.navTab);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -39,7 +38,7 @@ export function Shell() {
         already cached should read as instant, and it did not.
       */}
       <main
-        key={path}
+        key={match?.pathname}
         data-shell-content=""
         className="mx-auto w-full max-w-[720px] grow px-20 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+40px+var(--keyboard-inset))] sm:pt-24"
       >
@@ -75,35 +74,41 @@ export function Shell() {
           className={current < 0 ? 'opacity-0' : undefined}
         />
 
-        {TABS.map((tab, index) => {
-          const active = index === current;
-
-          return (
-            <Link
-              key={tab.to}
-              to={tab.to}
-              data-tab=""
-              aria-current={active ? 'page' : undefined}
-              className={[
-                'relative z-10 flex min-h-44 flex-1 items-center justify-center rounded-12 px-8',
-                'text-13 text-primary',
-                /*
-                 * Every label is primary, active or not. What marks the current
-                 * tab is the pill travelling under it and the weight of the
-                 * word, not a quieter tone, and that is what lets the bar be
-                 * nearly twice as transparent: the contrast floor on a glass
-                 * layer is set by the quietest text on it, and there is none.
-                 */
-                active ? 'font-semibold' : 'font-normal',
-              ].join(' ')}
-            >
-              {t(tab.label)}
-            </Link>
-          );
-        })}
+        {TABS.map((tab, index) => (
+          <TabLink key={tab.to} to={tab.to} active={index === current} label={t(tab.label)} />
+        ))}
 
         <Sheen />
       </nav>
     </div>
+  );
+}
+
+function TabLink({
+  to,
+  active,
+  label,
+}: {
+  readonly to: '/' | '/library' | '/settings';
+  readonly active: boolean;
+  readonly label: string;
+}) {
+  const props = useLinkProps({ to });
+  return (
+    <a
+      {...props}
+      data-tab=""
+      // Link behavior stays native; selection belongs to the committed screen,
+      // rather than the link's independent pathname/search matching rules.
+      aria-current={active ? 'page' : undefined}
+      data-status={active ? 'active' : undefined}
+      className={[
+        'relative z-10 flex min-h-44 flex-1 items-center justify-center rounded-12 px-8',
+        'text-13 text-primary',
+        active ? 'font-semibold' : 'font-normal',
+      ].join(' ')}
+    >
+      {label}
+    </a>
   );
 }

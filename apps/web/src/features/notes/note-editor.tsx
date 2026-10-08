@@ -167,6 +167,7 @@ function Editor({
   const [saveError, setSaveError] = useState<unknown>();
   const [statusError, setStatusError] = useState<unknown>();
   const createId = useRef(uuidV7());
+  const created = useRef(false);
   const restartId = useRef(uuidV7());
   const [conversion, setConversion] = useState<{
     type: NoteTypeName;
@@ -317,15 +318,17 @@ function Editor({
     return () => clearTimeout(timer);
   }, [save, persistedId, storedFields, tags, persist, conversion]);
 
-  useBlocker({
-    // Start the last write, but let navigation continue. Waiting for a slow
-    // mobile request here makes Back feel broken, and a failed request would
-    // otherwise leave the route blocked with no useful way to leave it.
+  const unsavedDraft =
+    !!conversion || save === 'failed' || (!note && (save === 'dirty' || save === 'saving'));
+  const navigation = useBlocker({
+    withResolver: true,
+    // Flush ordinary autosave without delaying navigation. Explicit drafts and
+    // known failures need a deliberate discard, with a way to keep editing.
     shouldBlockFn: () => {
-      if (note && !conversion) void persist();
-      return false;
+      if (note && !conversion && save !== 'failed') void persist();
+      return unsavedDraft && !created.current;
     },
-    enableBeforeUnload: !!note && (save === 'dirty' || save === 'saving' || save === 'failed'),
+    enableBeforeUnload: unsavedDraft || (!!note && (save === 'dirty' || save === 'saving')),
   });
 
   function edit(next: Record<string, unknown>) {
@@ -336,7 +339,7 @@ function Editor({
     }
     draft.current = { ...draft.current, fields: next, version: draft.current.version + 1 };
     setFields(next);
-    setSave(note ? 'dirty' : 'clean');
+    setSave('dirty');
   }
 
   async function create() {
@@ -359,6 +362,7 @@ function Editor({
       });
 
       setSave('saved');
+      created.current = true;
       await navigate({ to: '/notes/$noteId', params: { noteId: written.note.id } });
     } catch (error) {
       setSaveError(error);
@@ -775,7 +779,7 @@ function Editor({
                   version: draft.current.version + 1,
                 };
                 setTags(event.target.value);
-                setSave(note ? 'dirty' : 'clean');
+                setSave('dirty');
               }}
             />
           )}
@@ -835,6 +839,22 @@ function Editor({
           {t('note.save')}
         </Button>
       )}
+
+      <Dialog
+        open={navigation.status === 'blocked'}
+        onOpenChange={() => navigation.reset?.()}
+        title={t('note.leaveTitle')}
+        description={t('note.leaveBody')}
+      >
+        <DialogFooter>
+          <Button variant="destructive" full onClick={() => navigation.proceed?.()}>
+            {t('note.discardChanges')}
+          </Button>
+          <Button variant="text" full onClick={() => navigation.reset?.()}>
+            {t('note.keepEditing')}
+          </Button>
+        </DialogFooter>
+      </Dialog>
 
       {confirmConversion && conversion ? (
         <Dialog

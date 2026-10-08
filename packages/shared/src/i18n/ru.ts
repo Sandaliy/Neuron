@@ -397,6 +397,10 @@ export const ru = {
   'lang.it': 'Итальянский',
 
   'note.new': 'Новая запись',
+  'note.leaveTitle': 'Выйти без сохранения?',
+  'note.leaveBody': 'Несохранённые изменения будут потеряны.',
+  'note.discardChanges': 'Отменить изменения',
+  'note.keepEditing': 'Продолжить редактирование',
   'note.edit': 'Запись',
   'note.type': 'Тип',
   'note.type.vocab': 'Слово',

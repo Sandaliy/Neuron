@@ -636,9 +636,12 @@
    * used to answer a press anywhere in the bar, so pressing Library made the
    * pill under Today flinch, which reads as the wrong thing having been hit.
    */
-  [data-slot='segmented']:active [data-slot='segmented-thumb'],
-  [data-g='tabbar']:has([data-tab][aria-current='page']:active) [data-slot='tab-pill'] {
+  [data-slot='segmented']:active [data-slot='segmented-thumb'] {
     transform: translate3d(calc(var(--seg-index) * 100%), 0, 0) scale(0.94);
+  }
+
+  [data-g='tabbar']:has([data-tab][aria-current='page']:active) [data-slot='tab-pill'] {
+    transform: translate3d(calc(var(--seg-index) * (100% + var(--u-1))), 0, 0) scale(0.94);
   }
 
   /*
@@ -720,11 +723,11 @@
     top: var(--u-2);
     left: var(--u-2);
     height: calc(100% - 2 * var(--u-2));
-    width: calc((100% - 2 * var(--u-2)) / var(--seg-count));
+    width: calc((100% - 2 * var(--u-2) - (var(--seg-count) - 1) * var(--u-1)) / var(--seg-count));
     border-radius: var(--rad-2);
     background: var(--surface-selected);
     box-shadow: var(--elev-1);
-    transform: translate3d(calc(var(--seg-index) * 100%), 0, 0);
+    transform: translate3d(calc(var(--seg-index) * (100% + var(--u-1))), 0, 0);
     transition: transform var(--dur-3) var(--ease-inout);
     z-index: 0;
   }

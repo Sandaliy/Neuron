@@ -67,6 +67,11 @@ for (const theme of THEMES) {
       await page.goto('/library');
       await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
       await settle(page);
+      await page.screenshot({
+        path: testInfo.outputPath('library.png'),
+        fullPage: true,
+        animations: 'disabled',
+      });
 
       await expect(page).toHaveScreenshot(`library-${theme}.png`, {
         fullPage: true,
@@ -110,14 +115,30 @@ for (const theme of THEMES) {
       });
     });
 
-    test('settings', async ({ page }) => {
+    test('settings', async ({ page }, info) => {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);
       await page.goto('/settings');
       await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
       await settle(page);
+      await page.screenshot({
+        path: info.outputPath('settings.png'),
+        fullPage: true,
+        animations: 'disabled',
+      });
 
       await expect(page).toHaveScreenshot(`settings-${theme}.png`, { fullPage: true });
+    });
+
+    test('unsaved Note navigation', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/notes/new?deckId=d3');
+      await page.getByRole('textbox', { name: 'Word', exact: true }).fill('Behalten');
+      await page.getByRole('link', { name: 'Settings', exact: true }).click();
+      await expect(page.getByRole('dialog', { name: 'Leave without saving?' })).toBeVisible();
+      await settle(page);
+      await expect(page).toHaveScreenshot(`unsaved-note-${theme}.png`);
     });
 
     /*

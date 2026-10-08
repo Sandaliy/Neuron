@@ -11,6 +11,7 @@ import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
 import { findDeck, useDeckTree } from '../../lib/decks';
 import { NOTE_KEY, noteQueryString, useNoteActions } from '../../lib/notes';
+import { useReturnScroll } from '../../lib/return-scroll';
 import { Button } from '../../ui/button';
 import { Chip } from '../../ui/chip';
 import { CollectionHeader } from '../../ui/collection-header';
@@ -51,6 +52,7 @@ const ROW_HEIGHT = 52;
  */
 export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const [practicing, setPracticing] = useState(false);
+  const rememberScroll = useReturnScroll(practicing);
   const [practiceEntry, setPracticeEntry] = useState<'resume' | 'setup'>('resume');
   const t = useTranslate();
   const toast = useToast();
@@ -193,6 +195,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         <PracticeEntry
           deckId={deckId}
           onOpen={(entry) => {
+            rememberScroll();
             setPracticeEntry(entry);
             setPracticing(true);
           }}

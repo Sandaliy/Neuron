@@ -445,6 +445,10 @@ export const en = {
   'lang.it': 'Italian',
 
   'note.new': 'New note',
+  'note.leaveTitle': 'Leave without saving?',
+  'note.leaveBody': 'Your unsaved changes will be lost.',
+  'note.discardChanges': 'Discard changes',
+  'note.keepEditing': 'Keep editing',
   'note.edit': 'Note',
   'note.type': 'Type',
   'note.type.vocab': 'Word',
