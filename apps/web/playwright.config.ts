@@ -48,7 +48,7 @@ export default defineConfig({
   projects: [
     {
       name: 'webkit-phone-interaction',
-      testMatch: /(?:stabilization|rich-study|study-language)\.spec\.ts/,
+      testMatch: /(?:stabilization|rich-study|study-language|navigation)\.spec\.ts/,
       use: { ...devices['iPhone 13'] },
     },
     {

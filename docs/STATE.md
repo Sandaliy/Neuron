@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-08, Library hierarchy and learner-facing progress prepared for protected review.
+Last updated: 2026-10-08, navigation reliability and interaction continuity prepared for protected review.
 
 ## Current release slice
 
@@ -73,10 +73,10 @@ from local evidence.
 
 Physical-iPhone acceptance is required for final Study setup, multi-language switching, voice filtering,
 three consecutive Listen → Type cards, and Practice ergonomics, including native Done and header
-stability. Browser evidence cannot prove native keyboard or audio quality. External TTS and
-navigation/tab selection remain deferred.
+stability. Browser evidence cannot prove native keyboard or audio quality. External TTS remains
+deferred. Navigation/tab selection are covered by the stabilization slice below.
 
-The next slice is prepared on `work/library-hierarchy-progress`, without merge authorization. Library
+PR #36 is merged into protected `main` at `8be13a4`. Library
 Folders show descendant Deck counts and aggregate Note counts; leaf Decks separate their Note totals
 from due/new Card counts. Quiet Folder surfaces, open Deck rows, wrapping names, common Folder/Deck
 icons and the existing indentation guide align Library, Study multi-selection and Import destinations.
@@ -95,6 +95,34 @@ passed the enforced 55 fps budget at 4× CPU slowdown: 5,000 Notes measured 60.0
 and 500 Decks measured 58.7 fps in both row treatments. Lint, typechecks, formatting and production build
 passed. Hosted checks and physical-iPhone acceptance of hierarchy touch/drag, moves, selection, pickers
 and the Today aggregate placement remain required separately.
+
+Navigation stabilization is prepared on `work/navigation-reliability`, without merge authorization.
+Each committed route explicitly owns its main tab, including Notes, Import and Deleted under Library.
+The screen key follows the committed match rather than a pending address; the accessible current tab,
+label weight and aligned selection pill share that destination. Existing tokenized tab motion remains.
+New Note drafts, unapplied type conversions and known autosave failures require Keep editing or explicit
+Discard changes before leaving. Ordinary existing-Note edits still flush without blocking navigation.
+Returning from Study or Practice restores the entry scroll position after the normal layout is ready;
+Practice classifications and persistence remain unchanged. Browser coverage exercises direct routes,
+nested collection paths, history, rapid switching, menu cleanup, pending writes and learning returns.
+
+Local verification passed 335 shared/web unit tests, 298 built-app serial phone/desktop interaction
+tests and all 30 focused navigation checks across phone, desktop and WebKit. Four opt-in live API tests
+were skipped. The broad WebKit run passed 69 of 70 tests; the existing root-insertion drag test selected
+a Folder instead of the root insertion point once. That test passed isolated on all three projects and
+in four clean-main WebKit trials, so the broad-run failure remains unattributed and unresolved. The
+final focused run passed 33 tests including those isolated drag checks. All 66 phone/desktop visual
+tests passed; affected main screens and the four new draft-dialog references were reviewed in both
+themes. Four performance tests passed the enforced 55 fps budget at 4× CPU slowdown: 5,000 Notes measured
+60.0 fps with 12 mounted rows, and 500 Decks measured 58.7 fps in both glass scopes. Web typechecking,
+production build, source lint excluding generated browser reports, formatting, core isolation and
+design-token checks passed. Hosted checks and physical-device acceptance remain separate evidence.
+
+The reported intermittent installed-iPhone wrong-tab symptom was not reproduced in automated browsers.
+Missing collection tab ownership and learning-return scroll loss were reproduced and fixed. Physical
+iPhone acceptance remains required for rapid tab switching, app background/return, native Back, keyboard
+dismissal around draft confirmation, and Study/Practice return ergonomics. Library hierarchy and styling
+still await user visual feedback; this slice does not redesign them or begin Offline & Sync.
 
 ## Now
 
@@ -144,10 +172,10 @@ Today or Study.
 2. Complete remaining physical-iPhone acceptance of merged language-scoped Study/configuration and
    learning presentation, including the PR #34 Listen → Type and Practice interaction contracts.
 3. Reassess system speech quality after device acceptance before considering external TTS.
-4. Complete protected review and physical-iPhone acceptance of Library hierarchy, learner-facing
+4. Complete physical-iPhone acceptance of merged PR #36 Library hierarchy, learner-facing
    Note/Card progress, consistent destination/Study pickers and Today aggregate placement.
-5. Make broader key flows feel less developer-oriented, consider lightweight navigation motion, and
-   investigate why the bottom tab can occasionally mark Library active on Today or Settings.
+5. Complete protected review and installed-iPhone acceptance of navigation/tab selection, nested Back,
+   draft protection and learning-return continuity.
 
 ## Open threads
 

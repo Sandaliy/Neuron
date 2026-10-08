@@ -11,6 +11,7 @@ import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { flatten, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
+import { useReturnScroll } from '../../lib/return-scroll';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
@@ -60,6 +61,7 @@ export function TodayScreen() {
   const t = useTranslate();
   const decks = useDeckTree();
   const [studying, setStudying] = useState<DailyStudySession>();
+  const rememberScroll = useReturnScroll(!!studying);
   const [minutes, setMinutes] = useState('');
   const [choices, setChoices] = useState<StudyChoices>({
     direction: '',
@@ -101,7 +103,10 @@ export function TodayScreen() {
           minutes={minutes}
           onMinutes={setMinutes}
           decks={decks.data}
-          onStart={setStudying}
+          onStart={(plan) => {
+            rememberScroll();
+            setStudying(plan);
+          }}
           choices={choices}
           onChoices={setChoices}
         />

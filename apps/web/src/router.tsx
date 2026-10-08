@@ -158,12 +158,14 @@ const appRoute = createRoute({
 const todayRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/',
+  staticData: { navTab: '/' },
   component: TodayScreen,
 });
 
 const libraryRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/library',
+  staticData: { navTab: '/library' },
   validateSearch: (search: Record<string, unknown>): { folderId?: string } =>
     typeof search['folderId'] === 'string' ? { folderId: search['folderId'] } : {},
   component: LibraryScreen,
@@ -172,6 +174,7 @@ const libraryRoute = createRoute({
 const deletedRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/library/deleted',
+  staticData: { navTab: '/library' },
   component: DeletedScreen,
 });
 
@@ -185,6 +188,7 @@ const deletedRoute = createRoute({
 const noteListRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/notes',
+  staticData: { navTab: '/library' },
   validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
     typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
   component: NoteListRoute,
@@ -199,6 +203,7 @@ function NoteListRoute() {
 const newNoteRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/notes/new',
+  staticData: { navTab: '/library' },
   validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
     typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
   component: NewNoteRoute,
@@ -213,6 +218,7 @@ function NewNoteRoute() {
 const noteRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/notes/$noteId',
+  staticData: { navTab: '/library' },
   component: NoteRoute,
 });
 
@@ -226,6 +232,7 @@ function NoteRoute() {
 const importRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/import',
+  staticData: { navTab: '/library' },
   validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
     typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
   component: ImportRoute,
@@ -240,6 +247,7 @@ function ImportRoute() {
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/settings',
+  staticData: { navTab: '/settings' },
   component: SettingsScreen,
 });
 
@@ -297,6 +305,10 @@ export const router = createRouter({
 router.subscribe('onBeforeNavigate', resetInteractions);
 
 declare module '@tanstack/react-router' {
+  interface StaticDataRouteOption {
+    navTab?: '/' | '/library' | '/settings';
+  }
+
   interface Register {
     router: typeof router;
   }
