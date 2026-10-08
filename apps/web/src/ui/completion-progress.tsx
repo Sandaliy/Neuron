@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { cssDuration } from '../lib/css-duration';
 import { motionIsReduced } from '../preferences/motion';
@@ -15,16 +15,19 @@ export function CompletionProgress({
 }) {
   const ratio = Math.min(1, Math.max(0, value / Math.max(1, max)));
   const [display, setDisplay] = useState(() => (motionIsReduced() ? ratio : 0));
+  const current = useRef(display);
   useEffect(() => {
+    const from = current.current;
     let frame = 0;
     const started = performance.now();
     const duration = cssDuration(
       getComputedStyle(document.documentElement).getPropertyValue('--dur-completion'),
-      900,
+      340,
     );
     const tick = (now: number) => {
       const progress = motionIsReduced() ? 1 : Math.min(1, (now - started) / duration);
-      setDisplay(ratio * (1 - (1 - progress) ** 2));
+      current.current = from + (ratio - from) * (1 - (1 - progress) ** 3);
+      setDisplay(current.current);
       if (progress < 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -58,6 +61,7 @@ export function CompletionProgress({
           stroke="currentColor"
           strokeWidth="2"
           pathLength="1"
+          strokeLinecap="round"
           strokeDasharray="1"
           strokeDashoffset={1 - display}
           className="text-accent"

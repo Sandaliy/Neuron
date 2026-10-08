@@ -108,7 +108,7 @@ const plan = (cards: ReturnType<typeof card>[], targetLanguage = 'de') => ({
 });
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`aggregate Ready aligns with the estimate and hierarchy choices in ${theme}`, async ({
+  test(`aggregate Ready stays in setup with hierarchy choices in ${theme}`, async ({
     page,
   }, info) => {
     await usePreferences(page, { locale: 'en', theme });
@@ -119,17 +119,15 @@ for (const theme of ['light', 'dark'] as const) {
     await page.goto('/');
     const aggregate = page.getByText('44 ready across 2 languages', { exact: true });
     const estimate = page.getByText('About 1 min', { exact: true });
-    await expect(aggregate).toBeVisible();
-    const a = await aggregate.boundingBox();
-    const e = await estimate.boundingBox();
-    expect(Math.abs(a!.x + a!.width - e!.x - e!.width)).toBeLessThan(1);
-    expect(a!.y).toBeGreaterThan(e!.y + e!.height);
+    await expect(aggregate).not.toBeVisible();
+    await expect(estimate).toBeVisible();
     await page.screenshot({
       path: info.outputPath('today-aggregate.png'),
       fullPage: true,
       animations: 'disabled',
     });
     await page.getByRole('button', { name: 'Study setup' }).click();
+    await expect(aggregate).toBeVisible();
     await page.getByRole('button', { name: 'German words', exact: true }).click();
     const picker = page.getByRole('dialog', { name: 'Decks' });
     const parent = picker.getByRole('checkbox', { name: 'Languages', exact: true });
@@ -146,7 +144,6 @@ for (const theme of ['light', 'dark'] as const) {
     await picker.getByRole('button', { name: 'Apply' }).click();
     if (info.project.name !== 'desktop-interaction') {
       await page.setViewportSize({ width: 320, height: 812 });
-      await page.getByRole('button', { name: /Study setup/ }).click();
       await expect(aggregate).toBeVisible();
       expect(await aggregate.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -306,7 +303,7 @@ for (const mode of ['listening', 'production', 'mixed'])
         );
       if (cards[index]!.direction === 'listening') {
         await expect(page.getByText('Listen, then type the word', { exact: true })).toHaveCount(1);
-        await page.getByRole('button', { name: 'Play / replay', exact: true }).click();
+        await page.getByRole('button', { name: 'Play audio', exact: true }).click();
         await expect(page.locator('html')).toHaveAttribute(
           'data-spoken-text',
           notes[index]!.fields.term,
@@ -314,7 +311,7 @@ for (const mode of ['listening', 'production', 'mixed'])
         await page.evaluate(() => {
           document.documentElement.dataset['speechFail'] = 'true';
         });
-        await page.getByRole('button', { name: 'Play / replay', exact: true }).click();
+        await page.getByRole('button', { name: 'Play audio', exact: true }).click();
       }
       if (cards[index]!.direction !== 'recall') {
         await expect(
@@ -378,12 +375,13 @@ test('language setup scopes voices and hierarchy while display choices leave the
     });
   });
   await page.goto('/');
-  await expect(page.getByText('3 ready across 2 languages')).toBeVisible();
+  await expect(page.getByText('3 ready across 2 languages')).not.toBeVisible();
   const metrics = page.getByText(/^3\s*new$/);
   const aggregate = page.getByText('3 ready across 2 languages');
-  expect((await aggregate.boundingBox())!.y).toBeGreaterThan((await metrics.boundingBox())!.y);
   await expect(page.getByRole('button', { name: 'Study setup' })).not.toContainText('Daily plan');
   await page.getByRole('button', { name: 'Study setup' }).click();
+  await expect(aggregate).toBeVisible();
+  expect((await aggregate.boundingBox())!.y).toBeGreaterThan((await metrics.boundingBox())!.y);
   await page.getByRole('combobox', { name: 'Study mode' }).selectOption('listening');
   const voice = page.getByRole('combobox', { name: /Voice on this device/ });
   await expect(voice.locator('option')).toHaveCount(2);
@@ -437,10 +435,10 @@ test('language setup scopes voices and hierarchy while display choices leave the
   await page.getByRole('button', { name: 'Study', exact: true }).click();
   await page.getByRole('button', { name: 'Show answer' }).click();
   await expect(
-    page.locator('.neu-learning-answer').getByText('example 0', { exact: true }),
+    page.locator('.neu-learning-reading').getByText('example 0', { exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.locator('.neu-learning-answer').getByText('definition 0', { exact: true }),
+    page.locator('.neu-learning-reading').getByText('definition 0', { exact: true }),
   ).toBeVisible();
   expect(
     requests

@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-08, navigation reliability and interaction continuity prepared for protected review.
+Last updated: 2026-10-09, coordinated interface refinement prepared for protected review.
 
 ## Current release slice
 
@@ -96,7 +96,7 @@ and 500 Decks measured 58.7 fps in both row treatments. Lint, typechecks, format
 passed. Hosted checks and physical-iPhone acceptance of hierarchy touch/drag, moves, selection, pickers
 and the Today aggregate placement remain required separately.
 
-Navigation stabilization is prepared on `work/navigation-reliability`, without merge authorization.
+Navigation stabilization shipped in merged PR #37 on `main`.
 Each committed route explicitly owns its main tab, including Notes, Import and Deleted under Library.
 The screen key follows the committed match rather than a pending address; the accessible current tab,
 label weight and aligned selection pill share that destination. Existing tokenized tab motion remains.
@@ -122,7 +122,27 @@ The reported intermittent installed-iPhone wrong-tab symptom was not reproduced 
 Missing collection tab ownership and learning-return scroll loss were reproduced and fixed. Physical
 iPhone acceptance remains required for rapid tab switching, app background/return, native Back, keyboard
 dismissal around draft confirmation, and Study/Practice return ergonomics. Library hierarchy and styling
-still await user visual feedback; this slice does not redesign them or begin Offline & Sync.
+still require physical-device acceptance. Offline & Sync remains outside this slice.
+
+The coordinated interface refinement on `work/interface-refinement` unifies Folder/Deck surfaces and
+compact hierarchy pickers, simplifies Today setup and supporting-content controls, and gives Listening
+an answer-focused reveal. Practice entry/actions, completion timing, Note preview disclosure, Import
+guidance and desktop Settings density follow the same reusable contracts. English and Russian copy are
+shorter while preserving unavailable-action, replacement and data-loss information.
+
+Confirmed collection creation becomes visible before background reconciliation. Study skill settings
+use the authoritative write response and request admission only after acknowledgement, avoiding a
+redundant collection read and a premature plan request. No scheduling, history, authentication,
+deletion, Undo persistence or sync contract changes are included. Built-app latency evidence and visual
+contracts are maintained in `design-system.md`. This slice requires protected PR checks and remains
+unmerged; physical-iPhone touch, keyboard, audio and drag acceptance are separate from browser evidence.
+
+Local refinement verification passed 418 core/web and 177 shared unit tests, all workspace typechecks,
+source lint excluding generated browser reports, and formatting. The final built-app serial gate passed
+314 phone/desktop interactions with four opt-in live-API checks skipped; all 70 WebKit checks passed.
+All 66 visual cases passed with 17 intentional Today, Library and Settings references refreshed.
+Four large-list checks passed with the 55 fps threshold enforced at 4× CPU slowdown: 5,000 Notes held
+60.0 fps with 14 mounted rows; 500 Decks held 60.0 fps and zero blurred rows in both glass scopes.
 
 ## Now
 
@@ -172,10 +192,12 @@ Today or Study.
 2. Complete remaining physical-iPhone acceptance of merged language-scoped Study/configuration and
    learning presentation, including the PR #34 Listen → Type and Practice interaction contracts.
 3. Reassess system speech quality after device acceptance before considering external TTS.
-4. Complete physical-iPhone acceptance of merged PR #36 Library hierarchy, learner-facing
-   Note/Card progress, consistent destination/Study pickers and Today aggregate placement.
-5. Complete protected review and installed-iPhone acceptance of navigation/tab selection, nested Back,
-   draft protection and learning-return continuity.
+4. Complete physical-iPhone acceptance of merged learner-facing Note/Card progress alongside the
+   refined hierarchy and pickers.
+5. Complete installed-iPhone acceptance of merged navigation/tab selection, nested Back, draft
+   protection and learning-return continuity.
+6. Complete protected review of the coordinated interface refinement, then physical-iPhone acceptance
+   of hierarchy, Listening reveal, disclosures and interaction responsiveness.
 
 ## Open threads
 

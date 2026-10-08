@@ -6,7 +6,7 @@ export const en = {
   'study.unspecifiedLanguage': 'No target language',
   'study.aggregateReady': '{count} ready across {languages} languages',
   'study.cardDisplay': 'Card display',
-  'study.cardDisplayHint': 'Supporting content after reveal. The Study skill stays the same.',
+  'study.cardDisplayHint': 'Show after the answer',
   'study.meaningSource': 'Meaning source',
   'study.pattern': 'Pattern',
   'study.skillUnavailable': '{mode} unavailable',
@@ -38,22 +38,22 @@ export const en = {
   'study.spelling.incorrect': 'Replace {text} with {expected}.',
   'study.skills': 'Study skills',
   'study.skillsHint':
-    'Enable skills for existing and future notes. Each has its own schedule. New cards join gradually within your study budget. Enabled cards keep their history; choose skills for each session in Today.',
+    'Skills have separate schedules. Enabling a skill adds cards gradually and keeps existing progress.',
   'study.yourAnswer': 'Your answer',
   'practice.response': 'Response mode',
-  'practice.modeHint': 'Practice freely. Your study schedule and review history stay unchanged.',
+  'practice.modeHint': 'Practice without changing your study schedule.',
   'practice.mode.reveal': 'Self-check',
   'practice.mode.typing': 'Typing',
   'practice.mode.listening': 'Listening',
-  'practice.typingHint':
-    'Choose one short text field for the answer. Long text, combined fields and yes/no fields are excluded.',
-  'practice.listeningHint':
-    'Choose Word alone on the front. Listen, type the word, then check it. Back provides meaning or context after checking.',
+  'practice.typingHint': 'Answer with one short text field.',
+  'practice.listeningHint': 'Front: Word only. Back: meaning or context after checking.',
   'note.readyCards': '{count} cards ready now',
   'note.restartHint':
     'Start these cards from new again. Review history is preserved. To resume without resetting, use Return to study.',
   'library.noteCount': '{count} notes',
-  'library.deckCount': 'Decks: {count}',
+  'library.deckCount': '{count} decks',
+  'library.oneDeck': '1 deck',
+  'library.oneNote': '1 note',
   'library.cardCounts': 'Cards: {due} due · {fresh} new',
   'note.studyStatus': 'Study status',
   'study.moreDirections': 'Study directions',
@@ -80,7 +80,7 @@ export const en = {
   'note.grammarUnavailable':
     'No grammar fields are available for this language and part of speech.',
   'study.scope': 'Decks',
-  'study.scopeTemporary': 'For this session only. Your usual decks stay unchanged.',
+  'study.scopeTemporary': 'For this session only.',
   'study.scopeDefault': 'My study decks',
   'study.scopeCount': '{count} selected',
   'study.noDecks': 'No decks selected',
@@ -98,7 +98,7 @@ export const en = {
   'study.feedback.incorrect': 'Compare your answer with the answer shown.',
   'study.chooseRating': 'Choose a rating yourself.',
   'study.listenPrompt': 'Listen, then type the word',
-  'study.replay': 'Play / replay',
+  'study.replay': 'Play audio',
   'study.voiceUnavailable': 'A usable voice for this language is not available yet.',
   'study.listenFallback': 'You can always show the answer and continue.',
   'study.direction.recognition': 'Recognition',
@@ -119,8 +119,8 @@ export const en = {
     'For example: auf + Akkusativ, jemandem etwas geben, or avoid doing. One pattern per line.',
   'note.grammarStored': 'Has details',
   'practice.chooseFields': 'Choose fields',
-  'practice.chooseFieldsHint':
-    'Choose populated fields. Changing a saved run requires starting a new run.',
+  'practice.fields': 'Card fields',
+  'practice.chooseFieldsHint': 'Choose up to 6 fields.',
   'practice.yes': 'Yes',
   'practice.no': 'No',
   'common.apply': 'Apply',
@@ -137,7 +137,7 @@ export const en = {
   'practice.saved': 'Saved',
   'practice.saving': 'Saving…',
   'practice.changeWarning':
-    'Your current Practice progress will be replaced. Your study schedule and review history will stay unchanged.',
+    'This replaces your current Practice progress. Your study schedule stays unchanged.',
   'learning.restart': 'Restart learning',
   'learning.restartTitle': 'Restart this deck?',
   'learning.restartBody':
@@ -404,8 +404,7 @@ export const en = {
   'library.moveUp': 'Move up',
   'library.moveDown': 'Move down',
   'library.settings': 'Settings',
-  'library.settingsSubtitle':
-    'Language and level. Unset values use defaults from the parent folder.',
+  'library.settingsSubtitle': 'Unset values inherit the folder defaults.',
   'library.targetLanguage': 'Language being learned',
   'library.nativeLanguage': 'Language of the explanations',
   'library.level': 'Level',
@@ -512,8 +511,7 @@ export const en = {
   'notes.filterCardState': 'Card progress',
   'notes.cardSummaryNone': 'No cards',
   'notes.partlyStarted': 'Partly started',
-  'notes.progressHint':
-    'Each card is a separate direction. Practiced cards may be due or scheduled; open a note for timing.',
+  'notes.progressHint': 'Practiced cards can still be due. Open a note for timing.',
   'notes.progress.new': 'New cards: {count}',
   'notes.progress.learning': 'Learning cards: {count}',
   'notes.progress.relearning': 'Learning again: {count}',
@@ -571,14 +569,10 @@ export const en = {
   'import.mode.table': 'Table',
   'import.mode.json': 'JSON',
   'import.mode.file': 'File',
-  'import.help.simple':
-    'Enter a word and its translation separately, then add it to the list. You can also paste a ready list below. Nothing is saved before you preview and import.',
-  'import.help.table':
-    'Copy cells from a spreadsheet, including headings if you have them. Word and translation go in separate columns. Check the column assignments in the preview. CSV is also accepted.',
-  'import.help.json':
-    'Paste an array of notes, or an object with noteType and notes. Use the example below for the selected note type.',
-  'import.help.file':
-    'Choose a text file exported from a spreadsheet or Anki, or a JSON file. You can inspect and edit its text below before importing.',
+  'import.help.simple': 'Add word pairs or paste a list below.',
+  'import.help.table': 'Paste spreadsheet cells or CSV. Match the columns in the preview.',
+  'import.help.json': 'Paste notes as JSON. See the example below for the format.',
+  'import.help.file': 'Open a spreadsheet, Anki text export, or JSON file.',
   'import.addRow': 'Add to the list',
   'import.appendError': 'Check the pasted list and its note type before adding another entry.',
   'import.exampleMeaning': 'to learn',
@@ -603,8 +597,7 @@ export const en = {
     'Cannot read row {row}. Check that its columns are assigned to supported fields.',
 
   'import.title': 'Import',
-  'import.subtitle':
-    'Paste a list or upload a file. Nothing is written until you have seen what it will make.',
+  'import.subtitle': 'Review your notes before importing.',
   'import.deck': 'Import into',
   'import.paste': 'Paste the list here',
   'import.upload': 'Choose a file',
@@ -756,11 +749,11 @@ export const en = {
   'note.field.irregular': 'Irregular forms',
   'note.field.uncountable': 'Uncountable',
 
-  'note.hint.reading': 'How it sounds, if that is not obvious from the spelling.',
+  'note.hint.reading': 'Pronunciation, if needed.',
   'note.hint.readingIpa': 'IPA, as /əˈbæn.dən/.',
-  'note.hint.example': 'A sentence using the word. It has to contain the word itself.',
-  'note.hint.mnemonic': 'Only if there is a real hook. A forced one is worse than none.',
-  'note.hint.image': 'A web address. Uploading a file arrives later.',
+  'note.hint.example': 'A sentence containing the word.',
+  'note.hint.mnemonic': 'An optional memory cue.',
+  'note.hint.image': 'Image URL.',
   'note.hint.cloze': 'Wrap what should be hidden in double braces: Ich {{stehe}} früh auf.',
   'note.hint.case': 'Only when it is not the plain accusative.',
   'note.hint.comparison': 'Only when the comparison is irregular.',

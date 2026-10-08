@@ -80,7 +80,6 @@ export function CardDisplaySetup({
   return (
     <fieldset className="flex flex-col gap-8 border-t border-subtle pt-12">
       <legend className="text-13 text-primary">{t('study.cardDisplay')}</legend>
-      <p className="text-12 text-secondary">{t('study.cardDisplayHint')}</p>
       {available.includes('definition') && (
         <label className="flex items-center justify-between gap-12 text-13 text-secondary">
           {t('study.meaningSource')}
@@ -95,7 +94,8 @@ export function CardDisplaySetup({
           </Select>
         </label>
       )}
-      <div className="grid grid-cols-2">
+      <span className="text-13 text-secondary">{t('study.cardDisplayHint')}</span>
+      <div className="grid grid-cols-1 min-[360px]:grid-cols-2">
         {available.map((field) => (
           <Checkbox
             key={field}
@@ -137,12 +137,15 @@ export function RevealedStudyContent({
     <div className="flex flex-col gap-20">
       <div>
         {main.map((line) => (
-          <p key={line.field} className="whitespace-pre-line">
-            {line.value}
+          <div
+            key={line.field}
+            className={line.field === 'term' ? 'flex items-start gap-8' : 'whitespace-pre-line'}
+          >
+            <span className="min-w-0 whitespace-pre-line">{line.value}</span>
             {line.field === 'term' && (
               <Speaker key={identity} text={line.value} language={language} />
             )}
-          </p>
+          </div>
         ))}
       </div>
       <div className="flex flex-col gap-16 text-17 leading-read">

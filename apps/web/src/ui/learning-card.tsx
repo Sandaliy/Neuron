@@ -14,7 +14,9 @@ export function LearningCard({
   answer,
   identity,
   response,
+  answerFocused = false,
 }: {
+  readonly answerFocused?: boolean;
   readonly response?: ReactNode;
   readonly context: ReactNode;
   readonly prompt: ReactNode;
@@ -70,14 +72,16 @@ export function LearningCard({
       <div className="text-12 text-secondary">{context}</div>
       <div
         key={identity}
-        className="neu-learning-reading relative grid min-h-0 flex-1 grid-rows-2 overflow-y-auto py-16"
+        className={`neu-learning-reading relative min-h-0 flex-1 overflow-y-auto py-16 ${answerFocused && revealed ? 'flex flex-col' : 'grid grid-rows-2'}`}
       >
-        <div className={`flex flex-col justify-center text-primary ${answer ? '' : 'row-span-2'}`}>
+        <div
+          className={`flex flex-col text-primary ${answerFocused && revealed ? 'my-auto' : 'justify-center'} ${answer ? '' : 'row-span-2'}`}
+        >
           <div ref={promptRef} className="neu-learning-prompt">
-            {prompt}
+            {answerFocused && revealed ? answer : prompt}
           </div>
         </div>
-        {answer && (
+        {answer && !answerFocused && (
           <div className="relative pt-24 text-primary">
             <div
               aria-hidden="true"

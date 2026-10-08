@@ -65,11 +65,16 @@ for (const theme of ['light', 'dark'] as const) {
       route.fulfill({ json: { run: null, version: 0 } }),
     );
     await page.goto('/library');
-    await expect(page.getByText('Decks: 1 · 8 notes')).toBeVisible();
+    await expect(page.getByText('1 deck · 8 notes')).toBeVisible();
     await page.getByRole('button', { name: 'Show what is inside', exact: true }).click();
     await expect(
       page.getByRole('button', { name: /^Words for everyday conversations/ }),
-    ).toContainText('8 notes · Cards: 2 due · 3 new');
+    ).toContainText('8 notes');
+    await page
+      .getByRole('button', { name: /Actions for Words for everyday conversations/ })
+      .click();
+    await expect(page.getByText('Cards: 2 due · 3 new')).toBeVisible();
+    await page.keyboard.press('Escape');
     await page.screenshot({
       path: info.outputPath('hierarchy.png'),
       animations: 'disabled',
@@ -96,7 +101,7 @@ for (const theme of ['light', 'dark'] as const) {
     const picker = page.getByRole('dialog');
     const chosen = picker.getByRole('button', { name: /^Words for everyday conversations/ });
     await expect(chosen).toHaveAttribute('aria-pressed', 'true');
-    await expect(chosen).toContainText('German');
+    await expect(picker.getByRole('button', { name: 'German', exact: true })).toBeVisible();
     await page.keyboard.press('Tab');
     await chosen.focus();
     await expect(chosen).toBeFocused();

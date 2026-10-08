@@ -23,12 +23,18 @@ export interface PreviewCard extends PlannedCard {
   readonly reps?: number;
 }
 
-export function CardPreview({ cards }: { readonly cards: readonly PreviewCard[] }) {
+export function CardPreview({
+  cards,
+  labelled = true,
+}: {
+  readonly cards: readonly PreviewCard[];
+  readonly labelled?: boolean;
+}) {
   const t = useTranslate();
 
   return (
     <section className="flex flex-col gap-12">
-      <GroupLabel>{t('note.preview')}</GroupLabel>
+      {labelled && <GroupLabel>{t('note.preview')}</GroupLabel>}
 
       {cards.length === 0 ? (
         <p className="text-14 leading-body text-secondary">{t('note.previewEmpty')}</p>

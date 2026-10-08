@@ -269,24 +269,26 @@ Radix primitives styled with the tokens. No prebuilt kit: they carry a look, and
 one that somebody recognises. `docs/design-system.md` is the reference and `/dev/components` draws
 every one of these in every state.
 
-| File                                      | Holds                                                                                   |
-| ----------------------------------------- | --------------------------------------------------------------------------------------- |
-| `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form  |
-| `collection-header.tsx`                   | Compact collection title/actions row with navigation directly below                     |
-| `input.tsx`, `textarea.tsx`, `select.tsx` | The fields. Sixteen pixels of text, or iOS zooms the page on focus                      |
-| `form-field.tsx`                          | The label, the hint, the error, and the wiring between them                             |
-| `range.tsx`                               | A rail, a filled portion, one white disc. The fill is handed to css as `--track`        |
-| `segmented.tsx`                           | Native radios with a thumb that slides. Replaces radios everywhere                      |
-| `switch.tsx`, `checkbox.tsx`              | A capsule and a white disc; a fill framed by an inset ring                              |
-| `card.tsx`                                | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                |
-| `row.tsx`                                 | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                     |
-| `swipe-delete.tsx`                        | Continuous note-row reveal and committed release-to-delete gesture                      |
-| `chip.tsx`, `progress.tsx`                | Four chip tones and no others; a line that fills on `transform`                         |
-| `dialog.tsx`                              | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip |
-| `toast.tsx`                               | Short confirmations, above the bottom bar and above the home indicator                  |
-| `sheen.tsx`                               | The specular streak that travels on a glass layer as content scrolls under it           |
-| `states.tsx`                              | Skeleton, empty and error. A list never renders as a blank area                         |
-| `spinner.tsx`                             | For a control that is waiting. A screen gets a skeleton instead                         |
+| File                                      | Holds                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form      |
+| `collection-header.tsx`                   | Compact collection title/actions row with navigation directly below                         |
+| `collection.tsx`                          | Shared opaque hierarchy surfaces and Folder/Deck identities for Library and pickers         |
+| `disclosure.tsx`                          | Controlled, state-preserving inline disclosure with reduced-motion and inert closed content |
+| `input.tsx`, `textarea.tsx`, `select.tsx` | The fields. Sixteen pixels of text, or iOS zooms the page on focus                          |
+| `form-field.tsx`                          | The label, the hint, the error, and the wiring between them                                 |
+| `range.tsx`                               | A rail, a filled portion, one white disc. The fill is handed to css as `--track`            |
+| `segmented.tsx`                           | Native radios with a thumb that slides. Replaces radios everywhere                          |
+| `switch.tsx`, `checkbox.tsx`              | A capsule and a white disc; a fill framed by an inset ring                                  |
+| `card.tsx`                                | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                    |
+| `row.tsx`                                 | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                         |
+| `swipe-delete.tsx`                        | Continuous note-row reveal and committed release-to-delete gesture                          |
+| `chip.tsx`, `progress.tsx`                | Four chip tones and no others; a line that fills on `transform`                             |
+| `dialog.tsx`                              | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip     |
+| `toast.tsx`                               | Short confirmations, above the bottom bar and above the home indicator                      |
+| `sheen.tsx`                               | The specular streak that travels on a glass layer as content scrolls under it               |
+| `states.tsx`                              | Skeleton, empty and error. A list never renders as a blank area                             |
+| `spinner.tsx`                             | For a control that is waiting. A screen gets a skeleton instead                             |
 
 ### The wiring (`src/lib/`, `src/i18n/`, `src/theme/`)
 

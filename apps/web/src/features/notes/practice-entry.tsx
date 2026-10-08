@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { SlidersHorizontal } from 'lucide-react';
 
-import { practiceFieldLabel, practiceFields, practiceResultSchema } from '@neuron/shared';
+import { practiceResultSchema } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { request, describe } from '../../lib/api';
@@ -27,28 +27,15 @@ export function PracticeEntry({
   const statuses = Object.values(run?.statuses ?? {});
   const classified = statuses.filter((status) => status !== 'unseen').length;
   return (
-    <Card className="flex flex-col gap-16">
-      <span className="flex w-full items-center justify-between gap-12">
-        <span className="text-15 text-primary">{t('practice.title')}</span>
+    <Card className="flex flex-col gap-12">
+      <div className="flex w-full flex-wrap items-center justify-between gap-8">
+        <h2 className="text-17 text-primary">{t('practice.title')}</h2>
         {run && (
           <span className="text-12 text-secondary" data-numeric="">
             {t('practice.classified', { count: classified, total: statuses.length })}
           </span>
         )}
-      </span>
-      {run && (
-        <span className="text-12 text-secondary">
-          {t('practice.recipe', {
-            mode: t(`practice.mode.${run.response ?? 'reveal'}`),
-            front: practiceFields(run.front)
-              .map((field) => t(practiceFieldLabel(field)))
-              .join(' + '),
-            back: practiceFields(run.back)
-              .map((field) => t(practiceFieldLabel(field)))
-              .join(' + '),
-          })}
-        </span>
-      )}
+      </div>
       {summary.isPending ? (
         <Skeleton className="h-44 w-full" />
       ) : summary.error ? (
@@ -60,17 +47,15 @@ export function PracticeEntry({
       ) : (
         <>
           {run && <Progress value={classified} max={statuses.length} label={t('practice.title')} />}
-          <Button full variant="primary" onClick={() => onOpen('resume')}>
-            {t(run ? 'practice.resume' : 'practice.start')}
-          </Button>
-          <Button
-            variant="text"
-            className="self-start px-0 text-13 text-secondary"
-            onClick={() => onOpen('setup')}
-          >
-            <SlidersHorizontal size={16} aria-hidden="true" />
-            {t('practice.settings')}
-          </Button>
+          <div className="flex flex-wrap items-center gap-8">
+            <Button className="flex-1" variant="quiet" onClick={() => onOpen('resume')}>
+              {t(run ? 'practice.resume' : 'practice.start')}
+            </Button>
+            <Button variant="quiet" className="text-13" onClick={() => onOpen('setup')}>
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              {t('practice.settings')}
+            </Button>
+          </div>
         </>
       )}
     </Card>

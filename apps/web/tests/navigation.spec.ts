@@ -159,14 +159,14 @@ test('nested Back actions clear menus and pending edits reach the same Deck', as
     await route.fulfill({ json: { note: saved, cards: [] } });
   });
   await page.goto('/library');
-  await page.getByRole('button', { name: /^German Decks:/ }).click();
+  await page.getByRole('button', { name: /^German 1 deck/ }).click();
   await page.getByRole('button', { name: 'Actions for Words', exact: true }).click();
   await expect(page.getByRole('menu')).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
   await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(page.locator('[data-pressed]')).toHaveCount(0);
-  await page.getByRole('button', { name: /^German Decks:/ }).click();
+  await page.getByRole('button', { name: /^German 1 deck/ }).click();
   await page.getByRole('button', { name: /^Words 2 notes/ }).click();
   await page.locator('[data-row]').first().click();
   await page.getByRole('textbox', { name: 'Translation', exact: true }).fill('Kept edit');

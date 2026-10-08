@@ -1,3 +1,4 @@
+import { ChevronDown } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 import {
@@ -162,20 +163,14 @@ export function ImportSource({
           <summary className="min-h-44 cursor-pointer text-14 text-secondary">
             {t('collection.changeDestination')}
           </summary>{' '}
-          <FormField
-            label={t('import.deck')}
-            {...(deck === '' ? { error: t('note.missingDeck') } : {})}
-          >
+          <FormField label={t('import.deck')}>
             {(props) => <CollectionPicker {...props} tree={decks} value={deck} onChange={onDeck} />}
           </FormField>
         </details>
       ) : (
         <>
           {' '}
-          <FormField
-            label={t('import.deck')}
-            {...(deck === '' ? { error: t('note.missingDeck') } : {})}
-          >
+          <FormField label={t('import.deck')}>
             {(props) => <CollectionPicker {...props} tree={decks} value={deck} onChange={onDeck} />}
           </FormField>
         </>
@@ -286,7 +281,7 @@ export function ImportSource({
           )}
         </FormField>
       )}
-      <FormField label={t('import.paste')} hint={t('import.previewHint')}>
+      <FormField label={t('import.paste')}>
         {(props) => (
           <TextArea
             {...props}
@@ -300,9 +295,10 @@ export function ImportSource({
           />
         )}
       </FormField>
-      <details className="rounded-12 border border-default p-16">
-        <summary className="min-h-44 cursor-pointer text-14 text-primary">
+      <details className="neu-details border-t border-subtle pt-8">
+        <summary className="flex min-h-44 cursor-pointer items-center justify-between gap-12 text-14 text-primary">
           {t('import.example')}
+          <ChevronDown size={16} aria-hidden="true" />
         </summary>
         <pre className="overflow-x-auto py-12 text-13 text-secondary">{example}</pre>
         <CardPreview cards={exampleCards.map((card) => ({ ...card, change: 'adds' }))} />
@@ -332,9 +328,10 @@ export function ImportSource({
           </Button>
         </DialogFooter>
       </Dialog>
-      <details className="rounded-12 border border-default p-16">
-        <summary className="min-h-44 cursor-pointer text-14 text-primary">
+      <details className="neu-details border-t border-subtle pt-8">
+        <summary className="flex min-h-44 cursor-pointer items-center justify-between gap-12 text-14 text-primary">
           {t('import.supportedFields')}
+          <ChevronDown size={16} aria-hidden="true" />
         </summary>
         <ul className="flex flex-col gap-8 py-12 text-14 text-secondary">
           {(

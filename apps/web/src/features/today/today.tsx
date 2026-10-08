@@ -16,6 +16,7 @@ import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
 import { Dialog, DialogBody } from '../../ui/dialog';
+import { Disclosure } from '../../ui/disclosure';
 import { ReviewTime } from '../../ui/review-time';
 import { Row } from '../../ui/row';
 import { Select } from '../../ui/select';
@@ -169,7 +170,12 @@ function Waiting({
     selected.length === 1
       ? (live.find((deck) => deck.id === selected[0])?.name ?? '')
       : t('study.scopeCount', { count: selected.length });
-  const mutations = useIsMutating({ mutationKey: ['note-interaction'] });
+  const mutations = useIsMutating({
+    predicate: (mutation) =>
+      ['note-interaction', 'study-configuration'].includes(
+        String(mutation.options.mutationKey?.[0]),
+      ),
+  });
   const [override, setOverride] = useState(false);
   const [skillDeckId, setSkillDeckId] = useState<string>();
   const [skillReviewOpen, setSkillReviewOpen] = useState(false);
@@ -227,135 +233,134 @@ function Waiting({
     result?.availableCount === 0 && selected.length > 0 && !reconciling && !singleUnsupported;
   const expanded = setupOpen || unsupported.length > 0 || listeningNeedsSetup;
   const setup = live.length > 0 && (
-    <div className="flex flex-col gap-12 border-t border-subtle pt-16">
-      <Button
-        variant="text"
-        className="w-full justify-start px-0 text-left"
-        aria-label={t('study.setup')}
-        aria-expanded={expanded}
-        aria-controls="study-setup"
-        onClick={() => setSetupOpen(!expanded)}
-      >
-        <SlidersHorizontal size={18} className="shrink-0" aria-hidden="true" />
-        <span className="min-w-0 flex-1 text-14">{t('study.setup')}</span>
-        {languages.length > 1 && (
-          <span className="text-12 text-secondary">
+    <Disclosure
+      title={t('study.setup')}
+      leading={
+        <SlidersHorizontal size={18} className="shrink-0 text-secondary" aria-hidden="true" />
+      }
+      open={expanded}
+      onOpenChange={setSetupOpen}
+      className="border-t border-subtle pt-12"
+      detail={
+        language && (
+          <span className="flex min-w-0 items-center gap-8 text-13 text-secondary">
+            <span aria-hidden="true" className="size-4 shrink-0 rounded-full bg-fill-accent" />
             {language ? t(`lang.${language}`) : t('study.unspecifiedLanguage')}
           </span>
+        )
+      }
+    >
+      <div className="flex flex-col gap-12">
+        {languages.length > 1 && result && !updating && (
+          <p className="text-13 text-secondary">
+            {t('study.aggregateReady', {
+              count: result.aggregateReady,
+              languages: languages.length,
+            })}
+          </p>
         )}
-        <ChevronDown size={14} aria-hidden="true" />
-      </Button>
-      <div id="study-setup" hidden={!expanded}>
-        <div className="flex flex-col gap-12">
-          {languages.length > 1 && (
-            <label className="flex items-center justify-between gap-12 text-13 text-secondary">
-              {t('study.language')}
-              <Select
-                value={language ?? ''}
-                onChange={(event) =>
-                  onChoices({
-                    ...choices,
-                    language: (event.target.value || null) as LanguageCode | null,
-                  })
-                }
-              >
-                {languages.map((item) => (
-                  <option key={item ?? 'unspecified'} value={item ?? ''}>
-                    {item ? t(`lang.${item}`) : t('study.unspecifiedLanguage')}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          )}
-          <div className="flex items-center justify-between gap-12">
-            <span className="text-13 text-secondary">{t('study.scope')}</span>
-            <Button variant="text" className="min-w-0 px-8" onClick={() => setScopeOpen(true)}>
-              <span className="truncate">{scopeLabel}</span>
-              <ChevronDown size={14} aria-hidden="true" />
+        {languages.length > 1 && (
+          <label className="flex items-center justify-between gap-12 text-13 text-secondary">
+            {t('study.language')}
+            <Select
+              value={language ?? ''}
+              onChange={(event) =>
+                onChoices({
+                  ...choices,
+                  language: (event.target.value || null) as LanguageCode | null,
+                })
+              }
+            >
+              {languages.map((item) => (
+                <option key={item ?? 'unspecified'} value={item ?? ''}>
+                  {item ? t(`lang.${item}`) : t('study.unspecifiedLanguage')}
+                </option>
+              ))}
+            </Select>
+          </label>
+        )}
+        <div className="flex items-center justify-between gap-12">
+          <span className="text-13 text-secondary">{t('study.scope')}</span>
+          <Button variant="text" className="min-w-0 px-8" onClick={() => setScopeOpen(true)}>
+            <span className="truncate">{scopeLabel}</span>
+            <ChevronDown size={14} aria-hidden="true" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-12">
+          <label className="flex flex-col gap-8 text-13 text-secondary">
+            {t('study.minutes')}
+            <Select value={minutes} onChange={(event) => onMinutes(event.target.value)}>
+              <option value="">{t('study.defaultTime')}</option>
+              {[5, 10, 20, 30].map((value) => (
+                <option key={value} value={value}>
+                  {t('study.intervalMinutes', { count: value })}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label className="flex flex-col gap-8 text-13 text-secondary">
+            {t('study.skill')}
+            <Select
+              value={direction}
+              onChange={(event) => onChoices({ ...choices, direction: event.target.value })}
+            >
+              <option value="">{t('study.mixed')}</option>
+              {(['recognition', 'recall', 'production', 'listening'] as const).map((mode) => (
+                <option key={mode} value={mode}>
+                  {t(`study.direction.${mode}`)}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
+        {unsupported.length > 0 && (
+          <div
+            role="status"
+            className="flex flex-col gap-4 rounded-12 border border-subtle bg-sunken p-12 text-13 text-secondary"
+          >
+            <p className="text-primary">
+              {t(unsupported.length === 1 ? 'study.skillUnavailable' : 'study.skillOff', {
+                mode: t(`study.direction.${direction}` as MessageKey),
+                count: unsupported.length,
+              })}
+            </p>
+            <p>
+              {live
+                .filter((deck) => unsupported.includes(deck.id))
+                .map((deck) => deck.name)
+                .join(', ')}
+            </p>
+            <Button
+              variant="text"
+              className="self-start px-8"
+              onClick={() =>
+                unsupported.length === 1 ? setSkillDeckId(unsupported[0]) : setSkillReviewOpen(true)
+              }
+            >
+              {t(unsupported.length === 1 ? 'study.enableSkill' : 'study.reviewDecks')}
             </Button>
           </div>
-          <div className="grid grid-cols-2 gap-12">
-            <label className="flex flex-col gap-8 text-13 text-secondary">
-              {t('study.minutes')}
-              <Select value={minutes} onChange={(event) => onMinutes(event.target.value)}>
-                <option value="">{t('study.defaultTime')}</option>
-                {[5, 10, 20, 30].map((value) => (
-                  <option key={value} value={value}>
-                    {t('study.intervalMinutes', { count: value })}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label className="flex flex-col gap-8 text-13 text-secondary">
-              {t('study.skill')}
-              <Select
-                value={direction}
-                onChange={(event) => onChoices({ ...choices, direction: event.target.value })}
-              >
-                <option value="">{t('study.mixed')}</option>
-                {(['recognition', 'recall', 'production', 'listening'] as const).map((mode) => (
-                  <option key={mode} value={mode}>
-                    {t(`study.direction.${mode}`)}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          </div>
-          {unsupported.length > 0 && (
-            <div
-              role="status"
-              className="flex flex-col gap-4 rounded-12 border border-subtle bg-sunken p-12 text-13 text-secondary"
-            >
-              <p className="text-primary">
-                {t(unsupported.length === 1 ? 'study.skillUnavailable' : 'study.skillOff', {
-                  mode: t(`study.direction.${direction}` as MessageKey),
-                  count: unsupported.length,
-                })}
-              </p>
-              <p>
-                {live
-                  .filter((deck) => unsupported.includes(deck.id))
-                  .map((deck) => deck.name)
-                  .join(', ')}
-              </p>
-              <Button
-                variant="text"
-                className="self-start px-8"
-                onClick={() =>
-                  unsupported.length === 1
-                    ? setSkillDeckId(unsupported[0])
-                    : setSkillReviewOpen(true)
-                }
-              >
-                {t(unsupported.length === 1 ? 'study.enableSkill' : 'study.reviewDecks')}
-              </Button>
-            </div>
-          )}
-          {(result?.newCards.overrideAvailable || override) && (
-            <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
-              <input
-                type="checkbox"
-                checked={override}
-                onChange={(event) => setOverride(event.target.checked)}
-              />
-              {t('study.moreNew')}
-            </label>
-          )}
-          {direction === 'listening' && (
-            <ListeningSetup
-              key={language ?? 'unspecified'}
-              decks={decks}
-              selected={selectedDecks}
+        )}
+        {(result?.newCards.overrideAvailable || override) && (
+          <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
+            <input
+              type="checkbox"
+              checked={override}
+              onChange={(event) => setOverride(event.target.checked)}
             />
-          )}
-          <CardDisplaySetup
-            notes={result?.notes ?? []}
-            value={choices.display}
-            onChange={(display) => onChoices({ ...choices, display })}
-          />
-        </div>
+            {t('study.moreNew')}
+          </label>
+        )}
+        {direction === 'listening' && (
+          <ListeningSetup key={language ?? 'unspecified'} decks={decks} selected={selectedDecks} />
+        )}
+        <CardDisplaySetup
+          notes={result?.notes ?? []}
+          value={choices.display}
+          onChange={(display) => onChoices({ ...choices, display })}
+        />
       </div>
-    </div>
+    </Disclosure>
   );
   const waiting = (result?.deckSummaries ?? [])
     .filter((summary) => selected.includes(summary.deckId))
@@ -370,7 +375,6 @@ function Waiting({
           <>
             <h2 className="text-24 text-primary">{t('study.noDecks')}</h2>
             <Button onClick={() => setScopeOpen(true)}>{t('study.chooseDecks')}</Button>
-            {setup}
           </>
         ) : plan.error && !result ? (
           <ErrorState
@@ -391,7 +395,6 @@ function Waiting({
         ) : singleUnsupported ? (
           <>
             <h2 className="text-24 text-primary">{t('study.modeUnavailable')}</h2>
-            {setup}
           </>
         ) : caughtUp ? (
           <>
@@ -411,7 +414,6 @@ function Waiting({
             <Button onClick={() => void navigate({ to: '/library' })}>
               {t('today.practiceDeck')}
             </Button>
-            {setup}
           </>
         ) : (
           <>
@@ -444,34 +446,27 @@ function Waiting({
                 {t('study.newMetric')}
               </span>
             </div>
-            {languages.length > 1 && !updating && (
-              <p className="-mt-12 max-w-full self-end text-right text-12 leading-read text-secondary">
-                {t('study.aggregateReady', {
-                  count: result.aggregateReady,
-                  languages: languages.length,
-                })}
-              </p>
-            )}
-            {setup}
-            <Button
-              variant="primary"
-              full
-              disabled={
-                !result.cards.length ||
-                (direction === 'listening' && listening.some((item) => !item.language)) ||
-                plan.isFetching ||
-                plan.isPlaceholderData ||
-                mutations > 0 ||
-                !!plan.error ||
-                result.localProjection === true
-              }
-              onClick={() => onStart(result)}
-            >
-              {t('today.study')}
-            </Button>
           </>
         )}
-        {selected.length > 0 && (!result || reconciling) && setup}
+        {setup}
+        {selected.length > 0 && result && !reconciling && !singleUnsupported && !caughtUp && (
+          <Button
+            variant="primary"
+            full
+            disabled={
+              !result.cards.length ||
+              (direction === 'listening' && listening.some((item) => !item.language)) ||
+              plan.isFetching ||
+              plan.isPlaceholderData ||
+              mutations > 0 ||
+              !!plan.error ||
+              result.localProjection === true
+            }
+            onClick={() => onStart(result)}
+          >
+            {t('today.study')}
+          </Button>
+        )}
       </Card>
       {plan.error && result && (
         <ErrorState

@@ -29,13 +29,15 @@ export function Speaker({
   return (
     <span
       className={
-        compact ? 'inline-flex flex-wrap items-center align-middle' : 'flex flex-col gap-12'
+        compact
+          ? 'inline-flex shrink-0 items-center align-middle'
+          : 'flex flex-col items-start gap-16'
       }
     >
       {!compact && <span className="text-20 leading-read">{t('study.listenPrompt')}</span>}
       <Button
-        variant="text"
-        className={compact ? 'ml-4 inline-flex size-44 p-8' : 'self-start'}
+        variant={compact ? 'text' : 'quiet'}
+        className={compact ? 'inline-flex size-44 p-8' : 'self-start'}
         aria-label={t('study.replay')}
         title={t(!voice || failed ? 'study.voiceUnavailable' : 'study.replay')}
         disabled={!voice && !compact}
@@ -56,7 +58,6 @@ export function Speaker({
           {t('study.voiceUnavailable')}
         </span>
       )}
-      {!compact && <span className="text-13 text-secondary">{t('study.listenFallback')}</span>}
     </span>
   );
 }

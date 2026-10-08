@@ -146,6 +146,7 @@ export function useDeckActions() {
   };
 
   const create = useMutation({
+    onMutate: () => client.cancelQueries({ queryKey: DECK_TREE_KEY, exact: true }),
     mutationFn: (input: { name: string; parentId: string | null; kind: 'folder' | 'deck' }) =>
       request<{ deck: Deck }>('/decks', {
         method: 'POST',
@@ -153,7 +154,26 @@ export function useDeckActions() {
         // after a timeout that actually landed does not make a second deck.
         body: { id: uuidV7(), ...input },
       }),
-    onSuccess: refresh,
+    onSuccess: ({ deck }) => {
+      // An acknowledged empty collection can appear from the write response.
+      // The background read still owns final ordering and aggregate counts.
+      client.setQueryData<{ decks: DeckNode[] }>(DECK_TREE_KEY, (cached) => {
+        if (!cached || findDeck(cached.decks, deck.id)) return cached;
+        const created: DeckNode = {
+          ...deck,
+          path: [],
+          children: [],
+          due: 0,
+          fresh: 0,
+          noteCount: 0,
+          nextDue: null,
+        };
+        return {
+          decks: relocate([...cached.decks, created], { id: deck.id, parentId: deck.parentId }),
+        };
+      });
+      refresh();
+    },
   });
 
   const rename = useMutation({
@@ -174,6 +194,7 @@ export function useDeckActions() {
   });
 
   const update = useMutation({
+    mutationKey: ['study-configuration'],
     onMutate: async (input: { id: string; settings: DeckSettings | null }) => {
       const version = ++settingsVersion.current;
       const rollback = projectDeck(client, input.id, { settings: input.settings });
@@ -194,12 +215,16 @@ export function useDeckActions() {
         const replace = (rows: readonly DeckNode[]): DeckNode[] =>
           rows.map((row) => ({
             ...row,
-            ...(row.id === deck.id ? { settings: deck.settings } : {}),
+            ...(row.id === deck.id
+              ? { settings: deck.settings, rev: deck.rev, updatedAt: deck.updatedAt }
+              : {}),
             children: replace(row.children),
           }));
         return { decks: replace(cached.decks) };
       });
-      void client.invalidateQueries({ queryKey: DECK_TREE_KEY });
+      // The response owns settings. Counts refresh on the next collection visit;
+      // Today obtains admission directly, after the configuration write settles.
+      void client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' });
       if (_input.settings?.ladder) void client.invalidateQueries({ queryKey: ['notes'] });
       void client.invalidateQueries({ queryKey: ['study-plan'] });
     },
