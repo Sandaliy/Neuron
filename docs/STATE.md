@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-10, Phase 7 closed after merged PR #41 and final physical-iPhone acceptance.
+Last updated: 2026-10-10, Phase 8.0 server sync integrity prepared for protected delivery.
 
 ## Current release
 
@@ -38,8 +38,14 @@ The cumulative releases through PR #41 provide:
   active Practice Known progress across repeat/resume/Undo, and makes unavailable recipes actionable
   while preserving the saved run until explicit replacement confirmation.
 
-Phase 8 Offline Collection and Synchronization is the next active milestone for planning. No service
-worker, IndexedDB collection or general offline mutation queue is implemented by this closure pass.
+Phase 8 Offline Collection and Synchronization is active. The first server integrity slice is implemented
+on `work/sync-integrity`; production remains on the accepted Phase 7 baseline. It adds shared
+Note/Card planning and history protection to sync, durable exact-delivery receipts, explicit Review
+outcomes and revision-consistent pulls. Migration 0017 adds the receipts and original Review delivery
+timestamp. Protected delivery and required CI/Vercel checks remain pending.
+Local verification passed all 24 new sync regressions, the relevant Note/Card, restoration, replay,
+RLS and migration suites, and all 606 core/shared/web unit tests.
+No service worker, IndexedDB collection or general offline mutation queue is implemented.
 Phase 9 triage/waves/progressive direction admission and Phase 10 personal plans/progress remain later work.
 
 ## Performance monitor diagnosis and policy
@@ -109,10 +115,11 @@ Today or Study.
 
 ## Next
 
-1. Start a fresh Phase 8 planning conversation from the post-PR #41 accepted baseline and maintained
-   architecture/sync contracts. Resolve IndexedDB evolution, shell updates and queue ownership before implementation.
-2. Plan offline mutation/review replay, conflict recovery, authentication expiry, storage-loss recovery
-   and cross-device convergence with failure-focused integrity tests. Preserve server authority and RLS.
+1. Deliver Phase 8.0 server sync integrity through a protected PR and verify the required checks and
+   migration deployment before calling it released.
+2. Resolve local persistence, shell updates, queue ownership, offline-created Card identity mapping,
+   entity conflict detection, offline Undo and Practice synchronization before their implementation.
+   Include authentication expiry, storage-loss recovery and cross-device convergence in later slices.
 3. Keep Phase 9 large-collection triage/waves/progressive admission and Phase 10 personal workload
    customization/statistics separate. Earlier design is appropriate only for concrete storage/sync prerequisites.
 

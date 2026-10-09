@@ -5,6 +5,7 @@ import type { ApiErrorCode } from '@neuron/shared';
 
 import { CardNotFound, DeckCycle, DeckNotFound, UnknownNoteType } from './db/repositories/index.js';
 import { InvalidCollectionKind, RestoreDependency } from './db/repositories/restoration.js';
+import { ReviewIdReused } from './db/repositories/reviews.js';
 
 import type { Context } from 'hono';
 
@@ -128,6 +129,7 @@ export function toApiError(error: unknown): ApiError {
   if (error instanceof ZodError) {
     return new ApiError('invalid_request', { details: { fields: fieldsOf(error) }, cause: error });
   }
+  if (error instanceof ReviewIdReused) return new ApiError('invalid_request', { cause: error });
 
   if (error instanceof DeckNotFound || error instanceof CardNotFound) {
     return new ApiError('not_found', { cause: error });

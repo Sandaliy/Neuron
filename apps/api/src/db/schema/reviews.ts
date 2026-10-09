@@ -62,6 +62,8 @@ export const reviews = pgTable(
     priorState: jsonb('prior_state').$type<Record<string, unknown>>(),
     /** When the person answered, as their device recorded it. */
     reviewedAt: instant('reviewed_at').notNull(),
+    /** Original delivery timestamp, so clamping cannot disguise a changed retry. */
+    submittedAt: instant('submitted_at'),
     /**
      * When the row reached the server.
      *

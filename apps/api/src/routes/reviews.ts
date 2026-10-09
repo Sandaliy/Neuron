@@ -5,6 +5,7 @@ import type { SubmitReviewBody } from '@neuron/shared';
 
 import { repositoriesOf } from '../context.js';
 import { CardNotFound, wordToRating } from '../db/repositories/index.js';
+import { ReviewIdReused } from '../db/repositories/reviews.js';
 import { serialiseCard } from '../serialise.js';
 import { readBody } from '../validation.js';
 
@@ -114,6 +115,7 @@ async function apply(
     cardId: body.cardId,
     rating: wordToRating(body.rating),
     now: reviewedAt,
+    submittedAt: body.reviewedAt,
     durationMs: body.durationMs,
   });
 
@@ -158,8 +160,8 @@ export function reviewRoutes(): Hono<RequestBindings> {
   /**
    * A phone coming back from a session with no network sends the lot.
    *
-   * One transaction, so the batch either lands or does not. An answer whose
-   * card has since been deleted on another device is reported and skipped
+   * One transaction. Recoverable deleted Cards retain late answers as history;
+   * missing or purged Cards and reused Review ids are explicitly rejected
    * rather than failing everything: a device that has been away for a week
    * should not be permanently unable to sync because one of two hundred
    * answers points at something that has gone.
@@ -179,14 +181,22 @@ export function reviewRoutes(): Hono<RequestBindings> {
 
     const outcome = await repositories.transaction(async (inner) => {
       const results: Applied[] = [];
-      const skipped: { id: string; cardId: string }[] = [];
+      const skipped: {
+        id: string;
+        cardId: string;
+        reason: 'card_not_found' | 'review_id_reused';
+      }[] = [];
 
       for (const review of ordered) {
         try {
           results.push(await apply(inner, review, now));
         } catch (error) {
-          if (error instanceof CardNotFound) {
-            skipped.push({ id: review.id, cardId: review.cardId });
+          if (error instanceof CardNotFound || error instanceof ReviewIdReused) {
+            skipped.push({
+              id: review.id,
+              cardId: review.cardId,
+              reason: error instanceof ReviewIdReused ? 'review_id_reused' : 'card_not_found',
+            });
 
             continue;
           }

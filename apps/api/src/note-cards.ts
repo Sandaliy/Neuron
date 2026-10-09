@@ -9,12 +9,14 @@ import type {
 
 import type { Repositories } from './db/repositories/index.js';
 
+type CardRepositories = Pick<Repositories, 'decks' | 'cards' | 'reviews'>;
+
 /**
  * Which cards a note has, applied to the database.
  *
  * The rules themselves are in `@neuron/shared`, in card-plan.ts, and this file
- * is the only thing in the api that reaches for them. Both ways a note can be
- * made, the editor and the importer, come through here, so there is one answer
+ * is the only thing in the api that reaches for them. The editor, importer and
+ * synchronization path come through here, so there is one answer
  * to "what cards does this produce" and the editor's preview is drawing the
  * same one before anything is saved.
  */
@@ -29,7 +31,7 @@ import type { Repositories } from './db/repositories/index.js';
  * @param deckId which deck
  * @returns the settings with every field filled in
  */
-export async function settingsForDeck(repositories: Repositories, deckId: string) {
+export async function settingsForDeck(repositories: CardRepositories, deckId: string) {
   const chain = await repositories.decks.chain(deckId);
 
   return resolveDeckSettings(chain.map((deck) => deck.settings as DeckSettings | null));
@@ -46,7 +48,7 @@ export async function settingsForDeck(repositories: Repositories, deckId: string
  * @returns the cards written
  */
 export async function createOpeningCards(
-  repositories: Repositories,
+  repositories: CardRepositories,
   noteId: string,
   deckId: string,
   noteType: NoteTypeName,
@@ -66,7 +68,7 @@ export async function createOpeningCards(
  * @returns the rows written
  */
 export async function writeCards(
-  repositories: Repositories,
+  repositories: CardRepositories,
   noteId: string,
   planned: readonly PlannedCard[],
 ) {
@@ -105,7 +107,7 @@ export interface CardChange extends CardReconciliation {
  * @returns what to keep, remove and create, and how much history it costs
  */
 export async function planCardChange(
-  repositories: Repositories,
+  repositories: CardRepositories,
   noteId: string,
   deckId: string,
   noteType: NoteTypeName,
@@ -153,7 +155,7 @@ export async function planCardChange(
  * @param change what to do
  */
 export async function applyCardChange(
-  repositories: Repositories,
+  repositories: CardRepositories,
   noteId: string,
   change: CardChange,
 ): Promise<void> {

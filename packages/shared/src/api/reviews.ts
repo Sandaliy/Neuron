@@ -81,14 +81,21 @@ export const reviewResultSchema = z.object({
 export const reviewBatchResultSchema = z.object({
   results: z.array(reviewResultSchema),
   /**
-   * Answers that had nowhere to land, usually because the card was deleted on
-   * another device while this one was offline.
+   * Rejected deliveries, never acknowledgements. Missing or purged Cards have
+   * nowhere to retain a new answer; changed reuse of a Review id is rejected.
+   * Recoverable deleted Cards still retain historical answers.
    *
    * Reported rather than thrown. A phone coming back from a week away should
    * not be unable to sync any of its two hundred answers because one of them
    * points at a card that has since gone.
    */
-  skipped: z.array(z.object({ id: idSchema, cardId: idSchema })),
+  skipped: z.array(
+    z.object({
+      id: idSchema,
+      cardId: idSchema,
+      reason: z.enum(['card_not_found', 'review_id_reused']),
+    }),
+  ),
   /** The user's version counter after the batch, for the sync cursor. */
   revision: z.number().int(),
 });

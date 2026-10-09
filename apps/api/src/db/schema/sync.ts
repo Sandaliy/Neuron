@@ -1,8 +1,32 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { check, index, jsonb, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
+
+import type { RestoreNoteResult } from '@neuron/shared';
 
 import { user } from './auth.js';
 import { id, instant, literalList } from './columns.js';
+
+import type { ConflictedChange } from '../repositories/sync.js';
+
+export interface SyncReceiptOutcome {
+  conflict?: ConflictedChange;
+  noteRestoration?: RestoreNoteResult & { id: string };
+  clamped: boolean;
+}
+
+/** Exact entity deliveries, without retaining collection content after purge. */
+export const syncReceipts = pgTable(
+  'sync_receipts',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    fingerprint: text('fingerprint').notNull(),
+    outcome: jsonb('outcome').$type<SyncReceiptOutcome>().notNull(),
+    createdAt: instant('created_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.fingerprint] })],
+);
 
 /**
  * What a merge threw away.

@@ -166,6 +166,8 @@ export const pushSyncResultSchema = z.object({
   /** Restore transitions preserve saved note fields; unrelated edits can follow after a pull. */
   noteRestorations: z.array(restoreNoteResultSchema.extend({ id: idSchema })).optional(),
   applied: z.array(z.object({ entity: syncEntitySchema, id: idSchema })),
+  /** Exact deliveries already committed; pull current state instead of applying again. */
+  unchanged: z.array(z.object({ entity: syncEntitySchema, id: idSchema })),
   /**
    * The rows whose pushed version lost. Each is in the conflict log too, so
    * nothing was destroyed to produce this list.
@@ -175,7 +177,21 @@ export const pushSyncResultSchema = z.object({
   ),
   /** Ids whose `updatedAt` was in the future and was pulled back to now. */
   clamped: z.array(idSchema),
-  reviews: z.object({ applied: z.number().int(), duplicates: z.number().int() }),
+  reviews: z.object({
+    applied: z.number().int(),
+    duplicates: z.number().int(),
+    rejected: z.number().int(),
+    /** Only applied and duplicate outcomes acknowledge durable storage. */
+    results: z.array(
+      z.object({
+        id: idSchema,
+        cardId: idSchema,
+        status: z.enum(['applied', 'duplicate', 'rejected']),
+        archived: z.boolean().optional(),
+        reason: z.enum(['card_not_found', 'review_id_reused']).optional(),
+      }),
+    ),
+  }),
   /** The user's version counter after the batch. */
   revision: z.number().int(),
 });

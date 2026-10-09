@@ -16,7 +16,7 @@ import { practiceRuns, learningRestarts } from './practice.js';
 import { rateLimits } from './rate-limits.js';
 import { reviews } from './reviews.js';
 import { importBatches, studyPresets } from './study.js';
-import { syncConflicts } from './sync.js';
+import { syncConflicts, syncReceipts } from './sync.js';
 
 /**
  * Every table, in one object for the Drizzle client and the migration tool.
@@ -45,7 +45,7 @@ export { notes } from './notes.js';
 export { rateLimits } from './rate-limits.js';
 export { reviews } from './reviews.js';
 export { importBatches, studyPresets } from './study.js';
-export { CONFLICT_REASONS, syncConflicts } from './sync.js';
+export { CONFLICT_REASONS, syncConflicts, syncReceipts } from './sync.js';
 
 /**
  * The tables the authentication role owns, on their own.
@@ -85,6 +85,7 @@ export const schema = {
   studyPresets,
   importBatches,
   syncConflicts,
+  syncReceipts,
   rateLimits,
 };
 
@@ -97,6 +98,7 @@ export const USER_OWNED_TABLES = [
   'study_presets',
   'import_batches',
   'sync_conflicts',
+  'sync_receipts',
   'practice_runs',
   'learning_restarts',
 ] as const;
@@ -161,6 +163,7 @@ export const WRITE_ORDER = [
   'reviews',
   'study_presets',
   'sync_conflicts',
+  'sync_receipts',
   'practice_runs',
   'learning_restarts',
 ] as const;

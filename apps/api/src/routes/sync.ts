@@ -1,11 +1,14 @@
 import { Hono } from 'hono';
 
 import { pullSyncSchema, pushSyncSchema } from '@neuron/shared';
-import type { SyncChange } from '@neuron/shared';
+import type { SyncChange, PushSyncResult } from '@neuron/shared';
 
 import { repositoriesOf } from '../context.js';
-import { CardNotFound, wordToRating } from '../db/repositories/index.js';
+import { CardNotFound } from '../db/repositories/index.js';
+import { ReviewIdReused } from '../db/repositories/reviews.js';
 import { readBody, readQuery } from '../validation.js';
+
+import { applyReview } from './reviews.js';
 
 import type { RequestBindings } from '../context.js';
 import type { IncomingChange, SyncRow } from '../db/repositories/index.js';
@@ -15,9 +18,8 @@ import type { IncomingChange, SyncRow } from '../db/repositories/index.js';
  *
  * Pulling is one ordered stream keyed on the user's revision counter, so a
  * download cut off halfway can be resumed from the last number that arrived
- * whole. Pushing is one transaction: either the whole batch lands or none of it
- * does, because a client that had half its changes accepted has no way to work
- * out which half.
+ * whole. Pushing is one transaction. Entity integrity failures roll back the
+ * batch; unavailable or reused Review ids have explicit delivery rejections.
  */
 
 /** How much of the stream to send when the client does not say. */
@@ -100,27 +102,27 @@ export function syncRoutes(): Hono<RequestBindings> {
     const now = new Date();
 
     const outcome = await repositories.transaction(async (inner) => {
-      const pushed = await inner.sync.push(body.changes.map(toIncoming), now);
+      const pushed = await inner.sync.push(
+        body.changes.map(toIncoming),
+        now,
+        body.reviews.map((review) => review.cardId),
+      );
 
       let applied = 0;
       let duplicates = 0;
+      let rejected = 0;
+      const results: PushSyncResult['reviews']['results'] = [];
       const clamped = [...pushed.clamped];
 
       for (const review of body.reviews) {
-        const inFuture = review.reviewedAt.getTime() > now.getTime();
-        const reviewedAt = inFuture ? now : review.reviewedAt;
-
-        if (inFuture) {
-          clamped.push(review.id);
-        }
-
         try {
-          const recorded = await inner.reviews.record({
+          const recorded = await applyReview(inner, review, now);
+          if (recorded.clamped) clamped.push(review.id);
+          results.push({
             id: review.id,
             cardId: review.cardId,
-            rating: wordToRating(review.rating),
-            now: reviewedAt,
-            durationMs: review.durationMs,
+            status: recorded.applied ? 'applied' : 'duplicate',
+            archived: recorded.card.deletedAt !== null,
           });
 
           if (recorded.applied) {
@@ -129,9 +131,14 @@ export function syncRoutes(): Hono<RequestBindings> {
             duplicates += 1;
           }
         } catch (error) {
-          if (error instanceof CardNotFound) {
-            // The card was deleted on another device. The answer has nowhere
-            // to land and is not worth failing the batch over.
+          if (error instanceof CardNotFound || error instanceof ReviewIdReused) {
+            rejected += 1;
+            results.push({
+              id: review.id,
+              cardId: review.cardId,
+              status: 'rejected',
+              reason: error instanceof ReviewIdReused ? 'review_id_reused' : 'card_not_found',
+            });
             continue;
           }
 
@@ -141,9 +148,10 @@ export function syncRoutes(): Hono<RequestBindings> {
 
       return {
         applied: pushed.applied,
+        unchanged: pushed.unchanged,
         conflicts: pushed.conflicts,
         clamped,
-        reviews: { applied, duplicates },
+        reviews: { applied, duplicates, rejected, results },
         revision: await inner.sync.revision(),
         noteRestorations: pushed.noteRestorations,
       };
