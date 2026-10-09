@@ -559,7 +559,9 @@ afterwards.
 authentication and recovery flows, writable library, note editor and browse screens, import flow, Today
 screen, settings, and the component gallery. The Phase 6 note and import screens are shipped and covered
 by maintained browser checks; collection, recovery, import and keyboard flows also passed real-iPhone
-acceptance. The defined note-list performance budget remains verified.
+acceptance. Phase 7 Daily Study, persistent non-SRS Practice and language-scoped response modes are
+complete through merged PR #41; the final physical-iPhone production pass accepted the learning,
+navigation, keyboard and collection interactions. The defined note-list performance budget remains verified.
 Vercel rewrites `/api/*` to the
 Hono deployment so session cookies stay on one browser origin. Production uses the production api. A
 preview derives the matching api branch URL from Vercel's generated web branch URL and refuses to build if

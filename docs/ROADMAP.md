@@ -89,56 +89,49 @@ progressive direction unlocking and its evidence policy belong with Phase 9.
 - Real non-production database: 5,000-note interruption/resume passed with 5,000 notes, 5,000 cards, one
   import batch, no duplicate live rows, and a usable destination deck.
 
-## 5. Current milestone: Phase 7 Daily Study
+## 5. Completed milestone: Phase 7 Daily Study
 
-**Purpose**
+Phase 7 is complete on protected main through PR #41 (`703890b`, merged 2026-10-09). Its required
+CI and Vercel checks passed. The final owner-reported physical-iPhone production acceptance confirmed
+Study, Practice, Today, Library, navigation, keyboard, progress, configuration recovery and interactions.
 
-Turn the scheduling, workload, data, and interface foundations into the first complete learning loop.
+**Delivered scope**
 
-**Core deliverables**
+- Daily Study uses time-based workload planning, explainable new-card admission, review priority,
+  related-direction separation, difficulty spacing, fair retries and whole-card completion. Card directions schedule independently.
+- Recognition, Recall, Typing and Listening support entry, answer/check/reveal, explicit Again/Hard/Good/Easy
+  grading, honest intervals and completion. Study Undo preserves immutable history through append-only events.
+- Configurable per-Deck non-SRS Practice persists runs and classifications, supports repeat/resume and
+  visit-local multi-step Undo through completion, and preserves runs until explicit replacement confirmation.
+- Multi-language collections support one target language per sitting under the default shared workload
+  budget, persistent Deck participation and temporary session scope. Language/direction filter after admission;
+  one-off time never changes long-term settings. Planning and Practice do not rewrite schedules or Reviews.
+- Compatible system voice discovery/selection and fallback remain device-local. Supporting Card display
+  and saved Study setup persist through the authenticated visit with explicit sitting boundaries.
+- Keyboard submission/drafts, route-owned navigation/history, collection hierarchy/counts, configuration
+  recovery, confirmed projections, authoritative readiness, responsiveness and restrained UI motion are stabilized.
+- Explicit Restart learning remains an immutable replay-safe reset with preserved Review history.
+- Visible UI remains English while English/Russian catalogues and stored locale compatibility remain intact.
 
-- Build the study session screen and card reveal flow.
-- Record Again, Hard, Good, and Easy with immediate local feedback and server verification.
-- Show honest next intervals and allow a recent answer to be undone without rewriting review history.
-- Keep recognition/recall Daily Study and persistent per-Deck non-SRS Practice coherent on phones.
-- Support persistent Deck participation and temporary session scope before workload planning.
-- Make explicit Restart learning immutable and replay safe, preserving Review history.
-- Present English only while retaining locale data compatibility.
-- Keep keyboard shortcuts and discoverable touch controls.
-- Assemble sessions from the workload manager, including related-card separation, difficulty spacing,
-  review priority, and whole-card budget completion.
+**Acceptance and boundaries**
 
-**Dependencies**
+The complete phone/desktop loop has maintained unit, database, keyboard, interaction and visual coverage,
+plus final physical-iPhone acceptance after PR #41. Browser coverage and native acceptance remain distinct
+evidence. Preserve deterministic FSRS/replay, user ownership/RLS, append-only Reviews, deletion provenance
+and retry-safe Practice. No further Phase 7 acceptance/review action blocks Phase 8 planning.
 
-Phase 6 must provide reliable real notes and cards. Review APIs, study presets, FSRS, and session assembly
-already exist as foundations.
-
-**Non-goals**
-
-Offline synchronization, a full statistics area, automatic large-list triage, custom note types, and paid
-content are outside this milestone. Advanced drills and speech input remain outside this release slice;
-basic typed Production and Listening response modes are shipped. Phase 8 offline sync, Phase 9
-waves/triage/progressive direction logic, and Phase 10 analytics remain deferred.
-
-**Definition of done**
-
-A learner can open a real deck, complete a time-bounded session on phone or desktop, leave and return, and
-see schedules and review history remain correct. All response modes used by the milestone have unit,
-integration, keyboard, browser, and visual coverage.
-
-**Risks / decisions intentionally deferred until implementation**
-
-The exact preset set, gesture vocabulary, browser speech quality, typed-answer tolerance, and undo event
-model require focused design and tests. They should not be frozen from historical planning text.
+Offline collection/sync belongs to Phase 8; large-collection triage, waves and progressive direction admission
+belong to Phase 9; personal plan customization and progress/forecasting belong to Phase 10. Advanced
+Typing tolerance, grammar drills and richer speech remain deferred as described below.
 
 ## 6. Remaining committed roadmap
 
-### Milestone 8: Offline collection and synchronization
+### Milestone 8: Offline collection and synchronization — next active milestone
 
 **Purpose**
 
 Make mobile study dependable without a connection and reconcile work across devices when connectivity
-returns.
+returns. Phase 7 is accepted; Phase 8 is ready for planning, with implementation not yet started.
 
 **Core deliverables**
 
@@ -148,6 +141,8 @@ returns.
 - Pull and push revisioned changes in bounded batches, preserving transaction boundaries.
 - Replay merged review logs deterministically and surface resync when server and client projections differ.
 - Show clear online, offline, pending, retrying, conflict, and authentication-expired states.
+- Recover conflicting edits using retained losing versions, preserve queued work through session expiry,
+  and explain recovery from storage loss or interrupted synchronization.
 - Install cleanly as a PWA and recover from browser storage loss without losing server data.
 
 **Dependencies**
@@ -158,7 +153,8 @@ client-generated IDs, immutable reviews, and replay are the starting point.
 **Non-goals**
 
 General-purpose CRDTs, real-time collaboration, background behavior unsupported by the platform, and a
-desktop-native application are not required.
+desktop-native application are not required. Phase 9 triage, waves and progressive direction admission
+remain separate; personal plan customization and statistics are not Phase 8 deliverables.
 
 **Definition of done**
 
@@ -210,7 +206,7 @@ losing history.
 Wave size and completion thresholds, handling Unsure cards, the evidence required for a new direction, and
 problem-card thresholds need simulation plus user testing. Historical numbers are hypotheses, not contracts.
 
-### Milestone 10: Progress and workload insight
+### Milestone 10: Personal learning plan, progress and workload insight
 
 **Purpose**
 
@@ -219,16 +215,26 @@ what it promised, without turning study into gamified clutter.
 
 **Core deliverables**
 
-- Show recent study time, review volume, new material admitted, and actual retention.
+- Provide a clear personal progress/statistics area with actual study time, review volume, new material
+  admitted and observed retention.
 - Show the useful part of the forward workload forecast with clear uncertainty.
 - Explain backlog recovery progress and expected return to normal work.
-- Show progress by deck, source, wave, note type, and card direction where the data supports it.
+- Show progress by language, deck, source, wave, note type and independently scheduled direction where
+  the data supports it.
 - Provide card-history views useful for understanding and repairing a specific problem.
 - Keep derived statistics reproducible from immutable review data.
+- Add Personal Learning Plan settings supporting both the current shared global workload budget and
+  explicit per-language time allocations. Preserve correct FSRS schedules, workload accounting, forecast
+  and admission fairness, and synchronization; define how allocations interact with remaining global capacity.
+- Present future retained knowledge as evidence-based estimates with understandable uncertainty, never
+  as promises of an exact number of mastered words.
 
 **Dependencies**
 
 The daily study loop, offline synchronization, large-collection policy, and enough real usage data.
+Plan/time measurement semantics and any synchronized plan schema may need earlier design if Phase 8
+requires those storage contracts. That prerequisite design does not promote customization or analytics
+implementation into Phase 8 or retroactively into Phase 7.
 
 **Non-goals**
 
@@ -303,6 +309,21 @@ launch scope should be selected from current costs and actual users at that time
 - User-supplied images or audio when browser speech and text are insufficient.
 - Advanced preset composition kept behind simple defaults.
 
+### Deferred advanced learning modes
+
+The shipped authoring/Practice scope includes optional German/English lexical grammar storage,
+language/POS-aware manual editing, import/generation support, and non-SRS Practice grammar combinations.
+It deliberately adds no independent scheduled grammar cards.
+
+Future response-mode design covers advanced Typing typo/variant tolerance, grammar production,
+grammar cloze/input, multiple choice and smart distractors, definition/context/image variants, and
+the workload decision about which skills deserve independent FSRS schedules versus presentation-only
+Practice/Study recipes. Article, Präteritum, participle and government drill schedules remain deferred
+until that decision.
+Advanced arbitrary Daily Study recipes and richer Listening/speech work remain uncommitted backlog.
+Progressive admission of independently scheduled directions stays in Phase 9; Practice-only exercises
+must remain separate from any decision to create new FSRS skills.
+
 ### Card generation and assisted authoring
 
 - Optional in-app generation using a user-supplied provider key.
@@ -360,16 +381,3 @@ or the architecture makes another order clearly safer.
 
 When direction changes, update this roadmap and `docs/STATE.md` in the same unit of work. Historical phase
 files may preserve earlier intent, but they must not remain discoverable as if they were current truth.
-
-### Phase 7 response-mode follow-up
-
-This slice includes optional German/English lexical grammar storage, language/POS-aware manual
-editing, import/generation support, and non-SRS Practice grammar combinations. It deliberately adds no
-independent scheduled grammar cards.
-
-Next response-mode design covers typed answers with typo/variant tolerance, grammar production,
-grammar cloze/input, multiple choice and smart distractors, definition/context/image variants, and
-the workload decision about which
-skills deserve independent FSRS schedules versus presentation-only Practice/Study recipes. Article,
-Präteritum, participle, and government drill schedules remain deferred until that decision.
-Advanced arbitrary Daily Study recipes and richer listening/speech work are also outside this slice.
