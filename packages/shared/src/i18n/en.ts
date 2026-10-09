@@ -49,6 +49,19 @@ export const en = {
   'practice.mode.typing': 'Typing',
   'practice.mode.listening': 'Listening',
   'practice.typingHint': 'Answer with one short text field.',
+  'practice.knownProgress': 'Known Notes',
+  'practice.differentFields': 'Choose different question and answer fields.',
+  'practice.typingAnswerRequired':
+    'Typing needs one short text answer. Choose an eligible answer field.',
+  'practice.chooseAnswer': 'Answer field for Typing',
+  'practice.listeningWordRequired': 'Listening needs Word as the question field.',
+  'practice.listeningWordMissing': 'Add a Word field to use Listening, or choose Self-check.',
+  'practice.noMatchingNotes': 'No Notes contain both selected fields. Choose different fields.',
+  'practice.noNotes': 'Add Notes to this Deck to start Practice.',
+  'practice.useWord': 'Use Word',
+  'practice.useSelfCheck': 'Use Self-check',
+  'practice.voiceFallback':
+    'Use Show answer if audio is unavailable, or choose another response mode.',
   'practice.listeningHint': 'Front: Word only. Back: meaning or context after checking.',
   'note.readyCards': '{count} cards ready now',
   'note.restartHint':

@@ -94,6 +94,19 @@ export const ru = {
   'practice.mode.typing': 'Ввод ответа',
   'practice.mode.listening': 'Аудирование',
   'practice.typingHint': 'Для ответа выбери одно короткое текстовое поле.',
+  'practice.knownProgress': 'Известные заметки',
+  'practice.differentFields': 'Выбери разные поля вопроса и ответа.',
+  'practice.typingAnswerRequired':
+    'Для ввода нужно одно короткое текстовое поле ответа. Выбери подходящее поле.',
+  'practice.chooseAnswer': 'Поле ответа для ввода',
+  'practice.listeningWordRequired': 'Для аудирования выбери Слово в поле вопроса.',
+  'practice.listeningWordMissing': 'Добавь поле Слово для аудирования или выбери самопроверку.',
+  'practice.noMatchingNotes': 'Нет заметок с обоими выбранными полями. Выбери другие поля.',
+  'practice.noNotes': 'Добавь заметки в эту колоду для практики.',
+  'practice.useWord': 'Использовать Слово',
+  'practice.useSelfCheck': 'Использовать самопроверку',
+  'practice.voiceFallback':
+    'Если звук недоступен, используй Показать ответ или выбери другой режим.',
   'practice.listeningHint': 'Спереди — только слово. Сзади — значение или контекст после проверки.',
   'note.readyCards': 'Готово карточек: {count}',
   'note.restartHint':

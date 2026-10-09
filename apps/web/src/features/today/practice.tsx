@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useRouterState } from '@tanstack/react-router';
 import { SlidersHorizontal, Undo2, ChevronDown } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
 
 import {
@@ -190,6 +190,8 @@ function PersistentPractice({
   readonly onFinish: () => void;
 }) {
   const t = useTranslate();
+  const issueId = useId();
+  const listeningId = useId();
   const client = useQueryClient();
   const store = useMemo(
     () =>
@@ -246,6 +248,33 @@ function PersistentPractice({
   const eligible = notes.filter((note) =>
     supportsPracticeResponse(note.fields, front, back, response),
   );
+  const answerFields =
+    response === 'typing' && (!run || configuring) && !eligible.length
+      ? fields.filter(
+          (field) =>
+            !samePracticeSides(front, field) &&
+            notes.some((note) => supportsPracticeResponse(note.fields, front, field, 'typing')),
+        )
+      : [];
+  const issue = !notes.length
+    ? 'practice.noNotes'
+    : samePracticeSides(front, back)
+      ? 'practice.differentFields'
+      : response === 'typing' &&
+          !eligible.length &&
+          (practiceFields(back).length !== 1 ||
+            notes.some((note) => supportsPracticeResponse(note.fields, front, back, 'reveal')))
+        ? 'practice.typingAnswerRequired'
+        : response === 'listening' &&
+            (!fields.includes('term') ||
+              practiceFields(front).length !== 1 ||
+              practiceFields(front)[0] !== 'term')
+          ? fields.includes('term')
+            ? 'practice.listeningWordRequired'
+            : 'practice.listeningWordMissing'
+          : !eligible.length
+            ? 'practice.noMatchingNotes'
+            : undefined;
   const sameRecipe =
     !!run &&
     (run.response ?? 'reveal') === response &&
@@ -306,7 +335,7 @@ function PersistentPractice({
         exitLabel={t('practice.exit')}
         onExit={onFinish}
         {...(run && active && !configuring
-          ? { value: learning + known, max: statuses.length }
+          ? { value: known, max: statuses.length, progressLabel: t('practice.knownProgress') }
           : {})}
         action={
           <div className="flex items-center gap-4">
@@ -438,28 +467,29 @@ function PersistentPractice({
                   setFront('translation');
                   setBack('term');
                 }
-                if (!run && mode === 'listening') {
+                if (!run && mode === 'listening' && fields.includes('term')) {
                   setFront('term');
                   setBack(fields.includes('translation') ? 'translation' : back);
                 }
               }}
             >
               {(['reveal', 'typing', 'listening'] as const).map((mode) => (
-                <option
-                  key={mode}
-                  value={mode}
-                  disabled={mode === 'listening' && !fields.includes('term')}
-                >
+                <option key={mode} value={mode}>
                   {t(`practice.mode.${mode}`)}
                 </option>
               ))}
             </Select>
           </label>
-          {response !== 'reveal' && (
+          {response !== 'reveal' && !issue && (
             <p className="text-13 text-secondary">{t(`practice.${response}Hint`)}</p>
           )}
           {response === 'listening' && (
-            <ListeningSetup decks={decks.data ?? []} selected={deck ? [deck] : []} />
+            <div id={listeningId}>
+              <ListeningSetup decks={decks.data ?? []} selected={deck ? [deck] : []} />
+              {listening.some((item) => item.language && !item.voice) && (
+                <p className="mt-4 text-13 text-secondary">{t('practice.voiceFallback')}</p>
+              )}
+            </div>
           )}
           <div className="grid grid-cols-2 gap-12">
             {(['front', 'back'] as const).map((side) => (
@@ -475,8 +505,57 @@ function PersistentPractice({
           <p className="text-13 text-secondary">
             {t('practice.pool', { count: eligible.length, total: notes.length })}
           </p>
+          {issue && (
+            <div role="status" className="flex flex-col gap-8 text-13 text-secondary">
+              <p id={issueId}>{t(issue)}</p>
+              {issue === 'practice.typingAnswerRequired' && answerFields.length > 0 && (
+                <label className="flex flex-col gap-4">
+                  {t('practice.chooseAnswer')}
+                  <Select
+                    value=""
+                    onChange={(event) => setBack(event.target.value as PracticeField)}
+                  >
+                    <option value="" disabled>
+                      {t('practice.chooseFields')}
+                    </option>
+                    {answerFields.map((field) => (
+                      <option key={field} value={field}>
+                        {t(practiceFieldLabel(field))}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+              )}
+              {issue === 'practice.listeningWordRequired' && (
+                <Button variant="text" className="self-start px-0" onClick={() => setFront('term')}>
+                  {t('practice.useWord')}
+                </Button>
+              )}
+              {(issue === 'practice.listeningWordMissing' ||
+                (issue === 'practice.typingAnswerRequired' && !answerFields.length)) && (
+                <Button
+                  variant="text"
+                  className="self-start px-0"
+                  onClick={() => setResponse('reveal')}
+                >
+                  {t('practice.useSelfCheck')}
+                </Button>
+              )}
+            </div>
+          )}
           <Button
             variant="primary"
+            aria-describedby={
+              [
+                issue ? issueId : '',
+                response === 'listening' &&
+                (listeningBlocked || listening.some((item) => !item.voice))
+                  ? listeningId
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ') || undefined
+            }
             disabled={
               samePracticeSides(front, back) ||
               !eligible.length ||

@@ -13,6 +13,7 @@ import {
   resolveVoice,
   speak,
   useSystemVoices,
+  useSystemVoiceState,
   voiceKey,
 } from '../../lib/speech';
 import { Button } from '../../ui/button';
@@ -25,11 +26,11 @@ export function useListeningAvailability(
   selected: readonly DeckNode[],
 ) {
   const account = useAccount();
-  const voices = useSystemVoices();
+  const { voices, ready } = useSystemVoiceState();
   return selected.map((deck) => {
     const language =
       settingsFor(decks, deck.id).targetLanguage ?? account.data?.settings.targetLanguage;
-    return { deck, language, voice: resolveVoice(voices, language) };
+    return { deck, language, voice: resolveVoice(voices, language), confirmed: !language || ready };
   });
 }
 

@@ -69,17 +69,25 @@ export function recommendedVoices(
   return recommended;
 }
 
-export function useSystemVoices() {
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+export function useSystemVoiceState() {
+  const [state, setState] = useState(() => {
+    const voices = window.speechSynthesis?.getVoices() ?? [];
+    return { voices, ready: !window.speechSynthesis || voices.length > 0 };
+  });
   useEffect(() => {
-    if (!('speechSynthesis' in window)) return;
     const speech = window.speechSynthesis;
-    const refresh = () => setVoices(speech.getVoices());
-    refresh();
+    if (!speech) return;
+    const refresh = () => setState({ voices: speech.getVoices(), ready: true });
+    // An empty initial inventory can precede asynchronous voice discovery.
+    // Only an actual inventory notification confirms that it is unavailable.
     speech.addEventListener('voiceschanged', refresh);
+    if (speech.getVoices().length) refresh();
     return () => speech.removeEventListener('voiceschanged', refresh);
   }, []);
-  return voices;
+  return state;
+}
+export function useSystemVoices() {
+  return useSystemVoiceState().voices;
 }
 
 const preferenceKey = (language: string) => `neuron.speech.voice:${locale(language) ?? language}`;
