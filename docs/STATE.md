@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-09, final iPhone motion and responsiveness refinement in protected review preparation.
+Last updated: 2026-10-09, post-PR #40 final Phase 7 acceptance fixes in protected review preparation.
 
 ## Current release slice
 
@@ -228,6 +228,18 @@ Workspace typechecks/build, source lint excluding generated reports, formatting,
 core isolation passed. The final broad run also covers corrected history scroll timing and duplicate
 frame sampling; hosted checks and physical-iPhone acceptance remain separate from this local evidence.
 
+PR #40 is merged into protected `main` at `819e48f`. The latest physical-iPhone acceptance reports
+substantial improvements in Study, Today, Library, animation and responsiveness. Phase 7 remains open
+until final production acceptance of the three focused fixes below; Phase 8 has not started.
+
+The final acceptance slice separates pending system-voice discovery from confirmed Listening setup
+problems, preventing automatic disclosure expansion during ordinary Today return. Active Practice
+progress measures Known / eligible run Notes across rounds, resume, Undo and membership changes;
+Deck-entry classified progress and the completion summary retain their separate semantics. Invalid
+Practice recipes explain their specific blocker and offer explicit answer-field or Word recovery,
+language settings and audio fallback. Local recipe edits preserve the saved run until replacement
+confirmation. Scheduling, Reviews, Practice persistence and disclosure motion are unchanged.
+
 ## Now
 
 Phase 6 is complete on `main`. The release contains writable decks, note editing and browsing, shared
@@ -272,16 +284,10 @@ Today or Study.
 
 ## Next
 
-1. Repeat physical-iPhone production acceptance of completed-session Today reconciliation after PR #30.
-2. Complete remaining physical-iPhone acceptance of merged language-scoped Study/configuration and
-   learning presentation, including the PR #34 Listen → Type and Practice interaction contracts.
-3. Reassess system speech quality after device acceptance before considering external TTS.
-4. Complete physical-iPhone acceptance of merged learner-facing Note/Card progress alongside the
-   refined hierarchy and pickers.
-5. Complete installed-iPhone acceptance of merged navigation/tab selection, nested Back, draft
-   protection and learning-return continuity.
-6. Complete protected review of the post-PR #38 acceptance refinement, then repeat physical-iPhone
-   journeys for history, setup continuity, reveal motion, shared glass and interaction responsiveness.
+1. Complete protected review of the three final Phase 7 acceptance fixes without merging automatically.
+2. After release, verify native-iPhone Today return with retained Listening choices, Known progress
+   through repeat/resume/Undo, and actionable unavailable Practice setup with replacement confirmation.
+3. Close Phase 7 only after the final production acceptance pass. Phase 8 remains outside this slice.
 
 ## Open threads
 

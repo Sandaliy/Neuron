@@ -14,6 +14,7 @@ export function ModeHeader({
   action,
   value,
   max,
+  progressLabel,
 }: {
   readonly title: string;
   readonly exitLabel: string;
@@ -22,6 +23,7 @@ export function ModeHeader({
   readonly action?: ReactNode;
   readonly value?: number;
   readonly max?: number;
+  readonly progressLabel?: string;
 }) {
   return (
     <header className="flex flex-col gap-8">
@@ -43,7 +45,7 @@ export function ModeHeader({
         <div className="min-w-0 justify-self-end">{action}</div>
       </div>
       {value !== undefined && max !== undefined && (
-        <Progress value={value} max={max} label={title} />
+        <Progress value={value} max={max} label={progressLabel ?? title} />
       )}
     </header>
   );

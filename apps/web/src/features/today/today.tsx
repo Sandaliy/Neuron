@@ -225,7 +225,8 @@ function Waiting({
   const [setupOpen, setSetupOpen] = useState(false);
   const selectedDecks = live.filter((deck) => selected.includes(deck.id));
   const listening = useListeningAvailability(decks, selectedDecks);
-  const listeningNeedsSetup = direction === 'listening' && listening.some((item) => !item.voice);
+  const listeningNeedsSetup =
+    direction === 'listening' && listening.some((item) => item.confirmed && !item.voice);
   const planKey = [
     'study-plan',
     minutes,

@@ -604,8 +604,10 @@ review and the Deck Practice entry compact.
 Study and Practice use `LearningCard`: a generous reading surface, quiet truthful context, large prompt,
 and a separated revealed answer. Compact session controls and a thin semantic Progress line precede
 it; reveal/grade actions stay in a predictable lower region. Practice counters measure currently learning
-and known Notes; unseen Notes contribute to neither. The thin progress line measures classified Notes
-over eligible Notes. The compact label/count row retains identical anchors during Typing. They do not
+and known Notes; unseen Notes contribute to neither. The active Practice progress line measures Known
+Notes over all eligible Notes in the current run, across rounds and resumed visits. Undo and live
+membership reconciliation update the same ratio. The Deck entry retains its separate classified-progress
+summary; completion retains its Known ring. The compact label/count row retains identical anchors during Typing. They do not
 imply SRS mastery. Never invent
 language pairs, grammar, streaks, or statistics not provided by the current model/presentation recipe.
 
@@ -649,6 +651,12 @@ quiet recipe, a progress line and a full-width primary Resume (or Start) action.
 Practice setup belongs to the entry or the Current practice card header. Active Practice uses aligned
 numeric counters with accessible Still learning/Known labels; normal persistence has no visible Saved
 label. Only saving errors require attention. Completed runs remain completed until explicit restart.
+
+Practice setup keeps all response modes discoverable. Invalid fields or an empty eligible pool have a
+concise contextual reason beside Start. Typing offers an explicit eligible single-field answer choice;
+Listening offers Word selection and Deck-language recovery. Missing system audio retains Show answer
+fallback. These are local recipe edits until Start and, for a changed saved recipe, explicit replacement
+confirmation. They do not depend on Deck Study-skill activation or change the durable run implicitly.
 
 Grammar has its own bordered secondary surface, compact disclosure and inline Deck-language setup.
 The shared reveal is a short fade with 6px vertical settling. Pointer manipulation has no interpolation.

@@ -107,6 +107,83 @@ const plan = (cards: ReturnType<typeof card>[], targetLanguage = 'de') => ({
   },
 });
 
+test('Today returns collapsed from the first disclosure commit while voices initialize', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useSpeech(page);
+  await useFixtures(page, { decks: [{ ...folder, children: [de] }], notes });
+  await page.route('**/api/study/session', (route) =>
+    route.fulfill({ json: plan([card(0, 'listening')]) }),
+  );
+  await page.goto('/');
+  const setup = page.getByRole('button', { name: 'Study setup', exact: true });
+  await setup.click();
+  await page.getByRole('combobox', { name: 'Study mode' }).selectOption('listening');
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    const samples: string[] = [];
+    Object.assign(window, { setupSamples: samples });
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        if (
+          record.type === 'attributes' &&
+          record.target instanceof Element &&
+          record.target.getAttribute('aria-label') === 'Study setup'
+        ) {
+          if (record.oldValue !== null) samples.push(record.oldValue);
+        }
+      }
+      for (const control of document.querySelectorAll('[aria-label="Study setup"]'))
+        samples.push(control.getAttribute('aria-expanded') ?? 'missing');
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['aria-expanded'],
+      attributeOldValue: true,
+    });
+    window.speechSynthesis.getVoices = () => [];
+  });
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await expect(setup).toHaveAttribute('aria-expanded', 'false');
+  expect(
+    await setup.evaluate((button) => {
+      const content = document.getElementById(button.getAttribute('aria-controls')!)!;
+      return {
+        height: content.getBoundingClientRect().height,
+        opacity: getComputedStyle(content).opacity,
+      };
+    }),
+  ).toEqual({ height: 0, opacity: '0' });
+  await page.evaluate(() => {
+    window.speechSynthesis.getVoices = () =>
+      [
+        { name: 'German', lang: 'de-DE', voiceURI: 'de', default: true, localService: true },
+      ] as SpeechSynthesisVoice[];
+    window.speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  });
+  await expect(setup).toHaveAttribute('aria-expanded', 'false');
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(setup).toHaveAttribute('aria-expanded', 'false');
+  const samples = await page.evaluate(
+    () => (window as unknown as { setupSamples: string[] }).setupSamples,
+  );
+  expect(samples.length).toBeGreaterThan(0);
+  expect(samples.every((value) => value === 'false')).toBe(true);
+  // A confirmed loss of the target-language voice still exposes recovery.
+  await page.evaluate(() => {
+    window.speechSynthesis.getVoices = () => [];
+    window.speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  });
+  await expect(setup).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByText(/A usable voice for this language/)).toBeVisible();
+});
+
 test('language, mode and supporting display survive a short collection visit', async ({ page }) => {
   await usePreferences(page, { locale: 'en', theme: 'dark' });
   await useFixtures(page, { decks: [{ ...folder, children: [de, en] }], notes });
@@ -155,6 +232,7 @@ test('a confirmed language change continuously resizes expanded Study setup', as
   await page.goto('/');
   const setup = page.getByRole('button', { name: 'Study setup', exact: true });
   await setup.click();
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
   await setup.evaluate(async (button) => {
     await Promise.all(
       document
@@ -163,24 +241,47 @@ test('a confirmed language change continuously resizes expanded Study setup', as
         .map((animation) => animation.finished),
     );
   });
-  const measured = setup.evaluate(async (button) => {
+  await setup.evaluate((button) => {
     const content = document.getElementById(button.getAttribute('aria-controls')!)!;
-    const heights = [content.getBoundingClientRect().height];
-    const times = [performance.now()];
-    const start = performance.now();
-    await new Promise<void>((resolve) => {
-      const frame = (time: number) => {
-        heights.push(content.getBoundingClientRect().height);
-        times.push(time);
-        if (performance.now() - start > 600) resolve();
-        else requestAnimationFrame(frame);
-      };
-      requestAnimationFrame(frame);
+    // Arm in the page before dispatch; concurrent locator RPCs can otherwise
+    // begin recording after the transition has already started.
+    const measured = new Promise<{ heights: number[]; times: number[] }>((resolve) => {
+      content.querySelector('select')!.addEventListener(
+        'change',
+        () => {
+          const heights = [content.getBoundingClientRect().height];
+          const times = [performance.now()];
+          const start = performance.now();
+          const frame = () => {
+            const height = content.getBoundingClientRect().height;
+            const time = performance.now();
+            if (height !== heights.at(-1) || time !== times.at(-1)) {
+              heights.push(height);
+              times.push(time);
+            }
+            if (performance.now() - start > 600) resolve({ heights, times });
+            else requestAnimationFrame(frame);
+          };
+          requestAnimationFrame(frame);
+        },
+        { once: true, capture: true },
+      );
     });
-    return { heights, times };
+    Object.assign(window, { languageLayoutFrames: measured });
   });
   await page.getByRole('combobox', { name: 'Study language', exact: true }).selectOption('en');
-  const { heights, times } = await measured;
+  const { heights, times } = await page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          languageLayoutFrames: Promise<{ heights: number[]; times: number[] }>;
+        }
+      ).languageLayoutFrames,
+  );
+  await info.attach('language-layout-frames', {
+    body: JSON.stringify({ heights, times }),
+    contentType: 'application/json',
+  });
   const min = Math.min(...heights),
     max = Math.max(...heights);
   expect(max - min).toBeGreaterThan(100);
@@ -197,10 +298,6 @@ test('a confirmed language change continuously resizes expanded Study setup', as
         ),
     ),
   ).toBeLessThan(((max - min) * 4) / 240);
-  await info.attach('language-layout-frames', {
-    body: JSON.stringify({ heights, times }),
-    contentType: 'application/json',
-  });
 });
 
 for (const theme of ['light', 'dark'] as const) {
@@ -215,7 +312,19 @@ for (const theme of ['light', 'dark'] as const) {
     await page.goto('/');
     const aggregate = page.getByText('44 ready across 2 languages', { exact: true });
     const estimate = page.getByText('About 1 min', { exact: true });
-    await expect(aggregate).not.toBeVisible();
+    const setup = page.getByRole('button', { name: 'Study setup', exact: true });
+    await expect(setup).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      await setup.evaluate((button) => {
+        const content = document.getElementById(button.getAttribute('aria-controls')!)!;
+        return {
+          height: content.getBoundingClientRect().height,
+          opacity: getComputedStyle(content).opacity,
+          hidden: content.getAttribute('aria-hidden'),
+          inert: content.hasAttribute('inert'),
+        };
+      }),
+    ).toEqual({ height: 0, opacity: '0', hidden: 'true', inert: true });
     await expect(estimate).toBeVisible();
     await page.screenshot({
       path: info.outputPath('today-aggregate.png'),

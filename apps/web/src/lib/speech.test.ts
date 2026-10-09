@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
-import { compatibleVoices, preferVoice, recommendedVoices, resolveVoice, voiceKey } from './speech';
+import {
+  compatibleVoices,
+  preferVoice,
+  recommendedVoices,
+  resolveVoice,
+  useSystemVoiceState,
+  voiceKey,
+} from './speech';
 
 const voice = (name: string, lang: string, defaults = false) =>
   ({ name, lang, voiceURI: name, default: defaults, localService: true }) as SpeechSynthesisVoice;
@@ -10,6 +18,43 @@ const voices = [
   voice('Anna', 'de-AT'),
   voice('Beta', 'de-DE'),
 ];
+
+describe('voice inventory initialization', () => {
+  it('confirms unavailable speech without attempting to subscribe', () => {
+    vi.stubGlobal('speechSynthesis', undefined);
+    const hook = renderHook(useSystemVoiceState);
+    expect(hook.result.current).toEqual({ voices: [], ready: true });
+    hook.unmount();
+    vi.unstubAllGlobals();
+  });
+  it('reads available voices on the first render and observes later inventory loss', () => {
+    let inventory = voices;
+    const speech = Object.assign(new EventTarget(), { getVoices: () => inventory });
+    vi.stubGlobal('speechSynthesis', speech);
+    const samples: ReturnType<typeof useSystemVoiceState>[] = [];
+    const hook = renderHook(() => {
+      const state = useSystemVoiceState();
+      samples.push(state);
+      return state;
+    });
+    expect(samples[0]).toEqual({ voices, ready: true });
+    inventory = [];
+    act(() => speech.dispatchEvent(new Event('voiceschanged')));
+    expect(hook.result.current).toEqual({ voices: [], ready: true });
+    hook.unmount();
+    vi.unstubAllGlobals();
+  });
+  it('keeps an initially empty inventory unresolved until its notification, even when empty', () => {
+    const speech = Object.assign(new EventTarget(), { getVoices: () => [] });
+    vi.stubGlobal('speechSynthesis', speech);
+    const hook = renderHook(useSystemVoiceState);
+    expect(hook.result.current.ready).toBe(false);
+    act(() => speech.dispatchEvent(new Event('voiceschanged')));
+    expect(hook.result.current).toEqual({ voices: [], ready: true });
+    hook.unmount();
+    vi.unstubAllGlobals();
+  });
+});
 describe('system voice resolution', () => {
   it('prefers exact locales, then compatible device locales, independent of arrival order', () => {
     expect(compatibleVoices(voices, 'de-AT')[0]?.name).toBe('Anna');
