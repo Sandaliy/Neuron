@@ -44,7 +44,11 @@ export function SessionGate({ children }: { readonly children: ReactNode }) {
   // close it: the session is still good as far as anybody knows, and the
   // screens keep whatever they last had.
   if (account.data) {
-    return <>{children}</>;
+    return (
+      <div key={account.data.id} className="contents">
+        {children}
+      </div>
+    );
   }
 
   if (failure) {

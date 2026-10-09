@@ -12,5 +12,5 @@ export function CollectionIcon({ kind }: { readonly kind: 'folder' | 'deck' }) {
   );
 }
 
-/** Opaque surfaces keep nested hierarchies legible at every glass setting. */
-export const collectionSurface = 'neu-collection-surface rounded-18 bg-card';
+export const collectionSurface = (kind: 'folder' | 'deck') =>
+  `neu-collection-surface ${kind === 'folder' ? 'neu-collection-folder rounded-18 bg-card' : 'neu-collection-deck rounded-12'}`;

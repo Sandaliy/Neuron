@@ -107,6 +107,93 @@ const plan = (cards: ReturnType<typeof card>[], targetLanguage = 'de') => ({
   },
 });
 
+test('language, mode and supporting display survive a short collection visit', async ({ page }) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [{ ...folder, children: [de, en] }], notes });
+  await page.route('**/api/study/session', (route) => {
+    const language = route.request().postDataJSON().targetLanguage;
+    return route.fulfill({ json: plan([card(0, 'recognition')], language) });
+  });
+  await page.goto('/');
+  const setup = page.getByRole('button', { name: 'Study setup', exact: true });
+  await setup.click();
+  await page.getByRole('combobox', { name: 'Study language', exact: true }).selectOption('en');
+  await page.getByRole('combobox', { name: 'Study mode', exact: true }).selectOption('recognition');
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await page.goBack();
+  await setup.click();
+  await expect(page.getByRole('combobox', { name: 'Study language', exact: true })).toHaveValue(
+    'en',
+  );
+  await expect(page.getByRole('combobox', { name: 'Study mode', exact: true })).toHaveValue(
+    'recognition',
+  );
+  await page.getByRole('combobox', { name: 'Study language', exact: true }).selectOption('de');
+  await page
+    .getByRole('combobox', { name: 'Meaning source', exact: true })
+    .selectOption('definition');
+  await page.getByRole('checkbox', { name: 'Example', exact: true }).uncheck();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page.goBack();
+  await setup.click();
+  await expect(page.getByRole('combobox', { name: 'Meaning source', exact: true })).toHaveValue(
+    'definition',
+  );
+  await expect(page.getByRole('checkbox', { name: 'Example', exact: true })).not.toBeChecked();
+});
+
+test('a confirmed language change continuously resizes expanded Study setup', async ({
+  page,
+}, info) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [{ ...folder, children: [de, en] }], notes });
+  await page.route('**/api/study/session', (route) =>
+    route.fulfill({
+      json: plan([card(0, 'recognition')], route.request().postDataJSON().targetLanguage),
+    }),
+  );
+  await page.goto('/');
+  const setup = page.getByRole('button', { name: 'Study setup', exact: true });
+  await setup.click();
+  await setup.evaluate(async (button) => {
+    await Promise.all(
+      document
+        .getElementById(button.getAttribute('aria-controls')!)!
+        .getAnimations()
+        .map((animation) => animation.finished),
+    );
+  });
+  const measured = setup.evaluate(async (button) => {
+    const content = document.getElementById(button.getAttribute('aria-controls')!)!;
+    const heights = [content.getBoundingClientRect().height];
+    const start = performance.now();
+    await new Promise<void>((resolve) => {
+      const frame = () => {
+        heights.push(content.getBoundingClientRect().height);
+        if (performance.now() - start > 600) resolve();
+        else requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    });
+    return heights;
+  });
+  await page.getByRole('combobox', { name: 'Study language', exact: true }).selectOption('en');
+  const heights = await measured;
+  const min = Math.min(...heights),
+    max = Math.max(...heights);
+  expect(max - min).toBeGreaterThan(100);
+  expect(heights.filter((height) => height > min + 1 && height < max - 1).length).toBeGreaterThan(
+    3,
+  );
+  expect(
+    Math.max(...heights.slice(1).map((height, index) => Math.abs(height - heights[index]!))),
+  ).toBeLessThan((max - min) / 2);
+  await info.attach('language-layout-frames', {
+    body: JSON.stringify(heights),
+    contentType: 'application/json',
+  });
+});
+
 for (const theme of ['light', 'dark'] as const) {
   test(`aggregate Ready stays in setup with hierarchy choices in ${theme}`, async ({
     page,

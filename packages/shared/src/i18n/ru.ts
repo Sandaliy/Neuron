@@ -6,6 +6,9 @@ import type { Messages } from './en.js';
  * Maintained alongside English; the shared catalogue supplies a fallback.
  */
 export const ru = {
+  'import.spokenWord': 'Слово на слух',
+  'import.listeningExample':
+    'Прослушай и напечатай слово, затем открой значение и контекст. Озвучивание использует язык колоды.',
   'common.apply': 'Применить',
   'learning.restart': 'Начать изучение заново',
   'learning.restartTitle': 'Начать эту колоду заново?',

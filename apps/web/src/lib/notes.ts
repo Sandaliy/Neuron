@@ -167,6 +167,8 @@ export function useNoteActions() {
     // thousand rows and the entire deck tree while the keyboard is open.
     void client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'], refetchType: 'none' });
     void client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' });
+    void client.invalidateQueries({ queryKey: ['practice-notes'], refetchType: 'none' });
+    void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
   }
 
   /*
@@ -181,6 +183,8 @@ export function useNoteActions() {
       client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'], refetchType: 'none' }),
       client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' }),
       client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' }),
+      client.invalidateQueries({ queryKey: ['practice-notes'], refetchType: 'none' }),
+      client.invalidateQueries({ queryKey: ['practice-summary'], refetchType: 'none' }),
     ]).catch(() => undefined);
   };
 

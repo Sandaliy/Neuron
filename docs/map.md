@@ -355,6 +355,8 @@ hierarchies and note dependencies, and `purge-action.tsx` owns irreversible conf
 - `apps/api/src/db/repositories/reviews.ts`: restart events and canonical card projection.
 - `apps/api/src/routes/study.ts`: shared workload planning, target-language sessions and per-Deck summaries.
 - `apps/web/src/lib/practice.ts`: optimistic serialized Practice commands and pending retry IDs.
+- `apps/web/src/lib/learning-navigation.ts`: route-owned learning history and entry-context exits.
+- `apps/web/src/features/today/study-draft.tsx`: account-visit Study setup draft and sitting boundaries.
 - `apps/web/src/features/today/study-scope.tsx`: temporary leaf Deck selection through Folder ancestry.
 - `apps/web/src/features/today/card-display.tsx`: session-local meaning/support choices and semantic reveals.
 - `apps/web/src/features/notes/restart-learning.tsx`: Deck participation and explicit restart actions.

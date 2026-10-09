@@ -232,6 +232,9 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       await Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: [NOTE_KEY] }),
         queryClient.invalidateQueries({ queryKey: DECK_TREE_KEY }),
+        queryClient.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' }),
+        queryClient.invalidateQueries({ queryKey: ['practice-notes'], refetchType: 'none' }),
+        queryClient.invalidateQueries({ queryKey: ['practice-summary'], refetchType: 'none' }),
       ]);
 
       // Warm the exact destination first page, including when its old query is inactive.

@@ -715,11 +715,18 @@ never exposes a hidden target outside Listening and never blocks Reveal. Complet
 counts for 340ms without gating controls; reduced motion starts at the final value. An interrupted
 counter continues from its displayed value rather than restarting at zero.
 
-Library Folders and leaf Decks share opaque, subtly outlined 18px surfaces and a 96px minimum row
-height. Folders use a filled icon shell and semibold title; Decks use the layered-card icon and regular
-title. Only the Folder icon carries disclosure. The title opens the collection; every row retains its
+Library Folders retain solid, subtly outlined 18px surfaces and a 96px minimum row height. Leaf Decks
+use compact 72px rows with 12px corners and regular titles. Folders use a filled icon shell and semibold
+title; their disclosure chevron sits to the left of the icon. The title opens the collection; every row retains its
 drag grip and action menu. Titles and concise Deck/Note counts wrap naturally. Due/new Card detail is
 available in the action menu, rather than repeated on every row.
+
+Under Panels and cards glass, Decks use translucent floating tint and a glass rim over one stationary
+blurred canvas plane shared by the Library. Folders remain solid. The plane also backs the gaps between
+rows; individual rows do not blur moving content independently. This deliberate rendering trade-off
+avoids per-row compositing: ten visible independent filters measured 31.3 fps at 4× CPU slowdown;
+the shared plane measured 59.0 fps for 500 Decks under the unchanged 55 fps budget. Default Panels only
+and glass-off retain opaque Decks. Device effect limits still control the shared blur and saturation.
 
 Destination and Study scope pickers reuse these identities on compact 56px surfaces with indentation
 and a quiet tree guide. Destination selection remains single-choice; Study scope retains independent
@@ -728,15 +735,18 @@ ordinary nested rows rely on their visible hierarchy.
 
 Labelled inline disclosures use a full-width 44px target with a trailing chevron. Content remains
 mounted to preserve local choices, becomes inert and hidden to assistive technology when closed, and
-enters/exits with tokenized opacity/translation only. Reduced motion changes visibility immediately.
+enters/exits with tokenized opacity and measured height. This bounded inline-layout exception keeps
+surrounding content moving continuously; interrupted transitions restart from the displayed height.
+Content changes during opening retarget the endpoint. Reduced motion changes visibility immediately.
 Note Card previews use this pattern; a type conversion that removes Cards keeps the preview open.
 
 Listening reveals replace the instruction and large playback prompt with an answer-focused group:
-target word, adjacent 44px audio control, and selected supporting fields. The group centers when it
+target word, adjacent 44px audio control, a subtle divider, and selected supporting fields. The group centers when it
 fits and scrolls naturally when it does not; spelling feedback remains in the anchored response area.
 The ordinary recognition/Typing prompt-and-answer composition remains unchanged.
 
-Practice entry shows classified progress and clear Start/Resume and setup controls. Field recipes are
+Practice entry shows classified progress, a full-width blue Start/Resume action and quiet setup control.
+Active counters show numbers alone with accessible classification labels. Field recipes are
 available through setup and a compact Card fields disclosure, rather than repeated in active rounds.
 Schedule independence is explained at setup and destructive replacement, not on every primary surface.
 Collection headers allow long titles and wrap actions without truncating the collection identity.
@@ -758,3 +768,11 @@ ready interval reflects waiting for an authoritative plan, rather than claiming 
 Existing local participation/move feedback remains approximately 25–28ms and temporary scope feedback
 approximately 11ms in the same harness. The 700ms autosave and 300ms search batching remain deliberate;
 network transport and reconciliation must be measured separately from those timers.
+
+Post-release built-app probes with the same 250ms request delay compare PR #38 with the acceptance
+refinement. Three returns to Today fell from 345–359ms to 47–56ms; returning to a confirmed Study mode
+fell from 316ms to 14ms; Deck Practice setup fell from 618ms to 44ms. Study plan requests fell from six
+to two, Practice reads from two to one, and Note reads from two to one. First readiness remained about
+one second (980ms baseline, 991ms refinement): these cache/parallelism improvements do not remove
+first-load transport or server latency.
+These are controlled browser observations, not physical-iPhone production timings.

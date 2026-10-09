@@ -1,4 +1,3 @@
-import { ChevronDown } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 import {
@@ -15,12 +14,12 @@ import { useTranslate } from '../../i18n/locale';
 import { settingsFor } from '../../lib/decks';
 import { Button } from '../../ui/button';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
+import { Disclosure } from '../../ui/disclosure';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
 import { Select } from '../../ui/select';
 import { TextArea } from '../../ui/textarea';
 import { CollectionPicker } from '../library/collection-picker';
-import { CardPreview } from '../notes/card-preview';
 
 export type ImportMode = 'simple' | 'table' | 'json' | 'file';
 
@@ -66,6 +65,9 @@ export function ImportSource({
   const [reading, setReading] = useState(false);
   const [fileName, setFileName] = useState('');
   const [confirmExample, setConfirmExample] = useState(false);
+  const [exampleOpen, setExampleOpen] = useState(false);
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [destinationOpen, setDestinationOpen] = useState(false);
   const leftField = noteType === 'vocab' ? 'term' : noteType === 'basic' ? 'front' : 'text';
   const rightField = noteType === 'vocab' ? 'translation' : 'back';
   const exampleFields =
@@ -159,14 +161,15 @@ export function ImportSource({
     <div className="flex flex-col gap-20">
       <p className="text-14 text-secondary">{t('import.subtitle')}</p>
       {scoped && deck ? (
-        <details>
-          <summary className="min-h-44 cursor-pointer text-14 text-secondary">
-            {t('collection.changeDestination')}
-          </summary>{' '}
+        <Disclosure
+          title={t('collection.changeDestination')}
+          open={destinationOpen}
+          onOpenChange={setDestinationOpen}
+        >
           <FormField label={t('import.deck')}>
             {(props) => <CollectionPicker {...props} tree={decks} value={deck} onChange={onDeck} />}
           </FormField>
-        </details>
+        </Disclosure>
       ) : (
         <>
           {' '}
@@ -295,13 +298,45 @@ export function ImportSource({
           />
         )}
       </FormField>
-      <details className="neu-details border-t border-subtle pt-8">
-        <summary className="flex min-h-44 cursor-pointer items-center justify-between gap-12 text-14 text-primary">
-          {t('import.example')}
-          <ChevronDown size={16} aria-hidden="true" />
-        </summary>
+      <Disclosure
+        title={t('import.example')}
+        open={exampleOpen}
+        onOpenChange={setExampleOpen}
+        className="border-t border-subtle pt-8"
+      >
         <pre className="overflow-x-auto py-12 text-13 text-secondary">{example}</pre>
-        <CardPreview cards={exampleCards.map((card) => ({ ...card, change: 'adds' }))} />
+        <table className="w-full table-fixed text-left text-13" aria-label={t('note.preview')}>
+          <thead className="text-secondary">
+            <tr>
+              <th className="pb-8 font-normal">{t('study.skill')}</th>
+              <th className="pb-8 font-normal">{t('note.previewFront')}</th>
+              <th className="pb-8 font-normal">{t('note.previewBack')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {exampleCards.map((card) => (
+              <tr
+                key={`${card.direction}:${card.slot}`}
+                className="border-t border-subtle align-top text-primary"
+              >
+                <th scope="row" className="py-12 pr-8 font-semibold">
+                  {t(`card.direction.${card.direction}` as MessageKey)}
+                </th>
+                <td className="break-words py-12 pr-8">
+                  {card.direction === 'listening'
+                    ? t('import.spokenWord')
+                    : card.front.map((line) => line.value).join(' · ')}
+                </td>
+                <td className="break-words py-12">
+                  {card.back.map((line) => line.value).join(' · ')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {exampleCards.some((card) => card.direction === 'listening') && (
+          <p className="py-8 text-13 text-secondary">{t('import.listeningExample')}</p>
+        )}
         <Button
           onClick={() => {
             if (raw.trim()) setConfirmExample(true);
@@ -310,7 +345,7 @@ export function ImportSource({
         >
           {t('import.useExample')}
         </Button>
-      </details>
+      </Disclosure>
       <Dialog
         open={confirmExample}
         onOpenChange={setConfirmExample}
@@ -328,11 +363,12 @@ export function ImportSource({
           </Button>
         </DialogFooter>
       </Dialog>
-      <details className="neu-details border-t border-subtle pt-8">
-        <summary className="flex min-h-44 cursor-pointer items-center justify-between gap-12 text-14 text-primary">
-          {t('import.supportedFields')}
-          <ChevronDown size={16} aria-hidden="true" />
-        </summary>
+      <Disclosure
+        title={t('import.supportedFields')}
+        open={fieldsOpen}
+        onOpenChange={setFieldsOpen}
+        className="border-t border-subtle pt-8"
+      >
         <ul className="flex flex-col gap-8 py-12 text-14 text-secondary">
           {(
             [
@@ -387,7 +423,7 @@ export function ImportSource({
           )}
         </pre>
         <p className="py-12 text-14 text-secondary">{t('import.mediaLater')}</p>
-      </details>
+      </Disclosure>
       <Button
         variant="primary"
         full

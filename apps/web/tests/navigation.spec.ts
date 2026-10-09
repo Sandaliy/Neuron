@@ -70,6 +70,41 @@ for (const theme of ['dark', 'light']) {
   });
 }
 
+test('changing setup cancels an expired Study start instead of entering the previous plan', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark', glass: 'off' });
+  await useFixtures(page);
+  await page.clock.install();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let reads = 0;
+  await page.route('**/api/study/session', async (route) => {
+    reads++;
+    if (reads === 2) await held;
+    await route.fallback();
+  });
+  await page.goto('/');
+  const study = page.getByRole('button', { name: 'Study', exact: true });
+  await expect(study).toBeEnabled();
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
+  await page.clock.fastForward(16_000);
+  await study.click();
+  await expect.poll(() => reads).toBe(2);
+  await expect(study).toBeDisabled();
+  await page.getByRole('combobox', { name: 'Study mode', exact: true }).selectOption('recognition');
+  await expect(study).toBeEnabled();
+  release();
+  await expect.poll(() => reads).toBe(3);
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expect(page).toHaveURL('/');
+  await expect(page.getByRole('combobox', { name: 'Study mode', exact: true })).toHaveValue(
+    'recognition',
+  );
+});
+
 test('new destinations start at the top and history restores the Library position', async ({
   page,
 }) => {
@@ -103,6 +138,160 @@ test('rapid tab changes settle on the visible destination', async ({ page }) => 
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expectTab(page, 'Settings');
 });
+
+test('unsettled tab bursts keep the final route, screen and tab together', async ({ page }) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page);
+  let signOuts = 0;
+  page.on('request', (request) => {
+    if (request.url().includes('/sign-out')) signOuts++;
+  });
+  await page.goto('/library');
+  await expectTab(page, 'Library');
+  for (const final of ['Settings', 'Library', 'Today']) {
+    await page.evaluate((final) => {
+      for (const name of ['Today', 'Settings', 'Library', 'Settings', 'Today', final]) {
+        const link = [...document.querySelectorAll<HTMLAnchorElement>('[data-tab]')].find(
+          (item) => item.textContent === name,
+        );
+        link?.click();
+      }
+    }, final);
+    await expect(page.getByRole('heading', { name: final, exact: true, level: 1 })).toBeVisible();
+    await expectTab(page, final);
+  }
+  expect(signOuts).toBe(0);
+});
+
+test('Study owns a Back entry after earlier Import and collection visits', async ({ page }) => {
+  await usePreferences(page, { locale: 'en', theme: 'light' });
+  await useFixtures(page);
+  await page.goto('/import?deckId=d3');
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await page.getByRole('button', { name: 'Study', exact: true }).click();
+  await expect(page.locator('[data-learning-screen]')).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expectTab(page, 'Today');
+  await page.goForward();
+  await expect(page.locator('[data-learning-screen]')).toBeVisible();
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+});
+
+test('Study drafts survive tab and history visits; one-off time ends with the session', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page);
+  await page.goto('/');
+  const setup = page.getByRole('button', { name: 'Study setup', exact: true });
+  await setup.click();
+  await page.getByRole('combobox', { name: 'Time for this session' }).selectOption('10');
+  await page.getByRole('combobox', { name: 'Study mode' }).selectOption('recognition');
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page.goBack();
+  await page.goBack();
+  await setup.click();
+  await expect(page.getByRole('combobox', { name: 'Time for this session' })).toHaveValue('10');
+  await expect(page.getByRole('combobox', { name: 'Study mode' })).toHaveValue('recognition');
+  await page.getByRole('button', { name: 'Study', exact: true }).click();
+  await page.goBack();
+  await setup.click();
+  await expect(page.getByRole('combobox', { name: 'Time for this session' })).toHaveValue('');
+  await expect(page.getByRole('combobox', { name: 'Study mode' })).toHaveValue('recognition');
+});
+
+test('a direct learning address exits to its own entry screen', async ({ page }) => {
+  await usePreferences(page, { locale: 'en', theme: 'light' });
+  await useFixtures(page);
+  await page.goto('/import');
+  await page.goto('/?learning=study');
+  await expect(page.locator('[data-learning-screen]')).toBeVisible();
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expectTab(page, 'Today');
+});
+
+test('native Back keeps a pending Review protected and returns to Today after acknowledgement', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const response = page.waitForResponse('**/api/study/session');
+  await page.goto('/');
+  const card: Record<string, unknown> = (await (await response).json()).cards[0];
+  await page.route('**/api/reviews', async (route) => {
+    await held;
+    await route.fulfill({
+      json: { card: { ...card, state: 'review', reps: 1, due: '2027-01-01T00:00:00Z' } },
+    });
+  });
+  await page.getByRole('button', { name: 'Study', exact: true }).click();
+  await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+  await page.getByRole('button', { name: /^Good/ }).click();
+  await page.evaluate(() => {
+    document.documentElement.dataset['historyRestores'] = '0';
+    window.addEventListener('popstate', () => {
+      document.documentElement.dataset['historyRestores'] = String(
+        Number(document.documentElement.dataset['historyRestores']) + 1,
+      );
+    });
+  });
+  await page.goBack();
+  await expect(
+    page.getByText('Wait for answers to save, or retry the failed save.', { exact: true }),
+  ).toBeVisible();
+  await expect.poll(() => page.locator('html').getAttribute('data-history-restores')).toBe('2');
+  await expect(page.locator('[data-learning-screen]')).toBeVisible();
+  await expect(page).toHaveURL(/learning=study/);
+  release();
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeEnabled();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expectTab(page, 'Today');
+});
+
+for (const rejection of ['transport', 'not_authenticated', 'password_change_required'] as const) {
+  test(`session gate distinguishes ${rejection} during navigation`, async ({ page }) => {
+    await usePreferences(page, { locale: 'en', theme: 'dark' });
+    await useFixtures(page);
+    await page.clock.install();
+    await page.goto('/library');
+    await expectTab(page, 'Library');
+    await page.route('**/api/account', (route) =>
+      rejection === 'transport'
+        ? route.abort('failed')
+        : route.fulfill({
+            status: rejection === 'not_authenticated' ? 401 : 403,
+            json: {
+              error: {
+                code: rejection,
+                status: rejection === 'not_authenticated' ? 401 : 403,
+                correlationId: 'acceptance-session',
+              },
+            },
+          }),
+    );
+    await page.clock.fastForward(31_000);
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
+    if (rejection === 'transport') {
+      await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+      await expectTab(page, 'Settings');
+    } else
+      await expect(page).toHaveURL(
+        new RegExp(rejection === 'not_authenticated' ? '/sign-in$' : '/recovery/password$'),
+      );
+  });
+}
 
 const stamp = '2026-01-01T00:00:00.000Z';
 const deckId = '01900000-0000-7000-8000-000000000901';
@@ -263,6 +452,42 @@ test('failed autosaves and unapplied conversions retain their drafts when naviga
   expect(saved.noteType).toBe('vocab');
 });
 
+test('rapid Practice entry taps keep the first route and its setup intent together', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [folder], notes: words });
+  let run: PracticeRun | null = null;
+  let version = 0;
+  await page.route(`**/api/decks/${deckId}/practice`, (route) => {
+    if (route.request().method() === 'POST') {
+      run = advancePractice(run, route.request().postDataJSON(), words);
+      version++;
+    }
+    return route.fulfill({ json: { run, version } });
+  });
+  await page.goto(`/notes?deckId=${deckId}`);
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+  await waitForPracticeSave(page);
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Resume practice', exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll('button')];
+    (
+      buttons.find((button) => button.textContent?.trim() === 'Practice setup') as HTMLButtonElement
+    ).click();
+    (
+      buttons.find(
+        (button) => button.textContent?.trim() === 'Resume practice',
+      ) as HTMLButtonElement
+    ).click();
+  });
+  await expect(page).toHaveURL(/entry=setup/);
+  await expect(page.getByRole('button', { name: 'Word', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show answer', exact: true })).toHaveCount(0);
+});
+
 test('Practice returns to the Deck position and resumes classified progress after switching tabs', async ({
   page,
 }) => {
@@ -304,6 +529,11 @@ test('Practice returns to the Deck position and resumes classified progress afte
   await expect(page.getByRole('heading', { name: 'Words', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(position);
   await expectTab(page, 'Library');
+  await page.goForward();
+  await expect(page.locator('[data-learning-screen]')).toBeVisible();
+  await expect(page.getByText('Wort 2', { exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Words', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Today', exact: true }).click();
   await expectTab(page, 'Today');
   await page.goBack();

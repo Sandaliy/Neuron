@@ -94,7 +94,6 @@ export function CardDisplaySetup({
           </Select>
         </label>
       )}
-      <span className="text-13 text-secondary">{t('study.cardDisplayHint')}</span>
       <div className="grid grid-cols-1 min-[360px]:grid-cols-2">
         {available.map((field) => (
           <Checkbox
@@ -148,7 +147,9 @@ export function RevealedStudyContent({
           </div>
         ))}
       </div>
-      <div className="flex flex-col gap-16 text-17 leading-read">
+      <div
+        className={`flex flex-col gap-16 text-17 leading-read ${face.direction === 'listening' ? 'border-t border-subtle pt-16' : ''}`}
+      >
         {display.support
           .filter((field) => !primary.has(field) && populatedSupport(note, field))
           .map((field) => (

@@ -156,6 +156,9 @@ test('Practice keeps setup accessible, resumes exactly, and confirms a changed r
   await waitForPracticeSave(page);
   const resumedRun = structuredClone(run);
   await page.reload();
+  await expect(page.locator('[data-learning-screen]')).toBeVisible();
+  await expect(page.getByText('Baum', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Practice setup', exact: true })).toBeVisible();
   await expect(page.getByText('1 / 2 classified', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('practice-entry.png'), animations: 'disabled' });

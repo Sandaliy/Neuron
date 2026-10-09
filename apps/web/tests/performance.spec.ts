@@ -40,6 +40,7 @@ interface Measurement {
   readonly fps: number;
   readonly worst: number;
   readonly blurredRows: number;
+  readonly sharedBackdrops: number;
 }
 
 async function scrollFiveHundredRows(page: Page): Promise<Measurement> {
@@ -64,11 +65,21 @@ async function scrollFiveHundredRows(page: Page): Promise<Measurement> {
 
   const blurredRows = await page.evaluate(
     () =>
-      [...document.querySelectorAll('[data-g="row"]')].filter(
+      [...document.querySelectorAll('.neu-collection-deck, [data-g="row"]')].filter(
         (row) => getComputedStyle(row).backdropFilter !== 'none',
       ).length,
   );
 
+  const sharedBackdrops = await page
+    .locator('[data-collection-backdrop]')
+    .evaluateAll(
+      (planes) =>
+        planes.filter(
+          (plane) =>
+            getComputedStyle(plane).display !== 'none' &&
+            getComputedStyle(plane).backdropFilter !== 'none',
+        ).length,
+    );
   const session = await page.context().newCDPSession(page);
 
   await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
@@ -109,13 +120,13 @@ async function scrollFiveHundredRows(page: Page): Promise<Measurement> {
   await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
   await session.detach();
 
-  return { ...frames, blurredRows };
+  return { ...frames, blurredRows, sharedBackdrops };
 }
 
 function report(what: string, measured: Measurement, threshold?: number): void {
   const line =
     `${what}: ${measured.fps.toFixed(1)} fps, worst frame ${measured.worst.toFixed(1)} ms, ` +
-    `${measured.blurredRows} blurred rows`;
+    `${measured.blurredRows} blurred rows, ${measured.sharedBackdrops} shared backdrops`;
 
   // Printed rather than only asserted: the number is the answer to whether the
   // default ships, and a passing test that prints nothing cannot be read by
@@ -162,8 +173,10 @@ test.describe('scroll performance', () => {
       expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
   });
 
-  /** Integrated Library rows stay opaque even when glass is enabled for standalone cards. */
-  test('all glass scope keeps integrated Library rows opaque', async ({ page, browserName }) => {
+  test('all glass scope shares one real backdrop within the same frame budget', async ({
+    page,
+    browserName,
+  }) => {
     test.skip(browserName !== 'chromium', 'CPU throttling needs the Chrome DevTools Protocol');
 
     await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'full', glassScope: 'all' });
@@ -171,8 +184,25 @@ test.describe('scroll performance', () => {
 
     const measured = await scrollFiveHundredRows(page);
 
-    report(`500 rows, glass full, panels and cards, ${CPU_THROTTLE}x cpu`, measured);
+    report(`500 rows, glass full, panels and cards, ${CPU_THROTTLE}x cpu`, measured, BUDGET);
 
     expect(measured.blurredRows).toBe(0);
+    expect(measured.sharedBackdrops).toBe(1);
+    expect(
+      await page
+        .locator('.neu-collection-deck')
+        .first()
+        .evaluate((row) => {
+          const reference = document.createElement('div');
+          reference.style.background = 'var(--surface-floating)';
+          row.append(reference);
+          const matches =
+            getComputedStyle(row).backgroundColor === getComputedStyle(reference).backgroundColor;
+          reference.remove();
+          return matches;
+        }),
+    ).toBe(true);
+    if (process.env['PERFORMANCE_ENFORCE_THRESHOLD'] === 'true')
+      expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
   });
 });

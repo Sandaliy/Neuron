@@ -1,9 +1,9 @@
 import { keepPreviousData, useIsMutating, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { ChevronDown, SlidersHorizontal } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { DEFAULT_ANSWER_SECONDS } from '@neuron/core';
+import { DEFAULT_ANSWER_SECONDS, dayIndexOf } from '@neuron/core';
 import { dailyStudySessionSchema, studyDecks } from '@neuron/shared';
 import type { DeckNode, DailyStudySession, MessageKey, LanguageCode } from '@neuron/shared';
 
@@ -11,6 +11,7 @@ import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { flatten, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
+import { useLearningNavigation } from '../../lib/learning-navigation';
 import { useReturnScroll } from '../../lib/return-scroll';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
@@ -24,9 +25,10 @@ import { ErrorState, Skeleton } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { DeckSettingsDialog } from '../library/deck-dialogs';
 
-import { CardDisplaySetup, DEFAULT_CARD_DISPLAY } from './card-display';
+import { CardDisplaySetup } from './card-display';
 import { ListeningSetup, useListeningAvailability } from './listening-setup';
 import { StudyScreen } from './study';
+import { useStudyDraft } from './study-draft';
 import { StudyScope } from './study-scope';
 
 import type { CardDisplay } from './card-display';
@@ -61,23 +63,52 @@ export function estimateMinutes(due: number): number {
 export function TodayScreen() {
   const t = useTranslate();
   const decks = useDeckTree();
+  const learning = useLearningNavigation('study');
+  const { draft, change, finish } = useStudyDraft();
   const [studying, setStudying] = useState<DailyStudySession>();
-  const rememberScroll = useReturnScroll(!!studying);
-  const [minutes, setMinutes] = useState('');
-  const [choices, setChoices] = useState<StudyChoices>({
-    direction: '',
-    display: DEFAULT_CARD_DISPLAY,
-  });
-  if (studying)
+  const rememberScroll = useReturnScroll(learning.active);
+  const { minutes } = draft;
+  const choices = draft;
+  const setChoices = (value: StudyChoices) => change({ ...draft, ...value });
+  const wasActive = useRef(learning.active);
+  useEffect(() => {
+    if (wasActive.current && !learning.active) {
+      finish();
+      setStudying(undefined);
+    }
+    wasActive.current = learning.active;
+  }, [learning.active, finish]);
+  useEffect(
+    () => () => {
+      if (wasActive.current) finish();
+    },
+    [finish],
+  );
+  if (learning.active)
     return (
       <StudyScreen
-        initialPlan={studying}
+        {...(studying ? { initialPlan: studying } : {})}
         minutes={minutes}
         display={choices.display}
+        requestChoices={{
+          ...(choices.direction
+            ? {
+                direction: choices.direction as
+                  'recognition' | 'recall' | 'production' | 'listening',
+              }
+            : {}),
+          ...(choices.language === undefined ? {} : { targetLanguage: choices.language }),
+          ...(choices.scope === undefined
+            ? {}
+            : {
+                deckIds: choices.scope.filter((id) =>
+                  flatten(decks.data ?? []).some((deck) => deck.id === id && deck.kind === 'deck'),
+                ),
+              }),
+          ...(draft.override ? { newCards: 'override' } : {}),
+        }}
         onFinish={() => {
-          setStudying(undefined);
-          setChoices((current) => ({ ...current, scope: undefined }));
-          void decks.refetch();
+          learning.exit();
         }}
       />
     );
@@ -102,11 +133,12 @@ export function TodayScreen() {
       {decks.data && (
         <Waiting
           minutes={minutes}
-          onMinutes={setMinutes}
+          onMinutes={(minutes) => change({ ...draft, minutes })}
           decks={decks.data}
           onStart={(plan) => {
             rememberScroll();
             setStudying(plan);
+            void learning.open();
           }}
           choices={choices}
           onChoices={setChoices}
@@ -141,6 +173,14 @@ function Waiting({
   const toast = useToast();
   const actions = useDeckActions();
   const account = useAccount();
+  const { draft, change } = useStudyDraft();
+  const present = useRef(true);
+  useEffect(() => {
+    present.current = true;
+    return () => {
+      present.current = false;
+    };
+  }, []);
   const live = studyDecks(flatten(decks));
   const { scope, direction } = choices;
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -176,28 +216,37 @@ function Waiting({
         String(mutation.options.mutationKey?.[0]),
       ),
   });
-  const [override, setOverride] = useState(false);
+  const override = draft.override;
+  const setOverride = (override: boolean) => change({ ...draft, override });
   const [skillDeckId, setSkillDeckId] = useState<string>();
   const [skillReviewOpen, setSkillReviewOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const selectedDecks = live.filter((deck) => selected.includes(deck.id));
   const listening = useListeningAvailability(decks, selectedDecks);
   const listeningNeedsSetup = direction === 'listening' && listening.some((item) => !item.voice);
+  const planKey = [
+    'study-plan',
+    minutes,
+    direction,
+    override,
+    scope?.filter((id) => live.some((deck) => deck.id === id)),
+    language,
+    live.map((deck) => [
+      deck.id,
+      deck.settings?.dailyStudyIncluded,
+      languageFor(deck),
+      settingsFor(decks, deck.id).ladder,
+    ]),
+    account.data?.id,
+    account.data?.revision,
+  ];
+  const planIdentity = JSON.stringify(planKey);
+  const startGeneration = useRef(0);
+  useLayoutEffect(() => {
+    startGeneration.current++;
+  }, [planIdentity]);
   const plan = useQuery<StudyPlanProjection>({
-    queryKey: [
-      'study-plan',
-      minutes,
-      direction,
-      override,
-      scope,
-      language,
-      live.map((deck) => [
-        deck.id,
-        deck.settings?.dailyStudyIncluded,
-        languageFor(deck),
-        settingsFor(decks, deck.id).ladder,
-      ]),
-    ],
+    queryKey: planKey,
     queryFn: async ({ signal }) =>
       dailyStudySessionSchema.parse(
         await request('/study/session', {
@@ -207,12 +256,35 @@ function Waiting({
             ...(minutes ? { minutes: Number(minutes) } : {}),
             ...(direction ? { direction } : {}),
             ...(override ? { newCards: 'override' } : {}),
-            ...(scope === undefined ? {} : { deckIds: scope }),
+            ...(scope === undefined
+              ? {}
+              : { deckIds: scope.filter((id) => live.some((deck) => deck.id === id)) }),
             targetLanguage: language,
           },
         }),
       ),
-    staleTime: 0,
+    // Confirmed plans survive brief route visits. Projections and writes still
+    // require server reconciliation; time-sensitive availability bounds reuse.
+    staleTime: (query) => {
+      const value = query.state.data;
+      if (!value || value.localProjection || value.reviewProjection) return 0;
+      const boundary = {
+        timezone: account.data?.timezone ?? 'UTC',
+        dayCutoffHour: account.data?.dayCutoffHour ?? 4,
+      };
+      if (
+        dayIndexOf(new Date(query.state.dataUpdatedAt), boundary) !==
+        dayIndexOf(new Date(), boundary)
+      )
+        return 0;
+      return Math.max(
+        0,
+        Math.min(
+          15_000,
+          value.nextDue ? Date.parse(value.nextDue) - query.state.dataUpdatedAt : 15_000,
+        ),
+      );
+    },
     placeholderData: keepPreviousData,
     enabled: mutations === 0 && !!account.data,
   });
@@ -242,6 +314,7 @@ function Waiting({
       onOpenChange={setSetupOpen}
       className="border-t border-subtle pt-12"
       detail={
+        !expanded &&
         language && (
           <span className="flex min-w-0 items-center gap-8 text-13 text-secondary">
             <span aria-hidden="true" className="size-4 shrink-0 rounded-full bg-fill-accent" />
@@ -251,14 +324,6 @@ function Waiting({
       }
     >
       <div className="flex flex-col gap-12">
-        {languages.length > 1 && result && !updating && (
-          <p className="text-13 text-secondary">
-            {t('study.aggregateReady', {
-              count: result.aggregateReady,
-              languages: languages.length,
-            })}
-          </p>
-        )}
         {languages.length > 1 && (
           <label className="flex items-center justify-between gap-12 text-13 text-secondary">
             {t('study.language')}
@@ -359,6 +424,14 @@ function Waiting({
           value={choices.display}
           onChange={(display) => onChoices({ ...choices, display })}
         />
+        {languages.length > 1 && result && !updating && (
+          <p className="border-t border-subtle pt-12 text-13 text-secondary">
+            {t('study.aggregateReady', {
+              count: result.aggregateReady,
+              languages: languages.length,
+            })}
+          </p>
+        )}
       </div>
     </Disclosure>
   );
@@ -462,7 +535,36 @@ function Waiting({
               !!plan.error ||
               result.localProjection === true
             }
-            onClick={() => onStart(result)}
+            onClick={() => {
+              const generation = startGeneration.current;
+              const boundary = {
+                timezone: account.data?.timezone ?? 'UTC',
+                dayCutoffHour: account.data?.dayCutoffHour ?? 4,
+              };
+              const now = new Date();
+              const currentDay =
+                dayIndexOf(new Date(plan.dataUpdatedAt), boundary) === dayIndexOf(now, boundary);
+              const beforeNextDue = !result.nextDue || Date.parse(result.nextDue) > now.getTime();
+              if (
+                !plan.isStale &&
+                currentDay &&
+                beforeNextDue &&
+                now.getTime() - plan.dataUpdatedAt < 15_000
+              )
+                onStart(result);
+              else
+                void plan.refetch().then((fresh) => {
+                  if (
+                    present.current &&
+                    generation === startGeneration.current &&
+                    fresh.isSuccess &&
+                    fresh.data &&
+                    !fresh.data.localProjection &&
+                    !fresh.data.reviewProjection
+                  )
+                    onStart(fresh.data);
+                });
+            }}
           >
             {t('today.study')}
           </Button>

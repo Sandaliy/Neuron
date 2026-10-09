@@ -767,3 +767,32 @@ Local projections filter direction-specific Study summaries and move Note totals
 A projected or replacement plan keeps cached content visible but shows Updating plan for an unconfirmed
 estimate. Fresh Study admission remains blocked until authoritative reconciliation. A bulk move closes
 its dialog immediately; affected rows/counts update locally and inverse patches restore them on failure.
+
+Study and Deck Practice own explicit search-addressed browser history entries immediately after their
+entry screen. Back and in-app exit return to that context; direct learning addresses replace themselves
+with their entry route on exit. Pending Review blockers remain active during browser navigation.
+Practice after Study completion and its Deck chooser also own history entries; leaving the chosen
+Deck returns through the chooser to completion instead of losing the session's return context.
+Deck and Note identities key their route screens, preventing local state from crossing entities.
+The committed route also owns Practice setup/resume intent, including competing entry taps.
+
+An authenticated-visit provider retains temporary Study language, direction, Card display, time and
+scope through ordinary route changes. Ending the sitting clears one-off time, scope and override;
+language, direction and display remain for the visit. Account identity remounts the provider. Live
+Deck/language compatibility is reapplied against authoritative collections; temporary scope never
+changes persistent Daily Study participation.
+
+Confirmed Study plans may be reused for at most 15 seconds, bounded by the next due instant and local
+study-day boundary. Starting with an older plan revalidates before entry. Configuration, Note/import
+mutations and confirmed Review projections invalidate or gate plans; projections cannot authorize
+readiness. Changing configuration cancels pending Start intent even if the canceled refetch resolves
+with another query's successful result. Independent server planning reads run concurrently, followed
+by scoped Card and planned Note reads. Server-Timing reports authentication, reads, planning and Note
+hydration durations.
+
+Practice pool and persistent-run reads begin together. A complete fresh unfiltered Note page can seed
+the pool; the shared confirmed summary seeds the versioned store without a second run read. The first
+ready snapshot already contains the confirmed run and pending-command replay, so setup cannot copy
+default fields before hydration. Only acknowledged commands update the summary cache. Pending commands retain their stable IDs and replay
+semantics. Encounter presentation resets before synchronous store publication, so a new Note cannot
+inherit the previous answer face.

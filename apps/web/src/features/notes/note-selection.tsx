@@ -89,18 +89,19 @@ export function NoteSelectionBar({
   return (
     <>
       <div
-        className="flex flex-col gap-12 rounded-12 border border-accent bg-card p-16"
+        data-g="card"
+        className="flex flex-col gap-12 rounded-18 border border-subtle p-16"
         aria-busy={busy}
       >
         <div className="flex items-center justify-between gap-8">
           <span className="text-15 text-primary" data-numeric="">
             {t('notes.selected', { count: ids.length })}
           </span>
-          <Button variant="quiet" disabled={busy} onClick={onDone}>
+          <Button variant="text" disabled={busy} onClick={onDone}>
             {t('notes.selectDone')}
           </Button>
         </div>
-        <p className="text-14 text-secondary">{t('notes.selectionHint')}</p>
+        {ids.length === 0 && <p className="text-14 text-secondary">{t('notes.selectionHint')}</p>}
         <Button variant="text" disabled={busy} onClick={ids.length === 0 ? onSelectAll : onClear}>
           {ids.length === 0 ? t('notes.selectAll') : t('notes.clearSelection')}
         </Button>
@@ -108,6 +109,7 @@ export function NoteSelectionBar({
           <div className="grid grid-cols-2 gap-8">
             {notes.some((note) => note.status !== 'known') && (
               <Button
+                className="px-8"
                 disabled={busy}
                 onClick={() =>
                   void inChunks((chunk) =>
@@ -120,6 +122,7 @@ export function NoteSelectionBar({
             )}
             {notes.some((note) => note.status !== 'active') && (
               <Button
+                className="px-8"
                 disabled={busy}
                 onClick={() =>
                   void inChunks((chunk) =>
@@ -130,13 +133,18 @@ export function NoteSelectionBar({
                 {t('notes.bulkActive')}
               </Button>
             )}
-            <Button disabled={busy} onClick={() => setDialog('move')}>
+            <Button className="px-8" disabled={busy} onClick={() => setDialog('move')}>
               {t('notes.bulkMove')}
             </Button>
-            <Button disabled={busy} onClick={() => setDialog('tags')}>
+            <Button className="px-8" disabled={busy} onClick={() => setDialog('tags')}>
               {t('notes.bulkTags')}
             </Button>
-            <Button variant="destructive" disabled={busy} onClick={() => setDialog('delete')}>
+            <Button
+              className="px-8"
+              variant="destructive"
+              disabled={busy}
+              onClick={() => setDialog('delete')}
+            >
               {t('notes.bulkDelete')}
             </Button>
           </div>
