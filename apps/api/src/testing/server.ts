@@ -5,7 +5,7 @@ import { appClient } from '../db/testing/database.js';
 import { createPermissiveRateLimiter } from '../rate-limit.js';
 
 import type { Auth } from '../auth.js';
-import type { AuthDatabase } from '../db/client.js';
+import type { AuthDatabase, Database } from '../db/client.js';
 import type { TestDatabase } from '../db/testing/database.js';
 
 /**
@@ -29,7 +29,7 @@ import type { TestDatabase } from '../db/testing/database.js';
  * @param userId who every request is from
  * @returns an app with `request`, as Hono provides it
  */
-export function testServer(database: TestDatabase, userId: string): Hono {
+export function testServer(database: TestDatabase, userId: string, client?: Database): Hono {
   const auth = {
     api: {
       getSession: () =>
@@ -49,7 +49,7 @@ export function testServer(database: TestDatabase, userId: string): Hono {
     },
   } as unknown as Auth;
 
-  const db = appClient(database);
+  const db = client ?? appClient(database);
 
   return mountCollection(
     new Hono(),

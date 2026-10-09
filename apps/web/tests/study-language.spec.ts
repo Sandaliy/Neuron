@@ -166,19 +166,21 @@ test('a confirmed language change continuously resizes expanded Study setup', as
   const measured = setup.evaluate(async (button) => {
     const content = document.getElementById(button.getAttribute('aria-controls')!)!;
     const heights = [content.getBoundingClientRect().height];
+    const times = [performance.now()];
     const start = performance.now();
     await new Promise<void>((resolve) => {
-      const frame = () => {
+      const frame = (time: number) => {
         heights.push(content.getBoundingClientRect().height);
+        times.push(time);
         if (performance.now() - start > 600) resolve();
         else requestAnimationFrame(frame);
       };
       requestAnimationFrame(frame);
     });
-    return heights;
+    return { heights, times };
   });
   await page.getByRole('combobox', { name: 'Study language', exact: true }).selectOption('en');
-  const heights = await measured;
+  const { heights, times } = await measured;
   const min = Math.min(...heights),
     max = Math.max(...heights);
   expect(max - min).toBeGreaterThan(100);
@@ -186,10 +188,17 @@ test('a confirmed language change continuously resizes expanded Study setup', as
     3,
   );
   expect(
-    Math.max(...heights.slice(1).map((height, index) => Math.abs(height - heights[index]!))),
-  ).toBeLessThan((max - min) / 2);
+    Math.max(
+      ...heights
+        .slice(1)
+        .map(
+          (height, index) =>
+            Math.abs(height - heights[index]!) / (times[index + 1]! - times[index]!),
+        ),
+    ),
+  ).toBeLessThan(((max - min) * 4) / 240);
   await info.attach('language-layout-frames', {
-    body: JSON.stringify(heights),
+    body: JSON.stringify({ heights, times }),
     contentType: 'application/json',
   });
 });

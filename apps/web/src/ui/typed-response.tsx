@@ -8,6 +8,7 @@ import { useTranslate } from '../i18n/locale';
 
 import { Button } from './button';
 import { Input } from './input';
+import { captureLearningReveal } from './learning-card';
 
 /** Feedback belongs to the submitted response, never to the scheduling decision. */
 export function TypedResponse({
@@ -35,6 +36,7 @@ export function TypedResponse({
   const inputId = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const submitted = useRef(false);
+  const stopWaitingForKeyboard = useRef<(() => void) | undefined>(undefined);
   const [submittedText, setSubmittedText] = useState<string>();
   if (!revealed && submittedText !== undefined) setSubmittedText(undefined);
   const composing = useRef(false);
@@ -45,12 +47,17 @@ export function TypedResponse({
     const text = input?.value ?? value;
     if (submitted.current || revealed || composing.current || !text.trim()) return;
     submitted.current = true;
+    if (input) captureLearningReveal(input);
     // Capture the DOM value before blur can replace the focused composition.
-    // Blur retains the existing one-time keyboard-close signal from this input.
+    // Submission commits one final composition; ordinary blur still preserves
+    // the draft and waits for the one-time keyboard-close signal.
     input?.blur();
+    stopWaitingForKeyboard.current?.();
+    stopWaitingForKeyboard.current = undefined;
     flushSync(() => {
       setSubmittedText(text);
       onChange(text);
+      onReadyChange(false);
       onReveal();
     });
   }
@@ -77,7 +84,6 @@ export function TypedResponse({
       form?.removeEventListener('textInput', insertion);
     };
   });
-  const stopWaitingForKeyboard = useRef<(() => void) | undefined>(undefined);
   useEffect(() => () => stopWaitingForKeyboard.current?.(), []);
   function leaveKeyboardReadyAfterClose() {
     stopWaitingForKeyboard.current?.();
@@ -138,7 +144,7 @@ export function TypedResponse({
         {t('study.typeAnswer')}
       </label>
       {revealed ? (
-        <div role="status" className="flex flex-col gap-8">
+        <div role="status" className="neu-reveal flex flex-col gap-8">
           <div
             className="neu-spelling rounded-12 bg-input px-16 py-12 text-20"
             aria-label={`${t('study.yourAnswer')}: ${checkedText}. ${result}`}

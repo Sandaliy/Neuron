@@ -59,6 +59,10 @@ export const newCardAdmissionSchema = z.object({
 });
 
 export const dailyStudySessionSchema = z.object({
+  /** Guards reuse of an early default plan against the confirmed account revision. */
+  planningContext: z
+    .object({ accountId: z.string(), revision: z.number().int().min(0) })
+    .optional(),
   targetLanguage: languageCodeSchema.nullable().default(null),
   languages: z.array(languageCodeSchema.nullable()).default([]),
   aggregateReady: z.number().int().min(0).default(0),

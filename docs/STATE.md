@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-09, post-release iPhone acceptance refinement in protected review preparation.
+Last updated: 2026-10-09, final iPhone motion and responsiveness refinement in protected review preparation.
 
 ## Current release slice
 
@@ -144,7 +144,7 @@ All 66 visual cases passed with 17 intentional Today, Library and Settings refer
 The PR #38 baseline's four large-list checks passed with the 55 fps threshold enforced at 4× CPU slowdown: 5,000 Notes held
 60.0 fps with 14 mounted rows; 500 Decks held 60.0 fps and zero blurred rows in both glass scopes.
 
-The post-release acceptance refinement on `work/iphone-acceptance-refinement` gives Study/Practice
+PR #39 is merged into protected `main` at `d4ad6de`. Its post-release acceptance refinement gives Study/Practice
 their own browser history entries and retains Study setup throughout the authenticated visit. It
 reuses bounded confirmed plans, starts Practice reads together, and reuses complete confirmed Note
 pages. Projected readiness remains gated; Review, Practice, authentication and deletion contracts stay
@@ -180,6 +180,53 @@ Physical-iPhone acceptance remains required for native edge swipes, rapid naviga
 return, keyboard closure, interrupted reveals/Undo, glass compositing and audio. The reported sign-out
 and rapid wrong-tab symptom remain unreproduced; authenticated production latency profiling is still
 needed. Browser/WebKit evidence does not certify those native-device findings.
+
+The subsequent physical-iPhone recordings and screenshots expose a two-stage typed reveal, awkward
+Setup motion and clipped select focus halos. The final polish on `work/final-iphone-polish` captures
+the displayed reading surface before blur and commits reveal/feedback/keyboard-ready exit together.
+Its prompt transform and a separate scaled, clipped visual surface share one timeline; unrelated renders and late
+keyboard-close samples cannot restart them. Disclosure uses one persistent size observer and native
+CSS reversal, with a focus gutter and visible overflow after settling. Folder glass shares the existing
+stationary Library backdrop with a denser tint and structural edge; Deck proportions stay unchanged.
+Learning and Today glass also use that stationary shell plane while the reading layout settles once. Full-glass
+phone Chromium profiles at 4× CPU slowdown used eight layout passes and 11–20ms layout work, with
+no sampled frame above 34ms. Windows WebKit and desktop full-glass reveal frame costs remain higher:
+107–119ms and 50–67ms longest sampled frames respectively. Passing temporal geometry tests does
+not resolve that compositing limitation or certify native-iPhone motion. Repeated disclosure profiles
+also reached 126ms on Windows WebKit and 83ms on desktop; phone Chromium sampled 16.8ms.
+
+Initial authoritative Study planning and Today/Deck screen downloads now start beside account and
+collection reads. Bootstrap reuse requires matching account/revision/language and existing freshness
+boundaries, and rejects invalidation-overlapping responses. Presentation-only Card display remains local.
+Frequent route wrappers expose module preloading; history scroll restores after the committed screen,
+preserving Back and learning-return positions under the faster route timing.
+Planning shares one user-bound repository transaction without changing admission, schedules or Reviews.
+Three matched phone Chromium trials use 250ms API delay, a 100ms cold Note-list module delay and actual
+Deck heading/Note visibility. First readiness fell from 944–962ms to 441–474ms; first Deck entry fell
+from 650–856ms to 342–358ms. First Library/Settings entry fell from 362–379ms to 72–105ms. New
+configurations still require authoritative transport (323–341ms in the harness, essentially unchanged);
+their controls respond in 14–18ms. Actual non-production routes with real RLS reduced warm
+planning from 1,027–1,229ms to 588–620ms, with SQL statements falling from 24 to 9. Computation remains
+approximately 22–28ms. These are separate browser/database measurements, not production-iPhone timings.
+
+Fresh public production health probes observed 3.52s first response and 199–206ms warm responses,
+with `fra1::iad1` routing markers. Read-only Neon metadata confirms the production branch in
+`aws-eu-central-1` and a suspended compute at inspection. Cold wake-up and region distance remain
+possible contributors; authenticated production Server-Timing and deployment configuration access
+are still unavailable. No infrastructure changes were performed. Native keyboard/compositor, rapid
+navigation/background return, speech and perceived latency need a new physical-iPhone acceptance pass.
+
+Final local verification passed 603 core/shared/web tests and 87 targeted real-Postgres Study,
+Practice, Review and isolation tests. The built-app serial interaction gate passed 372 phone/desktop
+tests with four opt-in skips; WebKit passed 101 with one live-database skip. The separate opt-in real
+API/database learning journey passed on all three projects, including schedule-free Practice and
+immutable Review checks. All 66 visual cases passed without reference updates; both-theme full/off
+glass and 320px focus captures were inspected. Five performance checks passed the enforced 55fps
+budget at 4× CPU slowdown: 5,000 Notes held 60.0fps with 14 mounted rows, 500 Decks held 59.3fps with
+shared glass, and 500 mixed collections held 59.0fps with one backdrop and no independent row blur.
+Workspace typechecks/build, source lint excluding generated reports, formatting, design tokens and
+core isolation passed. The final broad run also covers corrected history scroll timing and duplicate
+frame sampling; hosted checks and physical-iPhone acceptance remain separate from this local evidence.
 
 ## Now
 
@@ -275,11 +322,13 @@ Today or Study.
   individually. Note restoration retains `deleted_with_note` attribution for Cards. Permanent
   deletion prevents restoration through repositories and sync without rewriting Reviews.
 - `stash@{0}` remains a historical backup of earlier Phase 6 local work.
-- The production API is in `iad1` while users and web requests enter through Europe. Region alignment
-  remains deferred because the database must move with the API.
+- Public production routing markers include `iad1`, while the production database is in Frankfurt
+  (`aws-eu-central-1`). Confirm deployment region and authenticated timing before proposing region
+  alignment or compute wake-up changes; database relocation is not established as necessary.
 - Mail delivery is disabled. `MAILER=log` is the only configured sender.
 - `sync_conflicts` records losing versions but the web app has no recovery screen.
-- The production web bundle is about 596 KB before gzip. Code splitting remains deferred.
+- Web route modules are split. Frequent signed-in screens preload through the router alongside
+  missing reads; authentication and recovery retain their existing lazy boundaries.
 - Dependency alerts include `nanoid` 3.3.17 and the Drizzle tooling version of `esbuild`.
 - `drizzle-kit check` could not run locally because Node returned `uv_os_get_passwd ENOMEM`; the
   escalation retry was rejected by automatic approval review. The generated journal and snapshot chain

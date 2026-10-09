@@ -786,9 +786,22 @@ Confirmed Study plans may be reused for at most 15 seconds, bounded by the next 
 study-day boundary. Starting with an older plan revalidates before entry. Configuration, Note/import
 mutations and confirmed Review projections invalidate or gate plans; projections cannot authorize
 readiness. Changing configuration cancels pending Start intent even if the canceled refetch resolves
-with another query's successful result. Independent server planning reads run concurrently, followed
-by scoped Card and planned Note reads. Server-Timing reports authentication, reads, planning and Note
-hydration durations.
+with another query's successful result. The initial default plan starts alongside account and
+collection reads; the server selects its language. Reuse requires matching account identity,
+global revision, language, freshness and time boundaries. An invalidation during that request
+disqualifies the late response even if query completion clears its stale flag. Older responses
+without `planningContext` use the ordinary configured request. Card display is presentation-only
+and never changes the planning key.
+
+All planning reads share one existing user-bound repository transaction, retaining the restricted
+role, transaction-local identity and repository ownership filters. Planning still writes no
+schedules, Reviews or revisions. Server-Timing reports authentication, reads, computation and Note
+hydration, plus `study_total` through transaction commit. Today, Library, Settings, Import and Note
+route modules preload through the router, including search/identity wrappers. Missing route data
+starts alongside code downloads. Deck navigation starts unfiltered Note pages and the
+Practice summary before screen rendering; filters and pagination retain their own query keys.
+Router-owned scroll restoration snapshots history entries and restores after the committed screen,
+avoiding native restoration followed by a late route reset. Learning return still waits for list layout.
 
 Practice pool and persistent-run reads begin together. A complete fresh unfiltered Note page can seed
 the pool; the shared confirmed summary seeds the versioned store without a second run read. The first

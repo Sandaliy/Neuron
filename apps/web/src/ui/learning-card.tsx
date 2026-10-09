@@ -7,6 +7,21 @@ import { Card } from './card';
 
 import type { ReactNode } from 'react';
 
+type ReadingLayout = { top: number; height: number };
+const layouts = new WeakMap<Element, ReadingLayout>();
+/** Capture the displayed question before blur or the reveal commit changes its layout. */
+export function captureLearningReveal(source: HTMLElement) {
+  const card =
+    source.closest('.neu-learning-card') ??
+    source.closest('[data-learning-screen]')?.querySelector('.neu-learning-card');
+  const prompt = card?.querySelector('.neu-learning-prompt');
+  const surface = card?.querySelector('.neu-learning-surface') ?? card;
+  if (card && prompt)
+    layouts.set(card, {
+      top: prompt.getBoundingClientRect().top,
+      height: surface!.getBoundingClientRect().height,
+    });
+}
 /** A reading surface shared by scheduled study and independent Practice. */
 export function LearningCard({
   context,
@@ -25,74 +40,65 @@ export function LearningCard({
 }) {
   const revealed = Boolean(answer);
   const promptRef = useRef<HTMLDivElement>(null);
-  const previous = useRef<{ identity: string | undefined; top: number } | undefined>(undefined);
   const readingRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const element = promptRef.current;
-    if (!element) return;
-    const top = element.getBoundingClientRect().top;
-    const before = previous.current;
-    let animation: Animation | undefined;
-    let frame = 0;
-    let visualTop = before?.top ?? top;
-    let layoutTop = top;
-    function move(from: number) {
-      if (!element || motionIsReduced()) return;
-      animation?.cancel();
-      const target = element.getBoundingClientRect().top;
-      layoutTop = target;
-      animation = element.animate(
-        [{ transform: `translateY(${from - target}px)` }, { transform: 'translateY(0)' }],
-        {
-          duration: cssDuration(
-            getComputedStyle(document.documentElement).getPropertyValue('--dur-learning'),
-            340,
-          ),
-          easing:
-            getComputedStyle(document.documentElement).getPropertyValue('--ease-enter').trim() ||
-            'ease-out',
-          fill: 'backwards',
-        },
-      );
-      const sample = () => {
-        visualTop = element.getBoundingClientRect().top;
-        previous.current = { identity, top: visualTop };
-        if (animation?.playState === 'running') frame = requestAnimationFrame(sample);
-      };
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(sample);
-    }
-    if (revealed && before?.identity === identity && !motionIsReduced()) {
-      move(visualTop);
-    }
-    previous.current = { identity, top: revealed ? visualTop : top };
+    const reading = readingRef.current;
+    const card = element?.closest<HTMLElement>('.neu-learning-card');
+    const surface = card?.querySelector<HTMLElement>('.neu-learning-surface');
+    if (!element || !reading || !card || !surface) return;
     if (!revealed) {
-      // Focus can reposition a flex child without resizing the observed reading
-      // surface. Remember its displayed position while the question is active.
-      const remember = () => {
-        previous.current = { identity, top: element.getBoundingClientRect().top };
-        frame = requestAnimationFrame(remember);
-      };
-      frame = requestAnimationFrame(remember);
+      const remember = () => captureLearningReveal(element);
+      remember();
+      const observer = new ResizeObserver(remember);
+      observer.observe(card);
+      return () => observer.disconnect();
     }
-    // Entering the application-owned keyboard-ready composition can move the
-    // prompt without a React render here. Reveal starts at its current position.
-    const observer = new ResizeObserver(() => {
-      const transform = getComputedStyle(element).transform;
-      const offset = transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42;
-      if (revealed && Math.abs(element.getBoundingClientRect().top - offset - layoutTop) > 0.5)
-        move(visualTop);
-      else if (!revealed) previous.current = { identity, top: element.getBoundingClientRect().top };
-    });
-    if (readingRef.current) observer.observe(readingRef.current);
-    return () => {
-      observer?.disconnect();
-      animation?.cancel();
-      cancelAnimationFrame(frame);
+    const before = layouts.get(card);
+    if (!before || motionIsReduced()) return;
+    const styles = getComputedStyle(document.documentElement);
+    const timing = {
+      duration: cssDuration(styles.getPropertyValue('--dur-learning'), 340),
+      easing: styles.getPropertyValue('--ease-enter').trim() || 'ease-out',
+      fill: 'backwards' as const,
     };
-  });
+    const animations: Animation[] = [];
+    const height = surface.getBoundingClientRect().height;
+    if (Math.abs(height - before.height) > 1) {
+      // The reading layout settles once. Scale a separate visual surface and
+      // bound its content instead of laying out the reading area every frame.
+      const radius = getComputedStyle(card).borderRadius;
+      const surfaceTiming = { ...timing, easing: styles.getPropertyValue('--ease-inout').trim() };
+      animations.push(
+        surface.animate(
+          [{ transform: `scaleY(${before.height / height})` }, { transform: 'scaleY(1)' }],
+          surfaceTiming,
+        ),
+        card.animate(
+          [
+            { clipPath: `inset(0 0 ${Math.max(0, height - before.height)}px 0 round ${radius})` },
+            { clipPath: `inset(0 round ${radius})` },
+          ],
+          surfaceTiming,
+        ),
+      );
+    }
+    const top = element.getBoundingClientRect().top;
+    animations.push(
+      element.animate(
+        [{ transform: `translateY(${before.top - top}px)` }, { transform: 'translateY(0)' }],
+        timing,
+      ),
+    );
+    const start = document.timeline.currentTime;
+    if (start !== null) for (const animation of animations) animation.startTime = start;
+    return () => {
+      for (const animation of animations) animation.cancel();
+    };
+  }, [revealed, identity]);
   return (
-    <Card className="neu-learning-card flex min-h-0 flex-1 flex-col gap-16 break-words">
+    <div className="neu-learning-card relative flex min-h-0 flex-1 flex-col gap-16 rounded-24 border border-transparent p-20 break-words">
+      <Card className="neu-learning-surface">{null}</Card>
       <div className="text-12 text-secondary">{context}</div>
       <div
         ref={readingRef}
@@ -121,6 +127,6 @@ export function LearningCard({
         )}
       </div>
       {response}
-    </Card>
+    </div>
   );
 }

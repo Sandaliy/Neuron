@@ -65,9 +65,11 @@ async function scrollFiveHundredRows(page: Page): Promise<Measurement> {
 
   const blurredRows = await page.evaluate(
     () =>
-      [...document.querySelectorAll('.neu-collection-deck, [data-g="row"]')].filter(
-        (row) => getComputedStyle(row).backdropFilter !== 'none',
-      ).length,
+      [
+        ...document.querySelectorAll(
+          '.neu-collection-deck, .neu-collection-folder, [data-g="row"]',
+        ),
+      ].filter((row) => getComputedStyle(row).backdropFilter !== 'none').length,
   );
 
   const sharedBackdrops = await page
@@ -202,6 +204,26 @@ test.describe('scroll performance', () => {
           return matches;
         }),
     ).toBe(true);
+    if (process.env['PERFORMANCE_ENFORCE_THRESHOLD'] === 'true')
+      expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
+  });
+
+  test('mixed Folders and Decks share glass within the unchanged frame budget', async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'CPU throttling needs the Chrome DevTools Protocol');
+    await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'full', glassScope: 'all' });
+    await useFixtures(page, {
+      decks: manyDecks(500).map((deck, index) => ({
+        ...deck,
+        kind: index % 3 === 0 ? 'folder' : 'deck',
+      })),
+    });
+    const measured = await scrollFiveHundredRows(page);
+    report(`500 mixed collections, panels and cards, ${CPU_THROTTLE}x cpu`, measured, BUDGET);
+    expect(measured.blurredRows).toBe(0);
+    expect(measured.sharedBackdrops).toBe(1);
     if (process.env['PERFORMANCE_ENFORCE_THRESHOLD'] === 'true')
       expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
   });

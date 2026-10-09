@@ -1,12 +1,11 @@
 import { ChevronDown } from 'lucide-react';
-import { useId, useLayoutEffect, useRef } from 'react';
+import { useCallback, useId, useLayoutEffect, useRef } from 'react';
 
-import { cssDuration } from '../lib/css-duration';
 import { motionIsReduced } from '../preferences/motion';
 
 import type { ReactNode } from 'react';
 
-/** A labelled disclosure with interruptible motion and immediate accessible state. */
+/** A labelled disclosure with native reversal and immediate accessible state. */
 export function Disclosure({
   title,
   leading,
@@ -26,78 +25,43 @@ export function Disclosure({
 }) {
   const id = useId();
   const content = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
-  const layout = useRef({ open, height: 0 });
-  const running = useRef<Animation | undefined>(undefined);
   const expanded = useRef(open);
-  useLayoutEffect(() => () => running.current?.cancel(), []);
-  useLayoutEffect(() => {
-    expanded.current = open;
+  const endpoint = useRef<number | undefined>(undefined);
+  const resize = useCallback((height: number) => {
     const element = content.current;
     if (!element) return;
-    if (!mounted.current) {
-      mounted.current = true;
-      element.hidden = !open;
-      layout.current = {
-        open,
-        height: element.firstElementChild?.getBoundingClientRect().height ?? 0,
-      };
-      return;
+    const target = expanded.current ? height : 0;
+    if (endpoint.current !== undefined && Math.abs(endpoint.current - target) < 0.5) return;
+    endpoint.current = target;
+    element.dataset['moving'] = String(
+      mounted.current &&
+        !motionIsReduced() &&
+        Math.abs(element.getBoundingClientRect().height - target) > 0.5,
+    );
+    element.style.height = `${target}px`;
+  }, []);
+  useLayoutEffect(() => {
+    expanded.current = open;
+    if (!mounted.current && content.current) content.current.style.transition = 'none';
+    resize(inner.current?.getBoundingClientRect().height ?? 0);
+    if (!mounted.current && content.current) {
+      content.current.getBoundingClientRect();
+      content.current.style.removeProperty('transition');
     }
-    function transition(fromHeight?: number) {
-      if (!element) return;
-      const height = fromHeight ?? (element.hidden ? 0 : element.getBoundingClientRect().height);
-      const opacity = element.hidden ? '0' : getComputedStyle(element).opacity;
-      running.current?.cancel();
-      running.current = undefined;
-      const opening = expanded.current;
-      if (motionIsReduced()) {
-        element.hidden = !opening;
-        return;
-      }
-      element.hidden = false;
-      const target = opening ? (element.firstElementChild?.getBoundingClientRect().height ?? 0) : 0;
-      const styles = getComputedStyle(document.documentElement);
-      const animation = element.animate(
-        [
-          { height: `${height}px`, opacity },
-          { height: `${target}px`, opacity: opening ? 1 : 0 },
-        ],
-        {
-          duration: cssDuration(styles.getPropertyValue('--dur-3'), 240),
-          easing: styles.getPropertyValue('--ease-inout').trim(),
-          fill: 'both',
-        },
-      );
-      running.current = animation;
-      animation.onfinish = () => {
-        element.hidden = !opening;
-        running.current = undefined;
-        animation.cancel();
-      };
-    }
-    const naturalHeight = element.firstElementChild?.getBoundingClientRect().height ?? 0;
-    if (
-      open !== layout.current.open ||
-      (open && Math.abs(naturalHeight - layout.current.height) > 0.5)
-    )
-      transition(
-        open === layout.current.open && !running.current ? layout.current.height : undefined,
-      );
-    // Plan/voice responses can change open content after the entrance finishes.
-    // Retarget before paint from its previous height, or its in-flight position.
-    let contentHeight = element.firstElementChild?.getBoundingClientRect().height ?? 0;
-    layout.current = { open, height: contentHeight };
-    const observer = new ResizeObserver(() => {
-      const nextHeight = element.firstElementChild?.getBoundingClientRect().height ?? 0;
-      if (expanded.current && Math.abs(nextHeight - contentHeight) > 0.5)
-        transition(running.current ? undefined : contentHeight);
-      contentHeight = nextHeight;
-      layout.current = { open: expanded.current, height: nextHeight };
+    mounted.current = true;
+  }, [open, resize]);
+  useLayoutEffect(() => {
+    // One observer for the disclosure's lifetime. Native CSS transitions retain
+    // the displayed height on reversal; unrelated renders cannot restart them.
+    const observer = new ResizeObserver((entries) => {
+      const size = entries[0]?.borderBoxSize[0]?.blockSize;
+      if (expanded.current) resize(size ?? inner.current?.offsetHeight ?? 0);
     });
-    if (element.firstElementChild) observer.observe(element.firstElementChild);
+    if (inner.current) observer.observe(inner.current);
     return () => observer.disconnect();
-  }, [open, children]);
+  }, [resize]);
   return (
     <div className={`flex min-w-0 flex-col ${className}`}>
       <button
@@ -118,8 +82,22 @@ export function Disclosure({
           className={`shrink-0 text-secondary transition-transform dur-reveal ${open ? 'rotate-180' : ''}`}
         />
       </button>
-      <div id={id} ref={content} inert={!open} aria-hidden={!open} className="overflow-hidden">
-        <div className="pt-12">{children}</div>
+      <div
+        id={id}
+        ref={content}
+        inert={!open}
+        aria-hidden={!open}
+        data-disclosure-open={open}
+        className="neu-disclosure -mx-8 px-8"
+        style={{ height: '0px' }}
+        onTransitionEnd={(event) => {
+          if (event.target === event.currentTarget && event.propertyName === 'height')
+            event.currentTarget.dataset['moving'] = 'false';
+        }}
+      >
+        <div ref={inner} className="flow-root pt-12 pb-8">
+          {children}
+        </div>
       </div>
     </div>
   );

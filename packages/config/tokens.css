@@ -228,6 +228,7 @@
    * secondary text passes AA at 0.78 where a lighter tint needed 0.84.
    */
   --surface-floating: rgba(10, 12, 15, var(--g-alpha));
+  --surface-folder-glass: color-mix(in srgb, var(--surface-floating) 86%, var(--surface-raised));
   --surface-floating-solid: #12151a;
   /* The same smoked tint at the bar's own density. */
   --surface-bar: rgba(10, 12, 15, var(--g-alpha-bar));
@@ -325,6 +326,7 @@
   --surface-selected: var(--p-150);
   --surface-nested: rgba(255, 255, 255, 0.96);
   --surface-floating: rgba(255, 255, 255, var(--g-alpha));
+  --surface-folder-glass: color-mix(in srgb, var(--surface-floating) 86%, var(--surface-raised));
   --surface-floating-solid: #ffffff;
   --surface-bar: rgba(255, 255, 255, var(--g-alpha-bar));
 

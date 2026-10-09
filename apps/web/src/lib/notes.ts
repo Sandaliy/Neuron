@@ -73,6 +73,20 @@ export function noteQueryString(query: NoteQuery, extra: Record<string, string> 
   return params.toString();
 }
 
+/** Shared by route warm-up and the browser; the original cursor/page ownership stays intact. */
+export function noteListQuery(query: NoteQuery) {
+  return {
+    queryKey: [NOTE_KEY, 'list', noteQueryString(query)],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
+      request<{ items: Note[]; nextCursor?: string }>(
+        `/notes?${noteQueryString(query, { limit: '1000', ...(pageParam === undefined ? {} : { cursor: pageParam }) })}`,
+        { signal },
+      ),
+    getNextPageParam: (last: { nextCursor?: string }) => last.nextCursor,
+  };
+}
+
 /** What a note write asks for, and what it costs. */
 export interface NoteInput {
   readonly deckId: string;

@@ -8,6 +8,8 @@ import { useSpeech } from './speech-fixture';
 
 import type { Locator, Page } from '@playwright/test';
 
+test.use({ video: process.env['POLISH_VIDEO'] === 'true' ? 'on' : 'off' });
+
 const stamp = '2026-01-01T00:00:00Z';
 const id = (n: number) => `01900000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const deck = {
@@ -136,7 +138,7 @@ for (const screen of ['Study', 'Practice'] as const)
     test(`${screen} ${response} reveal and Undo remain continuous across keyboard closure`, async ({
       page,
     }, info) => {
-      await usePreferences(page, { locale: 'en', theme: 'dark' });
+      await usePreferences(page, { locale: 'en', theme: 'dark', glass: 'full', glassScope: 'all' });
       await useSpeech(page);
       const second = { ...note, id: id(20), fields: { term: 'Baum', translation: 'tree' } };
       const direction = response === 'typing' ? 'production' : 'listening';
@@ -175,9 +177,40 @@ for (const screen of ['Study', 'Practice'] as const)
         await page.getByRole('combobox', { name: 'Response mode' }).selectOption(response);
         await page.getByRole('button', { name: 'Start practice', exact: true }).click();
       }
+      if (process.env['POLISH_PROFILE'] === 'true') {
+        const idle = await page.evaluate(async () => {
+          const times: number[] = [];
+          await new Promise<void>((resolve) => {
+            const collect = (time: number) => {
+              times.push(time);
+              if (times.length < 20) requestAnimationFrame(collect);
+              else resolve();
+            };
+            requestAnimationFrame(collect);
+          });
+          return {
+            frames: times.length,
+            ms: times.at(-1)! - times[0]!,
+            animations: document.getAnimations().length,
+          };
+        });
+        console.info(
+          'idle-glass-frames',
+          JSON.stringify({ browser: info.project.name, screen, response, ...idle }),
+        );
+      }
       await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
       const input = page.getByRole('textbox', { name: 'Type your answer', exact: true });
       await input.fill('Sorgfalt');
+      const profile =
+        process.env['POLISH_PROFILE'] === 'true' && info.project.name === 'phone-interaction'
+          ? await page.context().newCDPSession(page)
+          : undefined;
+      if (profile) {
+        await profile.send('Performance.enable');
+        await profile.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+      }
+      const beforeMetrics = profile ? await profile.send('Performance.getMetrics') : undefined;
       await page.evaluate(() => {
         const full = window.innerHeight;
         Object.defineProperty(window.visualViewport!, 'height', {
@@ -186,25 +219,114 @@ for (const screen of ['Study', 'Practice'] as const)
         });
         window.visualViewport!.dispatchEvent(new Event('resize'));
       });
+      await expect(page.locator('.neu-learning-surface')).toHaveCSS('backdrop-filter', 'none');
+      await expect(page.locator('[data-collection-backdrop]')).not.toHaveCSS(
+        'backdrop-filter',
+        'none',
+      );
       await beginLearningFrames(page);
       await input.press('Enter');
       await page.evaluate(() => {
-        Object.defineProperty(window.visualViewport!, 'height', {
-          configurable: true,
-          get: () => window.innerHeight,
-        });
-        window.visualViewport!.dispatchEvent(new Event('resize'));
+        setTimeout(() => {
+          Object.defineProperty(window.visualViewport!, 'height', {
+            configurable: true,
+            get: () => window.innerHeight,
+          });
+          window.visualViewport!.dispatchEvent(new Event('resize'));
+        }, 250);
       });
       const reveal = await finishLearningFrames(page);
+      if (profile && beforeMetrics) {
+        const after = await profile.send('Performance.getMetrics');
+        const value = (metrics: typeof after, name: string) =>
+          metrics.metrics.find((metric) => metric.name === name)?.value ?? 0;
+        const gaps = reveal
+          .slice(1)
+          .map((frame, index) => frame.time - reveal[index]!.time)
+          .filter((gap) => gap > 0);
+        const report = {
+          screen,
+          response,
+          cpuSlowdown: 4,
+          frames: reveal.length,
+          worstFrameMs: Math.max(...gaps),
+          framesOver34ms: gaps.filter((gap) => gap > 34).length,
+          layoutCount: value(after, 'LayoutCount') - value(beforeMetrics, 'LayoutCount'),
+          layoutMs:
+            (value(after, 'LayoutDuration') - value(beforeMetrics, 'LayoutDuration')) * 1000,
+          scriptMs:
+            (value(after, 'ScriptDuration') - value(beforeMetrics, 'ScriptDuration')) * 1000,
+        };
+        console.info('reveal-profile', JSON.stringify(report));
+        await info.attach('reveal-profile', {
+          body: JSON.stringify(report),
+          contentType: 'application/json',
+        });
+        await profile.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+        await profile.detach();
+      }
       await info.attach('reveal-frames', {
         body: JSON.stringify(reveal),
         contentType: 'application/json',
       });
-      expect(
-        Math.max(
-          ...reveal.slice(1).map((frame, index) => Math.abs(frame.top - reveal[index]!.top)),
-        ),
-      ).toBeLessThan(40);
+      console.info(
+        'reveal-motion',
+        JSON.stringify({
+          screen,
+          response,
+          browser: info.project.name,
+          frames: reveal.length,
+          worstFrameMs: Math.max(
+            ...reveal.slice(1).map((frame, index) => frame.time - reveal[index]!.time),
+          ),
+          maximumCardJump: Math.max(
+            ...reveal
+              .slice(1)
+              .map((frame, index) => Math.abs(frame.bottom - reveal[index]!.bottom)),
+          ),
+          maximumPromptJump: Math.max(
+            ...reveal.slice(1).map((frame, index) => Math.abs(frame.top - reveal[index]!.top)),
+          ),
+        }),
+      );
+      const extent =
+        Math.max(...reveal.map((frame) => frame.bottom)) -
+        Math.min(...reveal.map((frame) => frame.bottom));
+      const speeds = reveal
+        .slice(1)
+        .map(
+          (frame, index) =>
+            Math.abs(frame.bottom - reveal[index]!.bottom) / (frame.time - reveal[index]!.time),
+        );
+      // Bound travel by elapsed frame time, including WebKit's 30Hz sampling.
+      // A discrete keyboard-layout jump fails this regardless of frame rate.
+      if (page.viewportSize()!.width < 640) {
+        expect(Math.max(...speeds)).toBeLessThan((extent * 4) / 340);
+        expect(
+          reveal.filter(
+            (frame) =>
+              frame.bottom > Math.min(...reveal.map((value) => value.bottom)) + 1 &&
+              frame.bottom < Math.max(...reveal.map((value) => value.bottom)) - 1,
+          ).length,
+        ).toBeGreaterThan(1);
+      } else {
+        // Desktop has no compact native-keyboard band. Only the response row
+        // changes height, while the outer reading surface remains anchored.
+        expect(extent).toBeLessThanOrEqual(13);
+      }
+      const promptExtent =
+        Math.max(...reveal.map((frame) => frame.top)) -
+        Math.min(...reveal.map((frame) => frame.top));
+      // Bound the actual trajectory by time, rather than a fixed pixel delta
+      // that confuses a long sampled frame with a discrete layout jump.
+      // The enter curve reaches approximately 4.3 times its mean velocity.
+      for (let index = 1; index < reveal.length; index++) {
+        const prior = reveal[index - 1]!;
+        const frame = reveal[index]!;
+        expect(Math.abs(frame.top - prior.top)).toBeLessThanOrEqual(
+          (promptExtent * 5 * (frame.time - prior.time)) / 340 + 2,
+        );
+      }
       expect(
         reveal.every((frame) => !frame.text.includes('Baum') && !frame.text.includes('tree')),
       ).toBe(true);
@@ -236,35 +358,114 @@ for (const screen of ['Study', 'Practice'] as const)
         body: JSON.stringify({ reveal, advance, undoFrames }),
         contentType: 'application/json',
       });
+
+      // Interrupt an actual typed reveal with grading and Undo before its
+      // timeline completes. Direct activation avoids automation's stability
+      // wait masking the repeated-tap sequence that a person can perform.
+      if (screen === 'Practice')
+        await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+      await page
+        .getByRole('button', {
+          name: screen === 'Study' ? /^Good / : 'Known',
+          exact: screen !== 'Study',
+        })
+        .click();
+      await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+      await page.getByRole('textbox', { name: 'Type your answer', exact: true }).fill('Baum');
+      await beginLearningFrames(page);
+      await page.evaluate((screen) => {
+        Object.defineProperty(window.visualViewport!, 'height', {
+          configurable: true,
+          get: () => window.innerHeight - 270,
+        });
+        window.visualViewport!.dispatchEvent(new Event('resize'));
+        const form = document.querySelector('.neu-response')!;
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        setTimeout(() => {
+          const grade = [...document.querySelectorAll('button')].find((button) =>
+            screen === 'Study'
+              ? button.textContent?.startsWith('Good')
+              : button.textContent === 'Known',
+          );
+          grade?.click();
+        }, 50);
+        setTimeout(() => {
+          document.querySelector<HTMLButtonElement>('[aria-label="Undo last answer"]')?.click();
+        }, 100);
+        setTimeout(() => {
+          Object.defineProperty(window.visualViewport!, 'height', {
+            configurable: true,
+            get: () => window.innerHeight,
+          });
+          window.visualViewport!.dispatchEvent(new Event('resize'));
+        }, 250);
+      }, screen);
+      const interrupted = await finishLearningFrames(page);
+      expect(
+        interrupted.every(
+          (frame) => !frame.text.includes('Sorgfalt') && !frame.text.includes('care'),
+        ),
+      ).toBe(true);
+      await expect(
+        page.getByRole('heading', { name: 'Session complete', exact: true }),
+      ).toHaveCount(0);
+      await expect(page.locator('.neu-spelling')).toHaveCount(0);
+      await info.attach('interrupted-reveal-frames', {
+        body: JSON.stringify(interrupted),
+        contentType: 'application/json',
+      });
     });
 
 async function beginLearningFrames(page: Page) {
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     const target = window as unknown as {
-      learningFrames: { top: number; text: string; answer: boolean }[];
+      learningFrames: {
+        time: number;
+        top: number;
+        bottom: number;
+        text: string;
+        answer: boolean;
+      }[];
       stopFrames: boolean;
     };
     target.learningFrames = [];
     target.stopFrames = false;
-    const sample = () => {
+    const sample = (time: number) => {
       const reading = document.querySelector('.neu-learning-reading');
       const prompt = document.querySelector('.neu-learning-prompt');
       if (reading && prompt)
         target.learningFrames.push({
+          time,
           top: prompt.getBoundingClientRect().top,
+          bottom: (
+            reading.closest('.neu-learning-card')!.querySelector('.neu-learning-surface') ??
+            reading.closest('.neu-learning-card')!
+          ).getBoundingClientRect().bottom,
           text: reading.textContent ?? '',
           answer: !!reading.querySelector('.neu-learning-answer, .neu-answer-focused'),
         });
       if (!target.stopFrames) requestAnimationFrame(sample);
     };
-    sample();
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame((time) => {
+        sample(time);
+        resolve();
+      }),
+    );
   });
 }
 async function finishLearningFrames(page: Page) {
   return page.evaluate(async () => {
     await new Promise((resolve) => setTimeout(resolve, 450));
     const target = window as unknown as {
-      learningFrames: { top: number; text: string; answer: boolean }[];
+      learningFrames: {
+        time: number;
+        top: number;
+        bottom: number;
+        text: string;
+        answer: boolean;
+      }[];
       stopFrames: boolean;
     };
     target.stopFrames = true;

@@ -52,6 +52,7 @@ spacing value off the scale, a raw duration, or a raw token name in a component.
 | `--surface-selected`       | `bg-selected`       | The chosen cell in a group: the tab bar's pill                 |
 | `--surface-floating`       | `bg-floating`       | The translucent tint of a bar or a toast                       |
 | `--surface-floating-solid` | `bg-floating-solid` | The same layer with no blur. The fallback, and the `off` level |
+| `--surface-folder-glass`   | —                   | A denser organizational tint over the shared collection glass  |
 | `--surface-sheet`          | `bg-sheet`          | A sheet or a panel over a scrim, which can be sheerer          |
 | `--surface-nested`         | `bg-nested`         | Glass inside glass, which is opaque by rule                    |
 | `--skeleton`               | `bg-skeleton`       | The shape of content that has not arrived                      |
@@ -631,7 +632,8 @@ populated values, never raw paths.
 Meaningful local containers open on the press: menus, Grammar, field/scope pickers and
 confirmation dialogs do not wait for network work. Preserve known content during reconciliation and
 load only unresolved content in place. Learning-card contents and answer/grade regions use the short
-`neu-reveal` motion; the card surface stays fixed. Existing press, switch, dialog and progress motion
+`neu-reveal` motion; the session frame stays anchored while a typed reveal expands its reading surface.
+Existing press, switch, dialog and progress motion
 remain authoritative. Pointer-following drag/swipe has no easing behind the finger. Reduced motion
 collapses animation through the existing global preference contract.
 
@@ -664,9 +666,13 @@ Active Study and Practice own their exit and bottom actions; global navigation i
 `LearningCard` reserves a stable reading area with internal overflow. The prompt and target answer use
 `--type-learning-prompt` and `--type-learning-answer` (36–56px, platform UI font, primary contrast).
 Reveal moves the same prompt upward over 340ms while the divider draws and the answer enters.
-Its starting position is refreshed when the unrevealed reading area changes for the
-application-owned keyboard-ready composition.
-Animations are cancellable and reduced motion goes directly to the final composition.
+Submission captures the displayed prompt and surface before blur, then commits feedback, reveal
+and the end of keyboard-ready composition together. The final reading layout settles once; a separate
+visual surface expands with scaleY and a bounded clipping mask while the prompt follows its measured
+transform. This avoids height animation and repeated reading-layout work. Panels and cards glass uses
+the stationary shell backdrop, with its existing tint, rim and device effect limits. Native keyboard-close
+samples do not recompose the revealed layout. There is no idle frame polling or retargeting on unrelated
+renders. Interrupted encounters cancel their animations; reduced motion goes directly to the final composition. Advancement and Undo never retain another encounter's content.
 
 The response field belongs inside this learning surface. Active Study and Practice stay fixed to the
 layout viewport and do not subscribe to visual-viewport measurements. Before native focus, tapping the
@@ -715,18 +721,20 @@ never exposes a hidden target outside Listening and never blocks Reveal. Complet
 counts for 340ms without gating controls; reduced motion starts at the final value. An interrupted
 counter continues from its displayed value rather than restarting at zero.
 
-Library Folders retain solid, subtly outlined 18px surfaces and a 96px minimum row height. Leaf Decks
+Library Folders retain substantial, subtly outlined 18px surfaces and a 96px minimum row height. Leaf Decks
 use compact 72px rows with 12px corners and regular titles. Folders use a filled icon shell and semibold
 title; their disclosure chevron sits to the left of the icon. The title opens the collection; every row retains its
 drag grip and action menu. Titles and concise Deck/Note counts wrap naturally. Due/new Card detail is
 available in the action menu, rather than repeated on every row.
 
 Under Panels and cards glass, Decks use translucent floating tint and a glass rim over one stationary
-blurred canvas plane shared by the Library. Folders remain solid. The plane also backs the gaps between
+blurred canvas plane shared by the Library. Folders share that plane with a denser translucent tint
+and a restrained upper structural edge, preserving their filled icon shell and semibold hierarchy.
+The plane also backs the gaps between
 rows; individual rows do not blur moving content independently. This deliberate rendering trade-off
 avoids per-row compositing: ten visible independent filters measured 31.3 fps at 4× CPU slowdown;
 the shared plane measured 59.0 fps for 500 Decks under the unchanged 55 fps budget. Default Panels only
-and glass-off retain opaque Decks. Device effect limits still control the shared blur and saturation.
+and glass-off retain opaque collection surfaces. Device effect limits still control the shared blur and saturation.
 
 Destination and Study scope pickers reuse these identities on compact 56px surfaces with indentation
 and a quiet tree guide. Destination selection remains single-choice; Study scope retains independent
@@ -735,9 +743,11 @@ ordinary nested rows rely on their visible hierarchy.
 
 Labelled inline disclosures use a full-width 44px target with a trailing chevron. Content remains
 mounted to preserve local choices, becomes inert and hidden to assistive technology when closed, and
-enters/exits with tokenized opacity and measured height. This bounded inline-layout exception keeps
-surrounding content moving continuously; interrupted transitions restart from the displayed height.
-Content changes during opening retarget the endpoint. Reduced motion changes visibility immediately.
+enters/exits with native CSS opacity and height transitions. One persistent size observer updates
+the natural endpoint; unrelated renders do not cancel motion. This bounded inline-layout exception
+keeps surrounding content moving continuously and reverses from the displayed height. Content
+changes during opening retarget the endpoint. An 8px horizontal gutter protects field focus halos
+during motion; settled open content permits visible overflow. Reduced motion changes visibility immediately.
 Note Card previews use this pattern; a type conversion that removes Cards keeps the preview open.
 
 Listening reveals replace the instruction and large playback prompt with an answer-focused group:
@@ -776,3 +786,32 @@ to two, Practice reads from two to one, and Note reads from two to one. First re
 one second (980ms baseline, 991ms refinement): these cache/parallelism improvements do not remove
 first-load transport or server latency.
 These are controlled browser observations, not physical-iPhone production timings.
+
+The final polish probe compares merged PR #39 with three matched phone Chromium trials, 250ms API
+delay and a 100ms cold Note-list module delay. First Study readiness fell from 944–962ms to 441–474ms;
+first Deck entry fell from 650–856ms to 342–358ms. Deck readiness requires its own heading and Note,
+rather than accepting a row from the previous Library screen. First Library/Settings entry fell
+from 362–379ms to 72–105ms. Language, mode and time control feedback remains 14–18ms; new
+authoritative configurations still require their transport (323–341ms, essentially unchanged in
+this fixture). Card display makes no
+planning request. Compatible confirmed configurations remain usable while a superseded request is held.
+
+Actual guarded non-production database routes, with fixture authentication and real RLS, reduced
+warm planning from 1,027–1,229ms to 588–620ms and SQL statements from 24 to 9. Planning computation
+was 21–27ms before and 22–28ms after; database round trips were the dominant measured cost. This
+does not measure production authentication or infrastructure. Public production health probes observed
+3.52s first response and 199–206ms warm responses; they cannot establish Study readiness latency.
+
+Temporal tests now measure the whole card boundary as well as the prompt, with keyboard closure
+delayed by 250ms. The PR #39 boundary jumped 245–288px between samples; the revised motion follows
+an elapsed-time bounded trajectory with intermediate positions in Chromium and WebKit. The geometry
+assertions use elapsed frame time, rather than a fixed pixel delta that confuses continuous travel
+over a long sampled frame with a discrete jump. In full-glass phone Chromium at 4× CPU slowdown,
+four final reveal profiles sampled no frame above 34ms, with eight layout passes and 11–20ms total
+layout work per sequence (the intermediate height-animation implementation needed about 26 passes).
+Windows WebKit full glass still sampled 107–119ms longest frames, and desktop full-glass Chromium
+sampled 50–67ms longest frames. Geometry passes do not establish smooth compositing on those runs.
+Repeated disclosure profiles reached 126ms on Windows WebKit and 83ms on desktop, while phone
+Chromium sampled 16.8ms. This rendering limitation and native iPhone keyboard/compositor acceptance
+remain explicit. Mixed 500 Folder/Deck rows
+held 59.0–59.3fps using one shared backdrop under the unchanged enforced 55fps budget.
