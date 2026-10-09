@@ -586,7 +586,8 @@ the intended behavior; fix the test when it encodes obsolete behavior. A mocked 
 the tested renderer and interaction, not that a user can enable that mode. A test claiming a full user
 journey must use a state the product can create and exercise the relevant controls.
 
-The `Performance benchmark` workflow runs weekly, on relevant main changes, and manually. Its hosted
+The `Performance benchmark` workflow runs manually via `workflow_dispatch` only; it is informational
+and is not a required release check. Automatic main-push and weekly triggers are disabled. Its hosted
 5,000-note and 500-row results report measured FPS and the 55 fps comparison in the job summary and
 emit a warning on a miss; an infrastructure or structural test failure still fails the workflow. To enforce the threshold in a
 controlled performance task, set `PERFORMANCE_BENCHMARK=true` and
@@ -820,6 +821,7 @@ layout work per sequence (the intermediate height-animation implementation neede
 Windows WebKit full glass still sampled 107–119ms longest frames, and desktop full-glass Chromium
 sampled 50–67ms longest frames. Geometry passes do not establish smooth compositing on those runs.
 Repeated disclosure profiles reached 126ms on Windows WebKit and 83ms on desktop, while phone
-Chromium sampled 16.8ms. This rendering limitation and native iPhone keyboard/compositor acceptance
-remain explicit. Mixed 500 Folder/Deck rows
+Chromium sampled 16.8ms. Those platform-specific rendering limitations remain explicit. Final
+physical-iPhone acceptance after merged PR #41 confirmed the native keyboard and interaction flows;
+it does not erase the measured Windows WebKit/desktop limitations. Mixed 500 Folder/Deck rows
 held 59.0–59.3fps using one shared backdrop under the unchanged enforced 55fps budget.

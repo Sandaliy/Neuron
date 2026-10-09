@@ -2,10 +2,10 @@
 
 Spaced repetition that schedules your time, not your card count.
 
-**Status:** early development. The learning core, API, authentication, application shell, and most note
-management/import work exist. Daily study and offline synchronization are not built yet.
-
-<!-- Screenshot of the review screen goes here once it exists. -->
+**Status:** Phase 7 is complete through merged PR #41, with final physical-iPhone acceptance. Collection
+authoring/import, Daily Study and persistent Practice are shipped. Phase 8 Offline Collection and
+Synchronization is the next milestone for planning; offline collection/sync is not implemented yet.
+See [current state](docs/STATE.md) and [roadmap](docs/ROADMAP.md).
 
 ## Why
 
@@ -41,10 +41,11 @@ The scenarios behind those numbers, including the one where the difference is sm
 
 - FSRS-6 scheduling in a pure deterministic package
 - Time budgets, load forecasting, new-card admission, and backlog recovery
-- Nested decks, notes, independent card directions, and immutable review history
+- Organizational Folders, leaf Decks, Notes, independent Card directions and immutable review history
+- Language-scoped Daily Study with Recognition, Recall, Typing and Listening; persistent non-SRS Practice
 - Email/password accounts, recovery codes, optional TOTP, RLS, and restricted database roles
-- Mobile-first React interface with English and Russian, light/dark themes, and adaptive glass
-- Note authoring and chunked import work in progress
+- Mobile-first React interface with English UI, retained English/Russian catalogues, light/dark themes and adaptive glass
+- Note authoring, retry-safe chunked imports and operation-scoped collection recovery
 
 ## Stack
 
@@ -86,6 +87,13 @@ pnpm lint         run eslint and the dependency direction check
 pnpm test:core    run the scheduler tests in watch mode
 pnpm format       format the repository
 ```
+
+## Repository presentation
+
+To hide the Deployments section, the repository owner can open the gear beside **About** on the
+repository Code page, clear **Deployments** under **Include in the home page**, and save. This changes
+homepage presentation only. Preserve deployment history, environments, Vercel aliases/previews and the
+GitHub integration so rollback and required deployment checks remain available.
 
 ## Licence
 
