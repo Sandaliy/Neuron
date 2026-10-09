@@ -299,7 +299,7 @@ test('Study rewinds the full local session while answers and compensations seria
   const beforeExit = { planReads, deckReads };
   await page.getByRole('button', { name: 'Finish', exact: true }).click();
   await expect.poll(() => planReads).toBeGreaterThan(beforeExit.planReads);
-  await expect.poll(() => deckReads).toBeGreaterThan(beforeExit.deckReads);
+  expect(deckReads).toBe(beforeExit.deckReads);
   await page.getByRole('button', { name: 'Study', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Undo last answer' })).toHaveCount(0);
 });

@@ -11,6 +11,7 @@ import { Failure, NotFound } from './app/failure';
 import { PreferencesSync } from './app/preferences-sync';
 import { SessionGate } from './app/session-gate';
 import { Shell } from './app/shell';
+import { StudyDraftProvider } from './features/today/study-draft';
 import { resetInteractions } from './lib/interactions';
 
 /*
@@ -149,8 +150,10 @@ const appRoute = createRoute({
   id: 'app',
   component: () => (
     <SessionGate>
-      <PreferencesSync />
-      <Shell />
+      <StudyDraftProvider>
+        <PreferencesSync />
+        <Shell />
+      </StudyDraftProvider>
     </SessionGate>
   ),
 });
@@ -159,6 +162,22 @@ const todayRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/',
   staticData: { navTab: '/' },
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { learning?: 'study'; followup?: 'practice'; practiceDeck?: string } =>
+    search['learning'] === 'study'
+      ? {
+          learning: 'study',
+          ...(search['followup'] === 'practice'
+            ? {
+                followup: 'practice' as const,
+                ...(typeof search['practiceDeck'] === 'string'
+                  ? { practiceDeck: search['practiceDeck'] }
+                  : {}),
+              }
+            : {}),
+        }
+      : {},
   component: TodayScreen,
 });
 
@@ -189,15 +208,26 @@ const noteListRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/notes',
   staticData: { navTab: '/library' },
-  validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
-    typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): {
+    deckId?: string;
+    learning?: 'practice';
+    entry?: 'resume' | 'setup';
+  } => ({
+    ...(typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {}),
+    ...(search['learning'] === 'practice' ? { learning: 'practice' as const } : {}),
+    ...(search['entry'] === 'setup' || search['entry'] === 'resume'
+      ? { entry: search['entry'] }
+      : {}),
+  }),
   component: NoteListRoute,
 });
 
 function NoteListRoute() {
   const { deckId } = useSearch({ from: noteListRoute.id });
 
-  return <NoteListScreen {...(deckId === undefined ? {} : { deckId })} />;
+  return <NoteListScreen key={deckId ?? 'all'} {...(deckId === undefined ? {} : { deckId })} />;
 }
 
 const newNoteRoute = createRoute({
@@ -225,7 +255,7 @@ const noteRoute = createRoute({
 function NoteRoute() {
   const { noteId } = noteRoute.useParams();
 
-  return <NoteEditorScreen noteId={noteId} />;
+  return <NoteEditorScreen key={noteId} noteId={noteId} />;
 }
 
 /** Bringing a word list in. Which deck it lands in is in the address. */

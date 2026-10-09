@@ -27,48 +27,77 @@ export function Disclosure({
   const id = useId();
   const content = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
+  const layout = useRef({ open, height: 0 });
   const running = useRef<Animation | undefined>(undefined);
+  const expanded = useRef(open);
   useLayoutEffect(() => () => running.current?.cancel(), []);
   useLayoutEffect(() => {
+    expanded.current = open;
     const element = content.current;
     if (!element) return;
     if (!mounted.current) {
       mounted.current = true;
       element.hidden = !open;
+      layout.current = {
+        open,
+        height: element.firstElementChild?.getBoundingClientRect().height ?? 0,
+      };
       return;
     }
-    const interrupted = running.current && !element.hidden ? getComputedStyle(element) : undefined;
-    const opacity = interrupted?.opacity;
-    const transform = interrupted?.transform;
-    running.current?.cancel();
-    running.current = undefined;
-    if (motionIsReduced()) {
-      element.hidden = !open;
-      return;
-    }
-    if (open) element.hidden = false;
-    const styles = getComputedStyle(document.documentElement);
-    const animation = element.animate(
-      open
-        ? [
-            { opacity: opacity ?? 0, transform: transform ?? 'translateY(-4px)' },
-            { opacity: 1, transform: 'translateY(0)' },
-          ]
-        : [
-            { opacity: opacity ?? 1, transform: transform ?? 'none' },
-            { opacity: 0, transform: transform ?? 'none' },
-          ],
-      {
-        duration: cssDuration(styles.getPropertyValue(open ? '--dur-2' : '--dur-1'), 160),
-        easing: styles.getPropertyValue('--ease-enter').trim(),
-      },
-    );
-    running.current = animation;
-    animation.onfinish = () => {
-      element.hidden = !open;
+    function transition(fromHeight?: number) {
+      if (!element) return;
+      const height = fromHeight ?? (element.hidden ? 0 : element.getBoundingClientRect().height);
+      const opacity = element.hidden ? '0' : getComputedStyle(element).opacity;
+      running.current?.cancel();
       running.current = undefined;
-    };
-  }, [open]);
+      const opening = expanded.current;
+      if (motionIsReduced()) {
+        element.hidden = !opening;
+        return;
+      }
+      element.hidden = false;
+      const target = opening ? (element.firstElementChild?.getBoundingClientRect().height ?? 0) : 0;
+      const styles = getComputedStyle(document.documentElement);
+      const animation = element.animate(
+        [
+          { height: `${height}px`, opacity },
+          { height: `${target}px`, opacity: opening ? 1 : 0 },
+        ],
+        {
+          duration: cssDuration(styles.getPropertyValue('--dur-3'), 240),
+          easing: styles.getPropertyValue('--ease-inout').trim(),
+          fill: 'both',
+        },
+      );
+      running.current = animation;
+      animation.onfinish = () => {
+        element.hidden = !opening;
+        running.current = undefined;
+        animation.cancel();
+      };
+    }
+    const naturalHeight = element.firstElementChild?.getBoundingClientRect().height ?? 0;
+    if (
+      open !== layout.current.open ||
+      (open && Math.abs(naturalHeight - layout.current.height) > 0.5)
+    )
+      transition(
+        open === layout.current.open && !running.current ? layout.current.height : undefined,
+      );
+    // Plan/voice responses can change open content after the entrance finishes.
+    // Retarget before paint from its previous height, or its in-flight position.
+    let contentHeight = element.firstElementChild?.getBoundingClientRect().height ?? 0;
+    layout.current = { open, height: contentHeight };
+    const observer = new ResizeObserver(() => {
+      const nextHeight = element.firstElementChild?.getBoundingClientRect().height ?? 0;
+      if (expanded.current && Math.abs(nextHeight - contentHeight) > 0.5)
+        transition(running.current ? undefined : contentHeight);
+      contentHeight = nextHeight;
+      layout.current = { open: expanded.current, height: nextHeight };
+    });
+    if (element.firstElementChild) observer.observe(element.firstElementChild);
+    return () => observer.disconnect();
+  }, [open, children]);
   return (
     <div className={`flex min-w-0 flex-col ${className}`}>
       <button
@@ -89,7 +118,7 @@ export function Disclosure({
           className={`shrink-0 text-secondary transition-transform dur-reveal ${open ? 'rotate-180' : ''}`}
         />
       </button>
-      <div id={id} ref={content} inert={!open} aria-hidden={!open}>
+      <div id={id} ref={content} inert={!open} aria-hidden={!open} className="overflow-hidden">
         <div className="pt-12">{children}</div>
       </div>
     </div>

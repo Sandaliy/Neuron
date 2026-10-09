@@ -82,6 +82,196 @@ const plan = (card: typeof base) => ({
   },
 });
 
+test('Practice after Study owns history through the Deck chooser and returns to completion', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  const otherDeck = { ...deck, id: id(30), name: 'Other words' };
+  const second = {
+    ...note,
+    id: id(31),
+    deckId: otherDeck.id,
+    fields: { term: 'Baum', translation: 'tree' },
+  };
+  const cards = [base, { ...base, id: id(32), noteId: second.id, deckId: otherDeck.id }];
+  await useFixtures(page, { decks: [deck, otherDeck], notes: [note, second] });
+  await page.route('**/api/study/session', (route) =>
+    route.fulfill({
+      json: { ...plan(base), cards, notes: [note, second], availableCount: 2, newCount: 2 },
+    }),
+  );
+  await page.route('**/api/reviews', (route) =>
+    route.fulfill({
+      json: { card: cards.find((card) => card.id === route.request().postDataJSON().cardId) },
+    }),
+  );
+  await page.route('**/api/decks/*/practice', (route) =>
+    route.fulfill({ json: { run: null, version: 0 } }),
+  );
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Study', exact: true }).click();
+  for (let index = 0; index < 2; index++) {
+    await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+    await page.getByRole('button', { name: /^Good / }).click();
+  }
+  await expect(page.getByRole('heading', { name: 'Session complete', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Words', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('button', { name: 'Other words', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Session complete', exact: true })).toBeVisible();
+  await page.goForward();
+  await page.getByRole('button', { name: 'Words', exact: true }).click();
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Session complete', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Finish', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+});
+
+for (const screen of ['Study', 'Practice'] as const)
+  for (const response of ['typing', 'listening'] as const)
+    test(`${screen} ${response} reveal and Undo remain continuous across keyboard closure`, async ({
+      page,
+    }, info) => {
+      await usePreferences(page, { locale: 'en', theme: 'dark' });
+      await useSpeech(page);
+      const second = { ...note, id: id(20), fields: { term: 'Baum', translation: 'tree' } };
+      const direction = response === 'typing' ? 'production' : 'listening';
+      const firstCard = { ...base, direction };
+      await useFixtures(page, { decks: [deck], notes: [note, second] });
+      if (screen === 'Study') {
+        await page.route('**/api/study/session', (route) =>
+          route.fulfill({
+            json: {
+              ...plan(base),
+              cards: [firstCard, { ...firstCard, id: id(21), noteId: second.id }],
+              notes: [note, second],
+              availableCount: 2,
+              newCount: 2,
+            },
+          }),
+        );
+        await page.route('**/api/reviews', (route) => route.fulfill({ json: { card: firstCard } }));
+        await page.route('**/api/reviews/undo', (route) =>
+          route.fulfill({ json: { card: firstCard } }),
+        );
+        await page.goto('/');
+        await page.getByRole('button', { name: 'Study', exact: true }).click();
+      } else {
+        let run: PracticeRun | null = null;
+        let version = 0;
+        await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+          if (route.request().method() === 'POST') {
+            run = advancePractice(run, route.request().postDataJSON(), [note, second]);
+            version++;
+          }
+          return route.fulfill({ json: { run, version } });
+        });
+        await page.goto(`/notes?deckId=${deck.id}`);
+        await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+        await page.getByRole('combobox', { name: 'Response mode' }).selectOption(response);
+        await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+      }
+      await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+      const input = page.getByRole('textbox', { name: 'Type your answer', exact: true });
+      await input.fill('Sorgfalt');
+      await page.evaluate(() => {
+        const full = window.innerHeight;
+        Object.defineProperty(window.visualViewport!, 'height', {
+          configurable: true,
+          get: () => full - 270,
+        });
+        window.visualViewport!.dispatchEvent(new Event('resize'));
+      });
+      await beginLearningFrames(page);
+      await input.press('Enter');
+      await page.evaluate(() => {
+        Object.defineProperty(window.visualViewport!, 'height', {
+          configurable: true,
+          get: () => window.innerHeight,
+        });
+        window.visualViewport!.dispatchEvent(new Event('resize'));
+      });
+      const reveal = await finishLearningFrames(page);
+      await info.attach('reveal-frames', {
+        body: JSON.stringify(reveal),
+        contentType: 'application/json',
+      });
+      expect(
+        Math.max(
+          ...reveal.slice(1).map((frame, index) => Math.abs(frame.top - reveal[index]!.top)),
+        ),
+      ).toBeLessThan(40);
+      expect(
+        reveal.every((frame) => !frame.text.includes('Baum') && !frame.text.includes('tree')),
+      ).toBe(true);
+      if (response === 'listening')
+        await expect(page.locator('.neu-learning-reading')).not.toContainText(
+          'Listen, then type the word',
+        );
+      await beginLearningFrames(page);
+      await page
+        .getByRole('button', {
+          name: screen === 'Study' ? /^Good / : 'Known',
+          exact: screen !== 'Study',
+        })
+        .click();
+      const advance = await finishLearningFrames(page);
+      expect(
+        advance
+          .filter((frame) =>
+            frame.text.includes(response === 'listening' ? 'Listen, then' : 'tree'),
+          )
+          .every((frame) => !frame.text.includes('Sorgfalt') && !frame.answer),
+      ).toBe(true);
+      await beginLearningFrames(page);
+      await page.getByRole('button', { name: 'Undo last answer', exact: true }).click();
+      const undoFrames = await finishLearningFrames(page);
+      await expect(page.locator('.neu-learning-reading')).not.toContainText('Baum');
+      await expect(page.locator('.neu-spelling')).toHaveCount(0);
+      await info.attach('learning-frames', {
+        body: JSON.stringify({ reveal, advance, undoFrames }),
+        contentType: 'application/json',
+      });
+    });
+
+async function beginLearningFrames(page: Page) {
+  await page.evaluate(() => {
+    const target = window as unknown as {
+      learningFrames: { top: number; text: string; answer: boolean }[];
+      stopFrames: boolean;
+    };
+    target.learningFrames = [];
+    target.stopFrames = false;
+    const sample = () => {
+      const reading = document.querySelector('.neu-learning-reading');
+      const prompt = document.querySelector('.neu-learning-prompt');
+      if (reading && prompt)
+        target.learningFrames.push({
+          top: prompt.getBoundingClientRect().top,
+          text: reading.textContent ?? '',
+          answer: !!reading.querySelector('.neu-learning-answer, .neu-answer-focused'),
+        });
+      if (!target.stopFrames) requestAnimationFrame(sample);
+    };
+    sample();
+  });
+}
+async function finishLearningFrames(page: Page) {
+  return page.evaluate(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    const target = window as unknown as {
+      learningFrames: { top: number; text: string; answer: boolean }[];
+      stopFrames: boolean;
+    };
+    target.stopFrames = true;
+    return target.learningFrames;
+  });
+}
+
 test('Today hides obsolete Ready state until a confirmed answer is reconciled', async ({
   page,
 }) => {

@@ -178,6 +178,10 @@ for (const theme of ['dark', 'light'] as const)
     await page.getByRole('button', { name: /^Verben mit Dativ/ }).click();
     await expect(page.getByRole('heading', { name: 'Verben mit Dativ' })).toBeVisible();
     await capture('deck');
+    await page.getByRole('button', { name: 'Select notes', exact: true }).click();
+    await page.locator('[data-row]').first().click();
+    await capture('selection');
+    await page.getByRole('button', { name: 'Exit selection', exact: true }).click();
     await page.getByRole('button', { name: 'Practice setup', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Practice setup' })).toBeVisible();
     await capture('practice-setup');
@@ -189,6 +193,9 @@ for (const theme of ['dark', 'light'] as const)
     await page.goto('/import');
     await expect(page.getByRole('heading', { name: 'Import', exact: true })).toBeVisible();
     await capture('import');
+    await page.getByRole('button', { name: 'Example and its cards', exact: true }).click();
+    await expect(page.getByRole('table')).toBeVisible();
+    await capture('import-example');
     await page.getByRole('button', { name: 'Import into', exact: true }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await capture('destination');

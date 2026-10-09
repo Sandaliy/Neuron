@@ -64,7 +64,11 @@ export interface ServerParts {
  */
 export function requireSession(parts: ServerParts): MiddlewareHandler<RequestBindings> {
   return async (context, next) => {
+    const started = performance.now();
     const session = await parts.auth.api.getSession({ headers: context.req.raw.headers });
+    context.header('Server-Timing', `session;dur=${(performance.now() - started).toFixed(1)}`, {
+      append: true,
+    });
 
     if (!session) {
       throw new ApiError('not_authenticated');

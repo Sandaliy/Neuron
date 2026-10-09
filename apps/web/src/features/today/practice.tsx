@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter, useRouterState } from '@tanstack/react-router';
 import { SlidersHorizontal, Undo2, ChevronDown } from 'lucide-react';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { flushSync } from 'react-dom';
 
 import {
   PRACTICE_FIELDS,
@@ -22,7 +24,8 @@ import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { findDeck, settingsFor, useDeckTree } from '../../lib/decks';
-import { practiceStore } from '../../lib/practice';
+import { NOTE_KEY, noteQueryString } from '../../lib/notes';
+import { practiceQuery, practiceStore } from '../../lib/practice';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
 import { Checkbox } from '../../ui/checkbox';
@@ -48,19 +51,58 @@ export function Practice({
   const t = useTranslate();
   const decks = useDeckTree();
   const ids = [...new Set(notes.map((note) => note.deckId))];
-  const [selected, setSelected] = useState(ids.length === 1 ? ids[0] : undefined);
-  if (selected) return <DeckPractice deckId={selected} onFinish={onFinish} />;
+  const router = useRouter();
+  const location = useRouterState({ select: (state) => state.location });
+  const choosing = useRef(false);
+  useEffect(() => {
+    choosing.current = false;
+  }, [location.href]);
+  const explicit = (location.search as { practiceDeck?: string }).practiceDeck;
+  const selected = explicit ?? (ids.length === 1 ? ids[0] : undefined);
+  function exitDeck() {
+    if (!explicit || ids.length === 1) {
+      onFinish();
+      return;
+    }
+    const search = { ...location.search } as Record<string, unknown>;
+    delete search['practiceDeck'];
+    const origin = router.buildLocation({ to: '/', search }).href;
+    if (location.state.practiceOrigin === origin) router.history.back();
+    else void router.navigate({ to: '/', search, replace: true });
+  }
+  if (selected) return <DeckPractice key={selected} deckId={selected} onFinish={exitDeck} />;
   return (
     <section className="flex flex-col gap-16">
       <h1 className="text-24">{t('practice.title')}</h1>
       {ids.map((id) => (
-        <Button key={id} onClick={() => setSelected(id)}>
+        <Button
+          key={id}
+          onClick={() => {
+            if (choosing.current) return;
+            choosing.current = true;
+            void router
+              .navigate({
+                to: '/',
+                search: { learning: 'study', followup: 'practice', practiceDeck: id },
+                state: (state) => ({ ...state, practiceOrigin: location.href }),
+                resetScroll: false,
+              })
+              .catch(() => {
+                choosing.current = false;
+              });
+          }}
+        >
           {findDeck(decks.data ?? [], id)?.name ?? t('practice.title')}
         </Button>
       ))}
       <Button onClick={onFinish}>{t('common.back')}</Button>
     </section>
   );
+}
+declare module '@tanstack/react-router' {
+  interface HistoryState {
+    practiceOrigin?: string;
+  }
 }
 export function DeckPractice({
   deckId,
@@ -73,9 +115,22 @@ export function DeckPractice({
 }) {
   const t = useTranslate();
   const account = useAccount();
+  const summary = useQuery(practiceQuery(deckId));
+  const client = useQueryClient();
+  const listKey = [NOTE_KEY, 'list', noteQueryString({ deckId, sort: 'created' })];
+  const listState = client.getQueryState<{ pages: { items: Note[]; nextCursor?: string }[] }>(
+    listKey,
+  );
+  const complete =
+    !listState?.isInvalidated && listState?.data?.pages.at(-1)?.nextCursor === undefined
+      ? listState?.data?.pages.flatMap((page) => page.items)
+      : undefined;
   const pool = useQuery({
     queryKey: ['practice-notes', deckId],
-    staleTime: 0,
+    staleTime: 15_000,
+    ...(complete && listState
+      ? { initialData: complete, initialDataUpdatedAt: listState.dataUpdatedAt }
+      : {}),
     queryFn: async ({ signal }) => {
       const notes: Note[] = [];
       let cursor: string | undefined;
@@ -90,23 +145,27 @@ export function DeckPractice({
       return notes;
     },
   });
-  if (pool.data && account.data)
+  if (pool.data && account.data && summary.data && !summary.isPlaceholderData)
     return (
       <PersistentPractice
         entry={entry}
         accountId={account.data.id}
         deckId={deckId}
         notes={pool.data}
+        initial={summary.data}
         onFinish={onFinish}
       />
     );
   return (
     <section className="flex flex-col gap-16">
-      {pool.error ? (
+      {pool.error || summary.error ? (
         <ErrorState
-          message={t(describe(pool.error).key)}
+          message={t(describe(pool.error ?? summary.error).key)}
           retryLabel={t('common.retry')}
-          onRetry={() => void pool.refetch()}
+          onRetry={() => {
+            void pool.refetch();
+            void summary.refetch();
+          }}
         />
       ) : (
         <SkeletonRows rows={3} />
@@ -121,7 +180,9 @@ function PersistentPractice({
   notes,
   onFinish,
   entry,
+  initial,
 }: {
+  readonly initial: { run: PracticeRun | null; version: number };
   readonly entry?: 'resume' | 'setup' | undefined;
   readonly accountId: string;
   readonly deckId: string;
@@ -129,10 +190,17 @@ function PersistentPractice({
   readonly onFinish: () => void;
 }) {
   const t = useTranslate();
-  const store = useMemo(() => practiceStore(accountId, deckId, notes), [accountId, deckId, notes]);
+  const client = useQueryClient();
+  const store = useMemo(
+    () =>
+      practiceStore(accountId, deckId, notes, initial, (value) =>
+        client.setQueryData(practiceQuery(deckId).queryKey, value),
+      ),
+    [accountId, deckId, notes, initial, client],
+  );
   useEffect(() => {
-    store.refresh(notes);
-  }, [store, notes]);
+    store.refresh(notes, initial);
+  }, [store, notes, initial]);
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const fields = PRACTICE_FIELDS.filter((key) =>
     notes.some((note) => practiceValue(note.fields, key) !== undefined),
@@ -187,6 +255,16 @@ function PersistentPractice({
     practiceFields(side)
       .map((field) => t(practiceFieldLabel(field)))
       .join(' + ');
+  function resetEncounter() {
+    // External-store notifications are synchronous. Clear the old reveal before
+    // publishing a different Note so it cannot inherit the previous answer face.
+    flushSync(() => {
+      setTyped('');
+      setInteraction((value) => value + 1);
+      setTypingReady(false);
+      setRevealed(false);
+    });
+  }
   function openSettings() {
     if (run) {
       setFront(run.front);
@@ -197,6 +275,7 @@ function PersistentPractice({
   }
   function startRun() {
     setHistory([]);
+    resetEncounter();
     store.act({ kind: 'start', front, back, response });
     setTyped('');
     setTypingReady(false);
@@ -241,12 +320,9 @@ function PersistentPractice({
                 onClick={() => {
                   const previous = history.at(-1);
                   if (!previous) return;
+                  resetEncounter();
                   store.act({ kind: 'undo', previous });
                   setHistory(history.slice(0, -1));
-                  setTyped('');
-                  setInteraction((value) => value + 1);
-                  setTypingReady(false);
-                  setRevealed(false);
                 }}
               >
                 <Undo2 size={20} strokeWidth={1.5} aria-hidden="true" />
@@ -268,7 +344,6 @@ function PersistentPractice({
             <strong data-numeric="" className="text-15 font-medium text-primary">
               {learning}
             </strong>
-            <span>{t('practice.learning')}</span>
           </div>
           <div
             role="group"
@@ -278,7 +353,6 @@ function PersistentPractice({
             <strong data-numeric="" className="text-15 font-medium text-primary">
               {known}
             </strong>
-            <span>{t('practice.know')}</span>
           </div>
         </div>
       )}
@@ -496,11 +570,8 @@ function PersistentPractice({
                       disabled={!!state.error}
                       onClick={() => {
                         setHistory([...history, run]);
+                        resetEncounter();
                         store.act({ kind: 'answer', noteId: current.id, known: value });
-                        setTyped('');
-                        setInteraction((value) => value + 1);
-                        setTypingReady(false);
-                        setRevealed(false);
                       }}
                     >
                       {t(value ? 'practice.know' : 'practice.learning')}
@@ -676,7 +747,15 @@ function PracticeFace({
         const value = practiceValue(fields, field);
         const text = typeof value === 'boolean' ? t(value ? 'practice.yes' : 'practice.no') : value;
         return (
-          <div key={field} className={index ? 'text-20' : ''}>
+          <div
+            key={field}
+            className={
+              index
+                ? 'text-20' +
+                  (index === 1 && shown[0] === 'term' ? ' border-t border-subtle pt-16' : '')
+                : ''
+            }
+          >
             {index > 0 && (
               <p className="mb-4 text-12 text-secondary">{t(practiceFieldLabel(field))}</p>
             )}

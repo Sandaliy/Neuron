@@ -15,12 +15,18 @@ import {
 } from '@neuron/core';
 import type { SessionQueue, WorkloadCard, Rating } from '@neuron/core';
 import { dailyStudySessionSchema, possibleCards, uuidV7 } from '@neuron/shared';
-import type { Card as StudyCard, DailyStudySession, NoteFields } from '@neuron/shared';
+import type {
+  Card as StudyCard,
+  DailyStudySession,
+  DailyStudySessionRequest,
+  NoteFields,
+} from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { settingsFor, useDeckTree } from '../../lib/decks';
+import { useLearningNavigation } from '../../lib/learning-navigation';
 import { projectConfirmedReview } from '../../lib/review-projection';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
@@ -94,8 +100,10 @@ export function StudyScreen({
   minutes,
   initialPlan,
   display = DEFAULT_CARD_DISPLAY,
+  requestChoices,
 }: {
   readonly display?: CardDisplay;
+  readonly requestChoices?: Partial<Omit<DailyStudySessionRequest, 'minutes'>>;
   readonly initialPlan?: DailyStudySession;
   readonly minutes: string;
   readonly onFinish: () => void;
@@ -128,7 +136,7 @@ export function StudyScreen({
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [morePlanned, setMorePlanned] = useState(false);
   const [nextDue, setNextDue] = useState<string | null>(null);
-  const [practicing, setPracticing] = useState(false);
+  const followup = useLearningNavigation('practice', 'followup');
   const [historyCount, setHistoryCount] = useState(0);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const history = useRef<SessionAnswer[]>([]);
@@ -147,13 +155,15 @@ export function StudyScreen({
   const note = plan?.notes.find((item) => item.id === current?.noteId);
   useBlocker({
     shouldBlockFn: () => {
-      if (pending) {
+      // A native pop can arrive before the hook's effect re-registers. Read the
+      // live transport queue so acknowledgement immediately releases navigation.
+      if (transport.current.length) {
         toast.show(t('study.waitForSave'));
         return true;
       }
       return false;
     },
-    enableBeforeUnload: pending > 0,
+    enableBeforeUnload: () => transport.current.length > 0,
   });
 
   function next() {
@@ -188,7 +198,7 @@ export function StudyScreen({
         dailyStudySessionSchema.parse(
           await request('/study/session', {
             method: 'POST',
-            body: minutes ? { minutes: Number(minutes) } : {},
+            body: { ...requestChoices, ...(minutes ? { minutes: Number(minutes) } : {}) },
           }),
         );
       const supported = result.cards;
@@ -410,8 +420,7 @@ export function StudyScreen({
       : current?.direction === 'production' && face?.back.length === 1
         ? face.back[0]?.value
         : undefined;
-  if (practicing && plan)
-    return <Practice notes={plan.notes} onFinish={() => setPracticing(false)} />;
+  if (followup.active && plan) return <Practice notes={plan.notes} onFinish={followup.exit} />;
   const completed = Object.values(answeredCards).filter((count) => count > 0).length;
   const total = plan?.cards.length ?? 0;
   return (
@@ -623,7 +632,7 @@ export function StudyScreen({
               onClick={() => {
                 history.current = [];
                 setHistoryCount(0);
-                setPracticing(true);
+                followup.open();
               }}
             >
               {t('practice.title')}

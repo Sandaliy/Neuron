@@ -26,7 +26,7 @@ export const ACCOUNT_KEY = ['account'] as const;
 export function accountQuery() {
   return {
     queryKey: ACCOUNT_KEY,
-    queryFn: () => request<Me>('/account'),
+    queryFn: ({ signal }: { signal: AbortSignal }) => request<Me>('/account', { signal }),
     // A failure here is a signed out person or a server that is down. Both are
     // handled by the gate above the screens, and neither is helped by retrying.
     retry: false,

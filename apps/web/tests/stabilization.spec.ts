@@ -239,6 +239,8 @@ test('grammar Practice composes selected fields and resumes without schedule wri
   await expect.poll(() => run?.statuses[words[0]!.id]).toBe('known');
   await waitForPracticeSave(page);
   await page.reload();
+  await expect(page.getByText('tree', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
   await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
   await expect(page.getByText('tree', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
@@ -357,7 +359,11 @@ test('Today scopes are temporary and distinguish no decks from caught up', async
   await expect(page.getByText('Answer 2', { exact: true })).toBeVisible();
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('study-answer.png') });
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
-  await expect.poll(() => bodies.at(-1)?.deckIds).toBeUndefined();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Study setup', exact: true }).click();
+  await page.getByRole('button', { name: 'Practice deck', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: /Practice deck/ })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: /Paused deck/ })).not.toBeChecked();
 });
 
 test('undo is local during a delayed save and regrade follows its compensation', async ({
@@ -568,6 +574,8 @@ test('practice persists rounds across reload without schedule writes', async ({
     .toBe(true);
   await waitForPracticeSave(page);
   await page.reload();
+  await expect(page.getByText('Practice complete', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
   await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
   await expect(page.getByText('Practice complete', { exact: true })).toBeVisible();
   await expect(page.getByRole('img').getByText('100%', { exact: true })).toBeVisible();

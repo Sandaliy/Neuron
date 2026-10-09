@@ -95,7 +95,7 @@ export function LibraryScreen() {
 
   return (
     <CollectionDrag tree={tree} actions={actions}>
-      <section data-screen="" className="flex flex-col gap-20">
+      <section data-screen="" data-library-view="" className="flex flex-col gap-20">
         <CollectionHeader
           title={folder?.name ?? t('library.title')}
           actions={
@@ -327,7 +327,7 @@ function Deck({
             </span>
           }
           standalone={false}
-          className={`${collectionSurface} min-h-96 gap-4 px-8 py-12`}
+          className={`${collectionSurface(deck.kind)} ${deck.kind === 'folder' ? 'min-h-96 py-12' : 'min-h-72 py-8'} gap-4 px-8`}
           subtitle={
             <span className="block whitespace-normal text-13 leading-read text-secondary">
               {[
@@ -356,12 +356,12 @@ function Deck({
                     aria-label={t(expanded ? 'library.collapse' : 'library.expand')}
                     aria-describedby={`collection-title-${deck.id}`}
                     aria-expanded={expanded}
-                    className="relative flex size-44 shrink-0 items-center justify-center rounded-12 text-secondary hover:bg-fill-neutral"
+                    className="flex min-h-44 w-56 shrink-0 items-center justify-center gap-4 rounded-12 text-secondary hover:bg-fill-neutral"
                     onClick={() => onToggle(deck.id)}
                   >
                     <ChevronRight
                       size={12}
-                      className={`absolute bottom-0 right-0 transition-transform dur-control ${expanded ? 'rotate-90' : ''}`}
+                      className={`shrink-0 transition-transform dur-control ${expanded ? 'rotate-90' : ''}`}
                       aria-hidden="true"
                     />
                     <CollectionIcon kind="folder" />

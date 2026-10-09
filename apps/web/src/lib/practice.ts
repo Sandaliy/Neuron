@@ -28,17 +28,38 @@ type Action =
   | { kind: 'undo'; previous: PracticeRun }
   | { kind: 'round' };
 const stores = new Map<string, ReturnType<typeof createStore>>();
-export function practiceStore(accountId: string, deckId: string, notes: readonly PracticeNote[]) {
+type ConfirmedPractice = { run: PracticeRun | null; version: number };
+export function practiceQuery(deckId: string) {
+  return {
+    queryKey: ['practice-summary', deckId],
+    queryFn: async ({ signal }: { signal: AbortSignal }) =>
+      practiceResultSchema.parse(await request(`/decks/${deckId}/practice`, { signal })),
+    staleTime: 15_000,
+  };
+}
+export function practiceStore(
+  accountId: string,
+  deckId: string,
+  notes: readonly PracticeNote[],
+  initial?: ConfirmedPractice,
+  onConfirmed?: (value: ConfirmedPractice) => void,
+) {
   const key = `neuron.practice.pending:${accountId}:${deckId}`;
   let store = stores.get(key);
   if (!store) {
-    store = createStore(key, deckId, notes);
+    store = createStore(key, deckId, notes, initial, onConfirmed);
     stores.set(key, store);
   }
   return store;
 }
-function createStore(key: string, deckId: string, notes: readonly PracticeNote[]) {
-  let confirmed: { run: PracticeRun | null; version: number } = { run: null, version: 0 };
+function createStore(
+  key: string,
+  deckId: string,
+  notes: readonly PracticeNote[],
+  initial?: ConfirmedPractice,
+  onConfirmed?: (value: ConfirmedPractice) => void,
+) {
+  let confirmed: ConfirmedPractice = initial ?? { run: null, version: 0 };
   let pending: PracticeCommand[] = [];
   try {
     pending = practiceCommandSchema.array().parse(JSON.parse(storage.read(key) ?? '[]'));
@@ -48,7 +69,7 @@ function createStore(key: string, deckId: string, notes: readonly PracticeNote[]
   let snapshot: Snapshot = {
     undoEpoch: 0,
     run: null,
-    loading: true,
+    loading: initial === undefined,
     saving: false,
     error: undefined,
   };
@@ -80,6 +101,7 @@ function createStore(key: string, deckId: string, notes: readonly PracticeNote[]
           await request(`/decks/${deckId}/practice`, { method: 'POST', body: command }),
         );
         pending = pending.slice(1);
+        onConfirmed?.(confirmed);
         publish();
       }
     } catch (error) {
@@ -88,6 +110,7 @@ function createStore(key: string, deckId: string, notes: readonly PracticeNote[]
         snapshot = { ...snapshot, undoEpoch: snapshot.undoEpoch + 1 };
         try {
           confirmed = practiceResultSchema.parse(await request(`/decks/${deckId}/practice`));
+          onConfirmed?.(confirmed);
         } catch {
           /* Keep the last confirmed state. */
         }
@@ -107,6 +130,7 @@ function createStore(key: string, deckId: string, notes: readonly PracticeNote[]
         snapshot = { ...snapshot, undoEpoch: snapshot.undoEpoch + 1 };
       }
       confirmed = latest;
+      onConfirmed?.(confirmed);
       publish({ loading: false, error: undefined });
     } catch (error) {
       publish({ loading: false, error });
@@ -115,6 +139,9 @@ function createStore(key: string, deckId: string, notes: readonly PracticeNote[]
     }
     if (!snapshot.error) void flush();
   }
+  // Setup reads the first snapshot before its refresh effect. Publish confirmed
+  // fields and replay pending commands before reporting a seeded store as ready.
+  if (initial !== undefined) publish();
   return {
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -122,8 +149,17 @@ function createStore(key: string, deckId: string, notes: readonly PracticeNote[]
     },
     getSnapshot: () => snapshot,
     retry: () => (snapshot.run || pending.length ? void flush() : void load()),
-    refresh(pool: readonly PracticeNote[]) {
+    refresh(pool: readonly PracticeNote[], latest?: ConfirmedPractice) {
       notes = pool;
+      if (latest && !sending && !loading && latest.version >= confirmed.version) {
+        if (!pending.length && JSON.stringify(latest.run) !== JSON.stringify(confirmed.run)) {
+          snapshot = { ...snapshot, undoEpoch: snapshot.undoEpoch + 1 };
+        }
+        confirmed = latest;
+        publish({ loading: false, error: undefined });
+        void flush();
+        return;
+      }
       if (snapshot.loading || (!sending && !pending.length)) void load();
     },
     act(action: Action) {

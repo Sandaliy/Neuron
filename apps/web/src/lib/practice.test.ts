@@ -13,6 +13,58 @@ vi.mock('./api', async (original) => ({
   request: vi.fn(),
 }));
 
+it('exposes a confirmed recipe in the first ready snapshot before setup refreshes', () => {
+  vi.mocked(request).mockReset();
+  const notes = [{ id: uuidV7(), fields: { term: 'Baum', translation: 'tree' } }];
+  const run = advancePractice(
+    null,
+    {
+      kind: 'start',
+      id: uuidV7(),
+      runId: uuidV7(),
+      expectedVersion: 0,
+      front: 'translation',
+      back: 'term',
+      response: 'typing',
+    },
+    notes,
+  );
+  const store = practiceStore(uuidV7(), uuidV7(), notes, { run, version: 1 });
+  expect(store.getSnapshot().loading).toBe(false);
+  expect(store.getSnapshot().run).toEqual(run);
+  expect(request).not.toHaveBeenCalled();
+});
+
+it('reuses a confirmed entry without duplicate reads and publishes only acknowledged cache state', async () => {
+  vi.mocked(request).mockReset();
+  const notes = [{ id: uuidV7(), fields: { front: 'Q', back: 'A' } }];
+  const initial = { run: null, version: 0 };
+  const publish = vi.fn();
+  const store = practiceStore(uuidV7(), uuidV7(), notes, initial, publish);
+  store.refresh(notes, initial);
+  expect(store.getSnapshot().loading).toBe(false);
+  expect(request).not.toHaveBeenCalled();
+  let release!: () => void;
+  vi.mocked(request).mockImplementation(async (_path, options) => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return {
+      run: advancePractice(null, options!.body as PracticeCommand, notes),
+      version: 1,
+    } as never;
+  });
+  store.act({ kind: 'start', front: 'front', back: 'back' });
+  expect(store.getSnapshot().run).not.toBeNull();
+  expect(publish).not.toHaveBeenCalled();
+  release();
+  await vi.waitFor(() => expect(store.getSnapshot().saving).toBe(false));
+  expect(publish).toHaveBeenCalledTimes(1);
+  const confirmed = publish.mock.calls[0]![0];
+  store.refresh(notes, confirmed);
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
 it('serializes optimistic answers and repeated Undo with stable retry IDs after a lost commit response', async () => {
   const notes = [0, 1, 2].map(() => ({ id: uuidV7(), fields: { front: 'Q', back: 'A' } }));
   let run: PracticeRun | null = null;

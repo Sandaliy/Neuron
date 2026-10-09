@@ -10,6 +10,7 @@ import type { MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
 import { findDeck, useDeckTree } from '../../lib/decks';
+import { useLearningNavigation } from '../../lib/learning-navigation';
 import { NOTE_KEY, noteQueryString, useNoteActions } from '../../lib/notes';
 import { useReturnScroll } from '../../lib/return-scroll';
 import { Button } from '../../ui/button';
@@ -51,9 +52,9 @@ const ROW_HEIGHT = 52;
  * search is sent a beat after the typing stops rather than on every keystroke.
  */
 export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
-  const [practicing, setPracticing] = useState(false);
+  const learning = useLearningNavigation('practice');
+  const practicing = learning.active;
   const rememberScroll = useReturnScroll(practicing);
-  const [practiceEntry, setPracticeEntry] = useState<'resume' | 'setup'>('resume');
   const t = useTranslate();
   const toast = useToast();
   const { mutateAsync: deleteNote } = useNoteActions().remove;
@@ -161,7 +162,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
 
   if (practicing && deckId)
     return (
-      <DeckPractice deckId={deckId} entry={practiceEntry} onFinish={() => setPracticing(false)} />
+      <DeckPractice deckId={deckId} entry={learning.entry ?? 'resume'} onFinish={learning.exit} />
     );
   return (
     <section data-screen="" className="flex flex-col gap-16">
@@ -198,8 +199,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           deckId={deckId}
           onOpen={(entry) => {
             rememberScroll();
-            setPracticeEntry(entry);
-            setPracticing(true);
+            void learning.open(entry);
           }}
         />
       )}

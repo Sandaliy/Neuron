@@ -50,7 +50,13 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
   routes.post('/session', async (context) => {
     const body = await readBody(context, dailyStudySessionRequestSchema);
     const repositories = repositoriesOf(context);
-    const account = await repositories.account.read();
+    const started = performance.now();
+    const [account, collections, allLogs, typeNames] = await Promise.all([
+      repositories.account.read(),
+      repositories.decks.list(),
+      repositories.reviews.workload(),
+      repositories.noteTypes.namesById(),
+    ]);
     const deckChain: DeckSettings[] = [];
 
     if (body.deckId !== undefined) {
@@ -81,7 +87,6 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       maximumNewCardsPerDay: settings.maximumNewCardsPerDay,
     });
     const now = new Date();
-    const collections = await repositories.decks.list();
     const liveDecks = studyDecks(collections);
     let scope = body.deckIds;
     if (body.deckId !== undefined) {
@@ -109,6 +114,7 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       direction: row.direction as WorkloadCard['direction'],
       scheduling: toSchedulingState(row),
     }));
+    const readAt = performance.now();
     const languageByDeck = new Map(
       scopeDeckIds.map((id) => {
         const chain: DeckSettings[] = [];
@@ -136,7 +142,7 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
         sessionDeckIds.includes(card.deckId!) &&
         (body.direction === undefined || card.direction === body.direction),
     );
-    const logs = (await repositories.reviews.workload()).filter(
+    const logs = allLogs.filter(
       (log) => scope === undefined || (log.deckId !== undefined && selected.has(log.deckId)),
     );
     const answers = studyDayAnswers(cards, logs, now, scheduler);
@@ -173,10 +179,13 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       rng: createSeededRandom(seed),
     });
     const byId = new Map(rows.map((row) => [row.id, row]));
-    const [notes, typeNames] = await Promise.all([
-      repositories.notes.byIds(session.cards.map((card) => card.noteId)),
-      repositories.noteTypes.namesById(),
-    ]);
+    const plannedAt = performance.now();
+    const notes = await repositories.notes.byIds(session.cards.map((card) => card.noteId));
+    context.header(
+      'Server-Timing',
+      `study_read;dur=${(readAt - started).toFixed(1)}, study_plan;dur=${(plannedAt - readAt).toFixed(1)}, study_notes;dur=${(performance.now() - plannedAt).toFixed(1)}`,
+      { append: true },
+    );
 
     return context.json({
       ...session,

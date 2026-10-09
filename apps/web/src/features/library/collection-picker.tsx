@@ -101,7 +101,7 @@ export function CollectionPicker({
                         data-row=""
                         aria-expanded={folder ? expanded : undefined}
                         aria-pressed={folder ? undefined : row.id === value}
-                        className={`${collectionSurface} flex min-h-56 w-full items-center gap-12 px-12 py-12 text-left hover:bg-raised ${row.id === value ? 'bg-fill-accent-quiet' : ''}`}
+                        className={`${collectionSurface(row.kind)} flex min-h-56 w-full items-center gap-12 px-12 py-8 text-left hover:bg-raised ${row.id === value ? 'bg-fill-accent-quiet' : ''}`}
                         onClick={() => {
                           if (folder)
                             setCollapsed((current) => {
@@ -115,6 +115,13 @@ export function CollectionPicker({
                           }
                         }}
                       >
+                        {folder && (
+                          <ChevronRight
+                            size={16}
+                            aria-hidden="true"
+                            className={`shrink-0 text-secondary transition-transform dur-reveal ${expanded ? 'rotate-90' : ''}`}
+                          />
+                        )}
                         <CollectionIcon kind={row.kind} />
                         <span className="flex min-w-0 flex-1 flex-col gap-4">
                           <span
@@ -128,13 +135,6 @@ export function CollectionPicker({
                             </span>
                           )}
                         </span>
-                        {folder && (
-                          <ChevronRight
-                            size={16}
-                            aria-hidden="true"
-                            className={`shrink-0 text-secondary transition-transform dur-reveal ${expanded ? 'rotate-90' : ''}`}
-                          />
-                        )}
                         {row.id === value && (
                           <Check size={16} aria-hidden="true" className="shrink-0 text-accent" />
                         )}

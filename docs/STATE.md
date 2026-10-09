@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-09, coordinated interface refinement prepared for protected review.
+Last updated: 2026-10-09, post-release iPhone acceptance refinement in protected review preparation.
 
 ## Current release slice
 
@@ -124,7 +124,7 @@ iPhone acceptance remains required for rapid tab switching, app background/retur
 dismissal around draft confirmation, and Study/Practice return ergonomics. Library hierarchy and styling
 still require physical-device acceptance. Offline & Sync remains outside this slice.
 
-The coordinated interface refinement on `work/interface-refinement` unifies Folder/Deck surfaces and
+PR #38 is merged into protected `main` at `c8aa50d`. The coordinated interface refinement unifies Folder/Deck surfaces and
 compact hierarchy pickers, simplifies Today setup and supporting-content controls, and gives Listening
 an answer-focused reveal. Practice entry/actions, completion timing, Note preview disclosure, Import
 guidance and desktop Settings density follow the same reusable contracts. English and Russian copy are
@@ -134,15 +134,52 @@ Confirmed collection creation becomes visible before background reconciliation. 
 use the authoritative write response and request admission only after acknowledgement, avoiding a
 redundant collection read and a premature plan request. No scheduling, history, authentication,
 deletion, Undo persistence or sync contract changes are included. Built-app latency evidence and visual
-contracts are maintained in `design-system.md`. This slice requires protected PR checks and remains
-unmerged; physical-iPhone touch, keyboard, audio and drag acceptance are separate from browser evidence.
+contracts are maintained in `design-system.md`. Physical-iPhone testing of that release uncovered the
+remaining navigation, setup continuity, motion and latency issues addressed in the next iteration below.
 
 Local refinement verification passed 418 core/web and 177 shared unit tests, all workspace typechecks,
 source lint excluding generated browser reports, and formatting. The final built-app serial gate passed
 314 phone/desktop interactions with four opt-in live-API checks skipped; all 70 WebKit checks passed.
 All 66 visual cases passed with 17 intentional Today, Library and Settings references refreshed.
-Four large-list checks passed with the 55 fps threshold enforced at 4× CPU slowdown: 5,000 Notes held
+The PR #38 baseline's four large-list checks passed with the 55 fps threshold enforced at 4× CPU slowdown: 5,000 Notes held
 60.0 fps with 14 mounted rows; 500 Decks held 60.0 fps and zero blurred rows in both glass scopes.
+
+The post-release acceptance refinement on `work/iphone-acceptance-refinement` gives Study/Practice
+their own browser history entries and retains Study setup throughout the authenticated visit. It
+reuses bounded confirmed plans, starts Practice reads together, and reuses complete confirmed Note
+pages. Projected readiness remains gated; Review, Practice, authentication and deletion contracts stay
+intact. The reported sign-out has not been reproduced: confirmed session rejection still signs out,
+while a transport failure retains the previously confirmed account.
+
+Learning reveal retargets from the displayed prompt position before keyboard-close layout paints.
+Practice clears encounter presentation before synchronous store publication. Shared disclosures animate
+measured height with reversible interruption. Folders remain organizational solid surfaces, Decks are
+more compact and use a shared stationary glass backing plane when Panels and cards is selected.
+Practice entry has a full-width primary action; active counters remain numeric. Import examples show
+generated directions in one compact front/back table without changing card generation.
+
+Controlled 250ms-delay probes reduced Today return from 345–359ms to 47–56ms and Practice setup from
+618ms to 44ms. First readiness remains approximately one second (980ms baseline, 991ms refinement).
+Public production probes observed a 7.6s first health response and approximately 0.47s warm responses.
+Routing headers contained `fra1::iad1`; authenticated timing and project configuration were unavailable
+with the current deployment access. No infrastructure relocation was performed.
+
+Final local verification passed 597 core/shared/web unit tests, 42 targeted real-Postgres Study,
+learning-product and authentication/session tests, and the real API/database browser journey with
+authentication and speech fixtures. The built-app serial gate passed 352 phone/desktop interactions;
+four skips cover two opt-in live-API cases and two WebKit-specific touch cases. All 88 WebKit and
+66 visual cases passed, with four intentional phone Library references refreshed. Frame trajectories
+cover reveal, keyboard closure, advancement, Undo and disclosure interruption; the interrupted
+disclosure check also passed nine consecutive repetitions across the three interaction profiles.
+All workspace typechecks, source lint excluding generated browser reports, formatting and the web
+production build passed. Four large-list checks passed with the 55 fps budget enforced at 4× CPU
+slowdown: 500 Decks held 59.0 fps with shared glass and 59.7 fps with Panels only; 5,000 Notes held
+60.0 fps with 14 mounted rows. Protected checks remain separate from local verification.
+
+Physical-iPhone acceptance remains required for native edge swipes, rapid navigation/background
+return, keyboard closure, interrupted reveals/Undo, glass compositing and audio. The reported sign-out
+and rapid wrong-tab symptom remain unreproduced; authenticated production latency profiling is still
+needed. Browser/WebKit evidence does not certify those native-device findings.
 
 ## Now
 
@@ -196,8 +233,8 @@ Today or Study.
    refined hierarchy and pickers.
 5. Complete installed-iPhone acceptance of merged navigation/tab selection, nested Back, draft
    protection and learning-return continuity.
-6. Complete protected review of the coordinated interface refinement, then physical-iPhone acceptance
-   of hierarchy, Listening reveal, disclosures and interaction responsiveness.
+6. Complete protected review of the post-PR #38 acceptance refinement, then repeat physical-iPhone
+   journeys for history, setup continuity, reveal motion, shared glass and interaction responsiveness.
 
 ## Open threads
 

@@ -2,6 +2,9 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'import.spokenWord': 'Spoken word',
+  'import.listeningExample':
+    'Listen, type the word, then reveal meaning and context. Audio uses the Deck language.',
   'study.language': 'Study language',
   'study.unspecifiedLanguage': 'No target language',
   'study.aggregateReady': '{count} ready across {languages} languages',
