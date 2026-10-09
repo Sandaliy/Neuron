@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { dailyStudySessionSchema, uuidV7 } from '@neuron/shared';
 import type { DailyStudySession } from '@neuron/shared';
 
+import { createDb } from '../db/client.js';
 import { createUser, repositoriesFor, testDatabase } from '../db/testing/database.js';
 import { json, testServer } from '../testing/server.js';
 
@@ -55,6 +56,59 @@ describe.skipIf(!database)('POST /study/session', () => {
       expected,
     );
   }
+
+  it('groups planning reads in one user-bound transaction and returns its revision', async () => {
+    if (!database) return;
+    const statements: string[] = [];
+    const client = createDb(database.appUrl, {
+      logger: {
+        logQuery: (query) => {
+          statements.push(query);
+        },
+      },
+    });
+    try {
+      const before = await repositories.account.read();
+      const response = await testServer(database, OWNER, client).request('/api/study/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ deckId, minutes: 1 }),
+      });
+      const result = await json<DailyStudySession>(response, 200);
+      expect(result.planningContext).toEqual({ accountId: OWNER, revision: before.currentRev });
+      expect(statements.filter((sql) => /^begin\b/i.test(sql))).toHaveLength(1);
+      expect(statements.filter((sql) => /^commit\b/i.test(sql))).toHaveLength(1);
+      expect(statements.filter((sql) => sql.includes('set_config'))).toHaveLength(1);
+      expect(response.headers.get('server-timing')).toMatch(/study_total;dur=/);
+      expect((await repositories.account.read()).currentRev).toBe(before.currentRev);
+
+      const other = `${OWNER}-isolated`;
+      await createUser(database, other);
+      const isolatedServer = testServer(database, other, client);
+      await json(
+        await isolatedServer.request('/api/study/session', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ deckIds: [deckId], newCards: 'override' }),
+        }),
+        404,
+      );
+      const isolated = await json<DailyStudySession>(
+        await isolatedServer.request('/api/study/session', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        }),
+        200,
+      );
+      expect(isolated.cards).toEqual([]);
+      expect(isolated.notes).toEqual([]);
+      expect(isolated.scopeDeckIds).toEqual([]);
+      expect(isolated.planningContext?.accountId).toBe(other);
+    } finally {
+      await client.$client.end();
+    }
+  });
 
   it('builds a deterministic one-off plan without changing normal minutes', async () => {
     const before = await repositories.account.read();

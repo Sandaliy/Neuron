@@ -31,7 +31,7 @@ import { Card } from '../../ui/card';
 import { Checkbox } from '../../ui/checkbox';
 import { CompletionProgress } from '../../ui/completion-progress';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
-import { LearningCard } from '../../ui/learning-card';
+import { captureLearningReveal, LearningCard } from '../../ui/learning-card';
 import { ModeHeader } from '../../ui/mode-header';
 import { Select } from '../../ui/select';
 import { ErrorState, SkeletonRows } from '../../ui/states';
@@ -584,7 +584,11 @@ function PersistentPractice({
                   variant={
                     run.response === 'typing' || run.response === 'listening' ? 'quiet' : 'primary'
                   }
-                  onClick={() => setRevealed(true)}
+                  onClick={(event) => {
+                    captureLearningReveal(event.currentTarget);
+                    setTypingReady(false);
+                    setRevealed(true);
+                  }}
                 >
                   {t('study.reveal')}
                 </Button>

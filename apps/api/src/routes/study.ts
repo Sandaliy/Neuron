@@ -49,167 +49,177 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
 
   routes.post('/session', async (context) => {
     const body = await readBody(context, dailyStudySessionRequestSchema);
-    const repositories = repositoriesOf(context);
     const started = performance.now();
-    const [account, collections, allLogs, typeNames] = await Promise.all([
-      repositories.account.read(),
-      repositories.decks.list(),
-      repositories.reviews.workload(),
-      repositories.noteTypes.namesById(),
-    ]);
-    const deckChain: DeckSettings[] = [];
+    // Share one user-bound transaction instead of repeating BEGIN, identity and
+    // COMMIT for every read. The restricted role and all repository filters stay.
+    const result = await repositoriesOf(context).transaction(async (repositories) => {
+      const [account, collections, allLogs, typeNames] = await Promise.all([
+        repositories.account.read(),
+        repositories.decks.list(),
+        repositories.reviews.workload(),
+        repositories.noteTypes.namesById(),
+      ]);
+      const deckChain: DeckSettings[] = [];
 
-    if (body.deckId !== undefined) {
-      if (!(await repositories.decks.byId(body.deckId))) {
-        throw new ApiError('not_found');
+      if (body.deckId !== undefined) {
+        if (!(await repositories.decks.byId(body.deckId))) {
+          throw new ApiError('not_found');
+        }
+
+        deckChain.push(
+          ...(await repositories.decks.chain(body.deckId)).map(
+            (deck) => (deck.settings ?? {}) as DeckSettings,
+          ),
+        );
       }
 
-      deckChain.push(
-        ...(await repositories.decks.chain(body.deckId)).map(
-          (deck) => (deck.settings ?? {}) as DeckSettings,
+      const settings = resolveDeckSettings([account.settings, ...deckChain]);
+      const scheduler = createSchedulerConfig({
+        timezone: account.timezone,
+        dayCutoffHour: account.dayCutoffHour,
+        desiredRetention: settings.targetRetention,
+      });
+      const budget = createBudget({
+        minutesByWeekday: settings.budgetMinutes,
+        allowCarryOver: settings.allowCarryOver,
+      });
+      const config = createWorkloadConfig({
+        scheduler,
+        budget,
+        maximumNewCardsPerDay: settings.maximumNewCardsPerDay,
+      });
+      const now = new Date();
+      const liveDecks = studyDecks(collections);
+      let scope = body.deckIds;
+      if (body.deckId !== undefined) {
+        const subtree = new Set(
+          (await repositories.decks.subtree(body.deckId)).map((deck) => deck.id),
+        );
+        scope = liveDecks.filter((deck) => subtree.has(deck.id)).map((deck) => deck.id);
+      }
+      if (scope?.some((id) => !liveDecks.some((deck) => deck.id === id)))
+        throw new ApiError('not_found');
+      const scopeDeckIds = [
+        ...new Set(
+          scope ??
+            liveDecks
+              .filter((deck) => deck.settings?.dailyStudyIncluded !== false)
+              .map((deck) => deck.id),
         ),
+      ].sort();
+      const selected = new Set(scopeDeckIds);
+      const rows = await repositories.cards.forSession({ deckIds: scopeDeckIds });
+      const cards: WorkloadCard[] = rows.map((row) => ({
+        id: row.id,
+        deckId: row.deckId,
+        noteId: row.noteId,
+        direction: row.direction as WorkloadCard['direction'],
+        scheduling: toSchedulingState(row),
+      }));
+      const readAt = performance.now();
+      const languageByDeck = new Map(
+        scopeDeckIds.map((id) => {
+          const chain: DeckSettings[] = [];
+          let deck = collections.find((item) => item.id === id);
+          const seen = new Set<string>();
+          while (deck && !seen.has(deck.id)) {
+            seen.add(deck.id);
+            chain.unshift((deck.settings ?? {}) as DeckSettings);
+            deck = collections.find((item) => item.id === deck!.parentId);
+          }
+          return [
+            id,
+            resolveDeckSettings([account.settings, ...chain]).targetLanguage ?? null,
+          ] as const;
+        }),
       );
-    }
-
-    const settings = resolveDeckSettings([account.settings, ...deckChain]);
-    const scheduler = createSchedulerConfig({
-      timezone: account.timezone,
-      dayCutoffHour: account.dayCutoffHour,
-      desiredRetention: settings.targetRetention,
-    });
-    const budget = createBudget({
-      minutesByWeekday: settings.budgetMinutes,
-      allowCarryOver: settings.allowCarryOver,
-    });
-    const config = createWorkloadConfig({
-      scheduler,
-      budget,
-      maximumNewCardsPerDay: settings.maximumNewCardsPerDay,
-    });
-    const now = new Date();
-    const liveDecks = studyDecks(collections);
-    let scope = body.deckIds;
-    if (body.deckId !== undefined) {
-      const subtree = new Set(
-        (await repositories.decks.subtree(body.deckId)).map((deck) => deck.id),
+      const languages = [...new Set(languageByDeck.values())].sort((a, b) =>
+        (a ?? '').localeCompare(b ?? ''),
       );
-      scope = liveDecks.filter((deck) => subtree.has(deck.id)).map((deck) => deck.id);
-    }
-    if (scope?.some((id) => !liveDecks.some((deck) => deck.id === id)))
-      throw new ApiError('not_found');
-    const scopeDeckIds = [
-      ...new Set(
-        scope ??
-          liveDecks
-            .filter((deck) => deck.settings?.dailyStudyIncluded !== false)
-            .map((deck) => deck.id),
-      ),
-    ].sort();
-    const selected = new Set(scopeDeckIds);
-    const rows = await repositories.cards.forSession({ deckIds: scopeDeckIds });
-    const cards: WorkloadCard[] = rows.map((row) => ({
-      id: row.id,
-      deckId: row.deckId,
-      noteId: row.noteId,
-      direction: row.direction as WorkloadCard['direction'],
-      scheduling: toSchedulingState(row),
-    }));
-    const readAt = performance.now();
-    const languageByDeck = new Map(
-      scopeDeckIds.map((id) => {
-        const chain: DeckSettings[] = [];
-        let deck = collections.find((item) => item.id === id);
-        const seen = new Set<string>();
-        while (deck && !seen.has(deck.id)) {
-          seen.add(deck.id);
-          chain.unshift((deck.settings ?? {}) as DeckSettings);
-          deck = collections.find((item) => item.id === deck!.parentId);
-        }
-        return [
-          id,
-          resolveDeckSettings([account.settings, ...chain]).targetLanguage ?? null,
-        ] as const;
-      }),
-    );
-    const languages = [...new Set(languageByDeck.values())].sort((a, b) =>
-      (a ?? '').localeCompare(b ?? ''),
-    );
-    const targetLanguage =
-      body.targetLanguage === undefined ? (languages[0] ?? null) : body.targetLanguage;
-    const sessionDeckIds = scopeDeckIds.filter((id) => languageByDeck.get(id) === targetLanguage);
-    const supported = cards.filter(
-      (card) =>
-        sessionDeckIds.includes(card.deckId!) &&
-        (body.direction === undefined || card.direction === body.direction),
-    );
-    const logs = allLogs.filter(
-      (log) => scope === undefined || (log.deckId !== undefined && selected.has(log.deckId)),
-    );
-    const answers = studyDayAnswers(cards, logs, now, scheduler);
-    const available = (card: WorkloadCard) => availableForDailyStudy(card, answers, now, scheduler);
-    const nextAt = (card: WorkloadCard) => dailyStudyAvailableAt(card, answers, now, scheduler);
-    const future = (pool: readonly WorkloadCard[]) =>
-      pool
-        .filter(
-          (card) =>
-            !available(card) && (card.scheduling.state !== 'new' || answers.notes.has(card.noteId)),
-        )
-        .map((card) => nextAt(card).toISOString())
-        .sort()[0] ?? null;
-    // Language and skill never own a copy of the account's automatic allowance.
-    // Explicit temporary Deck scope retains its existing workload universe.
-    const load = forecast({ cards, config, now, logs });
-    const sharedRequest = {
-      budget,
-      config,
-      now,
-      logs,
-      answers,
-      load,
-      ...(body.minutes === undefined ? {} : { oneOffMinutes: body.minutes }),
-      newCardMode: body.newCards,
-    };
-    const seed = sessionSeed(account.id, scopeDeckIds.join(','), dayIndexOf(now, scheduler));
-    const aggregate = buildSession({ ...sharedRequest, cards, rng: createSeededRandom(seed) });
-    const session = buildSession({
-      ...sharedRequest,
-      cards: supported,
-      backlog: aggregate.backlog,
-      automaticNewCardLimit: aggregate.newCount,
-      rng: createSeededRandom(seed),
-    });
-    const byId = new Map(rows.map((row) => [row.id, row]));
-    const plannedAt = performance.now();
-    const notes = await repositories.notes.byIds(session.cards.map((card) => card.noteId));
-    context.header(
-      'Server-Timing',
-      `study_read;dur=${(readAt - started).toFixed(1)}, study_plan;dur=${(plannedAt - readAt).toFixed(1)}, study_notes;dur=${(performance.now() - plannedAt).toFixed(1)}`,
-      { append: true },
-    );
+      const targetLanguage =
+        body.targetLanguage === undefined ? (languages[0] ?? null) : body.targetLanguage;
+      const sessionDeckIds = scopeDeckIds.filter((id) => languageByDeck.get(id) === targetLanguage);
+      const supported = cards.filter(
+        (card) =>
+          sessionDeckIds.includes(card.deckId!) &&
+          (body.direction === undefined || card.direction === body.direction),
+      );
+      const logs = allLogs.filter(
+        (log) => scope === undefined || (log.deckId !== undefined && selected.has(log.deckId)),
+      );
+      const answers = studyDayAnswers(cards, logs, now, scheduler);
+      const available = (card: WorkloadCard) =>
+        availableForDailyStudy(card, answers, now, scheduler);
+      const nextAt = (card: WorkloadCard) => dailyStudyAvailableAt(card, answers, now, scheduler);
+      const future = (pool: readonly WorkloadCard[]) =>
+        pool
+          .filter(
+            (card) =>
+              !available(card) &&
+              (card.scheduling.state !== 'new' || answers.notes.has(card.noteId)),
+          )
+          .map((card) => nextAt(card).toISOString())
+          .sort()[0] ?? null;
+      // Language and skill never own a copy of the account's automatic allowance.
+      // Explicit temporary Deck scope retains its existing workload universe.
+      const load = forecast({ cards, config, now, logs });
+      const sharedRequest = {
+        budget,
+        config,
+        now,
+        logs,
+        answers,
+        load,
+        ...(body.minutes === undefined ? {} : { oneOffMinutes: body.minutes }),
+        newCardMode: body.newCards,
+      };
+      const seed = sessionSeed(account.id, scopeDeckIds.join(','), dayIndexOf(now, scheduler));
+      const aggregate = buildSession({ ...sharedRequest, cards, rng: createSeededRandom(seed) });
+      const session = buildSession({
+        ...sharedRequest,
+        cards: supported,
+        backlog: aggregate.backlog,
+        automaticNewCardLimit: aggregate.newCount,
+        rng: createSeededRandom(seed),
+      });
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      const plannedAt = performance.now();
+      const notes = await repositories.notes.byIds(session.cards.map((card) => card.noteId));
+      context.header(
+        'Server-Timing',
+        `study_read;dur=${(readAt - started).toFixed(1)}, study_plan;dur=${(plannedAt - readAt).toFixed(1)}, study_notes;dur=${(performance.now() - plannedAt).toFixed(1)}`,
+        { append: true },
+      );
 
-    return context.json({
-      ...session,
-      scopeDeckIds: sessionDeckIds,
-      targetLanguage,
-      languages,
-      aggregateReady: aggregate.cards.length,
-      deckSummaries: sessionDeckIds.map((deckId) => {
-        const pool = supported.filter((card) => card.deckId === deckId);
-        return {
-          deckId,
-          due: pool.filter((card) => card.scheduling.state !== 'new' && available(card)).length,
-          fresh: pool.filter((card) => card.scheduling.state === 'new' && available(card)).length,
-          nextDue: future(pool),
-        };
-      }),
-      availableCount: supported.filter(available).length,
-      nextDue: future(supported),
-      notes: notes.map((note) => serialiseNote(note, typeNames)),
-      cards: session.cards.flatMap((card) => {
-        const row = byId.get(card.id);
-        return row === undefined ? [] : [serialiseCard(row)];
-      }),
+      return {
+        ...session,
+        planningContext: { accountId: account.id, revision: account.currentRev },
+        scopeDeckIds: sessionDeckIds,
+        targetLanguage,
+        languages,
+        aggregateReady: aggregate.cards.length,
+        deckSummaries: sessionDeckIds.map((deckId) => {
+          const pool = supported.filter((card) => card.deckId === deckId);
+          return {
+            deckId,
+            due: pool.filter((card) => card.scheduling.state !== 'new' && available(card)).length,
+            fresh: pool.filter((card) => card.scheduling.state === 'new' && available(card)).length,
+            nextDue: future(pool),
+          };
+        }),
+        availableCount: supported.filter(available).length,
+        nextDue: future(supported),
+        notes: notes.map((note) => serialiseNote(note, typeNames)),
+        cards: session.cards.flatMap((card) => {
+          const row = byId.get(card.id);
+          return row === undefined ? [] : [serialiseCard(row)];
+        }),
+      };
     });
+    context.header('Server-Timing', `study_total;dur=${(performance.now() - started).toFixed(1)}`, {
+      append: true,
+    });
+    return context.json(result);
   });
 
   return routes;

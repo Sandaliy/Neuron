@@ -30,7 +30,7 @@ import { useLearningNavigation } from '../../lib/learning-navigation';
 import { projectConfirmedReview } from '../../lib/review-projection';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
-import { LearningCard } from '../../ui/learning-card';
+import { captureLearningReveal, LearningCard } from '../../ui/learning-card';
 import { ModeHeader } from '../../ui/mode-header';
 import { ReviewTime } from '../../ui/review-time';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
@@ -566,7 +566,11 @@ export function StudyScreen({
                 full
                 variant={typedAnswer ? 'quiet' : 'primary'}
                 disabled={!face || !!transportError}
-                onClick={() => setRevealed(true)}
+                onClick={(event) => {
+                  captureLearningReveal(event.currentTarget);
+                  setTypingReady(false);
+                  setRevealed(true);
+                }}
               >
                 {t('study.reveal')}
               </Button>

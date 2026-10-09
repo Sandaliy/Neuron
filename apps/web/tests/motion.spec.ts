@@ -68,15 +68,17 @@ test.describe('reduced motion', () => {
   });
 
   /**
-   * Nothing transitions a property that costs layout, and nothing transitions a
-   * filter.
+   * Layout transitions are limited to bounded inline disclosures. Nothing
+   * transitions a filter.
    *
    * Colour, shadow and outline are paint work the compositor already does; a
    * width or a top is a reflow on every frame, and a blur radius is the whole
    * layer rasterised again on every frame. The keyframes themselves are checked
    * against the stylesheet in `src/styles/motion.test.ts`, which runs in CI.
    */
-  test('nothing transitions a property that costs layout or a filter', async ({ page }) => {
+  test('layout transitions are limited to bounded inline disclosures and never filters', async ({
+    page,
+  }) => {
     await usePreferences(page, { theme: 'dark', locale: 'en' });
     await useFixtures(page);
     await page.goto('/settings');
@@ -109,6 +111,7 @@ test.describe('reduced motion', () => {
         const property = getComputedStyle(element).transitionProperty;
 
         for (const name of property.split(',').map((value) => value.trim())) {
+          if (name === 'height' && element.classList.contains('neu-disclosure')) continue;
           if (forbidden.some((bad) => name === bad || name.startsWith(`${bad}-`))) {
             found.push(name);
           }

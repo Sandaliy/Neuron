@@ -1369,6 +1369,19 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
 .neu-learning-answer {
   font-size: var(--type-learning-answer);
 }
+.neu-disclosure {
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    height var(--dur-3) var(--ease-inout),
+    opacity var(--dur-3) var(--ease-inout);
+}
+.neu-disclosure[data-disclosure-open='true'] {
+  opacity: 1;
+}
+.neu-disclosure[data-disclosure-open='true']:not([data-moving='true']) {
+  overflow: visible;
+}
 
 /* Collection objects share a surface; Folder identity carries the hierarchy. */
 .neu-collection-surface {
@@ -1378,15 +1391,36 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
   .neu-collection-deck {
     background: var(--surface-card);
   }
+  .neu-learning-surface {
+    position: absolute;
+    inset: -1px;
+    transform-origin: top;
+    pointer-events: none;
+  }
+  .neu-learning-card > :not(.neu-learning-surface) {
+    position: relative;
+    z-index: 1;
+  }
+  [data-gscope='all'] .neu-learning-card {
+    --text-tertiary: var(--text-secondary);
+  }
+  @supports ((-webkit-backdrop-filter: blur(2px)) or (backdrop-filter: blur(2px))) {
+    /* A stationary learning backdrop keeps reveal from refiltering a changing
+       rectangle every frame. Tint, rim and device effect limits stay intact. */
+    [data-gscope='all']:not([data-glass='off']) .neu-session .neu-learning-surface {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
 }
 @supports ((-webkit-backdrop-filter: blur(2px)) or (backdrop-filter: blur(2px))) {
-  /* One stationary plane blurs the canvas underneath every translucent Deck.
-   * Independent scrolling backdrop filters miss the large-list frame budget. */
+  /* One stationary shell plane backs translucent collections and learning.
+   * Independent moving backdrop filters repeatedly filter changing rectangles. */
   [data-collection-backdrop] {
     display: none;
   }
   [data-gscope='all']:not([data-glass='off'])
-    body:has([data-library-view])
+    body:has([data-library-view], [data-learning-screen], [data-today-view])
     [data-collection-backdrop] {
     display: block;
     position: fixed;
@@ -1395,9 +1429,21 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
     backdrop-filter: blur(var(--g-blur)) saturate(var(--g-sat));
     pointer-events: none;
   }
+  [data-gscope='all']:not([data-glass='off']) [data-today-view] [data-g='card'] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
   [data-gscope='all']:not([data-glass='off']) [data-library-view] .neu-collection-deck {
     background: var(--surface-floating);
     box-shadow: var(--glass-rim), var(--glass-edge);
+    --text-tertiary: var(--text-secondary);
+  }
+  [data-gscope='all']:not([data-glass='off']) [data-library-view] .neu-collection-folder {
+    background: var(--surface-folder-glass);
+    box-shadow:
+      var(--glass-rim),
+      var(--glass-edge),
+      inset 0 2px 0 var(--border-strong);
     --text-tertiary: var(--text-secondary);
   }
 }

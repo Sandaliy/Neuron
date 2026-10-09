@@ -19,8 +19,13 @@ test('Study disclosure moves surrounding layout continuously and reverses mid-fl
       new Promise<void>((resolve) => {
         const start = performance.now();
         const sample = (time: number) => {
-          heights.push(content.getBoundingClientRect().height);
-          times.push(time);
+          const height = content.getBoundingClientRect().height;
+          // Chromium can deliver a duplicate initial frame. Omit only an
+          // identical sample; movement at zero elapsed time must still fail.
+          if (times.at(-1) !== time || heights.at(-1) !== height) {
+            heights.push(height);
+            times.push(time);
+          }
           if (performance.now() - start < duration) requestAnimationFrame(sample);
           else resolve();
         };

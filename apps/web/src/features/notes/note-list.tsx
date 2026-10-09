@@ -8,10 +8,10 @@ import { NOTE_SORTS, NOTE_STATUSES, termOf } from '@neuron/shared';
 import type { MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
-import { describe, request } from '../../lib/api';
+import { describe } from '../../lib/api';
 import { findDeck, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
-import { NOTE_KEY, noteQueryString, useNoteActions } from '../../lib/notes';
+import { noteListQuery, useNoteActions } from '../../lib/notes';
 import { useReturnScroll } from '../../lib/return-scroll';
 import { Button } from '../../ui/button';
 import { Chip } from '../../ui/chip';
@@ -31,9 +31,6 @@ import { PracticeEntry } from './practice-entry';
 import { RestartLearning } from './restart-learning';
 
 import type { NoteQuery } from '../../lib/notes';
-
-/** How many rows one request brings back. Five thousand notes are five of them. */
-const PAGE = 1000;
 
 /** How tall a row is. The virtualiser needs a number before it can measure. */
 const ROW_HEIGHT = 52;
@@ -113,18 +110,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   };
 
   const notes = useInfiniteQuery({
-    queryKey: [NOTE_KEY, 'list', noteQueryString(query)],
-    initialPageParam: undefined as string | undefined,
+    ...noteListQuery(query),
     placeholderData: keepPreviousData,
-    queryFn: ({ pageParam, signal }) =>
-      request<{ items: Note[]; nextCursor?: string }>(
-        `/notes?${noteQueryString(query, {
-          limit: String(PAGE),
-          ...(pageParam === undefined ? {} : { cursor: pageParam }),
-        })}`,
-        { signal },
-      ),
-    getNextPageParam: (last) => last.nextCursor,
   });
 
   /** Which deck the screens next to this one should open with. */

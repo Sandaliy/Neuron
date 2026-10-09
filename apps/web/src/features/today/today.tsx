@@ -1,4 +1,4 @@
-import { keepPreviousData, useIsMutating, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useIsMutating, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -13,6 +13,7 @@ import { describe, request } from '../../lib/api';
 import { flatten, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
 import { useReturnScroll } from '../../lib/return-scroll';
+import { awaitInitialPlan, confirmedInitialPlan } from '../../lib/study-plan';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
@@ -173,6 +174,7 @@ function Waiting({
   const toast = useToast();
   const actions = useDeckActions();
   const account = useAccount();
+  const client = useQueryClient();
   const { draft, change } = useStudyDraft();
   const present = useRef(true);
   useEffect(() => {
@@ -241,14 +243,21 @@ function Waiting({
     account.data?.revision,
   ];
   const planIdentity = JSON.stringify(planKey);
+  const defaultRequest = !minutes && !direction && !override && scope === undefined;
+  const initial = defaultRequest ? confirmedInitialPlan(client, account.data, language) : undefined;
   const startGeneration = useRef(0);
   useLayoutEffect(() => {
     startGeneration.current++;
   }, [planIdentity]);
   const plan = useQuery<StudyPlanProjection>({
     queryKey: planKey,
-    queryFn: async ({ signal }) =>
-      dailyStudySessionSchema.parse(
+    ...(initial ? { initialData: initial.data, initialDataUpdatedAt: initial.updatedAt } : {}),
+    queryFn: async ({ signal }) => {
+      if (defaultRequest) {
+        const early = await awaitInitialPlan(client, account.data, language);
+        if (early) return early.data;
+      }
+      return dailyStudySessionSchema.parse(
         await request('/study/session', {
           method: 'POST',
           signal,
@@ -262,7 +271,8 @@ function Waiting({
             targetLanguage: language,
           },
         }),
-      ),
+      );
+    },
     // Confirmed plans survive brief route visits. Projections and writes still
     // require server reconciliation; time-sensitive availability bounds reuse.
     staleTime: (query) => {
@@ -352,7 +362,7 @@ function Waiting({
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-12">
-          <label className="flex flex-col gap-8 text-13 text-secondary">
+          <label className="flex flex-col justify-between gap-8 text-13 text-secondary">
             {t('study.minutes')}
             <Select value={minutes} onChange={(event) => onMinutes(event.target.value)}>
               <option value="">{t('study.defaultTime')}</option>
@@ -363,7 +373,7 @@ function Waiting({
               ))}
             </Select>
           </label>
-          <label className="flex flex-col gap-8 text-13 text-secondary">
+          <label className="flex flex-col justify-between gap-8 text-13 text-secondary">
             {t('study.skill')}
             <Select
               value={direction}
@@ -424,12 +434,14 @@ function Waiting({
           value={choices.display}
           onChange={(display) => onChoices({ ...choices, display })}
         />
-        {languages.length > 1 && result && !updating && (
+        {languages.length > 1 && result && (
           <p className="border-t border-subtle pt-12 text-13 text-secondary">
-            {t('study.aggregateReady', {
-              count: result.aggregateReady,
-              languages: languages.length,
-            })}
+            {updating
+              ? t('today.updatingPlan')
+              : t('study.aggregateReady', {
+                  count: result.aggregateReady,
+                  languages: languages.length,
+                })}
           </p>
         )}
       </div>
@@ -442,7 +454,7 @@ function Waiting({
       return deck ? [{ ...deck, ...summary }] : [];
     });
   return (
-    <div className="flex flex-col gap-24">
+    <div data-today-view="" className="flex flex-col gap-24">
       <Card className="flex flex-col gap-24">
         {selected.length === 0 ? (
           <>

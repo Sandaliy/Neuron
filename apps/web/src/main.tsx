@@ -7,7 +7,9 @@ import { accountQuery } from './lib/account';
 import { ApiFailure } from './lib/api';
 import { deckTreeQuery } from './lib/decks';
 import { trackPresses } from './lib/interactions';
-import { noteQuery } from './lib/notes';
+import { noteListQuery, noteQuery } from './lib/notes';
+import { practiceQuery } from './lib/practice';
+import { initialStudyQuery } from './lib/study-plan';
 import { trackViewport } from './lib/viewport';
 import { watchFrameRate } from './preferences/frame-rate';
 import { router } from './router';
@@ -73,25 +75,17 @@ const queryClient = new QueryClient({
 });
 
 /**
- * The two questions the first screen needs, asked at once.
+ * Missing signed-in route reads start alongside account validation and screen
+ * downloads. Today also starts the server-selected default plan, avoiding an
+ * account -> collections -> plan waterfall. Every screen reads these same
+ * query entries; the session gate still owns authentication.
  *
- * The session gate does not render the screens until it knows who is signed in,
- * so the deck tree used to be requested only after the account had answered:
- * two round trips end to end for the first thing anybody looks at. On a warm
- * function that is about seven hundred milliseconds instead of three hundred
- * and fifty, and on a cold one it is two cold starts in a row.
- *
- * Started here, before React exists, so both are already in flight while the
- * bundle is still being evaluated. Nothing waits on the result: whichever
- * screen wants it reads the same cache a moment later.
- *
- * The tree is only worth asking for on a screen that shows it. On the signed
- * out half there is no session to ask with, and the answer would be a refusal.
+ * Existing entries retain their observers' invalidation/reconciliation policy.
+ * Warm-up must not refetch learning projections while leaving a session.
  */
-function warmUp(): void {
-  void queryClient.prefetchQuery(accountQuery());
-
-  const path = window.location.pathname;
+function warmUp(path = window.location.pathname, search = window.location.search): void {
+  if (!queryClient.getQueryData(accountQuery().queryKey))
+    void queryClient.prefetchQuery(accountQuery());
 
   if (
     path === '/' ||
@@ -99,13 +93,29 @@ function warmUp(): void {
     path.startsWith('/notes') ||
     path === '/import'
   ) {
-    void queryClient.prefetchQuery(deckTreeQuery());
+    if (!queryClient.getQueryData(deckTreeQuery().queryKey))
+      void queryClient.prefetchQuery(deckTreeQuery());
   }
   const noteId = /^\/notes\/([^/]+)$/.exec(path)?.[1];
-  if (noteId && noteId !== 'new') void queryClient.prefetchQuery(noteQuery(noteId));
+  if (noteId && noteId !== 'new' && !queryClient.getQueryData(noteQuery(noteId).queryKey))
+    void queryClient.prefetchQuery(noteQuery(noteId));
+  if (path === '/' && !queryClient.getQueryCache().find({ queryKey: ['study-plan'] }))
+    void queryClient.prefetchQuery(initialStudyQuery());
+  if (path === '/notes') {
+    const deckId = new URLSearchParams(search).get('deckId');
+    const list = noteListQuery({ ...(deckId ? { deckId } : {}), sort: 'created' });
+    if (!queryClient.getQueryData(list.queryKey)) void queryClient.prefetchInfiniteQuery(list);
+    if (deckId && !queryClient.getQueryData(practiceQuery(deckId).queryKey))
+      void queryClient.prefetchQuery(practiceQuery(deckId));
+  }
 }
 
 warmUp();
+// Missing route reads start alongside the screen download. Existing observers
+// retain ownership of write invalidation and reconciliation during learning exits.
+router.subscribe('onBeforeLoad', ({ toLocation }) =>
+  warmUp(toLocation.pathname, toLocation.searchStr),
+);
 
 // Started before the first render, so a dialog opened straight away already
 // knows where the keyboard is.

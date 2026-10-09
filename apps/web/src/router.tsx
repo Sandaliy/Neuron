@@ -3,6 +3,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   useSearch,
 } from '@tanstack/react-router';
 import { lazy } from 'react';
@@ -15,10 +16,9 @@ import { StudyDraftProvider } from './features/today/study-draft';
 import { resetInteractions } from './lib/interactions';
 
 /*
- * A signed-in shell has to be interactive before a seldom-used screen (the
- * importer, recovery flow, or editor conversion UI) has downloaded. Keep route
- * modules behind their route boundary; Shell supplies the short skeleton while
- * a first visit to one arrives.
+ * Keep screen modules behind their route boundary. Frequent signed-in routes
+ * expose their preload function to the router so code and data can arrive
+ * together before committing a new screen, avoiding nested suspension.
  */
 const NewPasswordScreen = lazy(async () => {
   const screen = await import('./features/auth/recovery');
@@ -50,41 +50,32 @@ const GalleryScreen = lazy(async () => {
 
   return { default: screen.GalleryScreen };
 });
-const ImportScreen = lazy(async () => {
-  const screen = await import('./features/import/import-screen');
-
-  return { default: screen.ImportScreen };
-});
+const ImportScreen = lazyRouteComponent(
+  () => import('./features/import/import-screen'),
+  'ImportScreen',
+);
 const DeletedScreen = lazy(async () => {
   const screen = await import('./features/library/deleted');
 
   return { default: screen.DeletedScreen };
 });
-const LibraryScreen = lazy(async () => {
-  const screen = await import('./features/library/library');
-
-  return { default: screen.LibraryScreen };
-});
-const NoteEditorScreen = lazy(async () => {
-  const screen = await import('./features/notes/note-editor');
-
-  return { default: screen.NoteEditorScreen };
-});
-const NoteListScreen = lazy(async () => {
-  const screen = await import('./features/notes/note-list');
-
-  return { default: screen.NoteListScreen };
-});
-const SettingsScreen = lazy(async () => {
-  const screen = await import('./features/settings/settings');
-
-  return { default: screen.SettingsScreen };
-});
-const TodayScreen = lazy(async () => {
-  const screen = await import('./features/today/today');
-
-  return { default: screen.TodayScreen };
-});
+const LibraryScreen = lazyRouteComponent(
+  () => import('./features/library/library'),
+  'LibraryScreen',
+);
+const NoteEditorScreen = lazyRouteComponent(
+  () => import('./features/notes/note-editor'),
+  'NoteEditorScreen',
+);
+const NoteListScreen = lazyRouteComponent(
+  () => import('./features/notes/note-list'),
+  'NoteListScreen',
+);
+const SettingsScreen = lazyRouteComponent(
+  () => import('./features/settings/settings'),
+  'SettingsScreen',
+);
+const TodayScreen = lazyRouteComponent(() => import('./features/today/today'), 'TodayScreen');
 
 /**
  * The routes, written out rather than generated from the file tree.
@@ -229,6 +220,11 @@ function NoteListRoute() {
 
   return <NoteListScreen key={deckId ?? 'all'} {...(deckId === undefined ? {} : { deckId })} />;
 }
+// Expose the lazy screen's preload through its search-parameter wrapper so
+// the module is ready before the route commits, avoiding a nested suspension.
+NoteListRoute.preload = async () => {
+  await NoteListScreen.preload?.();
+};
 
 const newNoteRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -244,6 +240,9 @@ function NewNoteRoute() {
 
   return <NoteEditorScreen {...(deckId === undefined ? {} : { deckId })} />;
 }
+NewNoteRoute.preload = async () => {
+  await NoteEditorScreen.preload?.();
+};
 
 const noteRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -257,6 +256,9 @@ function NoteRoute() {
 
   return <NoteEditorScreen key={noteId} noteId={noteId} />;
 }
+NoteRoute.preload = async () => {
+  await NoteEditorScreen.preload?.();
+};
 
 /** Bringing a word list in. Which deck it lands in is in the address. */
 const importRoute = createRoute({
@@ -273,6 +275,9 @@ function ImportRoute() {
 
   return <ImportScreen {...(deckId === undefined ? {} : { deckId })} />;
 }
+ImportRoute.preload = async () => {
+  await ImportScreen.preload?.();
+};
 
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -323,6 +328,9 @@ const routeTree = rootRoute.addChildren([
 
 export const router = createRouter({
   routeTree,
+  // Restore by history entry after the route commit. Native automatic restore
+  // can run before an async module finishes, then be overwritten by route reset.
+  scrollRestoration: true,
   /*
    * A thrown component and an address that is not a screen both have to arrive
    * as a sentence in the language on screen. The router's own versions are an

@@ -309,6 +309,7 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
+            planningContext: { accountId: ACCOUNT.id, revision: ACCOUNT.revision },
             cards: [
               {
                 id: studyCardId,

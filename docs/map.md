@@ -299,6 +299,7 @@ every one of these in every state.
 | `lib/account.ts`               | Who is signed in. One query, and the session check for the whole app                |
 | `lib/decks.ts`                 | The tree in one request, and adding up the roots                                    |
 | `lib/notes.ts`                 | Note queries, writes, bulk actions and batched duplicate lookup                     |
+| `lib/study-plan.ts`            | Early authoritative default plan and account/revision/time compatibility for reuse  |
 | `lib/prompt.ts`                | Build-time import of `docs/card-generation-prompt.md`                               |
 | `lib/dialog-state.ts`          | Resets dialog-local state whenever the dialog opens                                 |
 | `lib/deployment-api-origin.ts` | Maps a web deployment to the matching api environment and fails closed for previews |
