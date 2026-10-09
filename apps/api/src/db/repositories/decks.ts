@@ -117,7 +117,11 @@ async function nextPosition(tx: Tx, userId: string, parentId: string | null): Pr
   return row?.next ?? 0;
 }
 
-export function deckRepository(userId: string, run: Runner): DeckRepository {
+export function deckRepository(
+  userId: string,
+  run: Runner,
+  batchRevision?: number,
+): DeckRepository {
   return {
     async create(input) {
       return run(async (tx) => {
@@ -266,7 +270,7 @@ export function deckRepository(userId: string, run: Runner): DeckRepository {
     async updateSettings(id, settings) {
       return run(async (tx) => {
         const parsed = settings === null ? null : deckSettingsSchema.parse(settings);
-        const rev = await nextRev(tx, userId);
+        const rev = batchRevision ?? (await nextRev(tx, userId));
 
         const [row] = await tx
           .update(decks)

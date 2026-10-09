@@ -109,7 +109,11 @@ export class NoteNotFound extends Error {
   }
 }
 
-export function cardRepository(userId: string, run: Runner): CardRepository {
+export function cardRepository(
+  userId: string,
+  run: Runner,
+  batchRevision?: number,
+): CardRepository {
   // Walk from live roots rather than trusting cached paths. A broken, deleted,
   // cyclic, or non-folder ancestor cannot admit any descendant to learning.
   const liveStudyDeck = sql`${cards.deckId} in (
@@ -203,7 +207,7 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
       }
 
       return run(async (tx) => {
-        const rev = await nextRev(tx, userId);
+        const rev = batchRevision ?? (await nextRev(tx, userId));
         const deckIds = await decksOfNotes(
           tx,
           inputs.map((input) => input.noteId),
@@ -511,7 +515,7 @@ export function cardRepository(userId: string, run: Runner): CardRepository {
       }
 
       return run(async (tx) => {
-        const rev = await nextRev(tx, userId);
+        const rev = batchRevision ?? (await nextRev(tx, userId));
         const now = new Date();
 
         const marked = await tx

@@ -159,7 +159,7 @@ middleware put on the request, and answers only in the shape `src/errors.ts` dec
 
 ### Schema (`src/db/schema/`)
 
-Sixteen tables. `index.ts` also exports `USER_OWNED_TABLES`, `AUTH_TABLES`, `WRITE_ORDER` and the two
+`index.ts` exports the tables, `USER_OWNED_TABLES`, `AUTH_TABLES`, `WRITE_ORDER` and the two
 lists of `user` columns the application role may touch, so a new table cannot be silently left out of
 the checks that prove isolation works.
 
@@ -172,7 +172,7 @@ the checks that prove isolation works.
 | `cards.ts`               | `cards`. One review direction of a note, with its FSRS state                                                                                                  |
 | `reviews.ts`             | `reviews`. Append-only answers and cancellation events with captured predecessor state                                                                        |
 | `study.ts`               | `study_presets`, `import_batches`                                                                                                                             |
-| `sync.ts`                | `sync_conflicts`. The version that lost a merge, kept whole                                                                                                   |
+| `sync.ts`                | `sync_conflicts` and immutable `sync_receipts`. Losing versions and exact-delivery outcomes                                                                   |
 | `rate-limits.ts`         | `rate_limits`. Counters only, no user data, reachable through one function                                                                                    |
 | `columns.ts`, `owned.ts` | Shared column builders: the id, timestamp and `user_id` columns every owned table carries                                                                     |
 

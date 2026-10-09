@@ -21,7 +21,13 @@ import { uuidV7 } from '@neuron/shared';
 
 import { cards, reviews, user, notes, learningRestarts } from '../schema/index.js';
 
-import { fromReviewLog, fromSchedulingState, toReviewLog, toSchedulingState } from './mapping.js';
+import {
+  fromReviewLog,
+  fromSchedulingState,
+  ratingToWord,
+  toReviewLog,
+  toSchedulingState,
+} from './mapping.js';
 import { requireLiveDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
@@ -58,6 +64,7 @@ export interface RecordReview {
   readonly cardId: string;
   readonly rating: Rating;
   readonly now: Date;
+  readonly submittedAt?: Date;
   readonly durationMs?: number;
   /**
    * Overrides the generator seeded from the id.
@@ -104,6 +111,11 @@ export class CardNotFound extends Error {
   constructor(id: string) {
     super(`no card ${id}`);
   }
+}
+
+/** An existing event id cannot acknowledge a different answer. */
+export class ReviewIdReused extends Error {
+  override readonly name = 'ReviewIdReused';
 }
 
 /**
@@ -393,17 +405,40 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
       return run(async (tx) => {
         const id = input.id ?? uuidV7();
         // Serialize projection reads as well as writes with recent-answer undo.
-        const rev = await nextRev(tx, userId);
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update');
+        const [existing] = await tx
+          .select()
+          .from(reviews)
+          .where(and(eq(reviews.userId, userId), eq(reviews.id, id)));
+        if (
+          existing &&
+          (existing.cardId !== input.cardId ||
+            existing.cancelsReviewId !== null ||
+            existing.resetsLearning ||
+            existing.rating !== ratingToWord(input.rating) ||
+            existing.durationMs !== (input.durationMs ?? 0) ||
+            (existing.submittedAt !== null &&
+              existing.submittedAt.getTime() !== (input.submittedAt ?? input.now).getTime()))
+        )
+          throw new ReviewIdReused();
 
         const [card] = await tx
           .select()
           .from(cards)
-          .where(and(eq(cards.userId, userId), eq(cards.id, input.cardId), isNull(cards.deletedAt)))
+          .where(and(eq(cards.userId, userId), eq(cards.id, input.cardId)))
           .limit(1);
 
-        if (!card) {
+        if (!card || (!existing && card.purgedAt !== null)) {
           throw new CardNotFound(input.cardId);
         }
+        if (existing)
+          return {
+            review: existing,
+            card,
+            state: toSchedulingState(card),
+            applied: false,
+          };
+        const rev = await nextRev(tx, userId);
 
         const config = await schedulerConfigFor(tx, userId);
         const outcome = review(
@@ -417,15 +452,15 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
 
         const columns = fromReviewLog(outcome.log);
 
-        // The insert is what decides whether this is a retry. Checking first
-        // and inserting second would leave a gap between the two in which the
-        // retry arrives, and both requests would think they were the original.
+        // The account lock makes the duplicate check above atomic with this
+        // insert. The unique key also rejects an id owned by another account.
         const [written] = await tx
           .insert(reviews)
           .values({
             id,
             userId,
             cardId: card.id,
+            submittedAt: input.submittedAt ?? input.now,
             ...columns,
             priorState: {
               ...fromSchedulingState(toSchedulingState(card)),

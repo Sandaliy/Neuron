@@ -1,14 +1,19 @@
+import { createHash } from 'node:crypto';
+
 import { and, asc, eq, gt, isNull, or, sql } from 'drizzle-orm';
 
 import { parseNoteFields, uuidV7 } from '@neuron/shared';
 import type {
   NoteFields,
+  DeckSettings,
   NoteStatus,
   NoteTypeName,
   SyncEntity,
   RestoreNoteResult,
 } from '@neuron/shared';
 
+import { ApiError } from '../../errors.js';
+import { applyCardChange, createOpeningCards, planCardChange } from '../../note-cards.js';
 import {
   cards,
   decks,
@@ -18,10 +23,12 @@ import {
   reviews,
   studyPresets,
   syncConflicts,
+  syncReceipts,
   user,
 } from '../schema/index.js';
 
-import { DeckCycle } from './decks.js';
+import { cardRepository } from './cards.js';
+import { DeckCycle, deckRepository } from './decks.js';
 import { UnknownNoteType } from './notes.js';
 import {
   requireLiveDeck,
@@ -32,9 +39,11 @@ import {
   softDeleteDeck,
   InvalidCollectionKind,
 } from './restoration.js';
+import { reviewRepository } from './reviews.js';
 import { nextRev } from './session.js';
 
 import type { Runner, Tx } from './session.js';
+import type { SyncReceiptOutcome } from '../schema/sync.js';
 
 /**
  * Sync: one revision stream out, one batch of changes in.
@@ -91,6 +100,7 @@ export interface ConflictedChange {
 
 export interface PushResult {
   readonly applied: { entity: SyncEntity; id: string }[];
+  readonly unchanged: { entity: SyncEntity; id: string }[];
   readonly conflicts: ConflictedChange[];
   readonly clamped: string[];
   readonly revision: number;
@@ -109,7 +119,11 @@ export interface SyncRepository {
    * whole thing back. Everything written here shares one version number, so a
    * client pulling afterwards sees the batch arrive as one step.
    */
-  push: (changes: readonly IncomingChange[], now: Date) => Promise<PushResult>;
+  push: (
+    changes: readonly IncomingChange[],
+    now: Date,
+    reviewCardIds?: readonly string[],
+  ) => Promise<PushResult>;
 }
 
 /**
@@ -139,6 +153,20 @@ const APPLY_ORDER: readonly PushableEntity[] = [
   'cards',
   'studyPresets',
 ];
+
+/** Hash the original validated delivery, before clock clamping or restoration. */
+function fingerprintOf(change: IncomingChange): string {
+  const canonical = JSON.stringify(change, (_key, value: unknown) =>
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(
+          Object.entries(value).sort(([left], [right]) =>
+            left < right ? -1 : left > right ? 1 : 0,
+          ),
+        )
+      : value,
+  );
+  return createHash('sha256').update(canonical).digest('hex');
+}
 
 /**
  * Reads one table's changed rows.
@@ -281,6 +309,13 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
 
     async pull(since, limit) {
       return run(async (tx) => {
+        // Hold the revision head while reading every table. Otherwise a write
+        // between table reads and the head read could be skipped forever.
+        const [current] = await tx
+          .select({ currentRev: user.currentRev })
+          .from(user)
+          .where(eq(user.id, userId))
+          .for('share');
         const perTable = await Promise.all(
           (Object.keys(READABLE) as (keyof typeof READABLE)[]).map((entity) =>
             changedRows(tx, userId, entity, since, limit),
@@ -290,12 +325,6 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
         const merged = perTable
           .flat()
           .sort((left, right) => left.rev - right.rev || left.id.localeCompare(right.id));
-
-        const [current] = await tx
-          .select({ currentRev: user.currentRev })
-          .from(user)
-          .where(eq(user.id, userId))
-          .limit(1);
 
         const head = current?.currentRev ?? since;
 
@@ -320,11 +349,19 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
       });
     },
 
-    async push(changes, now) {
+    async push(changes, now, reviewCardIds = []) {
       return run(async (tx) => {
-        const rev = await nextRev(tx, userId);
+        // Serialize receipt lookup with all account writes before inspecting state.
+        const [head] = await tx
+          .select({ currentRev: user.currentRev })
+          .from(user)
+          .where(eq(user.id, userId))
+          .for('update');
+        let rev = head?.currentRev ?? 0;
+        let allocated = false;
         const noteTypeIdFor = typeResolver(tx);
         const applied: { entity: SyncEntity; id: string }[] = [];
+        const unchanged: { entity: SyncEntity; id: string }[] = [];
         const conflicts: ConflictedChange[] = [];
         const clamped: string[] = [];
         const noteRestorations: (RestoreNoteResult & { id: string })[] = [];
@@ -339,11 +376,38 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
             }
             if (entity === 'cards' && change.deleted !== (phase === 'cardDeletions')) continue;
 
+            const fingerprint = fingerprintOf(change);
+            const [receipt] = await tx
+              .select()
+              .from(syncReceipts)
+              .where(
+                and(eq(syncReceipts.userId, userId), eq(syncReceipts.fingerprint, fingerprint)),
+              );
+            if (receipt) {
+              if (receipt.outcome.conflict) conflicts.push(receipt.outcome.conflict);
+              else unchanged.push({ entity, id: change.id });
+              if (receipt.outcome.clamped) clamped.push(change.id);
+              if (receipt.outcome.noteRestoration)
+                noteRestorations.push(receipt.outcome.noteRestoration);
+              continue;
+            }
+            if (!allocated) {
+              rev = await nextRev(tx, userId);
+              allocated = true;
+            }
+
             // A clock ahead of ours is pulled back rather than believed. A
             // device a year fast would otherwise win every conflict it took
             // part in, for a year, and nobody would be able to say why.
             const wasClamped = change.updatedAt > ceiling;
             const updatedAt = wasClamped ? now : change.updatedAt;
+            const remember = async (outcome: Omit<SyncReceiptOutcome, 'clamped'> = {}) => {
+              await tx.insert(syncReceipts).values({
+                userId,
+                fingerprint,
+                outcome: { ...outcome, clamped: wasClamped },
+              });
+            };
 
             if (wasClamped) {
               clamped.push(change.id);
@@ -358,6 +422,7 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
                 reason: 'deleted_remotely',
                 keptRev: Number(existing['rev']),
               });
+              await remember({ conflict: conflicts[conflicts.length - 1]! });
               continue;
             }
 
@@ -373,7 +438,7 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
                   reason: 'older_update',
                   keptRev: Number(existing['rev']),
                 });
-
+                await remember({ conflict: conflicts[conflicts.length - 1]! });
                 continue;
               }
             } else if (entity === 'cards') {
@@ -383,17 +448,28 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
               // to attach to and the client is told rather than left guessing.
               await recordConflict(tx, change, undefined, 'deleted_remotely');
               conflicts.push({ entity, id: change.id, reason: 'deleted_remotely', keptRev: 0 });
-
+              await remember({ conflict: conflicts[conflicts.length - 1]! });
               continue;
             }
 
             if (change.deleted) {
               if (existing) {
+                // A raw Card removal has no explicit history-discard contract.
+                // Parent collection deletion still preserves the complete history.
+                if (entity === 'cards') {
+                  const history = await reviewRepository(userId, async (work) =>
+                    work(tx),
+                  ).countForCards([change.id]);
+                  if (history > 0 || reviewCardIds.includes(change.id))
+                    throw new ApiError('cards_would_be_lost', {
+                      details: { cards: 1, reviews: Math.max(history, 1) },
+                    });
+                }
                 await softDeleteRow(tx, userId, entity, change.id, updatedAt, rev);
               }
 
               applied.push({ entity, id: change.id });
-
+              await remember();
               continue;
             }
 
@@ -407,6 +483,7 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
                   reason: 'deleted_remotely',
                   keptRev: Number(existing['rev']),
                 });
+                await remember({ conflict: conflicts[conflicts.length - 1]! });
                 continue;
               }
               if (entity === 'notes') {
@@ -415,32 +492,37 @@ export function syncRepository(userId: string, run: Runner): SyncRepository {
                   ...(await restoreNote(tx, userId, change.id, rev, updatedAt)),
                 });
                 applied.push({ entity, id: change.id });
+                await remember({ noteRestoration: noteRestorations[noteRestorations.length - 1]! });
                 continue;
               }
               if (entity === 'decks') {
                 await restoreDeck(tx, userId, change.id, rev, updatedAt);
                 applied.push({ entity, id: change.id });
+                await remember();
                 continue;
               }
             }
 
+            if (change.data === undefined) throw new ApiError('invalid_request');
             await writeRow({
               tx,
               userId,
               entity,
               id: change.id,
-              data: change.data ?? {},
+              data: change.data,
               updatedAt,
               rev,
               exists: existing !== undefined,
               noteTypeIdFor,
+              reviewCardIds,
             });
 
             applied.push({ entity, id: change.id });
+            await remember();
           }
         }
 
-        return { applied, conflicts, clamped, revision: rev, noteRestorations };
+        return { applied, unchanged, conflicts, clamped, revision: rev, noteRestorations };
       });
     },
   };
@@ -546,6 +628,7 @@ interface WriteRow {
   readonly rev: number;
   readonly exists: boolean;
   readonly noteTypeIdFor: (name: string) => Promise<string>;
+  readonly reviewCardIds: readonly string[];
 }
 
 /**
@@ -570,7 +653,9 @@ async function writeRow(input: WriteRow): Promise<void> {
       const kind = payload.kind ?? current?.['kind'] ?? 'deck';
       if ((kind !== 'folder' && kind !== 'deck') || (current && kind !== current['kind']))
         throw new InvalidCollectionKind();
-      const parentId = (payload.parentId as string | null | undefined) ?? null;
+      const parentId = (
+        payload.parentId === undefined ? (current?.['parentId'] ?? null) : payload.parentId
+      ) as string | null;
       let path: string[] = [];
       if (parentId !== null) {
         path = await requireLiveDeck(input.tx, userId, parentId, 'folder');
@@ -581,13 +666,22 @@ async function writeRow(input: WriteRow): Promise<void> {
         name: String(payload.name ?? '').trim(),
         parentId,
         path,
-        settings: (payload.settings as never) ?? null,
+        settings: (payload.settings === undefined
+          ? (current?.['settings'] ?? null)
+          : payload.settings) as DeckSettings | null,
         ...(payload.position === undefined ? {} : { position: Number(payload.position) }),
       };
 
       if (exists) {
         // Keep descendants' materialized paths consistent with a live parent's move.
         await rewriteDeckSubtree(input.tx, userId, id, path, rev, updatedAt);
+        if (payload.settings !== undefined) {
+          // Explicit skills use the same existing-material activation as the editor.
+          await deckRepository(userId, async (work) => work(input.tx), rev).updateSettings(
+            id,
+            columns.settings,
+          );
+        }
         await input.tx
           .update(decks)
           .set({ ...columns, ...base })
@@ -603,25 +697,62 @@ async function writeRow(input: WriteRow): Promise<void> {
 
     case 'notes': {
       const payload = input.data as NotePayload;
+      const saved = exists ? await currentRow(input.tx, userId, 'notes', id) : undefined;
       await requireLiveDeck(input.tx, userId, payload.deckId as string, 'deck');
       const type = payload.noteType as NoteTypeName;
+      const run: Runner = async (work) => work(input.tx);
+      const repositories = {
+        decks: deckRepository(userId, run),
+        cards: cardRepository(userId, run, rev),
+        reviews: reviewRepository(userId, run),
+      };
       const columns = {
         deckId: payload.deckId as string,
         noteTypeId: await input.noteTypeIdFor(type),
         fields: parseNoteFields(type, payload.fields) as NoteFields,
-        tags: (payload.tags as string[] | undefined) ?? [],
-        source: (payload.source as string | null | undefined) ?? null,
-        rank: (payload.rank as number | null | undefined) ?? null,
-        status: ((payload.status as NoteStatus | undefined) ?? 'active') as NoteStatus,
-        importBatchId: (payload.importBatchId as string | null | undefined) ?? null,
+        tags: (payload.tags ?? saved?.['tags'] ?? []) as string[],
+        source: (payload.source === undefined ? (saved?.['source'] ?? null) : payload.source) as
+          string | null,
+        rank: (payload.rank === undefined ? (saved?.['rank'] ?? null) : payload.rank) as
+          number | null,
+        status: (payload.status ?? saved?.['status'] ?? 'active') as NoteStatus,
+        importBatchId: (payload.importBatchId === undefined
+          ? (saved?.['importBatchId'] ?? null)
+          : payload.importBatchId) as string | null,
       };
 
       if (exists) {
+        const [current] = await input.tx
+          .select({ deckId: notes.deckId, noteType: noteTypes.name })
+          .from(notes)
+          .innerJoin(noteTypes, eq(noteTypes.id, notes.noteTypeId))
+          .where(and(eq(notes.userId, userId), eq(notes.id, id)))
+          .for('update', { of: notes });
+        if (!current) throw new RestoreDependency();
+        // Match the editor: reconcile in the original Deck, then move all Cards.
+        const change = await planCardChange(
+          repositories,
+          id,
+          current.deckId,
+          type,
+          columns.fields,
+          current.noteType as NoteTypeName,
+        );
+        const pendingHistory = change.removeIds.filter((id) =>
+          input.reviewCardIds.includes(id),
+        ).length;
+        if (change.reviewsLost > 0 || pendingHistory > 0)
+          throw new ApiError('cards_would_be_lost', {
+            details: {
+              cards: change.remove.length,
+              reviews: Math.max(change.reviewsLost, pendingHistory),
+            },
+          });
         await input.tx
           .update(notes)
           .set({ ...columns, ...base })
           .where(and(eq(notes.userId, userId), eq(notes.id, id)));
-
+        await applyCardChange(repositories, id, change);
         await input.tx
           .update(cards)
           .set({ deckId: columns.deckId, updatedAt, rev })
@@ -630,7 +761,7 @@ async function writeRow(input: WriteRow): Promise<void> {
       }
 
       await input.tx.insert(notes).values({ ...columns, id, userId, updatedAt, rev });
-
+      await createOpeningCards(repositories, id, columns.deckId, type, columns.fields);
       return;
     }
 

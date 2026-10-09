@@ -108,7 +108,7 @@ identity into the next request.
 ### Two, in the database
 
 Row level security is enabled and forced on `decks`, `notes`, `cards`, `reviews`, `study_presets`,
-`import_batches` and `sync_conflicts`. The policy is the same on each:
+`import_batches`, `sync_conflicts` and `sync_receipts`. The policy is the same on each:
 
 ```sql
 using       (user_id = current_setting('app.user_id', true))
@@ -279,6 +279,44 @@ Every table that takes part in sync has an index on `(user_id, rev)`, `reviews` 
 revision boundary, because an operation can write several rows under one number. A revision larger than
 the page is sent whole rather than split. A sync push shares one revision across its entity changes;
 separate repository writes inside an outer transaction still allocate their own revisions.
+
+### Server synchronization integrity
+
+Sync Note creation uses the same opening-Card planner as the editor and importer, including inherited
+Deck settings. Compatible edits use the shared history-aware reconciliation: surviving Card identities,
+schedules, suspension, reset boundaries and immutable Reviews remain intact. Note moves carry all Cards,
+including historical tombstones, into the destination Deck. These entity and derived-Card writes share
+one transaction and revision. Pull holds the account revision head while reading the tables, preventing
+a concurrent write from advancing the returned cursor past rows that were never read.
+
+Sync has no destructive-edit confirmation field. Removing answered Cards, including those reset to zero
+repetitions, fails with `cards_would_be_lost` and rolls back the batch. Raw sync Card removal has the same
+history guard; a Review delivered in the batch also protects its Card. Confirmed destructive Note edits
+remain on the normal editing endpoint. Parent collection deletion retains its existing soft-delete and
+operation-scoped restoration behavior.
+
+Migration 0017 adds account-scoped immutable `sync_receipts`. The receipt key hashes the canonical
+validated entity delivery, including its original timestamp, before clock clamping. Receipts contain
+outcome metadata, never Note fields or collection content. An exact retry returns `unchanged` without
+reapplying a delete, restoration or edit, even after later changes or purge. A genuinely different
+delivery still uses the existing timestamp-based last-write-wins rule. Rejected conflicts retain their
+original outcome without duplicating conflict-log rows. Clients must retain the original delivery for
+Retry; changing its timestamp or payload makes it a different operation. Receipt retention is indefinite
+until account erasure; a later bounded retention policy needs a durable retry horizon first.
+
+`POST /sync` preserves Review aggregate counts and adds `rejected` plus a result for every delivery:
+`applied`, `duplicate` or `rejected`. Only the first two acknowledge durable storage. The Review batch
+endpoint retains `results` and `skipped`, with explicit rejection reasons on skipped entries. Both use
+the same timestamp clamping and server-authoritative scheduling path. Recoverable deleted Cards accept
+late answers into immutable history and canonical projection without resurrection; new answers to
+missing, foreign or purged Cards are rejected as `card_not_found`. Already-recorded ids remain duplicates
+after deletion, cancellation, restart or purge. Reuse for a different Card, rating, duration or original
+timestamp is rejected as `review_id_reused`. Nullable `reviews.submitted_at` preserves the original
+timestamp across clamped retries; legacy rows cannot validate that original timestamp retroactively.
+
+This is the Phase 8.0 server foundation. Entity base-revision conflict detection, an explicit operation-id
+protocol, conflict recovery UI, offline Undo transport, Practice synchronization, local Card identity
+mapping for offline-created Notes, IndexedDB, shell updates and the client coordinator remain later work.
 
 ## The index decision, measured
 

@@ -272,8 +272,8 @@ describe.skipIf(!database)('sync', () => {
     const first = await push({ reviews: [review] });
     const second = await push({ reviews: [review] });
 
-    expect(first.reviews).toEqual({ applied: 1, duplicates: 0 });
-    expect(second.reviews).toEqual({ applied: 0, duplicates: 1 });
+    expect(first.reviews).toMatchObject({ applied: 1, duplicates: 0, rejected: 0 });
+    expect(second.reviews).toMatchObject({ applied: 0, duplicates: 1, rejected: 0 });
 
     const log = await repositories.reviews.forCard(card.id);
 
