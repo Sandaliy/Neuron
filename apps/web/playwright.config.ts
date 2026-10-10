@@ -5,12 +5,13 @@ export default defineConfig({
   testDir: './tests',
 
   /*
-   * The hosted frame-rate benchmark and the visual snapshot suite are isolated
-   * from concurrent work. Keep both on one worker so throttled measurements and
-   * screenshots remain honest; interaction runs can use two workers.
+   * Hosted interactions include frame measurements and clicks during animation.
+   * Keep CI, frame-rate benchmarks and visual snapshots serial so concurrent
+   * browsers do not compete for rendering time. Local interaction runs may use two workers.
    */
   fullyParallel: false,
   workers:
+    Boolean(process.env['CI']) ||
     process.env['PERFORMANCE_BENCHMARK'] === 'true' ||
     process.env['VISUAL_SNAPSHOT_SUITE'] === 'true'
       ? 1
