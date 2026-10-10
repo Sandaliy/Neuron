@@ -2,7 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 
 import type { Me } from '@neuron/shared';
 
-import { request } from './api';
+import { ApiFailure, request } from './api';
+import {
+  acceptAccount,
+  accountEpoch,
+  locallySignedOut,
+  rememberedAccount,
+  revokeOffline,
+} from './offline';
 
 /**
  * Who is signed in.
@@ -26,7 +33,36 @@ export const ACCOUNT_KEY = ['account'] as const;
 export function accountQuery() {
   return {
     queryKey: ACCOUNT_KEY,
-    queryFn: ({ signal }: { signal: AbortSignal }) => request<Me>('/account', { signal }),
+    networkMode: 'always',
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      if (locallySignedOut())
+        throw new ApiFailure({
+          code: 'not_authenticated',
+          status: 401,
+          correlationId: 'local-sign-out',
+        });
+      const epoch = accountEpoch();
+      try {
+        const account = await request<Me>('/account', { signal });
+        acceptAccount(account, epoch);
+        return account;
+      } catch (error) {
+        if (
+          error instanceof ApiFailure &&
+          (error.code === 'not_authenticated' || error.code === 'password_change_required')
+        )
+          revokeOffline();
+        if (
+          error instanceof ApiFailure &&
+          error.code === 'network_unreachable' &&
+          epoch === accountEpoch()
+        ) {
+          const remembered = await rememberedAccount().catch(() => undefined);
+          if (remembered) return remembered;
+        }
+        throw error;
+      }
+    },
     // A failure here is a signed out person or a server that is down. Both are
     // handled by the gate above the screens, and neither is helped by retrying.
     retry: false,

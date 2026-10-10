@@ -83,6 +83,21 @@ describe.skipIf(!database)('sync', () => {
     expect(result.changes.every((change) => change.purged === false)).toBe(true);
   });
 
+  it('includes the Note type name for offline reads while retaining its original type identity', async () => {
+    const written = await repositories.notes.create({
+      deckId,
+      noteType: 'vocab',
+      fields: { term: 'Durable', translation: 'Persistent' },
+    });
+    const result = await pull('?since=0');
+    const received = result.changes.find(
+      (change) => change.entity === 'notes' && change.id === written.id,
+    );
+    expect(received?.row['noteType']).toBe('vocab');
+    expect(received?.row['noteTypeId']).toBe(written.noteTypeId);
+    expect(received?.row).not.toHaveProperty('userId');
+  });
+
   it('lets a client resume a download that was cut off', async () => {
     /**
      * The truncated download.

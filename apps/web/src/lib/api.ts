@@ -1,6 +1,8 @@
 import { apiErrorSchema } from '@neuron/shared';
 import type { ApiErrorCode, MessageKey, MessageValues } from '@neuron/shared';
 
+import { accountEpoch, networkLost, offlineState, revokeOffline } from './offline';
+
 /**
  * Talking to the api.
  *
@@ -116,6 +118,14 @@ interface RequestOptions {
  */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, signal } = options;
+  const visit = accountEpoch();
+  if (method !== 'GET' && (offlineState().offline || !navigator.onLine)) {
+    throw new ApiFailure({
+      code: 'network_unreachable',
+      status: 0,
+      correlationId: 'offline-read-only',
+    });
+  }
 
   let response: Response;
 
@@ -143,6 +153,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
      * answering badly. Saying so is the difference between checking the wifi
      * and waiting for someone else to fix something.
      */
+    if (visit === accountEpoch() && (!navigator.onLine || path === '/account')) networkLost();
     throw new ApiFailure({
       code: 'network_unreachable',
       status: 0,
@@ -151,6 +162,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   const text = await response.text();
+  if (visit !== accountEpoch()) throw new DOMException('Account visit ended', 'AbortError');
   let parsed: unknown = undefined;
 
   if (text.length > 0) {
@@ -189,6 +201,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   const { code, status, correlationId, details } = envelope.data.error;
+  if (code === 'not_authenticated' || code === 'password_change_required')
+    revokeOffline(code === 'not_authenticated');
 
   throw new ApiFailure({
     code,

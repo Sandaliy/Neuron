@@ -6,6 +6,7 @@ import type { MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describeAuthError, signIn } from '../../lib/auth-client';
+import { beginOnlineAccount } from '../../lib/offline';
 import { Button } from '../../ui/button';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
@@ -54,6 +55,7 @@ export function SignInScreen() {
     }
 
     // The session changed, so everything read under the old one is stale.
+    beginOnlineAccount();
     await queryClient.invalidateQueries();
     void navigate({ to: '/' });
   };

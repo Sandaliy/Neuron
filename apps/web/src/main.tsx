@@ -8,7 +8,9 @@ import { ApiFailure } from './lib/api';
 import { deckTreeQuery } from './lib/decks';
 import { trackPresses } from './lib/interactions';
 import { noteListQuery, noteQuery } from './lib/notes';
+import { initializeOffline } from './lib/offline';
 import { practiceQuery } from './lib/practice';
+import { registerShell } from './lib/pwa';
 import { initialStudyQuery } from './lib/study-plan';
 import { trackViewport } from './lib/viewport';
 import { watchFrameRate } from './preferences/frame-rate';
@@ -70,7 +72,7 @@ const queryClient = new QueryClient({
        */
       placeholderData: keepPreviousData,
     },
-    mutations: { retry: false },
+    mutations: { retry: false, networkMode: 'always' },
   },
 });
 
@@ -110,6 +112,8 @@ function warmUp(path = window.location.pathname, search = window.location.search
   }
 }
 
+initializeOffline(queryClient);
+registerShell();
 warmUp();
 // Missing route reads start alongside the screen download. Existing observers
 // retain ownership of write invalidation and reconciliation during learning exits.

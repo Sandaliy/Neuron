@@ -4,8 +4,12 @@ import { Suspense } from 'react';
 import type { MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../i18n/locale';
+import { useOffline } from '../lib/offline';
 import { Sheen } from '../ui/sheen';
 import { SkeletonRows } from '../ui/states';
+
+import { OfflineCollection } from './offline-collection';
+import { OfflineStatus } from './offline-status';
 
 import type { CSSProperties } from 'react';
 
@@ -19,6 +23,7 @@ const TABS: readonly { to: '/' | '/library' | '/settings'; label: MessageKey }[]
 
 export function Shell() {
   const t = useTranslate();
+  const offline = useOffline();
   // The committed match owns both the screen and its tab, including collection
   // screens outside /library. A pending address must not remount the old screen.
   const match = useRouterState({ select: (state) => state.matches.at(-1) });
@@ -50,7 +55,8 @@ export function Shell() {
             </section>
           }
         >
-          <Outlet />
+          <OfflineStatus />
+          {offline.offline ? <OfflineCollection /> : <Outlet />}
         </Suspense>
       </main>
 

@@ -196,6 +196,13 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
     (url) => url.pathname.startsWith('/api/'),
     async (route) => {
       const path = new URL(route.request().url()).pathname;
+      if (path === '/api/sync') {
+        const since = Number(new URL(route.request().url()).searchParams.get('since') ?? 0);
+        await route.fulfill({
+          json: { since, revision: Math.max(42, since), hasMore: false, changes: [] },
+        });
+        return;
+      }
 
       if (path.endsWith('/api/account')) {
         if (!signedIn) {

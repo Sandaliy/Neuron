@@ -7,3 +7,4 @@
  * developing and on a branch preview, false on the production build.
  */
 declare const __DEV_ROUTES__: boolean;
+declare const __SHELL_VERSION__: string;

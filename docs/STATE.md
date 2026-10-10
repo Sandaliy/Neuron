@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-10, Phase 8.0 server sync integrity prepared for protected delivery.
+Last updated: 2026-10-10, Phase 8.1 durable offline collection reads prepared for protected delivery.
 
 ## Current release
 
@@ -38,14 +38,20 @@ The cumulative releases through PR #41 provide:
   active Practice Known progress across repeat/resume/Undo, and makes unavailable recipes actionable
   while preserving the saved run until explicit replacement confirmation.
 
-Phase 8 Offline Collection and Synchronization is active. The first server integrity slice is implemented
-on `work/sync-integrity`; production remains on the accepted Phase 7 baseline. It adds shared
-Note/Card planning and history protection to sync, durable exact-delivery receipts, explicit Review
-outcomes and revision-consistent pulls. Migration 0017 adds the receipts and original Review delivery
-timestamp. Protected delivery and required CI/Vercel checks remain pending.
-Local verification passed all 24 new sync regressions, the relevant Note/Card, restoration, replay,
-RLS and migration suites, and all 606 core/shared/web unit tests.
-No service worker, IndexedDB collection or general offline mutation queue is implemented.
+Phase 8.0 is merged through PR #43 at `ec1c980`. The owner confirmed that production migration 0017
+was applied and verified. The release adds shared Note/Card planning and history protection to sync,
+durable exact-delivery receipts, explicit Review outcomes and revision-consistent pulls.
+
+Phase 8.1 on `work/offline-collection` adds versioned account-scoped IndexedDB collection persistence,
+atomic pull-page/cursor application, resumable complete hydration and read-only offline Folder/Deck/
+Note browsing. A versioned service worker caches the shell and static assets, never authenticated APIs.
+Remembered offline accounts remain distinct from validated sessions; explicit sign-out, account
+switching and reconnect rejection revoke local UI access. Storage failures retain online usability.
+Chromium/WebKit offline cases and real-Postgres sync regressions pass locally.
+Protected merge and required CI/Vercel checks remain pending; this slice is not yet production.
+See `offline-collection.md` for the storage, lifecycle, recovery and later-write boundaries.
+No offline mutation outbox, local Study planning, Review/Undo transport, Practice synchronization or
+offline Import drafts are implemented. Physical installed-iPhone acceptance remains a device check.
 Phase 9 triage/waves/progressive direction admission and Phase 10 personal plans/progress remain later work.
 
 ## Performance monitor diagnosis and policy
@@ -115,11 +121,11 @@ Today or Study.
 
 ## Next
 
-1. Deliver Phase 8.0 server sync integrity through a protected PR and verify the required checks and
-   migration deployment before calling it released.
-2. Resolve local persistence, shell updates, queue ownership, offline-created Card identity mapping,
-   entity conflict detection, offline Undo and Practice synchronization before their implementation.
-   Include authentication expiry, storage-loss recovery and cross-device convergence in later slices.
+1. Deliver Phase 8.1 through the protected PR workflow and perform installed-iPhone offline reopening,
+   storage and update-lifecycle acceptance before calling native device behavior accepted.
+2. Resolve durable queue ownership, migrations preserving pending work, offline-created Card identity
+   mapping, entity conflict detection, local Study planning, offline Undo and Practice synchronization
+   before offline writes. Include authentication expiry, storage-loss recovery and cross-device convergence.
 3. Keep Phase 9 large-collection triage/waves/progressive admission and Phase 10 personal workload
    customization/statistics separate. Earlier design is appropriate only for concrete storage/sync prerequisites.
 

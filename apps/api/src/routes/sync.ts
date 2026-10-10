@@ -71,16 +71,24 @@ export function syncRoutes(): Hono<RequestBindings> {
 
   routes.get('/', async (context) => {
     const query = readQuery(context, pullSyncSchema);
-    const result = await repositoriesOf(context).sync.pull(
+    const repositories = repositoriesOf(context);
+    const result = await repositories.sync.pull(
       query.since ?? 0,
       query.limit ?? DEFAULT_PULL_LIMIT,
     );
 
+    const typeNames = await repositories.noteTypes.namesById();
     return context.json({
       since: result.since,
       revision: result.revision,
       hasMore: result.hasMore,
-      changes: result.changes.map(presentRow),
+      changes: result.changes.map((change) => {
+        const presented = presentRow(change);
+        if (change.entity === 'notes') {
+          presented.row['noteType'] = typeNames.get(String(change.row['noteTypeId']));
+        }
+        return presented;
+      }),
     });
   });
 
