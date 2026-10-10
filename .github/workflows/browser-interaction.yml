@@ -1,0 +1,64 @@
+name: Browser interaction runner
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        required: true
+        type: string
+      full:
+        required: true
+        type: boolean
+      files:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  interaction:
+    name: ${{ inputs.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build browser app
+        run: pnpm --filter "@neuron/web..." build
+      - name: Install Chromium
+        run: pnpm --filter @neuron/web exec playwright install --with-deps chromium
+      - name: Run interaction browser tests
+        shell: bash
+        env:
+          BROWSER_PROJECT: ${{ inputs.project }}
+          BROWSER_FULL: ${{ inputs.full }}
+          BROWSER_FILES: ${{ inputs.files }}
+        run: |
+          case "$BROWSER_PROJECT" in
+            phone-interaction|desktop-interaction) ;;
+            *) echo "Unknown interaction project: $BROWSER_PROJECT"; exit 1 ;;
+          esac
+          if [[ "$BROWSER_FULL" == "true" ]]; then
+            pnpm --filter @neuron/web test:screens --project="$BROWSER_PROJECT" --workers=1
+          else
+            if [[ -z "$BROWSER_FILES" ]]; then
+              echo "Targeted coverage requires selected files"; exit 1
+            fi
+            read -r -a files <<< "$BROWSER_FILES"
+            pnpm --filter @neuron/web test:screens "${files[@]}" --project="$BROWSER_PROJECT" --workers=1
+          fi
+      - name: Keep the browser report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-${{ inputs.project }}-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 14

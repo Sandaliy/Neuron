@@ -60,7 +60,7 @@ export function selectBrowserTests(paths, forcedFull = false) {
       continue;
     }
     if (
-      /^(?:\.github\/workflows\/(?:ci|full-browser-regression)\.yml|scripts\/select-browser-tests\.(?:mjs|test\.mjs))$/.test(
+      /^(?:\.github\/workflows\/(?:ci|browser-interaction|full-browser-regression)\.yml|scripts\/(?:select-browser-tests|browser-gate)\.(?:mjs|test\.mjs))$/.test(
         path,
       )
     ) {

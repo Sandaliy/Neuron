@@ -76,6 +76,28 @@ This supports a hosted-run sampling/adaptation anomaly rather than a confirmed p
 the cause of that runner's slow frames is unproven. Preserve the hosted miss as diagnostic evidence.
 Manual dispatch avoids automatic noise without masking failures or weakening assertions.
 
+## Required browser CI
+
+The pending CI optimization keeps `Browser and screenshot tests` as the protected required check.
+A short selection job feeds independent phone and desktop interaction runners, each with one worker,
+and the selected Windows visual job. The aggregate requires both interactions and any selected visuals
+to succeed; missing, failed, cancelled or skipped required suites fail closed. Visual diagnostics do
+not wait for interaction completion. Existing change-aware selection, test coverage, browser binaries,
+assertions, retries and baselines remain unchanged. This adds runner setup/download duplication in
+exchange for concurrent execution without sharing rendering resources.
+
+[Clean hosted run 38012456570](https://github.com/Sandaliy/Neuron/actions/runs/38012456570) passed in
+5m27s versus PR #44's 18m11s. Phone/desktop interactions took 4m12s/4m21s concurrently, retaining
+426 passes and four skips; all 66 visuals passed in an independent 2m07s Windows job. Chromium
+installation took 22s/24s, compared with 7m29s in PR #44; external download stalls remain possible.
+The deliberate phone assertion failure in
+[probe run 38012451111](https://github.com/Sandaliy/Neuron/actions/runs/38012451111) made the required
+gate fail, retained interaction reports and allowed visuals to finish. That probe also caught an
+unchanged desktop navigation scroll assertion (1159 instead of 1200 at `navigation.spec.ts:116`);
+the clean hosted run and local full gate passed it. Its cause remains unproven; assertions are intact.
+Local full interactions (426 passes, four skips), 66 visuals and 31 selection/gate checks passed.
+The CI optimization is prepared for protected PR delivery and is not yet merged.
+
 ## Now
 
 Phase 6 is complete on `main`. The release contains writable decks, note editing and browsing, shared
