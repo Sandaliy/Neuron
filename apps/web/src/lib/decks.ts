@@ -5,8 +5,10 @@ import { resolveDeckSettings, uuidV7 } from '@neuron/shared';
 import type { Deck, DeckNode, DeckSettings, ResolvedDeckSettings } from '@neuron/shared';
 
 import { request } from './api';
+import { localDeckTree } from './collection-read';
 import { projectDeck } from './deck-projection';
 import { writeEntities } from './entity-writes';
+import { offlineState } from './offline';
 
 /**
  * The library, in one request, and the six things that can change it.
@@ -32,8 +34,11 @@ export const DECK_TREE_KEY = ['decks'] as const;
 export function deckTreeQuery() {
   return {
     queryKey: DECK_TREE_KEY,
+    networkMode: 'always',
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      request<{ decks: DeckNode[] }>('/decks', { signal }),
+      offlineState().offline
+        ? localDeckTree()
+        : request<{ decks: DeckNode[] }>('/decks', { signal }),
   } as const;
 }
 

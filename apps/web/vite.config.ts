@@ -1,6 +1,12 @@
+import { randomUUID } from 'node:crypto';
+
 import tailwind from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+
+import { shellWorker } from './scripts/service-worker.mjs';
+
+const SHELL_VERSION = randomUUID();
 
 /**
  * Where the api answers while developing.
@@ -23,10 +29,37 @@ const API_TARGET = process.env.VITE_API_TARGET ?? 'http://localhost:8787';
 const DEV_ROUTES = process.env.VERCEL_ENV !== 'production';
 
 export default defineConfig({
-  plugins: [react(), tailwind()],
+  plugins: [
+    react(),
+    tailwind(),
+    {
+      name: 'versioned-shell',
+      enforce: 'post',
+      generateBundle: {
+        order: 'post',
+        handler(_options, bundle) {
+          const files = [
+            ...Object.keys(bundle)
+              .filter((file) => !file.endsWith('.map'))
+              .map((file) => `/${file}`),
+            '/manifest.webmanifest',
+            '/icon.svg',
+            '/icon-192.png',
+            '/icon-512.png',
+          ];
+          this.emitFile({
+            type: 'asset',
+            fileName: 'sw.js',
+            source: shellWorker(SHELL_VERSION, files),
+          });
+        },
+      },
+    },
+  ],
 
   define: {
     __DEV_ROUTES__: JSON.stringify(DEV_ROUTES),
+    __SHELL_VERSION__: JSON.stringify(SHELL_VERSION),
   },
 
   server: {

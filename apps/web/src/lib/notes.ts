@@ -13,9 +13,11 @@ import type {
 } from '@neuron/shared';
 
 import { request } from './api';
+import { localNote, localNotes } from './collection-read';
 import { DECK_TREE_KEY, flatten } from './decks';
 import { writeEntities } from './entity-writes';
 import { projectNotes } from './note-projection';
+import { offlineState } from './offline';
 import { DELETED_NOTES_KEY } from './recovery';
 
 import type { InfiniteData } from '@tanstack/react-query';
@@ -44,8 +46,11 @@ export function useNote(id: string | undefined) {
 export function noteQuery(id: string | undefined) {
   return {
     queryKey: [NOTE_KEY, id],
+    networkMode: 'always' as const,
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      request<{ note: Note; cards: Card[] }>(`/notes/${id ?? ''}`, { signal }),
+      offlineState().offline
+        ? localNote(id ?? '')
+        : request<{ note: Note; cards: Card[] }>(`/notes/${id ?? ''}`, { signal }),
   };
 }
 
@@ -77,12 +82,15 @@ export function noteQueryString(query: NoteQuery, extra: Record<string, string> 
 export function noteListQuery(query: NoteQuery) {
   return {
     queryKey: [NOTE_KEY, 'list', noteQueryString(query)],
+    networkMode: 'always' as const,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
-      request<{ items: Note[]; nextCursor?: string }>(
-        `/notes?${noteQueryString(query, { limit: '1000', ...(pageParam === undefined ? {} : { cursor: pageParam }) })}`,
-        { signal },
-      ),
+      offlineState().offline
+        ? localNotes(query, pageParam)
+        : request<{ items: Note[]; nextCursor?: string }>(
+            `/notes?${noteQueryString(query, { limit: '1000', ...(pageParam === undefined ? {} : { cursor: pageParam }) })}`,
+            { signal },
+          ),
     getNextPageParam: (last: { nextCursor?: string }) => last.nextCursor,
   };
 }

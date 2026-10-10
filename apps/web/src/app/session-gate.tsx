@@ -3,6 +3,7 @@ import { Navigate } from '@tanstack/react-router';
 import { useTranslate } from '../i18n/locale';
 import { useAccount } from '../lib/account';
 import { ApiFailure, describe } from '../lib/api';
+import { useOffline } from '../lib/offline';
 import { ErrorState, SkeletonRows } from '../ui/states';
 
 import type { ReactNode } from 'react';
@@ -30,6 +31,7 @@ import type { ReactNode } from 'react';
 export function SessionGate({ children }: { readonly children: ReactNode }) {
   const t = useTranslate();
   const account = useAccount();
+  const offline = useOffline();
   const failure = account.error;
 
   if (failure instanceof ApiFailure && failure.code === 'not_authenticated') {
@@ -39,6 +41,8 @@ export function SessionGate({ children }: { readonly children: ReactNode }) {
   if (failure instanceof ApiFailure && failure.code === 'password_change_required') {
     return <Navigate to="/recovery/password" replace />;
   }
+
+  if (offline.signedOut) return <Navigate to="/sign-in" replace />;
 
   // Already through the door. A later request that failed is not a reason to
   // close it: the session is still good as far as anybody knows, and the
@@ -57,7 +61,7 @@ export function SessionGate({ children }: { readonly children: ReactNode }) {
     return (
       <div className="mx-auto w-full max-w-[720px] px-16 py-32">
         <ErrorState
-          message={t(key, values)}
+          message={offline.offline ? t('offline.incomplete') : t(key, values)}
           retryLabel={t('common.retry')}
           onRetry={() => void account.refetch()}
         />

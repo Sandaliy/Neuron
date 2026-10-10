@@ -2,6 +2,28 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'offline.title': 'Offline · collection reading',
+  'offline.readOnly':
+    'Browse downloaded Folders, Decks and Notes. Editing, Study, Practice and Import require a connection.',
+  'offline.session':
+    'Offline access uses the account previously signed in on this device. The server session has not been freshly validated.',
+  'offline.incomplete':
+    'The collection download is incomplete or missing. Connect and sign in to finish downloading before browsing offline.',
+  'offline.downloading':
+    'Downloading the collection for offline reading… Keep Neuron open until the download finishes.',
+  'offline.unavailable':
+    'Offline storage is unavailable or needs recovery. You can keep using Neuron online. Browser storage may be cleared; this device cache is not a backup.',
+  'offline.rebuild': 'Rebuild downloaded collection',
+  'offline.update':
+    'An application update is ready. Close all Neuron windows, then reopen online to finish updating.',
+  'offline.missing':
+    'Downloaded data is missing or incompatible. Reconnect to download the collection again.',
+  'offline.empty': 'No items here.',
+  'offline.more': 'Load more',
+  'offline.folder': 'Folder',
+  'offline.deck': 'Deck',
+  'offline.shellPending':
+    'Offline reopening is not ready yet. Reopen online to finish caching the application.',
   'import.spokenWord': 'Spoken word',
   'import.listeningExample':
     'Listen, type the word, then reveal meaning and context. Audio uses the Deck language.',

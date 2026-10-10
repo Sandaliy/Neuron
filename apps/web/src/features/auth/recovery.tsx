@@ -11,6 +11,7 @@ import type { MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { authClient, describeAuthError } from '../../lib/auth-client';
+import { beginOnlineAccount } from '../../lib/offline';
 import { Button } from '../../ui/button';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
@@ -165,6 +166,7 @@ export function NewPasswordScreen({ remaining }: { readonly remaining?: number }
       return;
     }
 
+    beginOnlineAccount();
     await queryClient.invalidateQueries();
     void navigate({ to: '/' });
   };

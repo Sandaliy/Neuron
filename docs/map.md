@@ -292,30 +292,34 @@ every one of these in every state.
 
 ### The wiring (`src/lib/`, `src/i18n/`, `src/theme/`)
 
-| File                           | Holds                                                                               |
-| ------------------------------ | ----------------------------------------------------------------------------------- |
-| `lib/api.ts`                   | One request, the error envelope unpacked, and the code turned into a message key    |
-| `lib/auth-client.ts`           | Better Auth over the same origin, and its own codes mapped onto the shared ones     |
-| `lib/account.ts`               | Who is signed in. One query, and the session check for the whole app                |
-| `lib/decks.ts`                 | The tree in one request, and adding up the roots                                    |
-| `lib/notes.ts`                 | Note queries, writes, bulk actions and batched duplicate lookup                     |
-| `lib/study-plan.ts`            | Early authoritative default plan and account/revision/time compatibility for reuse  |
-| `lib/prompt.ts`                | Build-time import of `docs/card-generation-prompt.md`                               |
-| `lib/dialog-state.ts`          | Resets dialog-local state whenever the dialog opens                                 |
-| `lib/deployment-api-origin.ts` | Maps a web deployment to the matching api environment and fails closed for previews |
-| `lib/storage.ts`               | Local storage that cannot throw, because Safari's private mode does                 |
-| `lib/viewport.ts`              | Where the on-screen keyboard is, as CSS variables a sheet is positioned against     |
-| `preferences/device.ts`        | A preference that belongs to the device: read at import, applied before React       |
-| `preferences/sync.ts`          | Tells the account row, one request at a time, and discards the answer               |
-| `preferences/glass.ts`         | The three glass levels, and the ceiling the device puts on the chosen one           |
-| `preferences/motion.ts`        | Whether movement is off, by the system's request or by hand                         |
-| `preferences/frame-rate.ts`    | Samples the frames during a scroll and lowers the glass when they are bad           |
-| `i18n/locale.ts`               | Which language is on. The catalogue itself is in `packages/shared`                  |
-| `theme/theme.ts`               | Which theme is on, and the copy of that rule `index.html` runs first                |
-| `theme/use-theme.ts`           | The theme as a device preference, and the hook that reads it                        |
-| `styles/global.css`            | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft |
-| `vercel.ts`                    | Same-origin api rewrites for production, preview branches, and local Vercel builds  |
-| `scripts/icons.mjs`            | Draws the icons in `public/` from the same tokens                                   |
+| File                                       | Holds                                                                                   |
+| ------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `lib/api.ts`                               | One request, the error envelope unpacked, and the code turned into a message key        |
+| `lib/auth-client.ts`                       | Better Auth over the same origin, and its own codes mapped onto the shared ones         |
+| `lib/account.ts`                           | Who is signed in. One query, and the session check for the whole app                    |
+| `lib/decks.ts`                             | The tree in one request, and adding up the roots                                        |
+| `lib/notes.ts`                             | Note queries, writes, bulk actions and batched duplicate lookup                         |
+| `lib/study-plan.ts`                        | Early authoritative default plan and account/revision/time compatibility for reuse      |
+| `lib/prompt.ts`                            | Build-time import of `docs/card-generation-prompt.md`                                   |
+| `lib/dialog-state.ts`                      | Resets dialog-local state whenever the dialog opens                                     |
+| `lib/deployment-api-origin.ts`             | Maps a web deployment to the matching api environment and fails closed for previews     |
+| `lib/storage.ts`                           | Local storage that cannot throw, because Safari's private mode does                     |
+| `lib/collection-db.ts`                     | Versioned account-scoped IndexedDB stores, atomic pull pages/cursors and cache recovery |
+| `lib/collection-read.ts`                   | Shared-schema offline collection projections for existing React Query reads             |
+| `lib/offline.ts`                           | Remembered-account boundaries, pull coordination, connectivity and local sign-out       |
+| `lib/pwa.ts`, `scripts/service-worker.mjs` | Versioned shell registration, asset allowlist and non-disruptive worker lifecycle       |
+| `lib/viewport.ts`                          | Where the on-screen keyboard is, as CSS variables a sheet is positioned against         |
+| `preferences/device.ts`                    | A preference that belongs to the device: read at import, applied before React           |
+| `preferences/sync.ts`                      | Tells the account row, one request at a time, and discards the answer                   |
+| `preferences/glass.ts`                     | The three glass levels, and the ceiling the device puts on the chosen one               |
+| `preferences/motion.ts`                    | Whether movement is off, by the system's request or by hand                             |
+| `preferences/frame-rate.ts`                | Samples the frames during a scroll and lowers the glass when they are bad               |
+| `i18n/locale.ts`                           | Which language is on. The catalogue itself is in `packages/shared`                      |
+| `theme/theme.ts`                           | Which theme is on, and the copy of that rule `index.html` runs first                    |
+| `theme/use-theme.ts`                       | The theme as a device preference, and the hook that reads it                            |
+| `styles/global.css`                        | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft     |
+| `vercel.ts`                                | Same-origin api rewrites for production, preview branches, and local Vercel builds      |
+| `scripts/icons.mjs`                        | Draws the icons in `public/` from the same tokens                                       |
 
 ### The gallery and the browser tests
 
@@ -330,17 +334,18 @@ every one of these in every state.
 
 ## Documentation
 
-| File                             | Holds                                                                         |
-| -------------------------------- | ----------------------------------------------------------------------------- |
-| `docs/STATE.md`                  | Current phase, open threads, decision log. Read this first                    |
-| `docs/ROADMAP.md`                | Product direction, committed milestone order, backlog and maintenance policy  |
-| `docs/architecture.md`           | Why the structure is what it is, and the known limitations                    |
-| `docs/algorithm.md`              | FSRS and the workload manager explained in full, with the simulator results   |
-| `docs/design-system.md`          | The visual system: tokens, inventory, motion, glass, the words, the checklist |
-| `docs/card-generation-prompt.md` | Canonical prompt and import output contract used by the web build             |
-| `docs/design-principles.md`      | A pointer to the file above. The phase 5 values in it are all wrong now       |
-| `docs/copy-audit.md`             | Every interface string in both languages, and what looks wrong with it        |
-| `docs/assets/*.svg`              | Charts produced by `sim/main.ts`                                              |
+| File                             | Holds                                                                                     |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `docs/STATE.md`                  | Current phase, open threads, decision log. Read this first                                |
+| `docs/ROADMAP.md`                | Product direction, committed milestone order, backlog and maintenance policy              |
+| `docs/architecture.md`           | Why the structure is what it is, and the known limitations                                |
+| `docs/algorithm.md`              | FSRS and the workload manager explained in full, with the simulator results               |
+| `docs/design-system.md`          | The visual system: tokens, inventory, motion, glass, the words, the checklist             |
+| `docs/card-generation-prompt.md` | Canonical prompt and import output contract used by the web build                         |
+| `docs/design-principles.md`      | A pointer to the file above. The phase 5 values in it are all wrong now                   |
+| `docs/copy-audit.md`             | Every interface string in both languages, and what looks wrong with it                    |
+| `docs/offline-collection.md`     | Durable offline read, account, shell and recovery contracts and later-write prerequisites |
+| `docs/assets/*.svg`              | Charts produced by `sim/main.ts`                                                          |
 
 Collection recovery additions: `apps/api/src/db/repositories/purge.ts` owns irreversible deletion and
 server impact counts; `restoration.ts` owns operation-scoped subtree restoration. In the web Library,

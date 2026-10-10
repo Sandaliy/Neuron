@@ -9,6 +9,7 @@ import { useTranslate } from '../../i18n/locale';
 import { ACCOUNT_KEY, useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { authClient, changePassword, describeAuthError, signOut } from '../../lib/auth-client';
+import { revokeOffline } from '../../lib/offline';
 import { GLASS_LEVELS, GLASS_SCOPES, useGlass } from '../../preferences/glass';
 import { useMotion } from '../../preferences/motion';
 import { useTheme } from '../../theme/use-theme';
@@ -587,6 +588,7 @@ function DeleteAccount({ twoFactorOn }: { readonly twoFactorOn: boolean }) {
         body: { password, ...(twoFactorOn ? { code } : {}) },
       });
 
+      revokeOffline(true);
       queryClient.clear();
       toast.show(t('settings.deleted'));
       await navigate({ to: '/sign-in' });

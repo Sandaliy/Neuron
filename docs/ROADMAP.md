@@ -131,7 +131,8 @@ Typing tolerance, grammar drills and richer speech remain deferred as described 
 **Purpose**
 
 Make mobile study dependable without a connection and reconcile work across devices when connectivity
-returns. Phase 7 is accepted; Phase 8 is ready for planning, with implementation not yet started.
+returns. Phase 7 is accepted and Phase 8.0 server sync integrity is released. Phase 8.1 implements
+durable collection reads and shell caching; offline writes and learning remain later slices.
 
 **Core deliverables**
 

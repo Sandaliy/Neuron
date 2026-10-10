@@ -605,10 +605,18 @@ Hono deployment so session cookies stay on one browser origin. Production uses t
 preview derives the matching api branch URL from Vercel's generated web branch URL and refuses to build if
 that mapping is unavailable. The old `/spike` page remains deleted.
 
-**The PWA shell is not offline yet.** The web app has a manifest, install icons and standalone display
-metadata. It does not have a service worker, an IndexedDB collection, an offline mutation queue or client
-sync orchestration. The deterministic core and server sync endpoints are foundations for that later work,
-not proof that the current browser app works without a network.
+**The PWA supports downloaded collection reading offline.** Phase 8.1 adds account-scoped, versioned
+IndexedDB storage using whole revision-boundary pulls. Each page and cursor commit atomically;
+interrupted initial hydration remains unavailable offline until a final page commits. Existing React
+Query collection keys and shared schemas supply read-only Folder, Deck and Note views. A remembered
+account grants only local reading, while reconnection validates server authorization before online
+controls return. Explicit sign-out blocks automatic cookie reuse and revokes other open tabs.
+
+The versioned service worker precaches shell HTML, emitted assets and install metadata. It never
+caches authenticated APIs and waits for old windows to close before activation. Storage/schema
+failure preserves online usability and offers explicit reconstruction of the read-only cache.
+No offline mutation queue, local Study planner, Review/Undo transport, Practice synchronization or
+offline Import drafts are implemented. See [offline collection contracts](offline-collection.md).
 
 **Preview data is separate and empty.** The long-lived Neon `preview` branch is schema-only, and its
 `neuron_preview` database contains no production rows. Its application role, authentication role, and

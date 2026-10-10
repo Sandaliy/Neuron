@@ -5,6 +5,7 @@ import { API_ERROR_CODES } from '@neuron/shared';
 import type { MessageKey, MessageValues } from '@neuron/shared';
 
 import { API_BASE } from './api';
+import { revokeOffline } from './offline';
 
 import type { FailureCode } from './api';
 
@@ -57,7 +58,11 @@ export const authClient = createAuthClient({
   fetchOptions: { customFetchImpl: fetchOrSaySo },
 });
 
-export const { useSession, signIn, signOut, signUp, twoFactor, changePassword } = authClient;
+export const { useSession, signIn, signUp, twoFactor, changePassword } = authClient;
+export const signOut: typeof authClient.signOut = (...args) => {
+  revokeOffline(true);
+  return authClient.signOut(...args);
+};
 
 /**
  * Better Auth's own error codes, in the vocabulary the catalogue speaks.
