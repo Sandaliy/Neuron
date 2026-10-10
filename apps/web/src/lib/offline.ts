@@ -12,7 +12,9 @@ import {
   openCollection,
   result,
 } from './collection-db';
+import { collectionDiagnostic } from './collection-failure';
 
+import type { CollectionDiagnostic, CollectionStage } from './collection-failure';
 import type { QueryClient } from '@tanstack/react-query';
 
 const CONTEXT_KEY = 'neuron.offline.account';
@@ -31,6 +33,8 @@ interface OfflineState {
   accountId: string | null;
   download: Download;
   signedOut: boolean;
+  available: boolean;
+  failure: CollectionDiagnostic | null;
 }
 let state: OfflineState = {
   offline: typeof navigator !== 'undefined' && !navigator.onLine,
@@ -38,12 +42,15 @@ let state: OfflineState = {
   accountId: null,
   download: 'idle',
   signedOut: locallySignedOut(),
+  available: false,
+  failure: null,
 };
 const listeners = new Set<() => void>();
 let client: QueryClient | undefined;
 let epoch = 0;
 let controller: AbortController | undefined;
 let running: Promise<void> | undefined;
+let recovering = false;
 let db: IDBDatabase | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
 const emit = (patch: Partial<OfflineState>) => {
@@ -85,6 +92,7 @@ function clearReads() {
 /** Revocation happens before transport; late pulls/account requests cannot re-enable this visit. */
 export function revokeOffline(explicit = false) {
   epoch++;
+  clearTimeout(timer);
   controller?.abort();
   db?.close();
   db = undefined;
@@ -100,6 +108,8 @@ export function revokeOffline(explicit = false) {
     accountId: null,
     validated: false,
     download: 'idle',
+    available: false,
+    failure: null,
     signedOut: explicit || state.signedOut,
   });
   clearReads();
@@ -132,6 +142,7 @@ export async function rememberedAccount(): Promise<Me | undefined> {
       validated: false,
       accountId: id,
       download: meta.complete ? 'ready' : 'idle',
+      available: meta.complete,
     });
     return account;
   } finally {
@@ -142,6 +153,8 @@ export async function rememberedAccount(): Promise<Me | undefined> {
 export function acceptAccount(account: Me, startedEpoch: number) {
   if (startedEpoch !== epoch || state.signedOut || locallySignedOut())
     throw new Error('account_visit_ended');
+  const reconnecting = state.offline;
+  const newAccount = state.accountId !== account.id;
   if (
     (state.accountId && state.accountId !== account.id) ||
     (contextId() && contextId() !== account.id)
@@ -151,13 +164,22 @@ export function acceptAccount(account: Me, startedEpoch: number) {
   if (state.offline) clearReads();
   emit({ offline: !navigator.onLine, validated: true, accountId: account.id });
   // Authentication fields are selected explicitly by meSchema; cookies/tokens never enter this store.
-  if (running) void running.then(() => download(account));
-  else void download(account);
+  // Repeated account reads/navigation join the current visit; they never queue pulls.
+  if (running && !newAccount && !reconnecting) return;
+  if (newAccount || reconnecting || state.download === 'idle') {
+    const visit = epoch;
+    if (running)
+      void running.then(() => {
+        if (visit === epoch) void download(account);
+      });
+    else void download(account);
+  }
 }
 
 export function networkLost() {
   if (!client || state.offline) return;
   emit({ offline: true, validated: false });
+  controller?.abort();
   clearReads();
 }
 
@@ -167,46 +189,65 @@ async function download(account: Me) {
   const ownEpoch = epoch;
   controller = new AbortController();
   const signal = controller.signal;
+  let opened: IDBDatabase | undefined;
+  let stage: CollectionStage = 'database';
   running = (async () => {
     try {
-      db = await openCollection(account.id);
-      const initial = await metadata(db);
+      opened = await openCollection(account.id);
       if (ownEpoch !== epoch || signal.aborted || state.accountId !== account.id) return;
-      emit({ download: initial.complete ? 'ready' : 'downloading' });
-      const tx = db.transaction('meta', 'readwrite');
+      db = opened;
+      const initial = await metadata(opened);
+      if (ownEpoch !== epoch || signal.aborted || state.accountId !== account.id) return;
+      emit({
+        download: initial.complete ? 'ready' : 'downloading',
+        available: initial.complete,
+        failure: null,
+      });
+      stage = 'transaction';
+      const tx = opened.transaction('meta', 'readwrite');
       const saved = committed(tx);
       tx.objectStore('meta').put(meSchema.parse(account), 'account');
       await saved;
       if (ownEpoch !== epoch) return;
+      stage = 'database';
       localStorage.setItem(CONTEXT_KEY, account.id);
       while (!signal.aborted && ownEpoch === epoch && !state.offline) {
-        const meta = await metadata(db);
+        stage = 'database';
+        const meta = await metadata(opened);
+        stage = 'network';
         const page = await request<PullSyncResult>(`/sync?since=${meta.cursor}&limit=200`, {
           signal,
         });
         if (signal.aborted || ownEpoch !== epoch || state.accountId !== account.id) return;
         try {
-          await applyPage(db, page);
+          stage = 'transaction';
+          await applyPage(opened, page);
         } catch (error) {
           // A competing tab committed first: ask again from the durable cursor.
-          if ((await metadata(db)).cursor > meta.cursor) continue;
+          if ((await metadata(opened)).cursor > meta.cursor) continue;
           throw error;
         }
-        const applied = await metadata(db);
+        const applied = await metadata(opened);
         if (signal.aborted || ownEpoch !== epoch || state.accountId !== account.id) return;
         if (!page.hasMore && applied.complete) {
-          emit({ download: 'ready' });
+          emit({ download: 'ready', available: true, failure: null });
           break;
         }
       }
     } catch (error) {
       if (ownEpoch === epoch && !signal.aborted) {
-        if (error instanceof ApiFailure && error.code === 'network_unreachable') networkLost();
-        else emit({ download: 'unavailable' });
+        const failure =
+          error instanceof ApiFailure
+            ? { stage: 'network' as const, code: error.code }
+            : collectionDiagnostic(error, stage);
+        console.warn('Offline collection failure', failure);
+        emit({ download: 'unavailable', failure });
+        // A failed background pull alone does not take the online application away.
+        if (!navigator.onLine) networkLost();
       }
     } finally {
-      db?.close();
-      db = undefined;
+      opened?.close();
+      if (db === opened) db = undefined;
     }
   })().finally(() => {
     running = undefined;
@@ -216,16 +257,40 @@ async function download(account: Me) {
 
 export async function retryDownload(reset = false) {
   if (state.offline || !state.validated || !state.accountId) return;
+  if (recovering) return;
+  if (!reset && running) return running;
+  if (reset) recovering = true;
   const id = state.accountId;
-  if (reset) {
-    controller?.abort();
+  const visit = epoch;
+  const active = () =>
+    visit === epoch && state.accountId === id && !state.offline && state.validated;
+  try {
+    if (reset) controller?.abort();
     await running;
-    await deleteCollection(id);
-    emit({ download: 'idle' });
-  } else await running;
-  if (state.accountId !== id || state.offline || !state.validated) return;
-  const account = client?.getQueryData<Me>(['account']);
-  if (account?.id === id) await download(account);
+    if (!active()) return;
+    if (reset) {
+      emit({ download: 'downloading', available: false, failure: null });
+      await deleteCollection(id);
+      if (!active()) return;
+      emit({ download: 'idle', available: false });
+    }
+    const account = client?.getQueryData<Me>(['account']);
+    if (account?.id === id) await download(account);
+  } catch (error) {
+    if (active()) {
+      const failure = collectionDiagnostic(error, 'recovery');
+      console.warn('Offline collection failure', failure);
+      emit({ download: 'unavailable', failure });
+    }
+  } finally {
+    if (reset) recovering = false;
+  }
+}
+
+function refreshDownload() {
+  // Focus/writes can reconcile a healthy snapshot, never loop a failed hydration.
+  if (running || recovering || state.download === 'unavailable') return;
+  void retryDownload();
 }
 
 export function retryConnection() {
@@ -246,7 +311,14 @@ export function initializeOffline(queryClient: QueryClient) {
         controller?.abort();
         db?.close();
         db = undefined;
-        emit({ accountId: null, validated: false, download: 'idle', signedOut: true });
+        emit({
+          accountId: null,
+          validated: false,
+          download: 'idle',
+          available: false,
+          failure: null,
+          signedOut: true,
+        });
         client?.clear();
       } else emit({ signedOut: false });
     }
@@ -255,20 +327,26 @@ export function initializeOffline(queryClient: QueryClient) {
       controller?.abort();
       db?.close();
       db = undefined;
-      emit({ accountId: null, validated: false, download: 'idle' });
+      emit({
+        accountId: null,
+        validated: false,
+        download: 'idle',
+        available: false,
+        failure: null,
+      });
       client?.clear();
       if (!locallySignedOut()) void client?.invalidateQueries({ queryKey: ['account'] });
     }
   });
   window.addEventListener('focus', () => {
     if (state.offline && navigator.onLine) void retryConnection();
-    else void retryDownload();
+    else refreshDownload();
   });
   client.getMutationCache().subscribe((event) => {
     if (event.type === 'updated' && event.mutation.state.status === 'success') {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        void retryDownload();
+        refreshDownload();
       }, 500);
     }
   });

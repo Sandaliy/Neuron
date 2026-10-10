@@ -25,6 +25,7 @@ import { CodeInput } from '../auth/code-input';
 import { PasswordField } from '../auth/password-field';
 import { RecoveryCodes, heldCodes, releaseCodes } from '../auth/recovery-codes';
 
+import { OfflineAccess } from './offline-access';
 import { TotpEnrollment, TotpRemoval } from './totp';
 
 import type { GlassLevel, GlassScope } from '../../preferences/glass';
@@ -50,6 +51,7 @@ export function SettingsScreen() {
       {account.data ? (
         <>
           <Appearance />
+          <OfflineAccess />
           <Security />
           <Account
             email={account.data.email}

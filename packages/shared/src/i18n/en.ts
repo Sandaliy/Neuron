@@ -2,6 +2,27 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'offline.access': 'Offline access',
+  'offline.ready': 'Collection downloaded for offline reading.',
+  'offline.pending': 'The collection has not finished downloading yet.',
+  'offline.onlineAvailable': 'You can keep using Neuron online.',
+  'offline.savedAvailable': 'An existing completed download remains available on this device.',
+  'offline.reconnect': 'Check connection',
+  'offline.rebuildConfirm':
+    'Replace this device’s downloaded collection with a fresh copy from the server? Your server collection is unchanged. Keep Neuron online until it finishes.',
+  'offline.rebuildAction': 'Rebuild now',
+  'offline.failure.network':
+    'The download could not reach the server. Retry when the connection is available.',
+  'offline.failure.protocol':
+    'The server response could not be validated. Retry after updating Neuron; rebuilding storage will not repair this response.',
+  'offline.failure.schema':
+    'A collection row could not be validated. Retry after updating Neuron; rebuilding storage will not repair this response.',
+  'offline.failure.database':
+    'This device’s offline storage could not be opened or read. Retry, or rebuild if the saved download needs recovery.',
+  'offline.failure.transaction':
+    'A download page could not be saved. The last saved position is retained; Retry resumes from there.',
+  'offline.failure.recovery':
+    'The downloaded collection could not be rebuilt. Close other Neuron windows and try again.',
   'offline.title': 'Offline · collection reading',
   'offline.readOnly':
     'Browse downloaded Folders, Decks and Notes. Editing, Study, Practice and Import require a connection.',
@@ -9,10 +30,8 @@ export const en = {
     'Offline access uses the account previously signed in on this device. The server session has not been freshly validated.',
   'offline.incomplete':
     'The collection download is incomplete or missing. Connect and sign in to finish downloading before browsing offline.',
-  'offline.downloading':
-    'Downloading the collection for offline reading… Keep Neuron open until the download finishes.',
-  'offline.unavailable':
-    'Offline storage is unavailable or needs recovery. You can keep using Neuron online. Browser storage may be cleared; this device cache is not a backup.',
+  'offline.downloading': 'Downloading for offline reading…',
+  'offline.unavailable': 'The offline collection is not ready.',
   'offline.rebuild': 'Rebuild downloaded collection',
   'offline.update':
     'An application update is ready. Close all Neuron windows, then reopen online to finish updating.',
