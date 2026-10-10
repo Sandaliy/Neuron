@@ -240,6 +240,15 @@ test('invalid acknowledgement and failed acknowledgement persistence keep the ex
       }, account.id),
     )
     .toBe(2);
+  // Let the local save notification finish before asking for an explicit retry.
+  // A local commit must not queue the online-write follow-up while this invalid
+  // acknowledgement leaves the original command pending.
+  await expect(
+    page.getByText('Name saved on this device. It will sync after sign-in is confirmed.', {
+      exact: true,
+    }),
+  ).toBeHidden();
+  expect(state.deliveries).toEqual([saved.payload]);
   state.badAck = false;
   await page.evaluate(() => {
     const put = IDBObjectStore.prototype.put;

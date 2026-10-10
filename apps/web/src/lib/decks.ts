@@ -199,6 +199,7 @@ export function useDeckActions() {
   });
 
   const rename = useMutation({
+    mutationKey: ['collection-rename'],
     onMutate: (input: { id: string; name: string; observed?: Deck }) => ({
       rollback: projectDeck(client, input.id, { name: input.name }),
     }),

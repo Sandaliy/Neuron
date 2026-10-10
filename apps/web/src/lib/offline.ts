@@ -442,6 +442,16 @@ export function initializeOffline(queryClient: QueryClient) {
   });
   client.getMutationCache().subscribe((event) => {
     if (event.type === 'updated' && event.mutation.state.status === 'success') {
+      const data = event.mutation.state.data;
+      // Local rename persistence already notifies the outbox. It is not a
+      // server acknowledgement that needs the online-write follow-up timer.
+      if (
+        event.mutation.options.mutationKey?.[0] === 'collection-rename' &&
+        typeof data === 'object' &&
+        data !== null &&
+        'operationId' in data
+      )
+        return;
       clearTimeout(timer);
       timer = setTimeout(() => {
         refreshDownload();
