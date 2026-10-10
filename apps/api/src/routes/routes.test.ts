@@ -391,17 +391,17 @@ describe.skipIf(!database)('the routes', () => {
     });
 
     it('refuses a direction the note cannot produce', async () => {
-      // A listening card needs audio. Without it the direction is not something
-      // the note can be asked in, however much anyone would like it to be.
-      const deck = await repositories.decks.create({ name: 'No audio' });
+      // Basic Notes have no Listening template. Vocab Listening uses the term
+      // through system voices and does not require recorded audio.
+      const deck = await repositories.decks.create({ name: 'No Listening template' });
       const created = await json<{ note: Note }>(
         await server.request('/api/notes', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             deckId: deck.id,
-            noteType: 'vocab',
-            fields: { term: 'stumm', translation: 'silent' },
+            noteType: 'basic',
+            fields: { front: 'stumm', back: 'silent' },
           }),
         }),
         201,

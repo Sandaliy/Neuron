@@ -39,6 +39,7 @@ export function collectionDiagnostic(error: unknown, stage: CollectionStage): Co
             'collection_incomplete',
             'collection_aborted',
             'collection_failed',
+            'collection_pending_work',
           ].includes(error.message)
         ? error.message
         : 'failed';

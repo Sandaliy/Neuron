@@ -2,13 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const boundary = vi.hoisted(() => ({
   offline: false,
+  available: false,
   visit: 1,
   confirm: vi.fn<() => Promise<void>>(),
 }));
 vi.mock('./offline', () => ({
   accountEpoch: () => boundary.visit,
   connectionEpoch: () => 0,
-  offlineState: () => ({ offline: boundary.offline }),
+  offlineState: () => ({ offline: boundary.offline, available: boundary.available }),
+  onOfflineChange: () => () => undefined,
   confirmConnection: boundary.confirm,
   networkLost: vi.fn(),
   revokeOffline: vi.fn(),
@@ -20,9 +22,37 @@ import { collectionRead } from './collection-transport';
 describe('collection transport authority', () => {
   beforeEach(() => {
     boundary.offline = false;
+    boundary.available = false;
     boundary.visit = 1;
     boundary.confirm.mockReset().mockResolvedValue(undefined);
     vi.unstubAllGlobals();
+  });
+  it('publishes completed local content while retaining a slow authoritative request', async () => {
+    boundary.available = true;
+    let finish!: (response: Response) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = resolve;
+          }),
+      ),
+    );
+    const publish = vi.fn();
+    const authoritative = collectionRead(
+      '/notes',
+      new AbortController().signal,
+      async () => ({ items: ['stored'], local: true }),
+      publish,
+    );
+    await vi.waitFor(() =>
+      expect(publish).toHaveBeenCalledWith({ items: ['stored'], local: true }),
+    );
+    expect(boundary.offline).toBe(false);
+    expect(boundary.confirm).not.toHaveBeenCalled();
+    finish(new Response(JSON.stringify({ items: ['server'], local: false })));
+    expect(await authoritative).toEqual({ items: ['server'], local: false });
   });
   it('confirms an unreachable browse read before returning completed local data', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));

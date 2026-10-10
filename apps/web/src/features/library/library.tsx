@@ -54,7 +54,7 @@ export function LibraryScreen() {
   const navigate = useNavigate();
   const decks = useDeckTree();
   const offline = useOffline();
-  const readOnly = offline.offline;
+  const readOnly = offline.offline || decks.local;
   const unavailable = readOnly && !offline.available;
   const actions = useDeckActions();
   const [open, setOpen] = useState<ReadonlySet<string>>(() => readOpen());
@@ -217,7 +217,7 @@ export function LibraryScreen() {
           </div>
         ) : undefined}
 
-        {!readOnly && (
+        {(!readOnly || dialog.kind === 'rename') && (
           <DeckDialogs
             state={dialog}
             decks={tree}
@@ -229,8 +229,9 @@ export function LibraryScreen() {
               toast.show(t('library.created', { name }));
             }}
             onRename={async (deck, name) => {
-              await actions.rename.mutateAsync({ id: deck.id, name });
+              await actions.rename.mutateAsync({ id: deck.id, name, observed: deck });
               setDialog({ kind: 'none' });
+              if (offline.offline) toast.show(t('offline.renameSaved'));
             }}
             onMove={async (deck, parentId) => {
               await actions.move.mutateAsync({ id: deck.id, parentId });
@@ -414,7 +415,14 @@ function Deck({
           interactiveTrailing
           trailing={
             readOnly ? (
-              <span aria-hidden="true" className="size-44 shrink-0" />
+              <Menu label={t('library.deckActions', { name: deck.name })}>
+                <MenuItem
+                  icon={<Pencil size={16} strokeWidth={1.5} />}
+                  onSelect={() => onAct({ kind: 'rename', deck })}
+                >
+                  {t('library.rename')}
+                </MenuItem>
+              </Menu>
             ) : (
               <>
                 <Menu label={t('library.deckActions', { name: deck.name })}>

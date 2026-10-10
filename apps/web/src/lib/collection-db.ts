@@ -9,18 +9,22 @@ import type { PullSyncResult } from '@neuron/shared';
 
 import { CollectionFailure, collectionDiagnostic } from './collection-failure';
 
+import type { PendingRename } from './collection-outbox';
+
 export const COLLECTION_VERSION = 1;
+export const COLLECTION_DATABASE_VERSION = 2;
 export const collectionName = (accountId: string) => `neuron.collection:${accountId}`;
 export interface CollectionMeta {
   cursor: number;
   complete: boolean;
   format: number;
+  outboxVersion?: number;
 }
 export type CollectionRow = PullSyncResult['changes'][number];
 
 export function openCollection(accountId: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(collectionName(accountId), COLLECTION_VERSION);
+    const request = indexedDB.open(collectionName(accountId), COLLECTION_DATABASE_VERSION);
     let settled = false;
     const fail = (error: unknown) => {
       settled = true;
@@ -30,8 +34,11 @@ export function openCollection(accountId: string): Promise<IDBDatabase> {
     const timeout = setTimeout(() => fail(new Error('collection_open_timeout')), 5000);
     request.onupgradeneeded = () => {
       const db = request.result;
-      db.createObjectStore('meta');
+      if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta');
+      if (!db.objectStoreNames.contains('outbox'))
+        db.createObjectStore('outbox', { keyPath: 'operationId' });
       for (const entity of SYNC_ENTITIES) {
+        if (db.objectStoreNames.contains(entity)) continue;
         const store = db.createObjectStore(entity, { keyPath: 'id' });
         store.createIndex('rev', 'rev');
         if (entity === 'notes' || entity === 'cards') store.createIndex('deckId', 'row.deckId');
@@ -50,7 +57,9 @@ export function openCollection(accountId: string): Promise<IDBDatabase> {
       clearTimeout(timeout);
       settled = true;
       db.onversionchange = () => db.close();
-      if (!['meta', ...SYNC_ENTITIES].every((store) => db.objectStoreNames.contains(store))) {
+      if (
+        !['meta', 'outbox', ...SYNC_ENTITIES].every((store) => db.objectStoreNames.contains(store))
+      ) {
         db.close();
         reject(new Error('collection_incompatible'));
         return;
@@ -188,6 +197,7 @@ export async function applyPage(db: IDBDatabase, input: unknown): Promise<void> 
           cursor: page.revision,
           complete: meta.complete || !page.hasMore,
           format: COLLECTION_VERSION,
+          ...(meta.outboxVersion === undefined ? {} : { outboxVersion: meta.outboxVersion }),
         },
         'sync',
       );
@@ -211,41 +221,55 @@ export async function applyPage(db: IDBDatabase, input: unknown): Promise<void> 
 const READ_ENTITIES = ['decks', 'notes', 'cards'] as const;
 export async function snapshot(
   db: IDBDatabase,
-): Promise<Record<(typeof READ_ENTITIES)[number], CollectionRow[]>> {
-  const tx = db.transaction(['meta', ...READ_ENTITIES]);
+): Promise<Record<(typeof READ_ENTITIES)[number], CollectionRow[]> & { outbox: PendingRename[] }> {
+  const tx = db.transaction(['meta', 'outbox', ...READ_ENTITIES]);
   const done = committed(tx);
   const reads = READ_ENTITIES.map((entity) =>
     result<CollectionRow[]>(tx.objectStore(entity).getAll()),
   );
-  const [meta, rows] = await Promise.all([
+  const [meta, rows, outbox] = await Promise.all([
     result<CollectionMeta | undefined>(tx.objectStore('meta').get('sync')),
     Promise.all(reads),
+    result<PendingRename[]>(tx.objectStore('outbox').getAll()),
     done,
   ]);
   if (!meta?.complete || meta.format !== COLLECTION_VERSION)
     throw new Error('collection_incomplete');
-  return Object.fromEntries(READ_ENTITIES.map((entity, index) => [entity, rows[index]])) as Record<
-    (typeof READ_ENTITIES)[number],
-    CollectionRow[]
-  >;
+  return {
+    ...Object.fromEntries(READ_ENTITIES.map((entity, index) => [entity, rows[index]])),
+    outbox,
+  } as Record<(typeof READ_ENTITIES)[number], CollectionRow[]> & { outbox: PendingRename[] };
 }
 
-/** Read-only caches may be rebuilt. Future pending writes must never use this reset policy. */
-export function deleteCollection(accountId: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(collectionName(accountId));
-    const timeout = setTimeout(() => reject(new Error('collection_delete_timeout')), 5000);
-    request.onsuccess = () => {
-      clearTimeout(timeout);
-      resolve();
+/** Recovery is serialized with local writes; unknown storage fails closed. */
+export async function deleteCollection(accountId: string): Promise<void> {
+  const db = await openCollection(accountId);
+  try {
+    const tx = db.transaction(['meta', 'outbox', ...SYNC_ENTITIES], 'readwrite');
+    const done = committed(tx);
+    let blocked = false;
+    const read = tx.objectStore('outbox').getAll();
+    read.onsuccess = () => {
+      if (
+        read.result.some(
+          (entry: { state: string }) =>
+            entry.state !== 'synchronized' && entry.state !== 'resolved',
+        )
+      ) {
+        blocked = true;
+        tx.abort();
+        return;
+      }
+      for (const entity of SYNC_ENTITIES) tx.objectStore(entity).clear();
+      tx.objectStore('meta').delete('sync');
     };
-    request.onerror = () => {
-      clearTimeout(timeout);
-      reject(request.error);
-    };
-    request.onblocked = () => {
-      clearTimeout(timeout);
-      reject(new Error('collection_blocked'));
-    };
-  });
+    try {
+      await done;
+    } catch (error) {
+      if (blocked) throw new Error('collection_pending_work', { cause: error });
+      throw error;
+    }
+  } finally {
+    db.close();
+  }
 }

@@ -20,7 +20,7 @@ import { writeEntities } from './entity-writes';
 import { projectNotes } from './note-projection';
 import { DELETED_NOTES_KEY } from './recovery';
 
-import type { InfiniteData } from '@tanstack/react-query';
+import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 
 /**
  * Notes over the wire.
@@ -47,8 +47,15 @@ export function noteQuery(id: string | undefined) {
   return {
     queryKey: [NOTE_KEY, id],
     networkMode: 'always' as const,
-    queryFn: ({ signal }: { signal: AbortSignal }) =>
-      collectionRead(`/notes/${id ?? ''}`, signal, () => localNote(id ?? '')),
+    queryFn: ({ signal, client }: { signal: AbortSignal; client: QueryClient }) =>
+      collectionRead(
+        `/notes/${id ?? ''}`,
+        signal,
+        () => localNote(id ?? ''),
+        (value) => {
+          if (!client.getQueryData([NOTE_KEY, id])) client.setQueryData([NOTE_KEY, id], value);
+        },
+      ),
   };
 }
 
@@ -82,12 +89,30 @@ export function noteListQuery(query: NoteQuery) {
     queryKey: [NOTE_KEY, 'list', noteQueryString(query)],
     networkMode: 'always' as const,
     initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
-      collectionRead(
-        `/notes?${noteQueryString(query, { limit: '1000', ...(pageParam === undefined ? {} : { cursor: pageParam }) })}`,
-        signal,
-        () => localNotes(query, pageParam),
-      ),
+    queryFn: ({
+      pageParam,
+      signal,
+      client,
+    }: {
+      pageParam: string | undefined;
+      signal: AbortSignal;
+      client: QueryClient;
+    }) =>
+      pageParam?.startsWith('local:')
+        ? localNotes(query, pageParam)
+        : collectionRead(
+            `/notes?${noteQueryString(query, { limit: '1000', ...(pageParam === undefined ? {} : { cursor: pageParam }) })}`,
+            signal,
+            // A completed device snapshot can publish the full browse result. Its
+            // virtualized rows remain bounded, and local pagination cannot cancel
+            // the authoritative first-page request that is still reconciling.
+            () => localNotes(query, pageParam, Number.MAX_SAFE_INTEGER),
+            (value) => {
+              const key = [NOTE_KEY, 'list', noteQueryString(query)];
+              if (pageParam === undefined && !client.getQueryData(key))
+                client.setQueryData(key, { pages: [value], pageParams: [undefined] });
+            },
+          ),
     getNextPageParam: (last: { nextCursor?: string }) => last.nextCursor,
   };
 }

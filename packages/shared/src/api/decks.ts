@@ -86,6 +86,22 @@ export const updateDeckSchema = z
     'needs something to change',
   );
 
+/** A durable rename is a compare-and-set against the observed entity revision. */
+export const renameDeckCommandSchema = z.strictObject({
+  accountId: z.string().min(1),
+  operationId: idSchema,
+  baseRev: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  name: nameSchema,
+});
+export type RenameDeckCommand = z.infer<typeof renameDeckCommandSchema>;
+export const renameDeckResultSchema = z.object({
+  operationId: idSchema,
+  status: z.enum(['applied', 'conflict']),
+  revision: z.number().int().nonnegative(),
+  reason: z.enum(['changed_remotely', 'deleted_remotely']).optional(),
+});
+export type RenameDeckResult = z.infer<typeof renameDeckResultSchema>;
+
 export const moveDeckSchema = z.strictObject({
   /** Exact insertion anchor; null or omitted appends at this level. */
   beforeId: idSchema.nullish(),

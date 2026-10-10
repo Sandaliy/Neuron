@@ -56,8 +56,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const rememberScroll = useReturnScroll(practicing);
   const t = useTranslate();
   const offline = useOffline();
-  const readOnly = offline.offline;
-  const unavailable = readOnly && !offline.available;
+  const unavailable = offline.offline && !offline.available;
   const toast = useToast();
   const { mutateAsync: deleteNote } = useNoteActions().remove;
   const deleting = useRef(new Set<string>());
@@ -118,6 +117,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
     ...noteListQuery(query),
     placeholderData: keepPreviousData,
   });
+  const readOnly =
+    offline.offline || decks.local || notes.data?.pages.some((page) => page.local) === true;
 
   /** Which deck the screens next to this one should open with. */
   const deckSearch: { deckId?: string } = deckId === undefined ? {} : { deckId };
@@ -334,7 +335,11 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           {t('offline.incomplete')}
         </p>
       )}
-      {!unavailable && (notes.isPending || (rows.length === 0 && notes.isFetching)) ? (
+      {!unavailable &&
+      (notes.isPending ||
+        (rows.length === 0 &&
+          notes.isFetching &&
+          !notes.data?.pages.some((page) => page.local))) ? (
         <SkeletonRows rows={8} />
       ) : undefined}
 
@@ -353,7 +358,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       {!unavailable &&
       notes.data &&
       rows.length === 0 &&
-      !notes.isFetching &&
+      (!notes.isFetching || notes.data.pages.some((page) => page.local)) &&
       !notes.isPlaceholderData &&
       !notes.error ? (
         filtered ? (

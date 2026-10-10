@@ -40,6 +40,8 @@ import {
   restartLearningSchema,
   unlockDirectionSchema,
   updateDeckSchema,
+  renameDeckCommandSchema,
+  renameDeckResultSchema,
   updateNoteSchema,
   updatePreferencesSchema,
   updatePresetSchema,
@@ -65,6 +67,8 @@ const registry: Record<string, z.ZodType> = {
   DeletedDeckList: deletedDeckListSchema,
   CreateDeck: createDeckSchema,
   UpdateDeck: updateDeckSchema,
+  RenameDeckCommand: renameDeckCommandSchema,
+  RenameDeckResult: renameDeckResultSchema,
   MoveDeck: moveDeckSchema,
   PurgeConfirmation: purgeConfirmationSchema,
   PurgeImpact: purgeImpactSchema,
@@ -256,6 +260,18 @@ export function openApiDocument(baseUrl: string) {
           summary: 'Advance Practice with version and retry protection',
           requestBody: body('PracticeCommand'),
           responses: { 200: answer('Saved progress', 'PracticeResult'), ...commonErrors },
+        },
+      },
+      '/decks/{id}/rename': {
+        parameters: [idParameter],
+        post: {
+          summary:
+            'Rename an existing collection with entity revision and durable retry protection',
+          requestBody: body('RenameDeckCommand'),
+          responses: {
+            200: answer('Applied or retained conflict outcome', 'RenameDeckResult'),
+            ...commonErrors,
+          },
         },
       },
       '/decks/{id}/restart-learning': {
