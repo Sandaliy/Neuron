@@ -1,10 +1,10 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { useFixtures as installFixtures } from './fixtures';
+import { useFixtures as installFixtures, usePreferences as installPreferences } from './fixtures';
 
 import type { BrowserContext, Page, Route } from '@playwright/test';
 
@@ -134,7 +134,7 @@ async function meta(page: Page, id = account.id) {
   }, id);
 }
 
-async function useOfflineFixtures(
+async function installOfflineFixtures(
   page: Page,
   context: BrowserContext,
   options: { pull?: (route: Route, since: number) => Promise<void>; who?: typeof account } = {},
@@ -175,6 +175,16 @@ async function download(page: Page) {
   await expect.poll(() => meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
 }
 async function offline(page: Page, context: BrowserContext) {
+  // Mocked API interactions block workers. Load the built screen graph first,
+  // mirroring the precached shell; actual-origin reopening is tested separately.
+  if (process.env['CI']) {
+    const assets = (await readdir(path.join(process.cwd(), 'dist/assets'))).filter((file) =>
+      file.endsWith('.js'),
+    );
+    await page.evaluate(async (assets) => {
+      await Promise.all(assets.map((file) => import(`/assets/${file}`)));
+    }, assets);
+  }
   await context.setOffline(true);
   await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
 }
@@ -183,12 +193,12 @@ test('complete download, offline folders/decks/notes/details and read-only route
   page,
   context,
 }) => {
-  await useOfflineFixtures(page, context);
+  await installOfflineFixtures(page, context);
   await download(page);
   await offline(page, context);
   await page.getByRole('button', { name: /Downloaded Folder/ }).click();
   await page.getByRole('button', { name: /Downloaded Deck/ }).click();
-  await page.getByRole('button', { name: 'Durable word', exact: true }).click();
+  await page.getByRole('button', { name: /Durable word/ }).click();
   await expect(page.getByText('Downloaded meaning', { exact: true })).toBeVisible();
   await expect(page.locator('textarea')).toHaveCount(0);
   await page.getByRole('link', { name: 'Today', exact: true }).click();
@@ -359,7 +369,7 @@ test('interrupted initial download stays hidden and resumes at the committed bou
 }) => {
   let interrupted = true;
   const cursors: number[] = [];
-  await useOfflineFixtures(page, context, {
+  await installOfflineFixtures(page, context, {
     pull: async (route, since) => {
       cursors.push(since);
       if (since === 1 && interrupted) {
@@ -401,7 +411,7 @@ test('transaction abort rolls back entities and cursor; retry applies the comple
       return original.apply(this, args);
     };
   });
-  await useOfflineFixtures(page, context);
+  await installOfflineFixtures(page, context);
   await page.goto('/library');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(
@@ -431,7 +441,7 @@ test('reconnect validates session and pulls incremental changes including tombst
 }) => {
   const cursors: number[] = [];
   let changed = false;
-  await useOfflineFixtures(page, context, {
+  await installOfflineFixtures(page, context, {
     pull: async (route, since) => {
       cursors.push(since);
       await route.fulfill({
@@ -467,18 +477,21 @@ test('explicit offline sign-out revokes remembered access and account switching 
   page,
   context,
 }) => {
-  await useOfflineFixtures(page, context);
-  // Ordinary fixture tests block the worker; warm the auth module as the real precached shell does.
-  await page.goto('/sign-in');
-  await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
+  await installOfflineFixtures(page, context);
   await download(page);
-  await offline(page, context);
+  // Keep shell assets reachable in this worker-blocked fixture. WebKit offline
+  // emulation poisons lazy auth imports; real cached-shell navigation is tested separately.
+  await page.route(
+    (url) => url.pathname.startsWith('/api/'),
+    (route) => route.abort('internetdisconnected'),
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page).toHaveURL(/sign-in/);
   expect(await page.evaluate(() => localStorage.getItem('neuron.offline.account'))).toBeNull();
-  await context.setOffline(false);
-  await useOfflineFixtures(page, context, {
+  await installOfflineFixtures(page, context, {
     who: { ...account, id: 'other-reader' },
     pull: async (route, since) => {
       await route.fulfill({ json: { since, revision: 0, hasMore: false, changes: [] } });
@@ -507,7 +520,7 @@ test('sign-out while a pull is in flight cannot advance or re-enable the old acc
     release = resolve;
   });
   let pending = false;
-  await useOfflineFixtures(page, context, {
+  await installOfflineFixtures(page, context, {
     pull: async (route, since) => {
       if (since === 0) return route.fulfill({ json: first });
       pending = true;
@@ -541,7 +554,7 @@ test('two tabs deliver duplicate pages without losing entities or regressing the
   context,
 }) => {
   let pending: Route | undefined;
-  await useOfflineFixtures(page, context, {
+  await installOfflineFixtures(page, context, {
     pull: async (route, since) => {
       if (since === 0) {
         pending = route;
@@ -555,7 +568,7 @@ test('two tabs deliver duplicate pages without losing entities or regressing the
   await page.goto('/library');
   await expect.poll(() => Boolean(pending)).toBe(true);
   const second = await context.newPage();
-  await useOfflineFixtures(second, context);
+  await installOfflineFixtures(second, context);
   await download(second);
   await pending!.fulfill({ json: first });
   await expect.poll(() => meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
@@ -591,7 +604,7 @@ test('a stale final page cannot complete a newer partial download from another t
   let oldFinal: Route | undefined;
   let retryFinal: Route | undefined;
   let competingFinal: Route | undefined;
-  await useOfflineFixtures(page, context, {
+  await installOfflineFixtures(page, context, {
     pull: async (route, since) => {
       if (since === 0) return route.fulfill({ json: first });
       if (since === 1) oldFinal = route;
@@ -601,7 +614,7 @@ test('a stale final page cannot complete a newer partial download from another t
   await page.goto('/library');
   await expect.poll(() => Boolean(oldFinal)).toBe(true);
   const second = await context.newPage();
-  await useOfflineFixtures(second, context, {
+  await installOfflineFixtures(second, context, {
     pull: async (route, since) => {
       if (since === 1) return route.fulfill({ json: { ...last, hasMore: true } });
       competingFinal = route;
@@ -625,7 +638,7 @@ test('a stale final page cannot complete a newer partial download from another t
   await offline(page, context);
   await page.getByRole('button', { name: /Downloaded Folder/ }).click();
   await page.getByRole('button', { name: /Downloaded Deck/ }).click();
-  await page.getByRole('button', { name: 'Durable word', exact: true }).click();
+  await page.getByRole('button', { name: /Durable word/ }).click();
   await expect(page.getByText('Concurrent meaning', { exact: true })).toBeVisible();
 });
 
@@ -641,7 +654,7 @@ test('quota failure commits neither rows nor completeness and recovers from the 
       return put.apply(this, args);
     };
   });
-  await useOfflineFixtures(page, context);
+  await installOfflineFixtures(page, context);
   await page.goto('/library');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(
@@ -657,7 +670,7 @@ test('reconnection rejection revokes offline access instead of using a remembere
   page,
   context,
 }) => {
-  await useOfflineFixtures(page, context);
+  await installOfflineFixtures(page, context);
   await download(page);
   await offline(page, context);
   await page.route('**/api/account', (route) =>
@@ -678,7 +691,7 @@ test('future database versions fail safely and can be rebuilt without changing o
   page,
   context,
 }) => {
-  await useOfflineFixtures(page, context);
+  await installOfflineFixtures(page, context);
   await download(page);
   await page.evaluate(async () => {
     const request = indexedDB.open('neuron.collection:offline-reader', 2);
@@ -704,10 +717,10 @@ test('sign-out in one tab removes ordinary offline access in the other tab', asy
   page,
   context,
 }) => {
-  await useOfflineFixtures(page, context);
+  await installOfflineFixtures(page, context);
   await download(page);
   const second = await context.newPage();
-  await useOfflineFixtures(second, context);
+  await installOfflineFixtures(second, context);
   await second.goto('/library');
   await offline(page, context);
   await expect(second.getByText('Offline · collection reading', { exact: true })).toBeVisible();
@@ -730,7 +743,7 @@ test('unavailable IndexedDB keeps the online app usable without claiming offline
       },
     });
   });
-  await useOfflineFixtures(page, context);
+  await installOfflineFixtures(page, context);
   await page.goto('/library');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(
@@ -748,7 +761,7 @@ test('outdated local format can be rebuilt online and missing data never looks l
   page,
   context,
 }) => {
-  await useOfflineFixtures(page, context);
+  await installOfflineFixtures(page, context);
   await download(page);
   await page.evaluate(async () => {
     const request = indexedDB.open('neuron.collection:offline-reader');
@@ -799,7 +812,7 @@ test('background hydration and stable failure never shift or remount screen head
   page.on('console', (message) => {
     if (message.text().startsWith('Offline collection failure')) diagnostics.push(message.text());
   });
-  await useOfflineFixtures(page, context, {
+  await installOfflineFixtures(page, context, {
     pull: async (route, since) => {
       pulls++;
       if (since === 0) {
@@ -875,7 +888,7 @@ test('failed incremental sync retains a completed snapshot and ordinary focus do
 }) => {
   let fail = false;
   let pulls = 0;
-  await useOfflineFixtures(page, context, {
+  await installOfflineFixtures(page, context, {
     pull: async (route, since) => {
       pulls++;
       if (fail) return route.abort('internetdisconnected');
@@ -906,4 +919,329 @@ test('failed incremental sync retains a completed snapshot and ordinary focus do
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await offline(page, context);
   await expect(page.getByRole('button', { name: /Downloaded Folder/ })).toBeVisible();
+});
+
+const nestedId = '01900000-0000-7000-8000-000000000006';
+async function installContinuityFixtures(page: Page, context: BrowserContext, complete = true) {
+  await installPreferences(page, { motion: 'reduce' });
+  const nested = { ...folder, id: nestedId, parentId: folderId, name: 'Nested Folder' };
+  const leaf = { ...deck, parentId: nestedId };
+  const notes = Array.from({ length: 60 }, (_, index) => ({
+    ...note,
+    id:
+      index === 0
+        ? noteId
+        : `01900000-0000-7000-8000-${(index + 100).toString().padStart(12, '0')}`,
+    fields: {
+      term: index === 0 ? 'Durable word' : `Word ${index}`,
+      translation: `Downloaded meaning ${index}`,
+    },
+  }));
+  const tree = [
+    {
+      ...folder,
+      path: [],
+      due: 0,
+      fresh: 0,
+      noteCount: notes.length,
+      children: [
+        {
+          ...nested,
+          path: [folderId],
+          due: 0,
+          fresh: 0,
+          noteCount: notes.length,
+          children: [
+            {
+              ...leaf,
+              path: [folderId, nestedId],
+              due: 0,
+              fresh: 0,
+              noteCount: notes.length,
+              children: [],
+            },
+          ],
+        },
+      ],
+    },
+  ];
+  const control = {
+    lost: false,
+    updated: false,
+    accountReads: 0,
+    collectionReads: 0,
+    holdAccount: undefined as Promise<void> | undefined,
+  };
+  await installOfflineFixtures(page, context, {
+    pull: async (route, since) => {
+      if (!complete && since === 1) return route.abort('internetdisconnected');
+      await route.fulfill({
+        json:
+          since === 0
+            ? { ...first, changes: [folder, nested, leaf].map((row) => change('decks', row)) }
+            : since === 1
+              ? {
+                  ...last,
+                  changes: [
+                    ...notes.map((row) => change('notes', row)),
+                    change('cards', card),
+                    change('reviews', review),
+                  ],
+                }
+              : control.updated && since === 2
+                ? {
+                    since,
+                    revision: 3,
+                    hasMore: false,
+                    changes: [
+                      change('notes', {
+                        ...notes[0],
+                        rev: 3,
+                        fields: { term: 'Durable word', translation: 'Reconciled meaning' },
+                      }),
+                    ],
+                  }
+                : { since, revision: since, hasMore: false, changes: [] },
+      });
+    },
+  });
+  await page.route('**/api/account', async (route) => {
+    control.accountReads++;
+    if (control.lost) return route.abort('internetdisconnected');
+    if (control.holdAccount) await control.holdAccount;
+    await route.fulfill({ json: account }).catch(() => undefined);
+  });
+  await page.route('**/api/decks', async (route) => {
+    if (control.lost) return route.abort('internetdisconnected');
+    await route.fulfill({ json: { decks: tree } });
+  });
+  await page.route('**/api/notes?*', async (route) => {
+    control.collectionReads++;
+    if (control.lost) return route.abort('internetdisconnected');
+    const search = new URL(route.request().url()).searchParams.get('search')?.toLowerCase() ?? '';
+    const current = notes.map((row, index) =>
+      control.updated && index === 0
+        ? { ...row, fields: { ...row.fields, translation: 'Reconciled meaning' } }
+        : row,
+    );
+    await route.fulfill({
+      json: {
+        items: current.filter((row) =>
+          `${JSON.stringify(row.fields)} ${row.tags.join(' ')}`.toLowerCase().includes(search),
+        ),
+      },
+    });
+  });
+  await page.route(`**/api/notes/${noteId}`, async (route) => {
+    if (control.lost) return route.abort('internetdisconnected');
+    await route.fulfill({ json: { note: notes[0], cards: [card] } });
+  });
+  await page.route(`**/api/decks/${deckId}/practice`, (route) =>
+    route.fulfill({ json: { run: null, version: 0 } }),
+  );
+  return control;
+}
+
+async function geometry(page: Page) {
+  return page.evaluate(() => ({
+    header: document.querySelector('main header')?.getBoundingClientRect().top,
+    rows: document.querySelector('[data-rows]')?.getBoundingClientRect().top,
+    scroll: scrollY,
+  }));
+}
+
+test('in-session Library keeps its header, nested expansion and row geometry when connection disappears', async ({
+  page,
+  context,
+}) => {
+  await installContinuityFixtures(page, context);
+  await download(page);
+  await page.getByRole('button', { name: 'Show what is inside', exact: true }).click();
+  await page.getByRole('button', { name: 'Show what is inside', exact: true }).click();
+  const row = page.locator(`[data-collection-id="${deckId}"]`);
+  await expect(row.getByText('60 notes', { exact: true })).toBeVisible();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+        .map((animation) => animation.finished.catch(() => undefined)),
+    );
+  });
+  const before = await row.boundingBox();
+  const header = await geometry(page);
+  await page
+    .locator('[data-library-view]')
+    .evaluate((element) => element.setAttribute('data-visit', 'same-library'));
+  await offline(page, context);
+  await expect(page.locator('[data-visit="same-library"]')).toHaveCount(1);
+  expect(await row.boundingBox()).toEqual(before);
+  expect(await geometry(page)).toEqual(header);
+  await expect(
+    page.getByRole('button', { name: /Drag|New deck|New folder|actions for/i }),
+  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Hide what is inside', exact: true })).toHaveCount(
+    2,
+  );
+  await row.getByRole('button', { name: /Downloaded Deck/ }).click();
+  await expect(page.getByPlaceholder('Word, meaning or tag')).toBeVisible();
+  await page.getByRole('searchbox').fill('cached');
+  await expect(page.getByRole('searchbox')).not.toHaveAttribute('aria-busy', 'true');
+  await expect(
+    page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }),
+  ).toBeVisible();
+  await page.getByRole('searchbox').fill('meaning 0');
+  await expect(page.locator('[data-rows] [data-row]')).toHaveCount(1);
+  await page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }).click();
+  await expect(page.getByText('Downloaded meaning 0', { exact: true })).toBeVisible();
+  await expect(page.locator('input, textarea, select, [data-direct-delete]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
+  await expect(page.getByRole('searchbox')).toBeVisible();
+});
+
+test('transport loss with online browser hints preserves the open Deck and scroll, then validates before reconnecting', async ({
+  page,
+  context,
+}) => {
+  const control = await installContinuityFixtures(page, context);
+  await download(page);
+  await page.goto(`/notes?deckId=${deckId}`);
+  await expect(
+    page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }),
+  ).toBeVisible();
+  await page
+    .locator('main section[data-screen]')
+    .evaluate((element) => element.setAttribute('data-visit', 'same-deck'));
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeVisible();
+  await page.getByRole('searchbox').fill('cached');
+  await expect(page.getByRole('searchbox')).not.toHaveAttribute('aria-busy', 'true');
+  // Refetch the same search result set while scroll is away from the page top.
+  await page.evaluate(() => scrollTo(0, 500));
+  const before = await geometry(page);
+  const accounts = control.accountReads;
+  control.lost = true;
+  await page.getByRole('searchbox').evaluate((element) => {
+    const input = element as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      input,
+      'Cached',
+    );
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => navigator.onLine)).toBe(true);
+  await expect(page.locator('[data-visit="same-deck"]')).toHaveCount(1);
+  expect(await geometry(page)).toEqual(before);
+  expect(control.accountReads).toBe(accounts + 1);
+  const requests = control.collectionReads;
+  await page.getByRole('searchbox').fill('meaning 0');
+  await page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }).click();
+  await expect(page.getByText('Downloaded meaning 0', { exact: true })).toBeVisible();
+  expect(control.collectionReads).toBe(requests);
+  await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: /New Note|Import|Start Practice|Select notes/i }),
+  ).toHaveCount(0);
+  control.lost = false;
+  control.updated = true;
+  let release!: () => void;
+  control.holdAccount = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    await expect.poll(() => control.accountReads).toBe(accounts + 2);
+    await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New note', exact: true })).toHaveCount(0);
+    release();
+    await expect(page.getByText('Offline · collection reading', { exact: true })).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: /Durable word Reconciled meaning/ }),
+    ).toBeVisible();
+    await expect.poll(() => meta(page)).toEqual({ cursor: 3, complete: true, format: 1 });
+  } finally {
+    release();
+  }
+});
+
+test('incomplete snapshot never presents cached online collection rows as available offline', async ({
+  page,
+  context,
+}) => {
+  const control = await installContinuityFixtures(page, context, false);
+  await page.goto('/library');
+  await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
+  await expect.poll(() => meta(page)).toEqual({ cursor: 1, complete: false, format: 1 });
+  control.lost = true;
+  await page.getByRole('button', { name: /^Downloaded Folder/ }).click();
+  await page.getByRole('button', { name: /^Nested Folder/ }).click();
+  await page.getByRole('button', { name: /^Downloaded Deck/ }).click();
+  await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(
+      'The collection download is incomplete or missing. Connect and sign in to finish downloading before browsing offline.',
+      {
+        exact: true,
+      },
+    ),
+  ).toBeVisible();
+  await expect(page.locator('[data-rows]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New note', exact: true })).toHaveCount(0);
+});
+
+test('HTTP read errors and isolated failed mutations do not establish a transport outage', async ({
+  page,
+  context,
+}) => {
+  const control = await installContinuityFixtures(page, context);
+  await download(page);
+  await page.goto(`/notes?deckId=${deckId}`);
+  await expect(
+    page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }),
+  ).toBeVisible();
+  const accounts = control.accountReads;
+  await page.route(`**/api/notes/${noteId}`, (route) => route.abort('internetdisconnected'));
+  const rejected = page.waitForEvent('requestfailed', (request) => request.method() === 'DELETE');
+  await page.locator('[data-direct-delete]').first().click();
+  await rejected;
+  await expect(
+    page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }),
+  ).toBeVisible();
+  await expect(page.getByText('Offline · collection reading', { exact: true })).toHaveCount(0);
+  expect(control.accountReads).toBe(accounts);
+  await page.route('**/api/notes?*', (route) =>
+    route.fulfill({
+      status: 400,
+      json: { error: { code: 'validation_error', status: 400, correlationId: 'rejected-read' } },
+    }),
+  );
+  const failed = page.waitForResponse((response) => response.status() === 400);
+  await page.getByRole('searchbox').fill('bad filter');
+  await failed;
+  await expect(page.getByText('Offline · collection reading', { exact: true })).toHaveCount(0);
+  expect(control.accountReads).toBe(accounts);
+});
+
+test('a late account validation cannot reactivate online controls after connectivity changes again', async ({
+  page,
+  context,
+}) => {
+  await installOfflineFixtures(page, context);
+  await download(page);
+  await offline(page, context);
+  let held: Route | undefined;
+  await page.route('**/api/account', (route) => {
+    held = route;
+  });
+  await context.setOffline(false);
+  await expect.poll(() => Boolean(held)).toBe(true);
+  await context.setOffline(true);
+  await held!.fulfill({ json: account }).catch(() => undefined);
+  await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /New deck|New folder/i })).toHaveCount(0);
+  await page.getByRole('button', { name: /Downloaded Folder/ }).click();
+  await page.getByRole('button', { name: /Downloaded Deck/ }).click();
+  await page.getByRole('button', { name: /Durable word/ }).click();
+  await expect(page.getByText('Downloaded meaning', { exact: true })).toBeVisible();
 });

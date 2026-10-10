@@ -48,6 +48,8 @@ let state: OfflineState = {
 const listeners = new Set<() => void>();
 let client: QueryClient | undefined;
 let epoch = 0;
+let connection = 0;
+let probing: Promise<void> | undefined;
 let controller: AbortController | undefined;
 let running: Promise<void> | undefined;
 let recovering = false;
@@ -89,6 +91,18 @@ function clearReads() {
   client?.removeQueries({ predicate: (query) => query.queryKey[0] !== 'account' });
 }
 
+/** Preserve observer data and screen state while changing the authority for reads. */
+async function transitionReads(local: boolean) {
+  const visit = epoch;
+  await client?.cancelQueries({ predicate: (query) => query.queryKey[0] !== 'account' });
+  if (visit !== epoch || state.offline !== local) return;
+  await client?.invalidateQueries({
+    predicate: (query) =>
+      query.queryKey[0] !== 'account' &&
+      (!local || ['decks', 'notes'].includes(String(query.queryKey[0]))),
+  });
+}
+
 /** Revocation happens before transport; late pulls/account requests cannot re-enable this visit. */
 export function revokeOffline(explicit = false) {
   epoch++;
@@ -125,6 +139,13 @@ export function beginOnlineAccount() {
   emit({ signedOut: false });
 }
 export const accountEpoch = () => epoch;
+export const connectionEpoch = () => connection;
+
+export function offlineReadFailed(error: unknown, visit: number, accountId: string) {
+  if (visit !== epoch || state.accountId !== accountId || !state.offline) return;
+  const failure = collectionDiagnostic(error, 'database');
+  emit({ available: false, download: 'unavailable', failure });
+}
 
 export async function rememberedAccount(): Promise<Me | undefined> {
   const visit = epoch;
@@ -150,8 +171,17 @@ export async function rememberedAccount(): Promise<Me | undefined> {
   }
 }
 
-export function acceptAccount(account: Me, startedEpoch: number) {
-  if (startedEpoch !== epoch || state.signedOut || locallySignedOut())
+export function acceptAccount(account: Me, startedEpoch: number, startedConnection: number) {
+  if (!navigator.onLine) {
+    networkLost();
+    throw new DOMException('Connection visit ended', 'AbortError');
+  }
+  if (
+    startedEpoch !== epoch ||
+    startedConnection !== connection ||
+    state.signedOut ||
+    locallySignedOut()
+  )
     throw new Error('account_visit_ended');
   const reconnecting = state.offline;
   const newAccount = state.accountId !== account.id;
@@ -161,8 +191,8 @@ export function acceptAccount(account: Me, startedEpoch: number) {
   ) {
     revokeOffline();
   }
-  if (state.offline) clearReads();
-  emit({ offline: !navigator.onLine, validated: true, accountId: account.id });
+  emit({ offline: false, validated: true, accountId: account.id });
+  if (reconnecting) void transitionReads(false);
   // Authentication fields are selected explicitly by meSchema; cookies/tokens never enter this store.
   // Repeated account reads/navigation join the current visit; they never queue pulls.
   if (running && !newAccount && !reconnecting) return;
@@ -177,10 +207,25 @@ export function acceptAccount(account: Me, startedEpoch: number) {
 }
 
 export function networkLost() {
-  if (!client || state.offline) return;
+  if (!client) return;
+  connection++;
+  if (state.offline) return;
   emit({ offline: true, validated: false });
   controller?.abort();
-  clearReads();
+  void transitionReads(true);
+}
+
+/** A failed collection read is confirmed through the session authority, not connectivity hints. */
+export function confirmConnection() {
+  if (state.offline || state.signedOut) return Promise.resolve();
+  if (!probing) {
+    probing = Promise.resolve(retryConnection())
+      .catch(() => undefined)
+      .finally(() => {
+        probing = undefined;
+      });
+  }
+  return probing;
 }
 
 async function download(account: Me) {

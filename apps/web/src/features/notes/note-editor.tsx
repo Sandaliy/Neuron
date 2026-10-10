@@ -1,6 +1,6 @@
 import { useBlocker, useNavigate } from '@tanstack/react-router';
 import { ChevronDown, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { availableForStudy, studyAvailableAt, createSchedulerConfig } from '@neuron/core';
 import {
@@ -20,7 +20,6 @@ import type {
   Card,
   LanguageCode,
   DeckNode,
-  EditorField,
   MessageKey,
   Note,
   NoteFields,
@@ -33,6 +32,7 @@ import { useAccount } from '../../lib/account';
 import { ApiFailure, describe } from '../../lib/api';
 import { flatten, findDeck, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
 import { useNote, useNoteActions } from '../../lib/notes';
+import { useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
 import { GroupLabel } from '../../ui/card';
 import { Dialog, DialogFooter } from '../../ui/dialog';
@@ -44,16 +44,16 @@ import { ReviewTime } from '../../ui/review-time';
 import { Segmented } from '../../ui/segmented';
 import { Select } from '../../ui/select';
 import { ErrorState, SkeletonRows } from '../../ui/states';
-import { Switch } from '../../ui/switch';
 import { TextArea } from '../../ui/textarea';
 import { useToast } from '../../ui/toast';
-import { CollectionPath } from '../library/collection-path';
 import { CollectionPicker } from '../library/collection-picker';
 
 import { CardPreview } from './card-preview';
+import { NoteField } from './note-field';
+import { NoteHeader } from './note-header';
+import { ReadOnlyNote } from './read-only-note';
 
 import type { PreviewCard } from './card-preview';
-import type { KeyboardEvent } from 'react';
 
 /**
  * Writing one note.
@@ -86,6 +86,21 @@ export function NoteEditorScreen({
   const t = useTranslate();
   const decks = useDeckTree();
   const existing = useNote(noteId);
+  const offline = useOffline();
+  if (offline.offline && !offline.available)
+    return (
+      <section data-screen="" className="flex flex-col gap-20">
+        <NoteHeader
+          readOnly
+          title={t('note.edit')}
+          decks={decks.data ?? []}
+          deckId={existing.data?.note.deckId ?? ''}
+        />
+        <p role="status" className="text-14 text-secondary">
+          {t('offline.incomplete')}
+        </p>
+      </section>
+    );
 
   if (noteId !== undefined && existing.isPending) {
     return (
@@ -100,9 +115,11 @@ export function NoteEditorScreen({
       <section data-screen="" className="flex flex-col gap-20">
         <ErrorState
           message={
-            existing.error && describe(existing.error).key === 'error.not_found'
-              ? t('note.notFound')
-              : t(describe(existing.error).key, describe(existing.error).values)
+            offline.offline
+              ? t('offline.missing')
+              : existing.error && describe(existing.error).key === 'error.not_found'
+                ? t('note.notFound')
+                : t(describe(existing.error).key, describe(existing.error).values)
           }
           retryLabel={t('common.retry')}
           onRetry={() => void existing.refetch()}
@@ -110,6 +127,9 @@ export function NoteEditorScreen({
       </section>
     );
   }
+
+  if (offline.offline && existing.data)
+    return <ReadOnlyNote note={existing.data.note} decks={decks.data ?? []} />;
 
   return (
     <Editor
@@ -437,28 +457,28 @@ function Editor({
 
   return (
     <section data-screen="" data-editor="" className="flex flex-col gap-20">
-      <header className="flex items-center justify-between gap-12">
-        <h1 className="font-display text-24 tracking-tight text-primary">
-          {note ? t('note.edit') : t('note.new')}
-        </h1>
+      <NoteHeader
+        title={note ? t('note.edit') : t('note.new')}
+        decks={decks}
+        deckId={deck}
+        actions={
+          <div className="flex items-center gap-8">
+            {note && !conversion && <SaveIndicator state={save} onRetry={() => void persist()} />}
 
-        <div className="flex items-center gap-8">
-          {note && !conversion && <SaveIndicator state={save} onRetry={() => void persist()} />}
-
-          {note && !conversion ? (
-            <Menu label={t('note.edit')}>
-              <MenuItem
-                tone="danger"
-                icon={<Trash2 size={16} strokeWidth={1.5} />}
-                onSelect={() => setConfirmDelete(true)}
-              >
-                {t('note.delete')}
-              </MenuItem>
-            </Menu>
-          ) : undefined}
-        </div>
-      </header>
-      <CollectionPath tree={decks} id={deck} />
+            {note && !conversion ? (
+              <Menu label={t('note.edit')}>
+                <MenuItem
+                  tone="danger"
+                  icon={<Trash2 size={16} strokeWidth={1.5} />}
+                  onSelect={() => setConfirmDelete(true)}
+                >
+                  {t('note.delete')}
+                </MenuItem>
+              </Menu>
+            ) : undefined}
+          </div>
+        }
+      />
 
       {note && !conversion && (
         <div
@@ -916,96 +936,6 @@ function Editor({
         </Dialog>
       ) : undefined}
     </section>
-  );
-}
-
-/**
- * One field, drawn as whatever kind it is.
- *
- * The keyboard's next button moves to the field below rather than submitting,
- * which on a form of fourteen fields is the difference between typing a word
- * and hunting for the next box. A text area is left alone: Enter in one is a
- * new line, and taking that away is worse than the walk.
- */
-function NoteField({
-  field,
-  value,
-  onChange,
-}: {
-  readonly field: EditorField;
-  readonly value: unknown;
-  readonly onChange: (value: string | boolean | undefined) => void;
-}) {
-  const t = useTranslate();
-  const id = useId();
-  const text = typeof value === 'string' ? value : '';
-
-  function advance(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== 'Enter') {
-      return;
-    }
-
-    event.preventDefault();
-
-    const form = event.currentTarget.closest('[data-screen]');
-    const focusable = [...(form?.querySelectorAll<HTMLElement>('input, select, textarea') ?? [])];
-    const next = focusable[focusable.indexOf(event.currentTarget) + 1];
-
-    next?.focus();
-  }
-
-  if (field.kind === 'toggle')
-    return (
-      <label
-        htmlFor={id}
-        className="flex min-h-44 cursor-pointer items-center justify-between gap-8 text-13 text-secondary"
-      >
-        <span>{t(field.labelKey)}</span>
-        <Switch id={id} label={t(field.labelKey)} checked={value === true} onChange={onChange} />
-      </label>
-    );
-  return (
-    <FormField
-      label={t(field.labelKey)}
-      {...(field.hintKey === undefined ? {} : { hint: t(field.hintKey) })}
-    >
-      {(props) => {
-        if (field.kind === 'choice') {
-          return (
-            <Select {...props} value={text} onChange={(event) => onChange(event.target.value)}>
-              <option value="">{t('library.notSet')}</option>
-              {(field.options ?? []).map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.labelKey ? t(option.labelKey) : option.value}
-                </option>
-              ))}
-            </Select>
-          );
-        }
-
-        if (field.kind === 'multiline') {
-          return (
-            <TextArea
-              {...props}
-              value={text}
-              rows={2}
-              onChange={(event) => onChange(event.target.value)}
-            />
-          );
-        }
-
-        return (
-          <Input
-            {...props}
-            value={text}
-            autoComplete="off"
-            enterKeyHint="next"
-            onKeyDown={advance}
-            onChange={(event) => onChange(event.target.value)}
-          />
-        );
-      }}
-    </FormField>
   );
 }
 

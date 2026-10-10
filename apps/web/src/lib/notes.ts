@@ -14,10 +14,10 @@ import type {
 
 import { request } from './api';
 import { localNote, localNotes } from './collection-read';
+import { collectionRead } from './collection-transport';
 import { DECK_TREE_KEY, flatten } from './decks';
 import { writeEntities } from './entity-writes';
 import { projectNotes } from './note-projection';
-import { offlineState } from './offline';
 import { DELETED_NOTES_KEY } from './recovery';
 
 import type { InfiniteData } from '@tanstack/react-query';
@@ -48,9 +48,7 @@ export function noteQuery(id: string | undefined) {
     queryKey: [NOTE_KEY, id],
     networkMode: 'always' as const,
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      offlineState().offline
-        ? localNote(id ?? '')
-        : request<{ note: Note; cards: Card[] }>(`/notes/${id ?? ''}`, { signal }),
+      collectionRead(`/notes/${id ?? ''}`, signal, () => localNote(id ?? '')),
   };
 }
 
@@ -85,12 +83,11 @@ export function noteListQuery(query: NoteQuery) {
     networkMode: 'always' as const,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
-      offlineState().offline
-        ? localNotes(query, pageParam)
-        : request<{ items: Note[]; nextCursor?: string }>(
-            `/notes?${noteQueryString(query, { limit: '1000', ...(pageParam === undefined ? {} : { cursor: pageParam }) })}`,
-            { signal },
-          ),
+      collectionRead(
+        `/notes?${noteQueryString(query, { limit: '1000', ...(pageParam === undefined ? {} : { cursor: pageParam }) })}`,
+        signal,
+        () => localNotes(query, pageParam),
+      ),
     getNextPageParam: (last: { nextCursor?: string }) => last.nextCursor,
   };
 }

@@ -254,10 +254,28 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
     await expect
       .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
       .toBe(true);
+    await page.getByRole('button', { name: /^Persisted Folder/ }).click();
+    await page.getByRole('button', { name: /^Migrated Deck/ }).click();
+    await page.getByRole('searchbox').fill('Persisted');
+    await expect(page.getByRole('searchbox')).not.toHaveAttribute('aria-busy', 'true');
+    await expect(
+      page.getByRole('button', { name: /Persisted word Persisted meaning/ }),
+    ).toBeVisible();
+    await page
+      .locator('main section[data-screen]')
+      .evaluate((element) => element.setAttribute('data-live-visit', 'retained'));
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
       server.closeAllConnections();
     });
+    // Actual GET transport loss, with browser hints still online and no reload.
+    await page.getByRole('searchbox').fill('Persisted word');
+    await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => navigator.onLine)).toBe(true);
+    await expect(page.locator('[data-live-visit="retained"]')).toHaveCount(1);
+    await page.getByRole('button', { name: /Persisted word Persisted meaning/ }).click();
+    await expect(page.getByText('Persisted meaning', { exact: true })).toBeVisible();
+    await expect(page.locator('textarea')).toHaveCount(0);
     await page.reload();
     await expect(page.getByRole('button', { name: /Persisted Folder/ })).toBeVisible();
     await page.close();
@@ -265,7 +283,7 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
     await page.goto(`${origin}/library`);
     await page.getByRole('button', { name: /Persisted Folder/ }).click();
     await page.getByRole('button', { name: /Migrated Deck/ }).click();
-    await page.getByRole('button', { name: 'Persisted word', exact: true }).click();
+    await page.getByRole('button', { name: /Persisted word/ }).click();
     await expect(page.getByText('Persisted meaning', { exact: true })).toBeVisible();
     await expect(page.locator('textarea')).toHaveCount(0);
     const updated = await app.request(`/api/notes/${note.id}`, {

@@ -238,30 +238,32 @@ the api anywhere in browser code would cost the session cookie.
 
 ### Screens (`src/features/`)
 
-| Path                            | Holds                                                                                           |
-| ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `auth/sign-up.tsx`              | Registering, then the ten codes, which it does not navigate away from                           |
-| `auth/sign-in.tsx`              | Email and password, and the hand off to the second factor when there is one                     |
-| `auth/recovery.tsx`             | Signing in with a code, then the new password that session owes                                 |
-| `auth/recovery-codes.tsx`       | The codes, the warning, copy, download, and the box that has to be ticked. Held across a reload |
-| `auth/two-factor.tsx`           | The six digit challenge, with the lost phone codes on the same screen                           |
-| `auth/code-input.tsx`           | One field, not six boxes: it takes a paste and submits itself when full                         |
-| `auth/password-field.tsx`       | The policy from `packages/shared`, judged when leaving the field rather than on every keystroke |
-| `settings/settings.tsx`         | Theme, language, password, codes, the second factor, and leaving                                |
-| `settings/totp.tsx`             | Enrollment in three steps that cannot be skipped, and removal                                   |
-| `library/library.tsx`           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
-| `library/deck-dialogs.tsx`      | Deck naming, safe move picker and inherited language/level settings                             |
-| `library/collection-picker.tsx` | Hierarchy-aware deck destination picker                                                         |
-| `library/collection-path.tsx`   | Navigable folder/deck path chips on collection-scoped screens                                   |
-| `today/today.tsx`               | What is due, what is new, and the estimate that says "about"                                    |
-| `today/study.tsx`               | Local Daily Study reveal/advance, interval previews, verified answers, Undo, and completion     |
-| `today/practice.tsx`            | Schedule-free configurable field practice with repeated learning rounds                         |
-| `notes/note-list.tsx`           | Virtualized note browse, search, filters, sorts and selection                                   |
-| `notes/note-editor.tsx`         | Explicit create, autosaving edit, conditional fields and card preview                           |
-| `notes/note-selection.tsx`      | Bulk known, move, tag and delete actions                                                        |
-| `notes/card-preview.tsx`        | The cards a note will keep, add or remove                                                       |
-| `import/import-screen.tsx`      | Parse, map, preview, deduplicate, chunk, resume, finish and undo an import                      |
-| `import/prompt-dialog.tsx`      | Prompt variant, substituted deck context, example and clipboard action                          |
+| Path                                            | Holds                                                                                           |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `auth/sign-up.tsx`                              | Registering, then the ten codes, which it does not navigate away from                           |
+| `auth/sign-in.tsx`                              | Email and password, and the hand off to the second factor when there is one                     |
+| `auth/recovery.tsx`                             | Signing in with a code, then the new password that session owes                                 |
+| `auth/recovery-codes.tsx`                       | The codes, the warning, copy, download, and the box that has to be ticked. Held across a reload |
+| `auth/two-factor.tsx`                           | The six digit challenge, with the lost phone codes on the same screen                           |
+| `auth/code-input.tsx`                           | One field, not six boxes: it takes a paste and submits itself when full                         |
+| `auth/password-field.tsx`                       | The policy from `packages/shared`, judged when leaving the field rather than on every keystroke |
+| `settings/settings.tsx`                         | Theme, language, password, codes, the second factor, and leaving                                |
+| `settings/totp.tsx`                             | Enrollment in three steps that cannot be skipped, and removal                                   |
+| `library/library.tsx`                           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
+| `library/deck-dialogs.tsx`                      | Deck naming, safe move picker and inherited language/level settings                             |
+| `library/collection-picker.tsx`                 | Hierarchy-aware deck destination picker                                                         |
+| `library/collection-path.tsx`                   | Navigable folder/deck path chips on collection-scoped screens                                   |
+| `today/today.tsx`                               | What is due, what is new, and the estimate that says "about"                                    |
+| `today/study.tsx`                               | Local Daily Study reveal/advance, interval previews, verified answers, Undo, and completion     |
+| `today/practice.tsx`                            | Schedule-free configurable field practice with repeated learning rounds                         |
+| `notes/note-list.tsx`                           | Virtualized note browse, search, filters, sorts and selection                                   |
+| `notes/note-editor.tsx`                         | Explicit create, autosaving edit, conditional fields and card preview                           |
+| `notes/note-field.tsx`, `notes/note-header.tsx` | Shared field labels/value presentation and Note header/breadcrumbs for editing and reading      |
+| `notes/read-only-note.tsx`                      | Conditional Note reading without mounting autosave or server controls                           |
+| `notes/note-selection.tsx`                      | Bulk known, move, tag and delete actions                                                        |
+| `notes/card-preview.tsx`                        | The cards a note will keep, add or remove                                                       |
+| `import/import-screen.tsx`                      | Parse, map, preview, deduplicate, chunk, resume, finish and undo an import                      |
+| `import/prompt-dialog.tsx`                      | Prompt variant, substituted deck context, example and clipboard action                          |
 
 ### The design system (`src/ui/`)
 
@@ -269,26 +271,27 @@ Radix primitives styled with the tokens. No prebuilt kit: they carry a look, and
 one that somebody recognises. `docs/design-system.md` is the reference and `/dev/components` draws
 every one of these in every state.
 
-| File                                      | Holds                                                                                       |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form      |
-| `collection-header.tsx`                   | Compact collection title/actions row with navigation directly below                         |
-| `collection.tsx`                          | Shared opaque hierarchy surfaces and Folder/Deck identities for Library and pickers         |
-| `disclosure.tsx`                          | Controlled, state-preserving inline disclosure with reduced-motion and inert closed content |
-| `input.tsx`, `textarea.tsx`, `select.tsx` | The fields. Sixteen pixels of text, or iOS zooms the page on focus                          |
-| `form-field.tsx`                          | The label, the hint, the error, and the wiring between them                                 |
-| `range.tsx`                               | A rail, a filled portion, one white disc. The fill is handed to css as `--track`            |
-| `segmented.tsx`                           | Native radios with a thumb that slides. Replaces radios everywhere                          |
-| `switch.tsx`, `checkbox.tsx`              | A capsule and a white disc; a fill framed by an inset ring                                  |
-| `card.tsx`                                | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                    |
-| `row.tsx`                                 | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                         |
-| `swipe-delete.tsx`                        | Continuous note-row reveal and committed release-to-delete gesture                          |
-| `chip.tsx`, `progress.tsx`                | Four chip tones and no others; a line that fills on `transform`                             |
-| `dialog.tsx`                              | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip     |
-| `toast.tsx`                               | Short confirmations, above the bottom bar and above the home indicator                      |
-| `sheen.tsx`                               | The specular streak that travels on a glass layer as content scrolls under it               |
-| `states.tsx`                              | Skeleton, empty and error. A list never renders as a blank area                             |
-| `spinner.tsx`                             | For a control that is waiting. A screen gets a skeleton instead                             |
+| File                                      | Holds                                                                                        |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form       |
+| `collection-header.tsx`                   | Compact collection title/actions row with navigation directly below                          |
+| `read-only-slot.tsx`                      | Unmounts server controls while retaining occupied dimensions during an in-session transition |
+| `collection.tsx`                          | Shared opaque hierarchy surfaces and Folder/Deck identities for Library and pickers          |
+| `disclosure.tsx`                          | Controlled, state-preserving inline disclosure with reduced-motion and inert closed content  |
+| `input.tsx`, `textarea.tsx`, `select.tsx` | The fields. Sixteen pixels of text, or iOS zooms the page on focus                           |
+| `form-field.tsx`                          | The label, the hint, the error, and the wiring between them                                  |
+| `range.tsx`                               | A rail, a filled portion, one white disc. The fill is handed to css as `--track`             |
+| `segmented.tsx`                           | Native radios with a thumb that slides. Replaces radios everywhere                           |
+| `switch.tsx`, `checkbox.tsx`              | A capsule and a white disc; a fill framed by an inset ring                                   |
+| `card.tsx`                                | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                     |
+| `row.tsx`                                 | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                          |
+| `swipe-delete.tsx`                        | Continuous note-row reveal and committed release-to-delete gesture                           |
+| `chip.tsx`, `progress.tsx`                | Four chip tones and no others; a line that fills on `transform`                              |
+| `dialog.tsx`                              | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip      |
+| `toast.tsx`                               | Short confirmations, above the bottom bar and above the home indicator                       |
+| `sheen.tsx`                               | The specular streak that travels on a glass layer as content scrolls under it                |
+| `states.tsx`                              | Skeleton, empty and error. A list never renders as a blank area                              |
+| `spinner.tsx`                             | For a control that is waiting. A screen gets a skeleton instead                              |
 
 ### The wiring (`src/lib/`, `src/i18n/`, `src/theme/`)
 
@@ -306,6 +309,7 @@ every one of these in every state.
 | `lib/storage.ts`                           | Local storage that cannot throw, because Safari's private mode does                     |
 | `lib/collection-db.ts`                     | Versioned account-scoped IndexedDB stores, atomic pull pages/cursors and cache recovery |
 | `lib/collection-read.ts`                   | Shared-schema offline collection projections for existing React Query reads             |
+| `lib/collection-transport.ts`              | Collection GET fallback, confirmed transport loss and cancellation/account guards       |
 | `lib/offline.ts`                           | Remembered-account boundaries, pull coordination, connectivity and local sign-out       |
 | `lib/collection-failure.ts`                | Sanitized hydration-stage diagnostics without account identities or collection contents |
 | `lib/pwa.ts`, `scripts/service-worker.mjs` | Versioned shell registration, asset allowlist and non-disruptive worker lifecycle       |

@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-10, Phase 8.1 production hydration regression and protected repair.
+Last updated: 2026-10-10, Phase 8.1 in-session offline continuity and browsing parity follow-up.
 
 ## Current release
 
@@ -51,11 +51,24 @@ Production acceptance on installed iPhone and desktop found unusable hydration a
 status banners. The real PostgreSQL/browser reproduction identifies migration 0012's MD5-derived Deck
 IDs: PostgreSQL stores them as UUIDs, but RFC-only UUID validation rejected the sync page before its
 IndexedDB commit. Fresh UUIDv7-only browser fixtures did not cover this persisted identity contract.
-The repair on `work/offline-hydration-repair` validates canonical PostgreSQL identities without rewriting
+PR #46 merged the repair at `8140122`; it validates canonical PostgreSQL identities without rewriting
 them, keeps page/cursor commits atomic, stabilizes background retries and retains completed downloads
 during incremental failure. Status and deliberate recovery live in Settings; download states never
 precede screen headers. A connection indicator sits outside content flow beside navigation.
-Protected repair delivery and production/installed-iPhone acceptance remain pending.
+The owner confirmed installed-iPhone production acceptance: a completed collection reopens and is
+browsable offline after restarting the PWA.
+
+The follow-up on `work/offline-continuity` addresses in-session transport loss and browsing parity.
+A failed collection GET confirms transport availability through `/account`, including when browser
+connectivity hints remain online. HTTP errors, aborted reads and isolated mutation/sync failures do
+not establish an outage. Account validation must succeed before online operations resume; late
+responses from an earlier connectivity visit cannot restore them.
+Library and Deck lists keep their mounted presentation, expansion/search/filter state and query data
+while reads switch to the completed local snapshot. Shared hierarchy rows, breadcrumbs, Note rows,
+field labels and headers provide offline parity. Server controls unmount; occupied control space is
+retained for the current visit. Note reading mounts no editor/autosave controller. Missing, incomplete
+or unreadable snapshots present an honest unavailable state. Protected follow-up delivery and physical
+iPhone acceptance of the live transition remain pending.
 See `offline-collection.md` for the storage, lifecycle, recovery and later-write boundaries.
 No offline mutation outbox, local Study planning, Review/Undo transport, Practice synchronization or
 offline Import drafts are implemented. Physical installed-iPhone acceptance remains a device check.
@@ -150,8 +163,8 @@ Today or Study.
 
 ## Next
 
-1. Deliver the Phase 8.1 hydration/status repair through the protected PR workflow. Verify production
-   download, offline reopening, storage recovery and installed-iPhone lifecycle before native acceptance.
+1. Deliver the Phase 8.1 continuity/parity follow-up through the protected PR workflow. Verify losing
+   connectivity inside Library/Deck/Note browsing and authenticated reconnection on the installed iPhone.
 2. Resolve durable queue ownership, migrations preserving pending work, offline-created Card identity
    mapping, entity conflict detection, local Study planning, offline Undo and Practice synchronization
    before offline writes. Include authentication expiry, storage-loss recovery and cross-device convergence.

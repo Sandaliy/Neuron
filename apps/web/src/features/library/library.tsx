@@ -18,6 +18,7 @@ import type { DeckNode, DeckSettings } from '@neuron/shared';
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
 import { findDeck, useDeckActions, useDeckTree } from '../../lib/decks';
+import { useOffline } from '../../lib/offline';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
 import { Button } from '../../ui/button';
 import { CollectionIcon, collectionSurface } from '../../ui/collection';
@@ -52,6 +53,9 @@ export function LibraryScreen() {
   const toast = useToast();
   const navigate = useNavigate();
   const decks = useDeckTree();
+  const offline = useOffline();
+  const readOnly = offline.offline;
+  const unavailable = readOnly && !offline.available;
   const actions = useDeckActions();
   const [open, setOpen] = useState<ReadonlySet<string>>(() => readOpen());
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' });
@@ -94,9 +98,10 @@ export function LibraryScreen() {
   }
 
   return (
-    <CollectionDrag tree={tree} actions={actions}>
+    <CollectionDrag tree={tree} actions={actions} readOnly={readOnly}>
       <section data-screen="" data-library-view="" className="flex flex-col gap-20">
         <CollectionHeader
+          readOnly={readOnly}
           title={folder?.name ?? t('library.title')}
           actions={
             <>
@@ -114,49 +119,58 @@ export function LibraryScreen() {
                   <ArrowLeft size={18} />
                 </Button>
               )}
-              <Button
-                variant="quiet"
-                className="size-44 px-12"
-                aria-label={t('deleted.title')}
-                onClick={() => void navigate({ to: '/library/deleted' })}
-              >
-                <Trash2 size={16} aria-hidden="true" />
-              </Button>
-              <Button
-                variant="quiet"
-                onClick={() =>
-                  setDialog({
-                    kind: 'create',
-                    collectionKind: 'folder',
-                    parentId: folder?.id ?? null,
-                  })
-                }
-              >
-                <Folder size={16} aria-hidden="true" />
-                <span className="sr-only sm:not-sr-only">{t('library.newFolder')}</span>
-              </Button>
+              {!readOnly && (
+                <>
+                  <Button
+                    variant="quiet"
+                    className="size-44 px-12"
+                    aria-label={t('deleted.title')}
+                    onClick={() => void navigate({ to: '/library/deleted' })}
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    variant="quiet"
+                    onClick={() =>
+                      setDialog({
+                        kind: 'create',
+                        collectionKind: 'folder',
+                        parentId: folder?.id ?? null,
+                      })
+                    }
+                  >
+                    <Folder size={16} aria-hidden="true" />
+                    <span className="sr-only sm:not-sr-only">{t('library.newFolder')}</span>
+                  </Button>
 
-              <Button
-                variant="primary"
-                className="px-12"
-                onClick={() =>
-                  setDialog({
-                    kind: 'create',
-                    collectionKind: 'deck',
-                    parentId: folder?.id ?? null,
-                  })
-                }
-              >
-                <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
-                <span className="sr-only min-[420px]:not-sr-only">{t('library.newDeck')}</span>
-              </Button>
+                  <Button
+                    variant="primary"
+                    className="px-12"
+                    onClick={() =>
+                      setDialog({
+                        kind: 'create',
+                        collectionKind: 'deck',
+                        parentId: folder?.id ?? null,
+                      })
+                    }
+                  >
+                    <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+                    <span className="sr-only min-[420px]:not-sr-only">{t('library.newDeck')}</span>
+                  </Button>
+                </>
+              )}
             </>
           }
         >
           <CollectionPath tree={tree} id={folderId ?? ''} />
         </CollectionHeader>
 
-        {decks.isPending || (decks.isFetching && visible.length === 0) ? (
+        {unavailable && (
+          <p role="status" className="text-14 text-secondary">
+            {t('offline.incomplete')}
+          </p>
+        )}
+        {!unavailable && (decks.isPending || (decks.isFetching && visible.length === 0)) ? (
           <SkeletonRows rows={5} />
         ) : undefined}
 
@@ -165,24 +179,32 @@ export function LibraryScreen() {
         content already on screen leaves that content alone: the counts are a
         few minutes old rather than gone, which is the better of the two.
       */}
-        {decks.error && !decks.data ? (
+        {!unavailable && decks.error && !decks.data ? (
           <ErrorState
-            message={t(describe(decks.error).key, describe(decks.error).values)}
+            message={
+              readOnly
+                ? t('offline.missing')
+                : t(describe(decks.error).key, describe(decks.error).values)
+            }
             retryLabel={t('common.retry')}
             onRetry={() => void decks.refetch()}
           />
         ) : undefined}
 
-        {decks.data && !decks.isFetching && !decks.error && visible.length === 0 ? (
-          <EmptyState title={t('library.emptyTitle')} description={t('library.emptyBody')} />
+        {!unavailable && decks.data && !decks.isFetching && !decks.error && visible.length === 0 ? (
+          <EmptyState
+            title={t(readOnly ? 'offline.empty' : 'library.emptyTitle')}
+            description={t(readOnly ? 'offline.readOnly' : 'library.emptyBody')}
+          />
         ) : undefined}
 
-        {visible.length > 0 ? (
+        {!unavailable && visible.length > 0 ? (
           <div className="flex flex-col gap-8">
             {visible.map((deck) => (
               <Deck
                 key={deck.id}
                 deck={deck}
+                readOnly={readOnly}
                 siblings={visible}
                 tree={tree}
                 actions={actions}
@@ -195,41 +217,43 @@ export function LibraryScreen() {
           </div>
         ) : undefined}
 
-        <DeckDialogs
-          state={dialog}
-          decks={tree}
-          onClose={() => setDialog({ kind: 'none' })}
-          onCreate={async (parentId, name, kind) => {
-            await actions.create.mutateAsync({ name, parentId, kind });
+        {!readOnly && (
+          <DeckDialogs
+            state={dialog}
+            decks={tree}
+            onClose={() => setDialog({ kind: 'none' })}
+            onCreate={async (parentId, name, kind) => {
+              await actions.create.mutateAsync({ name, parentId, kind });
 
-            setDialog({ kind: 'none' });
-            toast.show(t('library.created', { name }));
-          }}
-          onRename={async (deck, name) => {
-            await actions.rename.mutateAsync({ id: deck.id, name });
-            setDialog({ kind: 'none' });
-          }}
-          onMove={async (deck, parentId) => {
-            await actions.move.mutateAsync({ id: deck.id, parentId });
+              setDialog({ kind: 'none' });
+              toast.show(t('library.created', { name }));
+            }}
+            onRename={async (deck, name) => {
+              await actions.rename.mutateAsync({ id: deck.id, name });
+              setDialog({ kind: 'none' });
+            }}
+            onMove={async (deck, parentId) => {
+              await actions.move.mutateAsync({ id: deck.id, parentId });
 
-            setDialog({ kind: 'none' });
-            toast.show(t('library.moved', { name: deck.name }));
-          }}
-          onSaveSettings={async (deck, settings) => {
-            await actions.update.mutateAsync({ id: deck.id, settings });
-            setDialog({ kind: 'none' });
-          }}
-          onDelete={remove}
-          busy={
-            actions.create.isPending ||
-            actions.rename.isPending ||
-            actions.move.isPending ||
-            actions.update.isPending ||
-            actions.remove.isPending
-          }
-          createError={actions.create.error}
-          renameError={actions.rename.error}
-        />
+              setDialog({ kind: 'none' });
+              toast.show(t('library.moved', { name: deck.name }));
+            }}
+            onSaveSettings={async (deck, settings) => {
+              await actions.update.mutateAsync({ id: deck.id, settings });
+              setDialog({ kind: 'none' });
+            }}
+            onDelete={remove}
+            busy={
+              actions.create.isPending ||
+              actions.rename.isPending ||
+              actions.move.isPending ||
+              actions.update.isPending ||
+              actions.remove.isPending
+            }
+            createError={actions.create.error}
+            renameError={actions.rename.error}
+          />
+        )}
       </section>
     </CollectionDrag>
   );
@@ -254,6 +278,7 @@ type DialogState =
 
 function Deck({
   deck,
+  readOnly,
   siblings,
   tree,
   actions,
@@ -263,6 +288,7 @@ function Deck({
   onAct,
 }: {
   readonly deck: DeckNode;
+  readonly readOnly: boolean;
   /** The decks at this level, for moving one up or down among them. */
   readonly siblings: readonly DeckNode[];
   /** The whole tree, for deciding whether a drop is allowed. */
@@ -306,13 +332,15 @@ function Deck({
         data-collection-id={deck.id}
         className="relative has-[[data-dragging=true]]:opacity-40"
       >
-        <CollectionDrop
-          tree={tree}
-          id={`before:${deck.id}`}
-          parentId={deck.parentId}
-          beforeId={deck.id}
-          position="before"
-        />
+        {!readOnly && (
+          <CollectionDrop
+            tree={tree}
+            id={`before:${deck.id}`}
+            parentId={deck.parentId}
+            beforeId={deck.id}
+            position="before"
+          />
+        )}
         <Row
           title={
             <span
@@ -348,7 +376,11 @@ function Deck({
           }
           leading={
             <>
-              <CollectionHandle deck={deck} />
+              {readOnly ? (
+                <span aria-hidden="true" className="-mx-8 block size-44 shrink-0" />
+              ) : (
+                <CollectionHandle deck={deck} />
+              )}
               {deck.kind === 'folder' ? (
                 hasChildren ? (
                   <button
@@ -381,92 +413,96 @@ function Deck({
           onClick={() => onOpen(deck.id)}
           interactiveTrailing
           trailing={
-            <>
-              <Menu label={t('library.deckActions', { name: deck.name })}>
-                <div className="px-12 py-8 text-13 text-secondary">
-                  {t('library.cardCounts', { due: deck.due, fresh: deck.fresh })}
-                </div>
-                <MenuSeparator />
-                <MenuItem
-                  icon={<Pencil size={16} strokeWidth={1.5} />}
-                  onSelect={() => onAct({ kind: 'rename', deck })}
-                >
-                  {t('library.rename')}
-                </MenuItem>
-                <MenuItem
-                  icon={<FolderInput size={16} strokeWidth={1.5} />}
-                  onSelect={() => onAct({ kind: 'move', deck })}
-                >
-                  {t('library.move')}
-                </MenuItem>
-                {deck.kind === 'folder' && (
-                  <>
-                    <MenuItem
-                      icon={<Folder size={16} />}
-                      onSelect={() =>
-                        onAct({
-                          kind: 'create',
-                          collectionKind: 'folder',
-                          parentId: deck.id,
-                          parentName: deck.name,
-                        })
-                      }
-                    >
-                      {t('library.newFolder')}
-                    </MenuItem>
-                    <MenuItem
-                      icon={<Plus size={16} />}
-                      onSelect={() =>
-                        onAct({
-                          kind: 'create',
-                          collectionKind: 'deck',
-                          parentId: deck.id,
-                          parentName: deck.name,
-                        })
-                      }
-                    >
-                      {t('library.newDeck')}
-                    </MenuItem>
-                  </>
-                )}
-                <MenuItem
-                  icon={<Settings2 size={16} strokeWidth={1.5} />}
-                  onSelect={() => onAct({ kind: 'settings', deck })}
-                >
-                  {t('library.settings')}
-                </MenuItem>
+            readOnly ? (
+              <span aria-hidden="true" className="size-44 shrink-0" />
+            ) : (
+              <>
+                <Menu label={t('library.deckActions', { name: deck.name })}>
+                  <div className="px-12 py-8 text-13 text-secondary">
+                    {t('library.cardCounts', { due: deck.due, fresh: deck.fresh })}
+                  </div>
+                  <MenuSeparator />
+                  <MenuItem
+                    icon={<Pencil size={16} strokeWidth={1.5} />}
+                    onSelect={() => onAct({ kind: 'rename', deck })}
+                  >
+                    {t('library.rename')}
+                  </MenuItem>
+                  <MenuItem
+                    icon={<FolderInput size={16} strokeWidth={1.5} />}
+                    onSelect={() => onAct({ kind: 'move', deck })}
+                  >
+                    {t('library.move')}
+                  </MenuItem>
+                  {deck.kind === 'folder' && (
+                    <>
+                      <MenuItem
+                        icon={<Folder size={16} />}
+                        onSelect={() =>
+                          onAct({
+                            kind: 'create',
+                            collectionKind: 'folder',
+                            parentId: deck.id,
+                            parentName: deck.name,
+                          })
+                        }
+                      >
+                        {t('library.newFolder')}
+                      </MenuItem>
+                      <MenuItem
+                        icon={<Plus size={16} />}
+                        onSelect={() =>
+                          onAct({
+                            kind: 'create',
+                            collectionKind: 'deck',
+                            parentId: deck.id,
+                            parentName: deck.name,
+                          })
+                        }
+                      >
+                        {t('library.newDeck')}
+                      </MenuItem>
+                    </>
+                  )}
+                  <MenuItem
+                    icon={<Settings2 size={16} strokeWidth={1.5} />}
+                    onSelect={() => onAct({ kind: 'settings', deck })}
+                  >
+                    {t('library.settings')}
+                  </MenuItem>
 
-                <MenuSeparator />
+                  <MenuSeparator />
 
-                <MenuItem
-                  icon={<ArrowUp size={16} strokeWidth={1.5} />}
-                  disabled={index <= 0}
-                  onSelect={() => reorder(-1)}
-                >
-                  {t('library.moveUp')}
-                </MenuItem>
-                <MenuItem
-                  icon={<ArrowDown size={16} strokeWidth={1.5} />}
-                  disabled={index < 0 || index >= siblings.length - 1}
-                  onSelect={() => reorder(1)}
-                >
-                  {t('library.moveDown')}
-                </MenuItem>
+                  <MenuItem
+                    icon={<ArrowUp size={16} strokeWidth={1.5} />}
+                    disabled={index <= 0}
+                    onSelect={() => reorder(-1)}
+                  >
+                    {t('library.moveUp')}
+                  </MenuItem>
+                  <MenuItem
+                    icon={<ArrowDown size={16} strokeWidth={1.5} />}
+                    disabled={index < 0 || index >= siblings.length - 1}
+                    onSelect={() => reorder(1)}
+                  >
+                    {t('library.moveDown')}
+                  </MenuItem>
 
-                <MenuSeparator />
+                  <MenuSeparator />
 
-                <MenuItem
-                  tone="danger"
-                  icon={<Trash2 size={16} strokeWidth={1.5} />}
-                  onSelect={() => onAct({ kind: 'delete', deck })}
-                >
-                  {t('library.delete')}
-                </MenuItem>
-              </Menu>
-            </>
+                  <MenuItem
+                    tone="danger"
+                    icon={<Trash2 size={16} strokeWidth={1.5} />}
+                    onSelect={() => onAct({ kind: 'delete', deck })}
+                  >
+                    {t('library.delete')}
+                  </MenuItem>
+                </Menu>
+              </>
+            )
           }
         />
-        {deck.kind === 'folder' && (
+        {!readOnly && deck.kind === 'folder' && (
           <CollectionDrop
             tree={tree}
             id={`inside:${deck.id}`}
@@ -476,7 +512,7 @@ function Deck({
           />
         )}
       </div>
-      {index === siblings.length - 1 && (
+      {!readOnly && index === siblings.length - 1 && (
         <CollectionDrop
           tree={tree}
           id={`after:${deck.id}`}
@@ -491,6 +527,7 @@ function Deck({
             <Deck
               key={child.id}
               deck={child}
+              readOnly={readOnly}
               siblings={deck.children}
               tree={tree}
               actions={actions}

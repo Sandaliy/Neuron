@@ -1,7 +1,7 @@
 import { apiErrorSchema } from '@neuron/shared';
 import type { ApiErrorCode, MessageKey, MessageValues } from '@neuron/shared';
 
-import { accountEpoch, networkLost, offlineState, revokeOffline } from './offline';
+import { accountEpoch, connectionEpoch, networkLost, offlineState, revokeOffline } from './offline';
 
 /**
  * Talking to the api.
@@ -119,6 +119,7 @@ interface RequestOptions {
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, signal } = options;
   const visit = accountEpoch();
+  const connection = connectionEpoch();
   if (method !== 'GET' && (offlineState().offline || !navigator.onLine)) {
     throw new ApiFailure({
       code: 'network_unreachable',
@@ -128,6 +129,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   let response: Response;
+  let text: string;
 
   try {
     response = await fetch(`${API_BASE}${path}`, {
@@ -139,10 +141,11 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       ...(signal ? { signal } : {}),
     });
+    text = await response.text();
   } catch (cause) {
     // An aborted request is the app tidying up after itself, not a failure to
     // report. Rethrowing it keeps it out of every error state on screen.
-    if (cause instanceof DOMException && cause.name === 'AbortError') {
+    if (signal?.aborted || (cause instanceof DOMException && cause.name === 'AbortError')) {
       throw cause;
     }
 
@@ -153,7 +156,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
      * answering badly. Saying so is the difference between checking the wifi
      * and waiting for someone else to fix something.
      */
-    if (visit === accountEpoch() && (!navigator.onLine || path === '/account')) networkLost();
+    if (
+      visit === accountEpoch() &&
+      connection === connectionEpoch() &&
+      (!navigator.onLine || path === '/account')
+    )
+      networkLost();
     throw new ApiFailure({
       code: 'network_unreachable',
       status: 0,
@@ -161,8 +169,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     });
   }
 
-  const text = await response.text();
-  if (visit !== accountEpoch()) throw new DOMException('Account visit ended', 'AbortError');
+  if (
+    signal?.aborted ||
+    visit !== accountEpoch() ||
+    (path === '/account' && connection !== connectionEpoch())
+  )
+    throw new DOMException('Account visit ended', 'AbortError');
   let parsed: unknown = undefined;
 
   if (text.length > 0) {
