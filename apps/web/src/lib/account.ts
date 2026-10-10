@@ -6,6 +6,7 @@ import { ApiFailure, request } from './api';
 import {
   acceptAccount,
   accountEpoch,
+  connectionEpoch,
   locallySignedOut,
   rememberedAccount,
   revokeOffline,
@@ -42,9 +43,10 @@ export function accountQuery() {
           correlationId: 'local-sign-out',
         });
       const epoch = accountEpoch();
+      const connection = connectionEpoch();
       try {
         const account = await request<Me>('/account', { signal });
-        acceptAccount(account, epoch);
+        acceptAccount(account, epoch, connection);
         return account;
       } catch (error) {
         if (

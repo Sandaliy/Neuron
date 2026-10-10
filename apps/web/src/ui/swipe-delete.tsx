@@ -66,7 +66,7 @@ export function SwipeDelete({
       }}
       onPointerMove={(event) => {
         const g = gesture.current;
-        if (!g) return;
+        if (!g || disabled) return;
         const dx = event.clientX - g.x;
         const dy = event.clientY - g.y;
         if (!g.horizontal) {
@@ -94,7 +94,7 @@ export function SwipeDelete({
       onPointerUp={(event) => {
         const g = gesture.current;
         gesture.current = null;
-        if (!g?.horizontal) {
+        if (disabled || !g?.horizontal) {
           setOffset(null);
           return;
         }
@@ -147,7 +147,7 @@ export function SwipeDelete({
         }
       }}
       onClickCapture={(event) => {
-        if (!suppress.current) return;
+        if (disabled || !suppress.current) return;
         suppress.current = false;
         event.preventDefault();
         event.stopPropagation();

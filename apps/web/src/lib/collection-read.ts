@@ -2,7 +2,7 @@ import { cardSchema, deckSchema, noteSchema, termOf } from '@neuron/shared';
 import type { Card, DeckNode, Note } from '@neuron/shared';
 
 import { openCollection, snapshot } from './collection-db';
-import { accountEpoch, offlineState } from './offline';
+import { accountEpoch, offlineReadFailed, offlineState } from './offline';
 
 import type { NoteQuery } from './notes';
 
@@ -10,31 +10,36 @@ async function collection() {
   const visit = accountEpoch();
   const id = offlineState().accountId;
   if (!id) throw new Error('collection_no_account');
-  const db = await openCollection(id);
   try {
-    const rows = await snapshot(db);
-    if (offlineState().accountId !== id || accountEpoch() !== visit)
-      throw new Error('collection_account_changed');
-    const decks = rows.decks
-      .filter((row) => !row.deleted && !row.purged)
-      .map((change) => deckSchema.parse({ ...change.row, path: [] }));
-    const live = new Map(decks.map((deck) => [deck.id, deck]));
-    const available = (id: string, visited = new Set<string>()): boolean => {
-      const deck = live.get(id);
-      if (!deck || visited.has(id)) return false;
-      visited.add(id);
-      return deck.parentId === null || available(deck.parentId, visited);
-    };
-    const notes = rows.notes
-      .filter((row) => !row.deleted && !row.purged && available(String(row.row['deckId'])))
-      .map((change) => noteSchema.parse(change.row));
-    const noteIds = new Set(notes.map((note) => note.id));
-    const cards = rows.cards
-      .filter((row) => !row.deleted && !row.purged && noteIds.has(String(row.row['noteId'])))
-      .map((change) => cardSchema.parse(change.row));
-    return { decks: decks.filter((deck) => available(deck.id)), notes, cards };
-  } finally {
-    db.close();
+    const db = await openCollection(id);
+    try {
+      const rows = await snapshot(db);
+      if (offlineState().accountId !== id || accountEpoch() !== visit)
+        throw new Error('collection_account_changed');
+      const decks = rows.decks
+        .filter((row) => !row.deleted && !row.purged)
+        .map((change) => deckSchema.parse({ ...change.row, path: [] }));
+      const live = new Map(decks.map((deck) => [deck.id, deck]));
+      const available = (id: string, visited = new Set<string>()): boolean => {
+        const deck = live.get(id);
+        if (!deck || visited.has(id)) return false;
+        visited.add(id);
+        return deck.parentId === null || available(deck.parentId, visited);
+      };
+      const notes = rows.notes
+        .filter((row) => !row.deleted && !row.purged && available(String(row.row['deckId'])))
+        .map((change) => noteSchema.parse(change.row));
+      const noteIds = new Set(notes.map((note) => note.id));
+      const cards = rows.cards
+        .filter((row) => !row.deleted && !row.purged && noteIds.has(String(row.row['noteId'])))
+        .map((change) => cardSchema.parse(change.row));
+      return { decks: decks.filter((deck) => available(deck.id)), notes, cards };
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    offlineReadFailed(error, visit, id);
+    throw error;
   }
 }
 
@@ -90,7 +95,7 @@ export async function localNotes(
       (!query.tag || note.tags.includes(query.tag)) &&
       (!query.source || note.source === query.source) &&
       (!query.search ||
-        JSON.stringify(note.fields)
+        `${JSON.stringify(note.fields)} ${note.tags.join(' ')}`
           .toLocaleLowerCase()
           .includes(query.search.toLocaleLowerCase())) &&
       (!query.cardState || byNote.get(note.id)?.some((card) => card.state === query.cardState)),

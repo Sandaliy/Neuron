@@ -28,6 +28,10 @@ export function Shell() {
   // screens outside /library. A pending address must not remount the old screen.
   const match = useRouterState({ select: (state) => state.matches.at(-1) });
   const current = TABS.findIndex((tab) => tab.to === match?.staticData.navTab);
+  const collectionRead =
+    match?.pathname === '/library' ||
+    (match?.pathname === '/notes' && !(match.search as { learning?: string }).learning) ||
+    (match?.pathname.startsWith('/notes/') && match.pathname !== '/notes/new');
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -55,7 +59,7 @@ export function Shell() {
             </section>
           }
         >
-          {offline.offline ? <OfflineCollection /> : <Outlet />}
+          {offline.offline && !collectionRead ? <OfflineCollection /> : <Outlet />}
         </Suspense>
       </main>
 

@@ -1,9 +1,11 @@
 # Durable offline collection reads
 
 Phase 8.1 adds a device cache for reading a previously downloaded collection. Online CRUD, scheduling,
-Study, Practice and Import still use their existing server endpoints and reconciliation. Offline views
-offer Folder and Deck navigation, a searchable paged Note list, and read-only Note details. Study,
-Practice, editing, restoration and Import application remain online-only. Remote Note media is not
+Study, Practice and Import still use their existing server endpoints and reconciliation. Offline reads
+reuse Library hierarchy rows, inline nested expansion, Deck headers/breadcrumbs, search/sorting/filtering
+and virtualized Note rows. Note details share their header and conditional field presentation with the
+editor through a reading component with no autosave controller. Study, Practice, editing, restoration
+and Import application remain online-only. Remote Note media is not
 downloaded; its stored reference remains readable.
 
 ## Storage and initial download
@@ -51,11 +53,22 @@ pull begins. Authentication rejection revokes local access and returns to sign-i
 cancels the previous visit's reads/pull and clears collection query entries before the next collection
 is exposed. Late account responses and pulls cannot re-enable an ended visit.
 
-Offline events and unreachable account requests enter read-only access. An isolated failed sync pull
-while the browser remains connected preserves online screens and records a stable download failure.
-An isolated failed online
-mutation retains its existing error/retry flow. Reconnection, window focus and Settings' Check connection
+Offline events and unreachable account requests enter read-only access. Collection GET transport
+failures also request a single shared `/account` validation attempt. This detects genuine transport
+loss when `navigator.onLine` remains true. A reachable account endpoint leaves an isolated failed
+read in its existing retry/error flow. HTTP refusals and aborted reads never initiate this probe.
+Interrupted response bodies follow the same transport classification as failed fetches.
+An isolated failed sync pull while the browser remains connected preserves online screens and records
+a stable download failure. An isolated failed online mutation retains its existing error/retry flow. Reconnection, window focus and Settings' Check connection
 Retry action request fresh server account validation; an unsuccessful attempt remains read-only.
+Account and connectivity generations guard stale deliveries. The handover cancels pending reads and
+invalidates active collection observers without removing cached query entries or remounting Library
+and Deck screens. Complete snapshot reads replace those entries locally. Read-only capabilities
+remove menus, drag/drop, selection mutations, direct/swipe deletion and learning entry controls;
+control slots retain their measured space during the current visit. Search covers stored fields and
+tags; status, Card state, source, tag and supported sort filters use saved facts. Server-only due
+counts, Study readiness and Practice progress are hidden. Unreadable local snapshots revoke cache
+availability rather than presenting stale online rows as completed offline data.
 
 Explicit sign-out revokes access before remote transport, clears the selected account, and blocks
 automatic reuse of a still-valid cookie until explicit successful authentication. This also applies
@@ -102,8 +115,9 @@ PostgreSQL/RLS; only session lookup is substituted. Representative persisted dat
 0012 Deck identity and references, nullable fields, all six entities, Review/Undo history, soft-delete
 and purged tombstones, cloze Cards and revision-boundary pagination. It compares every persisted
 envelope and the final cursor with real pulls, interrupts/resumes, deliberately rebuilds corrupted
-metadata, stops the HTTP server for shell reopening and browsing, reconciles updates and switches
-accounts. It runs in desktop Chromium and phone-sized WebKit. No production account contents are used.
+metadata, and stops the HTTP server while a Deck is open to prove local continuity without reload
+despite online browser hints. It then reloads/reopens the cached shell, browses, reconciles updates and
+switches accounts. It runs in desktop Chromium and phone-sized WebKit. No production account contents are used.
 
 The separate fixture browser suite exercises complete hydration, offline hierarchy/Note reads, actual server shutdown
 followed by shell reload and a reopened page, waiting worker updates during an active visit, incremental
@@ -111,8 +125,12 @@ tombstones, interrupted pages, transaction abort, competing/duplicate tab delive
 completeness, quota and unavailable storage, local format/database version
 recovery, sign-out, account switching, cross-tab revocation and expired-session rejection. The shell
 test uses a disposable HTTP origin rather than worker-intercepted API fixtures; ordinary interaction
-fixtures block workers. Chromium and WebKit provide browser evidence, while installed physical-iOS
-storage/lifecycle acceptance remains a separate device check.
+fixtures block workers and warm the built module graph before browser network emulation; they do not
+prove service-worker delivery. Additional fixture regressions cover in-session Library/Deck continuity,
+online browser hints during genuine transport loss, nested expansion/search/details, exact header/row
+geometry and scroll retention, missing snapshots, false outage prevention and delayed account validation.
+Chromium and WebKit provide browser evidence. The owner accepted physical-iPhone offline reopening
+after PR #46; in-session transition and parity acceptance remains a separate device check.
 
 Before offline writes, replace the rebuild/discard policy with a migration and recovery contract that
 preserves pending user work. Add a durable account-bound outbox, stable identities and Card mapping,

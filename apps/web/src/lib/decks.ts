@@ -6,9 +6,9 @@ import type { Deck, DeckNode, DeckSettings, ResolvedDeckSettings } from '@neuron
 
 import { request } from './api';
 import { localDeckTree } from './collection-read';
+import { collectionRead } from './collection-transport';
 import { projectDeck } from './deck-projection';
 import { writeEntities } from './entity-writes';
-import { offlineState } from './offline';
 
 /**
  * The library, in one request, and the six things that can change it.
@@ -36,9 +36,7 @@ export function deckTreeQuery() {
     queryKey: DECK_TREE_KEY,
     networkMode: 'always',
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      offlineState().offline
-        ? localDeckTree()
-        : request<{ decks: DeckNode[] }>('/decks', { signal }),
+      collectionRead('/decks', signal, localDeckTree),
   } as const;
 }
 

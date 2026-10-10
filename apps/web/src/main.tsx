@@ -8,7 +8,7 @@ import { ApiFailure } from './lib/api';
 import { deckTreeQuery } from './lib/decks';
 import { trackPresses } from './lib/interactions';
 import { noteListQuery, noteQuery } from './lib/notes';
-import { initializeOffline } from './lib/offline';
+import { initializeOffline, offlineState } from './lib/offline';
 import { practiceQuery } from './lib/practice';
 import { registerShell } from './lib/pwa';
 import { initialStudyQuery } from './lib/study-plan';
@@ -101,13 +101,21 @@ function warmUp(path = window.location.pathname, search = window.location.search
   const noteId = /^\/notes\/([^/]+)$/.exec(path)?.[1];
   if (noteId && noteId !== 'new' && !queryClient.getQueryData(noteQuery(noteId).queryKey))
     void queryClient.prefetchQuery(noteQuery(noteId));
-  if (path === '/' && !queryClient.getQueryCache().find({ queryKey: ['study-plan'] }))
+  if (
+    !offlineState().offline &&
+    path === '/' &&
+    !queryClient.getQueryCache().find({ queryKey: ['study-plan'] })
+  )
     void queryClient.prefetchQuery(initialStudyQuery());
   if (path === '/notes') {
     const deckId = new URLSearchParams(search).get('deckId');
     const list = noteListQuery({ ...(deckId ? { deckId } : {}), sort: 'created' });
     if (!queryClient.getQueryData(list.queryKey)) void queryClient.prefetchInfiniteQuery(list);
-    if (deckId && !queryClient.getQueryData(practiceQuery(deckId).queryKey))
+    if (
+      !offlineState().offline &&
+      deckId &&
+      !queryClient.getQueryData(practiceQuery(deckId).queryKey)
+    )
       void queryClient.prefetchQuery(practiceQuery(deckId));
   }
 }

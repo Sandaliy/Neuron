@@ -33,10 +33,12 @@ export function CollectionDrag({
   tree,
   children,
   actions,
+  readOnly = false,
 }: {
   readonly tree: readonly DeckNode[];
   readonly children: ReactNode;
   readonly actions: ReturnType<typeof useDeckActions>;
+  readonly readOnly?: boolean;
 }) {
   const [active, setActive] = useState<string>();
   const positions = useRef(new Map<string, { x: number; y: number }>());
@@ -52,7 +54,7 @@ export function CollectionDrag({
       const point = { x: bounds.left + window.scrollX, y: bounds.top + window.scrollY };
       const previous = positions.current.get(id);
       next.set(id, point);
-      if (!reduced && previous && id !== placed.current) {
+      if (!readOnly && !reduced && previous && id !== placed.current) {
         const dx = previous.x - point.x;
         const dy = previous.y - point.y;
         if ((dx || dy) && Math.abs(dx) <= 40 && Math.abs(dy) <= 96) {
@@ -66,7 +68,7 @@ export function CollectionDrag({
     }
     positions.current = next;
     placed.current = undefined;
-  }, [tree]);
+  }, [tree, readOnly]);
   const lastOver = useRef<DropTarget | undefined>(undefined);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const toast = useToast();
@@ -89,7 +91,7 @@ export function CollectionDrag({
 
   return (
     <DndContext
-      sensors={sensors}
+      sensors={readOnly ? [] : sensors}
       collisionDetection={pointerWithin}
       onDragStart={({ active }) => {
         lastOver.current = undefined;
@@ -123,6 +125,7 @@ export function CollectionDrag({
       }}
       onDragEnd={({ active, over }) => {
         setActive(undefined);
+        if (readOnly) return;
         placed.current = String(active.id);
         const target =
           lastOver.current ??
@@ -141,7 +144,7 @@ export function CollectionDrag({
     >
       {children}
       <DragOverlay dropAnimation={null} className="pointer-events-none">
-        {active && (
+        {active && !readOnly && (
           <div className="pointer-events-none w-full opacity-90 shadow-2">
             <Row
               title={findDeck(tree, active)?.name ?? ''}

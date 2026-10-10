@@ -12,11 +12,13 @@ import { describe } from '../../lib/api';
 import { findDeck, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
 import { noteListQuery, useNoteActions } from '../../lib/notes';
+import { useOffline } from '../../lib/offline';
 import { useReturnScroll } from '../../lib/return-scroll';
 import { Button } from '../../ui/button';
 import { Chip } from '../../ui/chip';
 import { CollectionHeader } from '../../ui/collection-header';
 import { Input } from '../../ui/input';
+import { ReadOnlySlot } from '../../ui/read-only-slot';
 import { DenseRow } from '../../ui/row';
 import { Select } from '../../ui/select';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
@@ -53,6 +55,9 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const practicing = learning.active;
   const rememberScroll = useReturnScroll(practicing);
   const t = useTranslate();
+  const offline = useOffline();
+  const readOnly = offline.offline;
+  const unavailable = readOnly && !offline.available;
   const toast = useToast();
   const { mutateAsync: deleteNote } = useNoteActions().remove;
   const deleting = useRef(new Set<string>());
@@ -116,7 +121,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
 
   /** Which deck the screens next to this one should open with. */
   const deckSearch: { deckId?: string } = deckId === undefined ? {} : { deckId };
-  const rows = notes.data?.pages.flatMap((page) => page.items) ?? [];
+  const rows = unavailable ? [] : (notes.data?.pages.flatMap((page) => page.items) ?? []);
   const deck = deckId === undefined ? undefined : findDeck(decks.data ?? [], deckId);
   const filtered =
     search !== '' || status !== '' || cardState !== '' || tagFilter !== '' || sourceFilter !== '';
@@ -154,44 +159,58 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   return (
     <section data-screen="" className="flex flex-col gap-16">
       <CollectionHeader
+        readOnly={readOnly}
         title={deck?.name ?? t('notes.title')}
         actions={
           <>
-            {deck && <RestartLearning deck={deck} />}
-            <Button
-              variant="quiet"
-              onClick={() => void navigate({ to: '/import', search: deckSearch })}
-            >
-              <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
-              <span className="sr-only sm:not-sr-only">{t('notes.import')}</span>
-            </Button>
+            {!readOnly && deck && <RestartLearning deck={deck} />}
+            {!readOnly && (
+              <>
+                <Button
+                  variant="quiet"
+                  onClick={() => void navigate({ to: '/import', search: deckSearch })}
+                >
+                  <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
+                  <span className="sr-only sm:not-sr-only">{t('notes.import')}</span>
+                </Button>
 
-            <Button
-              variant="primary"
-              onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
-            >
-              <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
-              {t('notes.newNote')}
-            </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
+                >
+                  <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+                  {t('notes.newNote')}
+                </Button>
+              </>
+            )}
           </>
         }
       >
-        <div className="flex flex-wrap items-center justify-between gap-8">
+        <div className="flex min-h-44 flex-wrap items-center justify-between gap-8">
           <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
-          {deck && <RestartLearning deck={deck} skillsOnly />}
+          {deck && (
+            <ReadOnlySlot readOnly={readOnly} inline>
+              <RestartLearning deck={deck} skillsOnly />
+            </ReadOnlySlot>
+          )}
         </div>
       </CollectionHeader>
       {deckId && (
-        <PracticeEntry
-          deckId={deckId}
-          onOpen={(entry) => {
-            rememberScroll();
-            void learning.open(entry);
-          }}
-        />
+        <ReadOnlySlot
+          readOnly={readOnly}
+          fallback={<p className="text-13 leading-read text-secondary">{t('offline.readOnly')}</p>}
+        >
+          <PracticeEntry
+            deckId={deckId}
+            onOpen={(entry) => {
+              rememberScroll();
+              void learning.open(entry);
+            }}
+          />
+        </ReadOnlySlot>
       )}
 
-      {(rows.length > 0 || filtered || typed !== '') && !selecting ? (
+      {!unavailable && (rows.length > 0 || filtered || typed !== '') && (!selecting || readOnly) ? (
         <div className="flex flex-col gap-12">
           <div className="relative">
             <Search
@@ -233,15 +252,17 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
               {filtered ? ' ·' : ''}
             </Button>
             {rows.length > 0 && (
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  setSelecting(true);
-                  setSelected(new Set());
-                }}
-              >
-                {t('notes.select')}
-              </Button>
+              <ReadOnlySlot readOnly={readOnly} inline>
+                <Button
+                  variant="quiet"
+                  onClick={() => {
+                    setSelecting(true);
+                    setSelected(new Set());
+                  }}
+                >
+                  {t('notes.select')}
+                </Button>
+              </ReadOnlySlot>
             )}
           </div>
           {filtersOpen && (
@@ -308,19 +329,29 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         </div>
       ) : undefined}
 
-      {notes.isPending || (rows.length === 0 && notes.isFetching) ? (
+      {unavailable && (
+        <p role="status" className="text-14 text-secondary">
+          {t('offline.incomplete')}
+        </p>
+      )}
+      {!unavailable && (notes.isPending || (rows.length === 0 && notes.isFetching)) ? (
         <SkeletonRows rows={8} />
       ) : undefined}
 
-      {notes.error && rows.length === 0 ? (
+      {!unavailable && notes.error && rows.length === 0 ? (
         <ErrorState
-          message={t(describe(notes.error).key, describe(notes.error).values)}
+          message={
+            readOnly
+              ? t('offline.missing')
+              : t(describe(notes.error).key, describe(notes.error).values)
+          }
           retryLabel={t('common.retry')}
           onRetry={() => void notes.refetch()}
         />
       ) : undefined}
 
-      {notes.data &&
+      {!unavailable &&
+      notes.data &&
       rows.length === 0 &&
       !notes.isFetching &&
       !notes.isPlaceholderData &&
@@ -338,20 +369,22 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         ) : (
           <EmptyState
             title={t('notes.emptyTitle')}
-            description={t('notes.emptyBody')}
+            description={t(readOnly ? 'offline.empty' : 'notes.emptyBody')}
             action={
-              <Button
-                variant="primary"
-                onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
-              >
-                {t('notes.newNote')}
-              </Button>
+              !readOnly && (
+                <Button
+                  variant="primary"
+                  onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
+                >
+                  {t('notes.newNote')}
+                </Button>
+              )
             }
           />
         )
       ) : undefined}
 
-      {selecting ? (
+      {selecting && !readOnly ? (
         <NoteSelectionBar
           ids={[...selected]}
           notes={rows.filter((note) => selected.has(note.id))}
@@ -366,10 +399,11 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       ) : undefined}
       {rows.length > 0 ? (
         <VirtualNotes
-          key={`${deckId ?? 'all'}:${selecting}`}
+          key={`${deckId ?? 'all'}:${selecting && !readOnly}`}
           rows={rows}
           onRemove={removeNote}
-          selecting={selecting}
+          selecting={selecting && !readOnly}
+          readOnly={readOnly}
           layoutKey={`${selecting}:${filtersOpen}:${filtered}`}
           selected={selected}
           onToggle={toggle}
@@ -394,6 +428,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
  * and shows with the scroll, and a nested scroller would break both.
  */
 function VirtualNotes({
+  readOnly,
   rows,
   selecting,
   layoutKey,
@@ -404,6 +439,7 @@ function VirtualNotes({
   hasMore,
   onNeedMore,
 }: {
+  readonly readOnly: boolean;
   readonly rows: readonly Note[];
   readonly selecting: boolean;
   readonly selected: ReadonlySet<string>;
@@ -470,12 +506,13 @@ function VirtualNotes({
             >
               <NoteRow
                 note={note}
+                readOnly={readOnly}
                 selecting={selecting}
                 selected={selected.has(note.id)}
                 onToggle={onToggle}
                 onOpen={onOpen}
                 onRemove={onRemove}
-                revealed={!selecting && revealed === note.id}
+                revealed={!readOnly && !selecting && revealed === note.id}
                 onReveal={setRevealed}
               />
             </div>
@@ -488,6 +525,7 @@ function VirtualNotes({
 
 /** Scroll updates move the window, but do not change the surviving notes. */
 const NoteRow = memo(function NoteRow({
+  readOnly,
   note,
   selecting,
   selected,
@@ -497,6 +535,7 @@ const NoteRow = memo(function NoteRow({
   revealed,
   onReveal,
 }: {
+  readonly readOnly: boolean;
   readonly note: Note;
   readonly selecting: boolean;
   readonly selected: boolean;
@@ -516,7 +555,7 @@ const NoteRow = memo(function NoteRow({
   return (
     <SwipeDelete
       label={t('note.delete')}
-      disabled={selecting}
+      disabled={selecting || readOnly}
       open={revealed}
       onOpen={(open) => onReveal(open ? note.id : null)}
       onDelete={() => {
@@ -536,7 +575,7 @@ const NoteRow = memo(function NoteRow({
             {note.status !== 'active' ? (
               <Chip tone="new">{t(`note.status.${note.status}`)}</Chip>
             ) : (
-              <NoteProgressSummary counts={note.cardStates} />
+              !readOnly && <NoteProgressSummary counts={note.cardStates} />
             )}
             {selecting && (
               <span
@@ -551,7 +590,8 @@ const NoteRow = memo(function NoteRow({
           </>
         }
       />
-      {!selecting && (
+      {!selecting && readOnly && <span aria-hidden="true" className="size-44 shrink-0" />}
+      {!selecting && !readOnly && (
         <button
           type="button"
           aria-label={t('note.delete')}

@@ -613,6 +613,14 @@ interrupted initial hydration remains unavailable offline until a final page com
 Query collection keys and shared schemas supply read-only Folder, Deck and Note views. A remembered
 account grants only local reading, while reconnection validates server authorization before online
 controls return. Explicit sign-out blocks automatic cookie reuse and revokes other open tabs.
+Collection transport failures confirm connectivity through account validation even when browser hints
+remain online. Aborted requests, HTTP errors and isolated mutation/sync failures retain their existing
+handling. Handover cancels and invalidates reads while retaining cached entries and mounted Library/
+Deck screens. Read-only capabilities reuse hierarchy rows, breadcrumbs, search/filtering and virtual
+Note rows; shared Note headers/fields provide a reading view without mounting autosave. In-session
+control slots retain geometry while server-dependent controls unmount. Missing or unreadable local
+snapshots never make stale online rows appear available offline. Connectivity generations also prevent
+late account responses from restoring online operations after another disconnect.
 
 The versioned service worker precaches shell HTML, emitted assets and install metadata. It never
 caches authenticated APIs and waits for old windows to close before activation. Storage/schema

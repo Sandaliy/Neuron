@@ -313,12 +313,13 @@ test('Study disclosure stays continuous through asynchronous configuration and r
   );
   const extent = Math.max(...frames.map((frame) => frame.height));
   const speed = Math.max(
-    ...frames
-      .slice(1)
-      .map(
-        (frame, index) =>
-          Math.abs(frame.height - frames[index]!.height) / (frame.time - frames[index]!.time),
-      ),
+    ...frames.slice(1).map((frame, index) => {
+      const previous = frames[index]!;
+      const movement = Math.abs(frame.height - previous.height);
+      // Chromium can sample an unchanged frame twice at the same timestamp.
+      // Stationary samples have zero speed; instantaneous movement still yields Infinity.
+      return movement === 0 ? 0 : movement / (frame.time - previous.time);
+    }),
   );
   expect(speed).toBeLessThan((extent * 4) / 240);
   expect(
