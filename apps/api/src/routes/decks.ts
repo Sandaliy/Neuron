@@ -9,6 +9,7 @@ import {
   purgeConfirmationSchema,
   reorderDecksSchema,
   updateDeckSchema,
+  renameDeckCommandSchema,
 } from '@neuron/shared';
 
 import { repositoriesOf } from '../context.js';
@@ -128,6 +129,12 @@ export function deckRoutes(): Hono<RequestBindings> {
     }
 
     return context.json({ deck: serialiseDeck(deck) });
+  });
+
+  routes.post('/:id/rename', async (context) => {
+    const { id } = readParams(context, idParamSchema);
+    const command = await readBody(context, renameDeckCommandSchema);
+    return context.json(await repositoriesOf(context).collectionRenames.rename(id, command));
   });
 
   routes.post('/:id/move', async (context) => {

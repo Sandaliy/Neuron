@@ -7,6 +7,8 @@ import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 
+import { PendingRenames } from './pending-renames';
+
 export function OfflineAccess() {
   const t = useTranslate();
   const state = useOffline();
@@ -71,6 +73,12 @@ export function OfflineAccess() {
         )}
         {shell.waiting && <p className="text-13 text-tertiary">{t('offline.update')}</p>}
       </Card>
+      {state.failure?.code === 'collection_pending_work' && (
+        <p role="alert" className="text-13 text-secondary">
+          {t('offline.rebuildBlocked')}
+        </p>
+      )}
+      <PendingRenames />
       <Dialog open={confirm} onOpenChange={setConfirm} title={t('offline.rebuild')}>
         <DialogBody>
           <p className="text-14 text-secondary">{t('offline.rebuildConfirm')}</p>

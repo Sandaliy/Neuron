@@ -1,5 +1,6 @@
 import { accountRepository } from './account.js';
 import { cardRepository } from './cards.js';
+import { collectionRenameRepository } from './collection-renames.js';
 import { deckRepository } from './decks.js';
 import { noteTypeRepository } from './note-types.js';
 import { noteRepository } from './notes.js';
@@ -37,6 +38,7 @@ import type { SyncRepository } from './sync.js';
  */
 
 export interface Repositories {
+  readonly collectionRenames: ReturnType<typeof collectionRenameRepository>;
   readonly practice: ReturnType<typeof practiceRepository>;
   readonly purge: ReturnType<typeof purgeRepository>;
   readonly decks: DeckRepository;
@@ -60,6 +62,7 @@ export interface Repositories {
 
 function build(db: Database, userId: string, run: Runner): Repositories {
   return {
+    collectionRenames: collectionRenameRepository(userId, run),
     practice: practiceRepository(userId, run),
     purge: purgeRepository(userId, run),
     decks: deckRepository(userId, run),

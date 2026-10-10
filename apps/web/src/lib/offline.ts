@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { meSchema } from '@neuron/shared';
-import type { Me, PullSyncResult } from '@neuron/shared';
+import type { Me, PullSyncResult, DeckNode } from '@neuron/shared';
 
 import { ApiFailure, request } from './api';
 import {
@@ -13,6 +13,14 @@ import {
   result,
 } from './collection-db';
 import { collectionDiagnostic } from './collection-failure';
+import {
+  cancelRenameDelivery,
+  deliverRenames,
+  onOutboxChange,
+  renames,
+  renameOverlay,
+} from './collection-outbox';
+import { clearCollectionProjection } from './collection-read';
 
 import type { CollectionDiagnostic, CollectionStage } from './collection-failure';
 import type { QueryClient } from '@tanstack/react-query';
@@ -60,6 +68,12 @@ const emit = (patch: Partial<OfflineState>) => {
   listeners.forEach((listener) => listener());
 };
 export const offlineState = () => state;
+export function onOfflineChange(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 export function useOffline() {
   return useSyncExternalStore((listener) => {
     listeners.add(listener);
@@ -105,6 +119,8 @@ async function transitionReads(local: boolean) {
 
 /** Revocation happens before transport; late pulls/account requests cannot re-enable this visit. */
 export function revokeOffline(explicit = false) {
+  clearCollectionProjection();
+  cancelRenameDelivery();
   epoch++;
   clearTimeout(timer);
   controller?.abort();
@@ -211,6 +227,7 @@ export function networkLost() {
   connection++;
   if (state.offline) return;
   emit({ offline: true, validated: false });
+  cancelRenameDelivery();
   controller?.abort();
   void transitionReads(true);
 }
@@ -256,6 +273,8 @@ async function download(account: Me) {
       if (ownEpoch !== epoch) return;
       stage = 'database';
       localStorage.setItem(CONTEXT_KEY, account.id);
+      await deliverRenames();
+      if (ownEpoch !== epoch || signal.aborted || state.accountId !== account.id) return;
       while (!signal.aborted && ownEpoch === epoch && !state.offline) {
         stage = 'database';
         const meta = await metadata(opened);
@@ -314,8 +333,8 @@ export async function retryDownload(reset = false) {
     await running;
     if (!active()) return;
     if (reset) {
-      emit({ download: 'downloading', available: false, failure: null });
       await deleteCollection(id);
+      clearCollectionProjection();
       if (!active()) return;
       emit({ download: 'idle', available: false });
     }
@@ -344,6 +363,38 @@ export function retryConnection() {
 
 export function initializeOffline(queryClient: QueryClient) {
   client = queryClient;
+  onOutboxChange(() => {
+    const visit = epoch;
+    const id = state.accountId;
+    if (!id) return;
+    void client?.invalidateQueries({ queryKey: ['outbox', id] });
+    void renames(id)
+      .then((entries) => {
+        if (visit !== epoch || id !== state.accountId) return;
+        const overlay = (rows: readonly DeckNode[]): DeckNode[] =>
+          rows.map((row) => ({
+            ...row,
+            name: renameOverlay(entries, row.id, row.rev) ?? row.name,
+            children: overlay(row.children),
+          }));
+        client?.setQueryData<{ decks: DeckNode[]; local?: true }>(
+          ['decks'],
+          (data) => data && { ...data, decks: overlay(data.decks) },
+        );
+        if (state.offline) void client?.invalidateQueries({ queryKey: ['decks'] });
+        else
+          void deliverRenames().then(() => {
+            if (visit === epoch) {
+              refreshDownload();
+              // A settled outbox result can release its name overlay. Active online
+              // mutations keep ownership of their optimistic fields until settlement.
+              if (entries.some((entry) => entry.state !== 'pending') && client?.isMutating() === 0)
+                void client.invalidateQueries({ queryKey: ['decks'] });
+            }
+          });
+      })
+      .catch(() => undefined);
+  });
   window.addEventListener('offline', networkLost);
   window.addEventListener('online', () => {
     // Remain read-only until the server has freshly accepted this account.
@@ -352,6 +403,7 @@ export function initializeOffline(queryClient: QueryClient) {
   window.addEventListener('storage', (event) => {
     if (event.key === SIGNED_OUT_KEY) {
       if (event.newValue === 'true') {
+        cancelRenameDelivery();
         epoch++;
         controller?.abort();
         db?.close();
@@ -368,6 +420,7 @@ export function initializeOffline(queryClient: QueryClient) {
       } else emit({ signedOut: false });
     }
     if (event.key === CONTEXT_KEY && event.newValue !== state.accountId) {
+      cancelRenameDelivery();
       epoch++;
       controller?.abort();
       db?.close();
@@ -389,6 +442,16 @@ export function initializeOffline(queryClient: QueryClient) {
   });
   client.getMutationCache().subscribe((event) => {
     if (event.type === 'updated' && event.mutation.state.status === 'success') {
+      const data = event.mutation.state.data;
+      // Local rename persistence already notifies the outbox. It is not a
+      // server acknowledgement that needs the online-write follow-up timer.
+      if (
+        event.mutation.options.mutationKey?.[0] === 'collection-rename' &&
+        typeof data === 'object' &&
+        data !== null &&
+        'operationId' in data
+      )
+        return;
       clearTimeout(timer);
       timer = setTimeout(() => {
         refreshDownload();

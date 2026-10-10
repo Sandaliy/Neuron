@@ -1,11 +1,12 @@
 import { ApiFailure, request } from './api';
-import { accountEpoch, confirmConnection, offlineState } from './offline';
+import { accountEpoch, confirmConnection, offlineState, onOfflineChange } from './offline';
 
 /** Only browse reads may confirm a transport outage. Mutations and sync keep their own failures. */
 export async function collectionRead<T>(
   path: string,
   signal: AbortSignal,
   local: () => Promise<T>,
+  publish?: (value: T) => void,
 ): Promise<T> {
   const visit = accountEpoch();
   const abort = () => {
@@ -14,6 +15,28 @@ export async function collectionRead<T>(
   };
   abort();
   if (offlineState().offline) return local();
+  // Local content is a provisional browse answer, never account validation.
+  // The original request remains authoritative and is never cancelled by a timer.
+  let seeded = false;
+  const seed = () => {
+    if (
+      seeded ||
+      !offlineState().available ||
+      !publish ||
+      signal.aborted ||
+      visit !== accountEpoch()
+    )
+      return;
+    seeded = true;
+    void local()
+      .then((value) => {
+        abort();
+        publish(value);
+      })
+      .catch(() => undefined);
+  };
+  seed();
+  const unsubscribe = onOfflineChange(seed);
   try {
     const value = await request<T>(path, { signal });
     abort();
@@ -26,5 +49,7 @@ export async function collectionRead<T>(
       if (offlineState().offline) return local();
     }
     throw error;
+  } finally {
+    unsubscribe();
   }
 }

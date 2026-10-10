@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-10, Phase 8.1 in-session offline continuity and browsing parity follow-up.
+Last updated: 2026-10-10, Phase 8.2 local-first collection browsing and durable offline rename.
 
 ## Current release
 
@@ -58,7 +58,7 @@ precede screen headers. A connection indicator sits outside content flow beside 
 The owner confirmed installed-iPhone production acceptance: a completed collection reopens and is
 browsable offline after restarting the PWA.
 
-The follow-up on `work/offline-continuity` addresses in-session transport loss and browsing parity.
+PR #47 merged the in-session continuity and browsing parity follow-up on 2026-10-10 at `e63c64d`.
 A failed collection GET confirms transport availability through `/account`, including when browser
 connectivity hints remain online. HTTP errors, aborted reads and isolated mutation/sync failures do
 not establish an outage. Account validation must succeed before online operations resume; late
@@ -67,11 +67,29 @@ Library and Deck lists keep their mounted presentation, expansion/search/filter 
 while reads switch to the completed local snapshot. Shared hierarchy rows, breadcrumbs, Note rows,
 field labels and headers provide offline parity. Server controls unmount; occupied control space is
 retained for the current visit. Note reading mounts no editor/autosave controller. Missing, incomplete
-or unreadable snapshots present an honest unavailable state. Protected follow-up delivery and physical
-iPhone acceptance of the live transition remain pending.
+or unreadable snapshots present an honest unavailable state. The owner accepted offline reopening,
+Library/Deck/Note browsing, visual parity and in-session connectivity transitions on the installed iPhone.
+
+Phase 8.2 is implemented on `work/offline-renames` for protected PR delivery. Completed local snapshots
+can supply first-entry Library/Deck/Note content while authoritative requests continue. Local provenance
+keeps autosave, Study readiness, Practice progress and other server operations behind their existing
+authority gates. A revision-keyed derived projection shares validation/scans, and Note counts use a
+single pass; router preloading, virtualization and scroll restoration retain their existing contracts.
+
+The first offline write is renaming an existing Folder or Deck. An account-bound IndexedDB outbox
+atomically saves the visible name intent and original observed server row/revision. Authenticated
+matching-account reconnection delivers the original operation ID/payload through a compare-and-set
+endpoint backed by immutable retry receipts. Remote changes/deletion/purge produce retained conflicts,
+not silent overwrites. Settings exposes saved names, original versions, retry and explicit recovery.
+Compatible upgrades preserve stores; Rebuild refuses unresolved work or an unreadable/future database.
+Browser eviction can still remove device storage; saved locally and synchronized are distinct states.
+Phase 8.2 browser/database verification passes, including real PostgreSQL retry/RLS coverage,
+Chromium/mobile WebKit persistence and conflict recovery, the full built interaction gate, Windows
+visual contracts and the unchanged 55 FPS budgets. Protected PR checks and new installed-iPhone
+acceptance remain pending. Existing Phase 8.1 device acceptance does not establish this new write contract.
 See `offline-collection.md` for the storage, lifecycle, recovery and later-write boundaries.
-No offline mutation outbox, local Study planning, Review/Undo transport, Practice synchronization or
-offline Import drafts are implemented. Physical installed-iPhone acceptance remains a device check.
+Offline Note editing/creation, Card generation, local Study planning, Review/Undo transport,
+Practice synchronization and offline Import application remain unimplemented.
 Phase 9 triage/waves/progressive direction admission and Phase 10 personal plans/progress remain later work.
 
 ## Performance monitor diagnosis and policy
@@ -98,7 +116,7 @@ Manual dispatch avoids automatic noise without masking failures or weakening ass
 
 ## Required browser CI
 
-The pending CI optimization keeps `Browser and screenshot tests` as the protected required check.
+The CI optimization keeps `Browser and screenshot tests` as the protected required check.
 A short selection job feeds independent phone and desktop interaction runners, each with one worker,
 and the selected Windows visual job. The aggregate requires both interactions and any selected visuals
 to succeed; missing, failed, cancelled or skipped required suites fail closed. Visual diagnostics do
@@ -116,7 +134,7 @@ gate fail, retained interaction reports and allowed visuals to finish. That prob
 unchanged desktop navigation scroll assertion (1159 instead of 1200 at `navigation.spec.ts:116`);
 the clean hosted run and local full gate passed it. Its cause remains unproven; assertions are intact.
 Local full interactions (426 passes, four skips), 66 visuals and 31 selection/gate checks passed.
-The CI optimization is prepared for protected PR delivery and is not yet merged.
+The CI optimization merged through PR #45 on 2026-10-10.
 
 ## Now
 
@@ -163,11 +181,11 @@ Today or Study.
 
 ## Next
 
-1. Deliver the Phase 8.1 continuity/parity follow-up through the protected PR workflow. Verify losing
-   connectivity inside Library/Deck/Note browsing and authenticated reconnection on the installed iPhone.
-2. Resolve durable queue ownership, migrations preserving pending work, offline-created Card identity
-   mapping, entity conflict detection, local Study planning, offline Undo and Practice synchronization
-   before offline writes. Include authentication expiry, storage-loss recovery and cross-device convergence.
+1. Deliver Phase 8.2 through the protected PR workflow. Accept previously unvisited Deck latency,
+   offline rename/reopening, authenticated retry and retained conflicts on the installed iPhone.
+2. Expand offline writes only after contracts for Note/Card planning and created identities, local
+   Study/replay ownership, Review/Undo and Practice synchronization are established and verified.
+   Preserve the outbox's account, original revision, atomicity and recoverable intent guarantees.
 3. Keep Phase 9 large-collection triage/waves/progressive admission and Phase 10 personal workload
    customization/statistics separate. Earlier design is appropriate only for concrete storage/sync prerequisites.
 

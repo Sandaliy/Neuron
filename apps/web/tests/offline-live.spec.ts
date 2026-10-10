@@ -124,9 +124,23 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
   const delivered: PullSyncResult[] = [];
   let interrupt = true;
   let servingAccount = id;
+  let loseRenameAcknowledgement = true;
+  const renameDeliveries: unknown[] = [];
   const fetch = async (request: Request) => {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) {
+      if (url.pathname.endsWith('/rename') && request.method === 'POST') {
+        renameDeliveries.push(await request.clone().json());
+        const response = await app.fetch(request);
+        if (loseRenameAcknowledgement && response.ok) {
+          loseRenameAcknowledgement = false;
+          return Response.json(
+            { error: { code: 'internal_error', status: 503, correlationId: 'lost-ack' } },
+            { status: 503 },
+          );
+        }
+        return response;
+      }
       if (url.pathname === '/api/sync') {
         const since = Number(url.searchParams.get('since'));
         cursors.push(since);
@@ -277,15 +291,25 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
     await expect(page.getByText('Persisted meaning', { exact: true })).toBeVisible();
     await expect(page.locator('textarea')).toHaveCount(0);
     await page.reload();
-    await expect(page.getByRole('button', { name: /Persisted Folder/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Persisted Folder/ })).toBeVisible();
     await page.close();
     page = await context.newPage();
     await page.goto(`${origin}/library`);
-    await page.getByRole('button', { name: /Persisted Folder/ }).click();
-    await page.getByRole('button', { name: /Migrated Deck/ }).click();
+    await page.getByRole('button', { name: /^Persisted Folder/ }).click();
+    await page.getByRole('button', { name: /^Migrated Deck/ }).click();
     await page.getByRole('button', { name: /Persisted word/ }).click();
     await expect(page.getByText('Persisted meaning', { exact: true })).toBeVisible();
     await expect(page.locator('textarea')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Library', exact: true }).click();
+    await page.getByRole('button', { name: /^Persisted Folder/ }).click();
+    await page.getByRole('button', { name: 'Actions for Migrated Deck', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
+    await page.getByRole('textbox').fill('Durably renamed Deck');
+    await page.getByRole('button', { name: 'Save the name', exact: true }).click();
+    await expect(page.getByRole('button', { name: /^Durably renamed Deck/ })).toBeVisible();
+    await page.reload();
+    await page.getByRole('button', { name: /^Persisted Folder/ }).click();
+    await expect(page.getByRole('button', { name: /^Durably renamed Deck/ })).toBeVisible();
     const updated = await app.request(`/api/notes/${note.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -294,16 +318,28 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
       }),
     });
     expect(updated.status).toBe(200);
-    const changedHead = await repo.sync.revision();
     server = serve({ fetch, hostname: '127.0.0.1', port: address.port });
     await new Promise<void>((resolve) =>
       server.listening ? resolve() : server.once('listening', resolve),
     );
     await page.getByRole('link', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Check connection', exact: true }).click();
+    await expect.poll(() => renameDeliveries.length).toBe(1);
+    await expect(
+      page.getByText('Saved on this device · waiting to synchronize', { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole('region', { name: 'Saved name changes' })
+      .getByRole('button', { name: 'Try again', exact: true })
+      .click();
+    await expect(page.getByText('Synchronized with the server', { exact: true })).toBeVisible();
+    expect(renameDeliveries).toHaveLength(2);
+    expect(renameDeliveries[0]).toEqual(renameDeliveries[1]);
+    expect((await repo.decks.byId(deck.id))?.name).toBe('Durably renamed Deck');
+    const changedHead = await repo.sync.revision();
     await expect
       .poll(async () => (await stored(page, id))?.meta, { timeout: 30_000 })
-      .toEqual({ cursor: changedHead, complete: true, format: 1 });
+      .toMatchObject({ cursor: changedHead, complete: true, format: 1 });
     const latest = pullSyncResultSchema.parse(
       await (await app.request('/api/sync?since=0&limit=200')).json(),
     );

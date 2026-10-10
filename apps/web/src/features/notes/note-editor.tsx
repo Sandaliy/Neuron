@@ -128,7 +128,7 @@ export function NoteEditorScreen({
     );
   }
 
-  if (offline.offline && existing.data)
+  if ((offline.offline || existing.data?.local) && existing.data)
     return <ReadOnlyNote note={existing.data.note} decks={decks.data ?? []} />;
 
   return (

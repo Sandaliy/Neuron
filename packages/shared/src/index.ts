@@ -150,6 +150,8 @@ export {
   purgeImpactSchema,
   reorderDecksSchema,
   updateDeckSchema,
+  renameDeckCommandSchema,
+  renameDeckResultSchema,
 } from './api/decks.js';
 export type {
   CreateDeckBody,
@@ -159,6 +161,8 @@ export type {
   MoveDeckBody,
   PurgeImpact,
   ReorderDecksBody,
+  RenameDeckCommand,
+  RenameDeckResult,
   UpdateDeckBody,
 } from './api/decks.js';
 

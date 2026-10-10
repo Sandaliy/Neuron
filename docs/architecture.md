@@ -314,9 +314,12 @@ after deletion, cancellation, restart or purge. Reuse for a different Card, rati
 timestamp is rejected as `review_id_reused`. Nullable `reviews.submitted_at` preserves the original
 timestamp across clamped retries; legacy rows cannot validate that original timestamp retroactively.
 
-This is the Phase 8.0 server foundation. Entity base-revision conflict detection, an explicit operation-id
-protocol, conflict recovery UI, offline Undo transport, Practice synchronization, local Card identity
-mapping for offline-created Notes, IndexedDB, shell updates and the client coordinator remain later work.
+This is the Phase 8.0 server foundation. Phase 8.1 adds IndexedDB, shell updates and the read coordinator.
+Phase 8.2 adds a narrow entity-revision rename command: `POST /decks/:id/rename` compares the original
+observed entity revision under the account write lock, checks live ancestry, and records a command
+digest/outcome in the existing immutable receipt table. Exact retries retain their original result;
+unrelated account revision advances do not conflict. Offline Undo transport, Practice synchronization
+and local Card identity mapping for offline-created Notes remain later work.
 
 ## The index decision, measured
 
@@ -611,7 +614,7 @@ that mapping is unavailable. The old `/spike` page remains deleted.
 IndexedDB storage using whole revision-boundary pulls. Each page and cursor commit atomically;
 interrupted initial hydration remains unavailable offline until a final page commits. Existing React
 Query collection keys and shared schemas supply read-only Folder, Deck and Note views. A remembered
-account grants only local reading, while reconnection validates server authorization before online
+account grants local reading and saving a rename intent, while reconnection validates authorization before online
 controls return. Explicit sign-out blocks automatic cookie reuse and revokes other open tabs.
 Collection transport failures confirm connectivity through account validation even when browser hints
 remain online. Aborted requests, HTTP errors and isolated mutation/sync failures retain their existing
@@ -624,13 +627,20 @@ late account responses from restoring online operations after another disconnect
 
 The versioned service worker precaches shell HTML, emitted assets and install metadata. It never
 caches authenticated APIs and waits for old windows to close before activation. Storage/schema
-failure preserves online usability and offers explicit reconstruction of the read-only cache.
+failure preserves online browsing. Reconstruction checks the outbox atomically and refuses unresolved
+work or an unreadable/future database; it preserves acknowledgement and resolution records.
 Initial downloading is silent; readiness, failure categories, Retry, deliberate Rebuild and shell
 update guidance live in Settings. No global message precedes page headers. Repeated account validation
 joins the active visit instead of queuing downloads; ordinary focus does not retry a failed download.
 An existing complete snapshot stays available during incremental pulls and transient failures.
-No offline mutation queue, local Study planner, Review/Undo transport, Practice synchronization or
-offline Import drafts are implemented. See [offline collection contracts](offline-collection.md).
+Phase 8.2 can seed completed local reads into existing query entries while authoritative GETs continue.
+Local provenance prevents autosave and learning readiness from using provisional data. A cursor/outbox
+version projection shares snapshot validation/scans without a second durable cache. The account-bound
+outbox atomically saves existing Folder/Deck rename intent and its original row/revision. Matching
+authenticated reconnection retries the immutable operation; Settings retains conflicts/rejections and
+offers explicit recovery. Compatible database upgrades preserve records. Browser eviction can still
+remove unsynchronized work. Offline Notes, local Study, Review/Undo, Practice synchronization and Import
+application remain unavailable. See [offline collection contracts](offline-collection.md).
 
 **Preview data is separate and empty.** The long-lived Neon `preview` branch is schema-only, and its
 `neuron_preview` database contains no production rows. Its application role, authentication role, and

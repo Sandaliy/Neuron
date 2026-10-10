@@ -5,10 +5,14 @@ import { resolveDeckSettings, uuidV7 } from '@neuron/shared';
 import type { Deck, DeckNode, DeckSettings, ResolvedDeckSettings } from '@neuron/shared';
 
 import { request } from './api';
+import { renames, renameOverlay, saveRename } from './collection-outbox';
 import { localDeckTree } from './collection-read';
 import { collectionRead } from './collection-transport';
 import { projectDeck } from './deck-projection';
 import { writeEntities } from './entity-writes';
+import { offlineState } from './offline';
+
+import type { QueryClient } from '@tanstack/react-query';
 
 /**
  * The library, in one request, and the six things that can change it.
@@ -35,13 +39,28 @@ export function deckTreeQuery() {
   return {
     queryKey: DECK_TREE_KEY,
     networkMode: 'always',
-    queryFn: ({ signal }: { signal: AbortSignal }) =>
-      collectionRead('/decks', signal, localDeckTree),
+    queryFn: async ({ signal, client }: { signal: AbortSignal; client: QueryClient }) => {
+      const data = await collectionRead('/decks', signal, localDeckTree, (value) => {
+        if (!client.getQueryData(DECK_TREE_KEY)) client.setQueryData(DECK_TREE_KEY, value);
+      });
+      const accountId = offlineState().accountId;
+      if (!accountId || data.local) return data;
+      const entries = await renames(accountId).catch(() => []);
+      const overlay = (rows: readonly DeckNode[]): DeckNode[] =>
+        rows.map((row) => ({
+          ...row,
+          name: renameOverlay(entries, row.id, row.rev) ?? row.name,
+          children: overlay(row.children),
+        }));
+      return { ...data, decks: overlay(data.decks) };
+    },
   } as const;
 }
 
 export function useDeckTree() {
-  return useQuery({ ...deckTreeQuery(), select: (data) => data.decks });
+  const query = useQuery({ ...deckTreeQuery(), select: (data) => data.decks });
+  const client = useQueryClient();
+  return { ...query, local: client.getQueryData<{ local?: true }>(DECK_TREE_KEY)?.local === true };
 }
 
 /** Everything waiting across the whole collection, roots included. */
@@ -180,18 +199,51 @@ export function useDeckActions() {
   });
 
   const rename = useMutation({
-    onMutate: (input: { id: string; name: string }) => ({
+    mutationKey: ['collection-rename'],
+    onMutate: (input: { id: string; name: string; observed?: Deck }) => ({
       rollback: projectDeck(client, input.id, { name: input.name }),
     }),
     onError: (_error, _input, context) => context?.rollback(),
-    mutationFn: (input: { id: string; name: string }) =>
-      writeEntities(client, [input.id], () =>
-        request<{ deck: Deck }>(`/decks/${input.id}`, {
+    mutationFn: (input: { id: string; name: string; observed?: Deck }) =>
+      writeEntities(client, [input.id], async () => {
+        const state = offlineState();
+        if (state.offline) {
+          try {
+            return await saveRename(input.id, input.name, undefined, input.observed);
+          } catch (error) {
+            if (error instanceof Error && error.message === 'collection_rename_pending')
+              throw error;
+            throw new Error('collection_rename_storage', { cause: error });
+          }
+        }
+        if (state.accountId) {
+          const entries = await renames(state.accountId).catch((error) => {
+            throw new Error('collection_rename_storage', { cause: error });
+          });
+          if (entries.some((entry) => entry.entityId === input.id && entry.state === 'pending'))
+            throw new Error('collection_rename_pending');
+        }
+        return request<{ deck: Deck }>(`/decks/${input.id}`, {
           method: 'PATCH',
           body: { name: input.name },
-        }),
-      ),
-    onSuccess: () => {
+        });
+      }),
+    onSuccess: (response) => {
+      if ('deck' in response) {
+        const confirmed = response.deck;
+        client.setQueryData<{ decks: DeckNode[]; local?: true }>(DECK_TREE_KEY, (cached) => {
+          if (!cached) return cached;
+          const advance = (rows: readonly DeckNode[]): DeckNode[] =>
+            rows.map((row) => ({
+              ...row,
+              ...(row.id === confirmed.id && row.name === confirmed.name
+                ? { rev: confirmed.rev, updatedAt: confirmed.updatedAt }
+                : {}),
+              children: advance(row.children),
+            }));
+          return { ...cached, decks: advance(cached.decks) };
+        });
+      }
       void client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' });
     },
   });

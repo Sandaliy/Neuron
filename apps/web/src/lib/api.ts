@@ -87,6 +87,10 @@ export class ApiFailure extends Error {
  * @returns the key and the values its placeholders need
  */
 export function describe(error: unknown): { key: MessageKey; values: MessageValues } {
+  if (error instanceof Error && error.message === 'collection_rename_pending')
+    return { key: 'offline.renamePending', values: {} };
+  if (error instanceof Error && error.message === 'collection_rename_storage')
+    return { key: 'offline.renameNotSaved', values: {} };
   if (error instanceof ApiFailure) {
     return {
       key: `error.${error.code}` as MessageKey,

@@ -2,6 +2,34 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'offline.renameSaved': 'Name saved on this device. It will sync after sign-in is confirmed.',
+  'offline.renamePending':
+    'This collection already has a saved rename waiting to sync. Open Settings to retry or recover it.',
+  'offline.renameNotSaved':
+    'The name could not be saved on this device. Your previous name is unchanged. Try again.',
+  'offline.savedChanges': 'Saved name changes',
+  'offline.storageNotice':
+    'Saved on this device is different from synchronized. Browser storage can be cleared or evicted; keep a separate copy of important pending names.',
+  'offline.changesUnavailable':
+    'Saved changes could not be read. Rebuild is blocked until they can be checked safely.',
+  'offline.noChanges': 'No saved name changes.',
+  'offline.rename.pending': 'Saved on this device · waiting to synchronize',
+  'offline.rename.synchronized': 'Synchronized with the server',
+  'offline.rename.conflict': 'Needs your decision · your name is retained on this device',
+  'offline.rename.rejected': 'Server refused this change · your name is retained on this device',
+  'offline.rename.resolved': 'Server version kept · saved name archived on this device',
+  'offline.keepServerVersion': 'Keep server version and archive saved name',
+  'offline.renameChanged':
+    'This collection changed on another device. Apply the saved name only if you want to replace its current name.',
+  'offline.renameDeleted':
+    'This collection or a parent was deleted or permanently removed. Copy your saved name to recover it; it will not be restored automatically.',
+  'offline.renameOriginal': 'Originally “{name}” · server version {revision}',
+  'offline.copyName': 'Copy saved name',
+  'offline.applySavedName': 'Apply saved name to current version',
+  'offline.renameRetryFailed':
+    'Delivery could not finish. Your saved change is retained; try again after reconnecting.',
+  'offline.rebuildBlocked':
+    'Rebuild is blocked because saved changes have not synchronized or been resolved. Recover them first.',
   'offline.access': 'Offline access',
   'offline.ready': 'Collection downloaded for offline reading.',
   'offline.pending': 'The collection has not finished downloading yet.',
@@ -25,7 +53,7 @@ export const en = {
     'The downloaded collection could not be rebuilt. Close other Neuron windows and try again.',
   'offline.title': 'Offline · collection reading',
   'offline.readOnly':
-    'Browse downloaded Folders, Decks and Notes. Editing, Study, Practice and Import require a connection.',
+    'Browse downloaded Folders, Decks and Notes, and rename existing collections. Note editing, Study, Practice and Import require a connection.',
   'offline.session':
     'Offline access uses the account previously signed in on this device. The server session has not been freshly validated.',
   'offline.incomplete':
