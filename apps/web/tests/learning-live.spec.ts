@@ -3,6 +3,10 @@ import { expect, test } from '@playwright/test';
 import { usePreferences } from './fixtures';
 import { useSpeech } from './speech-fixture';
 
+// Route-backed API transport must remain reachable after full-page navigation.
+// Real service-worker reopening is covered on an actual HTTP origin in offline-live.spec.ts.
+test.use({ serviceWorkers: 'block' });
+
 // Opt-in: uses only the guarded throwaway DATABASE_URL_TEST database. Transport,
 // validation, RLS, admission and persistence are real; sign-in and speech are fixtures.
 test('real Deck activation, Study ratings and schedule-free Practice', async ({ page }, info) => {

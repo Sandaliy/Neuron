@@ -55,7 +55,6 @@ export function Shell() {
             </section>
           }
         >
-          <OfflineStatus />
           {offline.offline ? <OfflineCollection /> : <Outlet />}
         </Suspense>
       </main>
@@ -80,6 +79,7 @@ export function Shell() {
           aria-hidden="true"
           className={current < 0 ? 'opacity-0' : undefined}
         />
+        <OfflineStatus />
 
         {TABS.map((tab, index) => (
           <TabLink key={tab.to} to={tab.to} active={index === current} label={t(tab.label)} />

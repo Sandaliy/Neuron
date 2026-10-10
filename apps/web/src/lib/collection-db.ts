@@ -7,6 +7,8 @@ import {
 } from '@neuron/shared';
 import type { PullSyncResult } from '@neuron/shared';
 
+import { CollectionFailure, collectionDiagnostic } from './collection-failure';
+
 export const COLLECTION_VERSION = 1;
 export const collectionName = (accountId: string) => `neuron.collection:${accountId}`;
 export interface CollectionMeta {
@@ -114,12 +116,32 @@ export async function metadata(db: IDBDatabase): Promise<CollectionMeta> {
 
 /** Compare-and-apply inside one transaction: competing tabs may retry, never skip a page. */
 export async function applyPage(db: IDBDatabase, input: unknown): Promise<void> {
-  const page = pullSyncResultSchema.parse(input);
+  const envelope = pullSyncResultSchema.safeParse(input);
+  if (!envelope.success)
+    throw new CollectionFailure({ stage: 'protocol', code: 'invalid_envelope' });
+  const page = envelope.data;
   for (const change of page.changes) {
     if (change.purged || change.deleted) continue;
-    if (change.entity === 'notes') noteSchema.parse(change.row);
-    if (change.entity === 'cards') cardSchema.parse(change.row);
-    if (change.entity === 'decks') deckSchema.parse({ ...change.row, path: [] });
+    const schema =
+      change.entity === 'notes'
+        ? noteSchema
+        : change.entity === 'cards'
+          ? cardSchema
+          : change.entity === 'decks'
+            ? deckSchema
+            : undefined;
+    const checked = schema?.safeParse(
+      change.entity === 'decks' ? { ...change.row, path: [] } : change.row,
+    );
+    if (checked && !checked.success) {
+      const field = checked.error.issues[0]?.path[0];
+      throw new CollectionFailure({
+        stage: 'schema',
+        code: 'invalid_row',
+        entity: change.entity,
+        ...(typeof field === 'string' && Object.hasOwn(schema!.shape, field) ? { field } : {}),
+      });
+    }
   }
   if (
     !Number.isSafeInteger(page.since) ||
@@ -136,10 +158,11 @@ export async function applyPage(db: IDBDatabase, input: unknown): Promise<void> 
         change.row['rev'] !== change.rev,
     )
   ) {
-    throw new Error('collection_invalid_page');
+    throw new CollectionFailure({ stage: 'protocol', code: 'invalid_boundary' });
   }
   const tx = db.transaction(['meta', ...SYNC_ENTITIES], 'readwrite');
   const done = committed(tx);
+  let writeError: unknown;
   const store = tx.objectStore('meta');
   const read = store.get('sync');
   read.onsuccess = () => {
@@ -168,7 +191,8 @@ export async function applyPage(db: IDBDatabase, input: unknown): Promise<void> 
         },
         'sync',
       );
-    } catch {
+    } catch (error) {
+      writeError = error;
       try {
         tx.abort();
       } catch {
@@ -176,7 +200,11 @@ export async function applyPage(db: IDBDatabase, input: unknown): Promise<void> 
       }
     }
   };
-  await done;
+  try {
+    await done;
+  } catch (error) {
+    throw new CollectionFailure(collectionDiagnostic(writeError ?? error, 'transaction'));
+  }
 }
 
 /** One consistent complete snapshot; missing metadata is storage loss, never an empty collection. */

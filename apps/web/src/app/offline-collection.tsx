@@ -7,6 +7,7 @@ import { termOf } from '@neuron/shared';
 import type { MessageKey, Note } from '@neuron/shared';
 
 import { CollectionPath } from '../features/library/collection-path';
+import { OfflineAccess } from '../features/settings/offline-access';
 import { useTranslate } from '../i18n/locale';
 import { findDeck, useDeckTree } from '../lib/decks';
 import { noteListQuery, useNote } from '../lib/notes';
@@ -24,11 +25,30 @@ export function OfflineCollection() {
   const client = useQueryClient();
   const state = useOffline();
   const location = useRouterState({ select: (state) => state.location });
+  if (location.pathname === '/')
+    return (
+      <section data-screen="" className="flex flex-col gap-24">
+        <header className="flex flex-col gap-4">
+          <time className="text-12 text-secondary" dateTime={new Date().toISOString()}>
+            {new Intl.DateTimeFormat('en', {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+            }).format(new Date())}
+          </time>
+          <h1 className="text-32 tracking-tight text-primary">{t('today.title')}</h1>
+        </header>
+        <p className="text-14 text-secondary">
+          {t(state.available ? 'offline.readOnly' : 'offline.incomplete')}
+        </p>
+        <Button onClick={() => void navigate({ to: '/library' })}>{t('library.title')}</Button>
+      </section>
+    );
   if (location.pathname === '/settings')
     return (
-      <section className="flex flex-col gap-20">
-        <h1 className="text-24 font-semibold">{t('settings.title')}</h1>
-        <p className="text-14 text-secondary">{t('offline.session')}</p>
+      <section data-screen="" className="flex flex-col gap-24">
+        <h1 className="font-display text-24 tracking-tight text-primary">{t('settings.title')}</h1>
+        <OfflineAccess />
         <Button
           variant="quiet"
           onClick={() => {
@@ -41,11 +61,16 @@ export function OfflineCollection() {
         </Button>
       </section>
     );
-  if (state.download !== 'ready')
+  if (!state.available)
     return (
-      <p role="status" className="text-14 text-secondary">
-        {t('offline.incomplete')}
-      </p>
+      <section data-screen="" className="flex flex-col gap-20">
+        <h1 className="font-display text-24 tracking-tight text-primary">
+          {t(location.pathname === '/library' ? 'library.title' : 'notes.title')}
+        </h1>
+        <p role="status" className="text-14 text-secondary">
+          {t('offline.incomplete')}
+        </p>
+      </section>
     );
   if (location.pathname === '/library')
     return <OfflineFolders folderId={(location.search as { folderId?: string }).folderId} />;

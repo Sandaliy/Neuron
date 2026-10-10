@@ -192,6 +192,8 @@ test('complete download, offline folders/decks/notes/details and read-only route
   await expect(page.getByText('Downloaded meaning', { exact: true })).toBeVisible();
   await expect(page.locator('textarea')).toHaveCount(0);
   await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expect(page.locator('main header time')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Library', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /Start Study|Start Practice/ })).toHaveCount(0);
   await page.evaluate(() => history.pushState({}, '', '/import'));
@@ -318,12 +320,14 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
       return version;
     });
     expect(activeVersion).not.toBe('waiting-test-version');
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
     await expect(page.getByText(/Close all Neuron windows/)).toBeVisible();
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
       server.closeAllConnections();
     });
     await page.reload();
+    await page.getByRole('link', { name: 'Library', exact: true }).click();
     await expect(page.getByRole('button', { name: /Downloaded Folder/ })).toBeVisible();
     await page.close();
     const reopened = await context.newPage();
@@ -367,12 +371,17 @@ test('interrupted initial download stays hidden and resumes at the committed bou
   });
   await page.goto('/library');
   await expect.poll(() => meta(page)).toEqual({ cursor: 1, complete: false, format: 1 });
-  await expect(page.getByText(/collection download is incomplete/)).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(
+    page.getByText('The offline collection is not ready.', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('You can keep using Neuron online.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /Downloaded Folder/ })).toHaveCount(0);
   interrupted = false;
   await page.reload();
   await expect.poll(() => meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
   expect(cursors).toEqual([0, 1, 1]);
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
   await offline(page, context);
   await expect(page.getByRole('button', { name: /Downloaded Folder/ })).toBeVisible();
 });
@@ -394,7 +403,10 @@ test('transaction abort rolls back entities and cursor; retry applies the comple
   });
   await useOfflineFixtures(page, context);
   await page.goto('/library');
-  await expect(page.getByText(/Offline storage is unavailable/)).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(
+    page.getByText('The offline collection is not ready.', { exact: true }),
+  ).toBeVisible();
   expect(await meta(page)).toEqual({ cursor: 1, complete: false, format: 1 });
   const count = await page.evaluate(async () => {
     const opened = indexedDB.open('neuron.collection:offline-reader');
@@ -631,7 +643,10 @@ test('quota failure commits neither rows nor completeness and recovers from the 
   });
   await useOfflineFixtures(page, context);
   await page.goto('/library');
-  await expect(page.getByText(/Offline storage is unavailable/)).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(
+    page.getByText('The offline collection is not ready.', { exact: true }),
+  ).toBeVisible();
   expect(await meta(page)).toEqual({ cursor: 1, complete: false, format: 1 });
   await page.evaluate(() => sessionStorage.setItem('quota-recovered', 'true'));
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
@@ -673,9 +688,15 @@ test('future database versions fail safely and can be rebuilt without changing o
     db.close();
   });
   await page.reload();
-  await expect(page.getByText(/Offline storage is unavailable/)).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(
+    page.getByText('The offline collection is not ready.', { exact: true }),
+  ).toBeVisible();
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('button', { name: /Deutsch/ }).first()).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();
   await expect.poll(() => meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
 });
 
@@ -711,8 +732,14 @@ test('unavailable IndexedDB keeps the online app usable without claiming offline
   });
   await useOfflineFixtures(page, context);
   await page.goto('/library');
-  await expect(page.getByText(/Offline storage is unavailable/)).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(
+    page.getByText('The offline collection is not ready.', { exact: true }),
+  ).toBeVisible();
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('button', { name: /Deutsch/ }).first()).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
   await offline(page, context);
   await expect(page.getByText(/collection download is incomplete/)).toBeVisible();
 });
@@ -736,8 +763,12 @@ test('outdated local format can be rebuilt online and missing data never looks l
     db.close();
   });
   await page.reload();
-  await expect(page.getByText(/Offline storage is unavailable/)).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(
+    page.getByText('The offline collection is not ready.', { exact: true }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();
   await expect.poll(() => meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
   await page.evaluate(async () => {
     const request = indexedDB.deleteDatabase('neuron.collection:offline-reader');
@@ -745,12 +776,134 @@ test('outdated local format can be rebuilt online and missing data never looks l
       request.onsuccess = () => resolve();
     });
   });
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
   await offline(page, context);
   await expect(
     page.getByText(/Downloaded data is missing|collection download is incomplete/).first(),
   ).toBeVisible();
   await context.setOffline(false);
   await expect.poll(() => meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
+  await offline(page, context);
+  await expect(page.getByRole('button', { name: /Downloaded Folder/ })).toBeVisible();
+});
+
+test('background hydration and stable failure never shift or remount screen headers', async ({
+  page,
+  context,
+}) => {
+  let held: Route | undefined;
+  let pulls = 0;
+  let accountReads = 0;
+  let fail = true;
+  const diagnostics: string[] = [];
+  page.on('console', (message) => {
+    if (message.text().startsWith('Offline collection failure')) diagnostics.push(message.text());
+  });
+  await useOfflineFixtures(page, context, {
+    pull: async (route, since) => {
+      pulls++;
+      if (since === 0) {
+        held = route;
+        return;
+      }
+      await route.fulfill({
+        json: fail
+          ? {
+              ...last,
+              changes: [
+                change('notes', {
+                  ...note,
+                  source: { privateField: 'DO_NOT_LOG_COLLECTION_CONTENT' },
+                }),
+              ],
+            }
+          : last,
+      });
+    },
+  });
+  await page.route('**/api/account', async (route) => {
+    accountReads++;
+    await route.fulfill({ json: account });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expect.poll(() => Boolean(held)).toBe(true);
+  const today = page.getByRole('heading', { name: 'Today', exact: true });
+  const top = (await today.boundingBox())!.y;
+  await today.evaluate((element) => element.setAttribute('data-stable-header', 'retained'));
+  for (let index = 0; index < 3; index++)
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  expect(pulls).toBe(1);
+  expect((await today.boundingBox())!.y).toBe(top);
+  await expect(page.getByText(/Downloading for offline reading/)).toHaveCount(0);
+  await held!.fulfill({ json: first });
+  await expect.poll(() => diagnostics.length).toBe(1);
+  expect(diagnostics[0]).toContain('schema');
+  expect(diagnostics[0]).toContain('source');
+  expect(diagnostics[0]).not.toContain('DO_NOT_LOG_COLLECTION_CONTENT');
+  expect((await today.boundingBox())!.y).toBe(top);
+  await expect(today).toHaveAttribute('data-stable-header', 'retained');
+  await expect(page.getByText('The offline collection is not ready.')).toHaveCount(0);
+  const failedPulls = pulls;
+  await page.clock.setFixedTime(new Date(Date.now() + 60_000));
+  for (const name of ['Library', 'Settings', 'Today']) {
+    await page.getByRole('link', { name, exact: true }).click();
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  }
+  await expect.poll(() => accountReads).toBeGreaterThan(1);
+  expect(pulls).toBe(failedPulls);
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByText(/collection row could not be validated/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rebuild downloaded collection' })).toHaveCount(0);
+  const settings = page.getByRole('heading', { name: 'Settings', exact: true });
+  const settingsTop = await settings.evaluate(
+    (element) => element.getBoundingClientRect().top + window.scrollY,
+  );
+  fail = false;
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  await expect.poll(() => meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
+  expect(
+    await settings.evaluate((element) => element.getBoundingClientRect().top + window.scrollY),
+  ).toBe(settingsTop);
+  await expect(page.locator('main').getByText(/Downloading for offline reading/)).toHaveCount(0);
+});
+
+test('failed incremental sync retains a completed snapshot and ordinary focus does not retry it', async ({
+  page,
+  context,
+}) => {
+  let fail = false;
+  let pulls = 0;
+  await useOfflineFixtures(page, context, {
+    pull: async (route, since) => {
+      pulls++;
+      if (fail) return route.abort('internetdisconnected');
+      await route.fulfill({
+        json:
+          since === 0
+            ? first
+            : since === 1
+              ? last
+              : { since, revision: since, hasMore: false, changes: [] },
+      });
+    },
+  });
+  await download(page);
+  fail = true;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByText(/download could not reach the server/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rebuild downloaded collection' })).toHaveCount(0);
+  await expect(
+    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+  ).toBeVisible();
+  const failedPulls = pulls;
+  for (let index = 0; index < 3; index++)
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  expect(pulls).toBe(failedPulls);
+  expect(await meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
   await offline(page, context);
   await expect(page.getByRole('button', { name: /Downloaded Folder/ })).toBeVisible();
 });

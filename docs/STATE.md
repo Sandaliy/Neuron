@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-10, Phase 8.1 durable offline collection reads prepared for protected delivery.
+Last updated: 2026-10-10, Phase 8.1 production hydration regression and protected repair.
 
 ## Current release
 
@@ -42,13 +42,20 @@ Phase 8.0 is merged through PR #43 at `ec1c980`. The owner confirmed that produc
 was applied and verified. The release adds shared Note/Card planning and history protection to sync,
 durable exact-delivery receipts, explicit Review outcomes and revision-consistent pulls.
 
-Phase 8.1 on `work/offline-collection` adds versioned account-scoped IndexedDB collection persistence,
+Phase 8.1 merged through PR #44 at `4264426` on 2026-10-10. It adds versioned account-scoped IndexedDB collection persistence,
 atomic pull-page/cursor application, resumable complete hydration and read-only offline Folder/Deck/
 Note browsing. A versioned service worker caches the shell and static assets, never authenticated APIs.
 Remembered offline accounts remain distinct from validated sessions; explicit sign-out, account
 switching and reconnect rejection revoke local UI access. Storage failures retain online usability.
-Chromium/WebKit offline cases and real-Postgres sync regressions pass locally.
-Protected merge and required CI/Vercel checks remain pending; this slice is not yet production.
+Production acceptance on installed iPhone and desktop found unusable hydration and intrusive global
+status banners. The real PostgreSQL/browser reproduction identifies migration 0012's MD5-derived Deck
+IDs: PostgreSQL stores them as UUIDs, but RFC-only UUID validation rejected the sync page before its
+IndexedDB commit. Fresh UUIDv7-only browser fixtures did not cover this persisted identity contract.
+The repair on `work/offline-hydration-repair` validates canonical PostgreSQL identities without rewriting
+them, keeps page/cursor commits atomic, stabilizes background retries and retains completed downloads
+during incremental failure. Status and deliberate recovery live in Settings; download states never
+precede screen headers. A connection indicator sits outside content flow beside navigation.
+Protected repair delivery and production/installed-iPhone acceptance remain pending.
 See `offline-collection.md` for the storage, lifecycle, recovery and later-write boundaries.
 No offline mutation outbox, local Study planning, Review/Undo transport, Practice synchronization or
 offline Import drafts are implemented. Physical installed-iPhone acceptance remains a device check.
@@ -143,8 +150,8 @@ Today or Study.
 
 ## Next
 
-1. Deliver Phase 8.1 through the protected PR workflow and perform installed-iPhone offline reopening,
-   storage and update-lifecycle acceptance before calling native device behavior accepted.
+1. Deliver the Phase 8.1 hydration/status repair through the protected PR workflow. Verify production
+   download, offline reopening, storage recovery and installed-iPhone lifecycle before native acceptance.
 2. Resolve durable queue ownership, migrations preserving pending work, offline-created Card identity
    mapping, entity conflict detection, local Study planning, offline Undo and Practice synchronization
    before offline writes. Include authentication expiry, storage-loss recovery and cross-device convergence.

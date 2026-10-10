@@ -25,10 +25,18 @@ Transaction abort, storage failure or interruption leaves the previous committed
 Competing tabs serialize through IndexedDB; old deliveries cannot regress rows or completeness, and a
 competing cursor advance causes a fresh pull from the durable cursor.
 
+Persisted IDs follow canonical PostgreSQL UUID syntax, not exclusively RFC version/variant rules.
+Migration 0012 cast an unmodified MD5 digest to UUID for legacy leaf Decks. These identities and every
+reference to them remain unchanged; the shared identifier schema accepts their validated hex format.
+RFC-only `z.uuid()` rejected these real sync rows before persistence, while UUIDv7-only fixtures passed.
+Rebuilding IndexedDB could never fix that response-validation defect.
+
 `complete` becomes true only when a final pull page commits. It is independent of the `/account`
 revision and the ordinary online `/decks` and `/notes` queries. A partial snapshot is never mounted as
 an offline collection. Subsequent pulls retain completeness while applying newer complete boundaries.
-Pulls start after server account validation, reconnection, window focus and acknowledged online writes.
+Pulls start on first server account validation and reconnection. Repeated same-account validation
+joins the existing visit without queuing more pulls. Focus and acknowledged writes reconcile healthy
+snapshots; a failed download remains stable until explicit Retry, reload or real reconnection.
 Online pulls update durable storage without replacing existing optimistic React Query projections.
 Offline reads use the existing collection query keys and shared domain schemas; live ancestry and
 tombstones filter the read view. Offline due counts and local Study readiness are not presented.
@@ -37,14 +45,16 @@ tombstones filter the read view. Offline due counts and local Study readiness ar
 
 Local storage remembers only the selected account ID and a local sign-out marker. Account metadata
 comes from that account's database. A failed account-validation request may permit this remembered account to
-read the local snapshot; it never establishes a newly validated server session. The offline banner
-states this distinction. Reconnection validates `/account` before online controls return or another
+read the local snapshot; it never establishes a newly validated server session. Settings explains
+this distinction. Reconnection validates `/account` before online controls return or another
 pull begins. Authentication rejection revokes local access and returns to sign-in. Account switching
 cancels the previous visit's reads/pull and clears collection query entries before the next collection
 is exposed. Late account responses and pulls cannot re-enable an ended visit.
 
-Offline events and unreachable account/sync requests enter read-only access. An isolated failed online
-mutation retains its existing error/retry flow. Reconnection, window focus and the offline banner's
+Offline events and unreachable account requests enter read-only access. An isolated failed sync pull
+while the browser remains connected preserves online screens and records a stable download failure.
+An isolated failed online
+mutation retains its existing error/retry flow. Reconnection, window focus and Settings' Check connection
 Retry action request fresh server account validation; an unsuccessful attempt remains read-only.
 
 Explicit sign-out revokes access before remote transport, clears the selected account, and blocks
@@ -65,17 +75,37 @@ call `skipWaiting` or `clients.claim`: existing windows keep their matching shel
 update asks the learner to close all Neuron windows and reopen online. Activation removes obsolete
 shell caches only after the old worker has no active clients.
 
-Collection completeness and shell readiness are separate. The UI reports an unfinished download,
-unavailable persistence, or an application shell that cannot yet reopen offline. Database open and
+Collection completeness and shell readiness are separate. Initial downloading and successful background
+sync are silent outside Settings. Settings' compact Offline access section reports readiness, unfinished
+downloads, failures and shell/update guidance. It offers Retry from the durable cursor and Rebuild
+behind deliberate confirmation for storage, transaction or recovery failures. Network and response
+validation failures offer Retry without unnecessary cache deletion. A read-only connection indicator is positioned outside content flow
+beside navigation; no status is inserted before any screen header. Download state changes never key or
+remount online screens. A completed snapshot remains readable if incremental synchronization fails.
+Database open and
 transaction operations have bounded failure handling. Blocked/disabled storage, quota errors, unknown
 formats, future database versions and eviction do not disable the online application. Online recovery
 can retry or explicitly rebuild this read-only cache from revision zero. Missing metadata never means
 a complete empty collection. Browser storage is an expendable device cache, not a backup; this slice
 has no unsynchronized local writes to preserve.
 
+Failure diagnostics distinguish network/API transport, malformed protocol/boundaries, row schema,
+database open/read, transaction commit and explicit recovery. Only fixed error codes, entity names and
+known top-level schema fields are recorded; no row values, IDs, account identifiers, tokens or arbitrary
+exception messages enter diagnostics. A failed Rebuild is handled as recovery failure, never success.
+
 ## Verification and later writes
 
-The browser suite exercises complete hydration, offline hierarchy/Note reads, actual server shutdown
+`offline-live.spec.ts` is opt-in with `CI=true OFFLINE_DATABASE_E2E=true` and the guarded
+`DATABASE_URL_TEST`. It uses actual HTTP, authenticated collection routes and restricted-role
+PostgreSQL/RLS; only session lookup is substituted. Representative persisted data includes a migration
+0012 Deck identity and references, nullable fields, all six entities, Review/Undo history, soft-delete
+and purged tombstones, cloze Cards and revision-boundary pagination. It compares every persisted
+envelope and the final cursor with real pulls, interrupts/resumes, deliberately rebuilds corrupted
+metadata, stops the HTTP server for shell reopening and browsing, reconciles updates and switches
+accounts. It runs in desktop Chromium and phone-sized WebKit. No production account contents are used.
+
+The separate fixture browser suite exercises complete hydration, offline hierarchy/Note reads, actual server shutdown
 followed by shell reload and a reopened page, waiting worker updates during an active visit, incremental
 tombstones, interrupted pages, transaction abort, competing/duplicate tab delivery and stale final-page
 completeness, quota and unavailable storage, local format/database version
