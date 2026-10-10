@@ -53,3 +53,14 @@ test('unknown web code defaults to full interaction coverage', () => {
   const result = selectBrowserTests(['apps/web/src/new-browser-area.ts']);
   assert.equal(result.full, true);
 });
+
+for (const path of [
+  '.github/workflows/ci.yml',
+  '.github/workflows/browser-interaction.yml',
+  'scripts/browser-gate.mjs',
+  'scripts/browser-gate.test.mjs',
+]) {
+  test(`${path} exercises the complete browser gate`, () => {
+    assert.deepEqual(selectBrowserTests([path]), { full: true, visual: true, files: [] });
+  });
+}

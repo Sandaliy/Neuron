@@ -110,75 +110,70 @@ jobs:
       - name: Build
         run: pnpm build
 
-  browser:
-    name: Browser and screenshot tests
-    # Keep this identity stable for existing branch protection.
+  browser-selection:
+    name: Select browser coverage
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
     outputs:
+      full: ${{ steps.select.outputs.full }}
+      files: ${{ steps.select.outputs.files }}
       visual: ${{ steps.select.outputs.visual }}
-
     steps:
-      - name: Check out the repository
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
       - name: Select browser coverage
         id: select
         env:
           BROWSER_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           BROWSER_FULL: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          node --test scripts/select-browser-tests.test.mjs
+          node --test scripts/select-browser-tests.test.mjs scripts/browser-gate.test.mjs
           node scripts/select-browser-tests.mjs
 
-      - name: Build browser app
-        run: pnpm --filter "@neuron/web..." build
+  phone-interaction:
+    name: Phone interactions
+    needs: browser-selection
+    uses: ./.github/workflows/browser-interaction.yml
+    with:
+      project: phone-interaction
+      full: ${{ needs.browser-selection.outputs.full == 'true' }}
+      files: ${{ needs.browser-selection.outputs.files }}
 
-      - name: Install Chromium
-        run: pnpm --filter @neuron/web exec playwright install --with-deps chromium
+  desktop-interaction:
+    name: Desktop interactions
+    needs: browser-selection
+    uses: ./.github/workflows/browser-interaction.yml
+    with:
+      project: desktop-interaction
+      full: ${{ needs.browser-selection.outputs.full == 'true' }}
+      files: ${{ needs.browser-selection.outputs.files }}
 
-      - name: Run interaction browser tests
-        shell: bash
-        env:
-          BROWSER_FULL: ${{ steps.select.outputs.full }}
-          BROWSER_FILES: ${{ steps.select.outputs.files }}
-        run: |
-          if [[ "$BROWSER_FULL" == "true" ]]; then
-            pnpm --filter @neuron/web test:screens --project=phone-interaction --project=desktop-interaction
-          else
-            read -r -a files <<< "$BROWSER_FILES"
-            pnpm --filter @neuron/web test:screens "${files[@]}" --project=phone-interaction --project=desktop-interaction
-          fi
-
-      - name: Keep the browser report
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v5
+  browser:
+    name: Browser and screenshot tests
+    # Stable required check; each selected suite must finish successfully.
+    needs: [browser-selection, phone-interaction, desktop-interaction, visual]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          name: playwright-interaction-report
-          path: |
-            apps/web/playwright-report/
-            apps/web/test-results/
-          retention-days: 14
+          node-version: 24
+      - name: Require all selected browser suites
+        env:
+          BROWSER_NEEDS: ${{ toJSON(needs) }}
+        run: node scripts/browser-gate.mjs
 
   visual:
     name: Windows visual contracts
-    needs: browser
-    # The selection output is available even when interaction tests fail.
-    if: ${{ always() && !cancelled() && needs.browser.outputs.visual == 'true' }}
+    needs: browser-selection
+    # Start independently of both interaction runners and retain failure diagnostics.
+    if: ${{ needs.browser-selection.outputs.visual == 'true' }}
     runs-on: windows-2022
     timeout-minutes: 20
     steps:
