@@ -3,15 +3,19 @@ import type { Card, DeckNode, Note } from '@neuron/shared';
 
 import { metadata, openCollection, snapshot } from './collection-db';
 import { renameOverlay, validateRenames } from './collection-outbox';
+import { noteEditOverlay, validateNoteEdits } from './note-outbox';
 import { accountEpoch, offlineReadFailed, offlineState } from './offline';
 
 import type { CollectionRow } from './collection-db';
+import type { PendingNoteEdit } from './note-outbox';
 import type { NoteQuery } from './notes';
 
 type Collection = {
   decks: ReturnType<typeof deckSchema.parse>[];
   notes: Note[];
   cards: () => Promise<Card[]>;
+  originals: Map<string, Note>;
+  positions: Map<string, number>;
 };
 /** Validation stays on the read boundary, but large snapshots must yield to input and paint. */
 async function projectRows<T>(
@@ -38,9 +42,29 @@ async function projectRows<T>(
   }
   return values;
 }
-let projection: { key: string; cards: boolean; value: Promise<Collection> } | undefined;
+let projection:
+  | { key: string; accountId: string; version: number; cards: boolean; value: Promise<Collection> }
+  | undefined;
 export function clearCollectionProjection() {
   projection = undefined;
+}
+
+/** A content edit replaces one projected row; it never reopens the collection stores. */
+export function projectCollectionNote(
+  accountId: string,
+  id: string,
+  edit: PendingNoteEdit | undefined,
+  version: number,
+) {
+  const cached = projection;
+  if (!cached || cached.accountId !== accountId || cached.version !== version - 1) return;
+  cached.version = version;
+  cached.value = cached.value.then((rows) => {
+    const original = rows.originals.get(id);
+    const at = rows.positions.get(id);
+    if (original && at !== undefined) rows.notes[at] = noteEditOverlay(edit, original);
+    return rows;
+  });
 }
 async function collection(includeCards = false): Promise<Collection> {
   const visit = accountEpoch();
@@ -50,8 +74,13 @@ async function collection(includeCards = false): Promise<Collection> {
     const db = await openCollection(id);
     try {
       const meta = await metadata(db);
-      const key = `${visit}:${id}:${meta.cursor}:${meta.outboxVersion ?? 0}:${meta.complete}`;
-      if (projection?.key === key && (!includeCards || projection.cards)) {
+      const key = `${visit}:${id}:${meta.cursor}:${meta.complete}`;
+      const version = meta.outboxVersion ?? 0;
+      if (
+        projection?.key === key &&
+        projection.version === version &&
+        (!includeCards || projection.cards)
+      ) {
         const cached = await projection.value;
         if (offlineState().accountId !== id || accountEpoch() !== visit)
           throw new Error('collection_account_changed');
@@ -59,7 +88,13 @@ async function collection(includeCards = false): Promise<Collection> {
       }
       const value = (async () => {
         const rows = await snapshot(db, includeCards);
-        validateRenames(rows.outbox, id);
+        const renames = validateRenames(rows.outbox, id);
+        const edits = validateNoteEdits(rows.outbox, id);
+        const editsByNote = new Map<string, (typeof edits)[number]>();
+        for (const edit of edits) {
+          const previous = editsByNote.get(edit.entityId);
+          if (!previous || previous.sequence < edit.sequence) editsByNote.set(edit.entityId, edit);
+        }
         if (offlineState().accountId !== id || accountEpoch() !== visit)
           throw new Error('collection_account_changed');
         const decks = rows.decks
@@ -68,7 +103,7 @@ async function collection(includeCards = false): Promise<Collection> {
             deckSchema.parse({
               ...change.row,
               path: [],
-              name: renameOverlay(rows.outbox, change.id, change.rev) ?? change.row['name'],
+              name: renameOverlay(renames, change.id, change.rev) ?? change.row['name'],
             }),
           );
         const live = new Map(decks.map((deck) => [deck.id, deck]));
@@ -78,9 +113,14 @@ async function collection(includeCards = false): Promise<Collection> {
           visited.add(id);
           return deck.parentId === null || available(deck.parentId, visited);
         };
+        const originals = new Map<string, Note>();
         const notes = await projectRows(rows.notes, (row) =>
           !row.deleted && !row.purged && available(String(row.row['deckId']))
-            ? noteSchema.parse(row.row)
+            ? (() => {
+                const original = noteSchema.parse(row.row);
+                originals.set(row.id, original);
+                return noteEditOverlay(editsByNote.get(row.id), original);
+              })()
             : undefined,
         );
         const noteIds = new Set(notes.map((note) => note.id));
@@ -103,9 +143,15 @@ async function collection(includeCards = false): Promise<Collection> {
             }));
         if (offlineState().accountId !== id || accountEpoch() !== visit)
           throw new Error('collection_account_changed');
-        return { decks: decks.filter((deck) => available(deck.id)), notes, cards };
+        return {
+          decks: decks.filter((deck) => available(deck.id)),
+          notes,
+          cards,
+          originals,
+          positions: new Map(notes.map((note, index) => [note.id, index])),
+        };
       })();
-      projection = { key, cards: includeCards, value };
+      projection = { key, accountId: id, version, cards: includeCards, value };
       try {
         return await value;
       } catch (error) {

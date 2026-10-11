@@ -14,7 +14,7 @@ async function editor(
     locale: options.locale ?? 'en',
     glass: 'off',
   });
-  await stubApi(page);
+  await stubApi(page, { collectionDownload: false });
   let stored = {
     note: {
       id: 'conversion',

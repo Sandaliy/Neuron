@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { meSchema } from '@neuron/shared';
-import type { Me, PullSyncResult, DeckNode } from '@neuron/shared';
+import type { Me, PullSyncResult, DeckNode, Note, Card } from '@neuron/shared';
 
 import { ApiFailure, request } from './api';
 import {
@@ -20,10 +20,17 @@ import {
   renames,
   renameOverlay,
 } from './collection-outbox';
-import { clearCollectionProjection } from './collection-read';
+import { clearCollectionProjection, projectCollectionNote } from './collection-read';
+import {
+  cancelNoteDelivery,
+  deliverNoteEdits,
+  onNoteOutboxChange,
+  noteEditFor,
+  noteEditOverlay,
+} from './note-outbox';
 
 import type { CollectionDiagnostic, CollectionStage } from './collection-failure';
-import type { QueryClient } from '@tanstack/react-query';
+import type { QueryClient, InfiniteData } from '@tanstack/react-query';
 
 const CONTEXT_KEY = 'neuron.offline.account';
 const SIGNED_OUT_KEY = 'neuron.offline.signedOut';
@@ -123,6 +130,7 @@ async function transitionReads(local: boolean) {
 export function revokeOffline(explicit = false) {
   clearCollectionProjection();
   cancelRenameDelivery();
+  cancelNoteDelivery();
   epoch++;
   clearTimeout(timer);
   controller?.abort();
@@ -230,6 +238,7 @@ export function networkLost() {
   if (state.offline) return;
   emit({ offline: true, validated: false });
   cancelRenameDelivery();
+  cancelNoteDelivery();
   controller?.abort();
   void transitionReads(true);
 }
@@ -276,6 +285,7 @@ async function download(account: Me) {
       stage = 'database';
       localStorage.setItem(CONTEXT_KEY, account.id);
       await deliverRenames();
+      await deliverNoteEdits();
       if (ownEpoch !== epoch || signal.aborted || state.accountId !== account.id) return;
       while (!signal.aborted && ownEpoch === epoch && !state.offline) {
         stage = 'database';
@@ -365,6 +375,61 @@ export function retryConnection() {
 
 export function initializeOffline(queryClient: QueryClient) {
   client = queryClient;
+  onNoteOutboxChange((change) => {
+    const id = state.accountId;
+    const visit = epoch;
+    if (!id || change.accountId !== id) return;
+    void client?.invalidateQueries({ queryKey: ['note-outbox', id], exact: true });
+    void client?.invalidateQueries({ queryKey: ['note-outbox', id, change.entityId], exact: true });
+    void noteEditFor(id, change.entityId)
+      .then((entry) => {
+        if (visit !== epoch || id !== state.accountId) return;
+        projectCollectionNote(id, change.entityId, entry, change.version);
+        // Patch cached content only. No cancelled request, tree notification or
+        // full collection read competes with the editor's next keystroke.
+        client?.setQueryData<{ note: Note; cards: Card[]; local?: true }>(
+          ['notes', change.entityId],
+          (data) => {
+            if (!data || !entry) return data;
+            const note = noteEditOverlay(entry, data.note);
+            return note === data.note ? data : { ...data, note, local: true };
+          },
+        );
+        for (const [key, pages] of client?.getQueriesData<
+          InfiniteData<{ items: Note[]; nextCursor?: string }>
+        >({ queryKey: ['notes', 'list'] }) ?? []) {
+          if (!pages || !entry) continue;
+          client?.setQueryData(key, {
+            ...pages,
+            pages: pages.pages.map((page) => {
+              let patched = false;
+              const items = page.items.map((note) => {
+                if (note.id !== change.entityId) return note;
+                const next = noteEditOverlay(entry, note);
+                patched ||= next !== note;
+                return next;
+              });
+              // Learning pools cannot treat a local content overlay as authority.
+              return patched ? { ...page, items, local: true } : page;
+            }),
+          });
+        }
+        void client?.invalidateQueries({ queryKey: ['notes', 'list'], refetchType: 'none' });
+        if (entry?.state === 'synchronized' || !entry)
+          void client?.invalidateQueries({
+            queryKey: ['notes', change.entityId],
+            exact: true,
+            refetchType: 'none',
+          });
+        if (state.validated && !state.offline) {
+          void deliverNoteEdits().then(() => {
+            if (visit === epoch && (entry?.state === 'synchronized' || entry?.state === 'conflict'))
+              refreshDownload();
+          });
+        }
+      })
+      .catch(() => undefined);
+  });
   onOutboxChange(() => {
     const visit = epoch;
     const id = state.accountId;
@@ -406,6 +471,7 @@ export function initializeOffline(queryClient: QueryClient) {
     if (event.key === SIGNED_OUT_KEY) {
       if (event.newValue === 'true') {
         cancelRenameDelivery();
+        cancelNoteDelivery();
         epoch++;
         controller?.abort();
         db?.close();
@@ -423,6 +489,7 @@ export function initializeOffline(queryClient: QueryClient) {
     }
     if (event.key === CONTEXT_KEY && event.newValue !== state.accountId) {
       cancelRenameDelivery();
+      cancelNoteDelivery();
       epoch++;
       controller?.abort();
       db?.close();

@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { check, index, jsonb, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
 
-import type { RestoreNoteResult, RenameDeckResult } from '@neuron/shared';
+import type { RestoreNoteResult, RenameDeckResult, EditOfflineNoteResult } from '@neuron/shared';
 
 import { user } from './auth.js';
 import { id, instant, literalList } from './columns.js';
@@ -13,6 +13,7 @@ export interface SyncReceiptOutcome {
   noteRestoration?: RestoreNoteResult & { id: string };
   clamped: boolean;
   rename?: { digest: string; result: RenameDeckResult };
+  noteEdit?: { digest: string; result: EditOfflineNoteResult };
 }
 
 /** Exact entity deliveries, without retaining collection content after purge. */

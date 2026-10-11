@@ -3,6 +3,38 @@
  */
 export const en = {
   'offline.renameSaved': 'Name saved on this device. It will sync after sign-in is confirmed.',
+  'offline.note.saved': 'Saved on device',
+  'offline.note.notSaved':
+    'This draft could not be saved on your device. Keep this editor open and retry, or copy your changes before leaving.',
+  'offline.note.synchronized': 'Synced with server',
+  'offline.note.conflict': 'Needs review',
+  'offline.note.unsupported': 'Needs online review',
+  'offline.note.rejected': 'Not synchronized',
+  'offline.note.incomplete': 'Draft on device',
+  'offline.note.draft': 'Draft saved on this device · finish required fields to synchronize',
+  'offline.note.pending': 'Saved on this device · waiting to synchronize',
+  'offline.note.resolved': 'Server version kept · local draft archived',
+  'offline.note.savedChanges': 'Saved Note edits',
+  'offline.note.storageNotice':
+    'Local drafts are not a backup. Browser storage can be cleared; copy important unsynchronized work.',
+  'offline.note.original': 'Original server revision {revision}',
+  'offline.note.localVersion': 'Saved local draft',
+  'offline.note.originalVersion': 'Original server Note',
+  'offline.note.remoteVersion': 'Current server Note · revision {revision}',
+  'offline.note.changed':
+    'This Note changed elsewhere. Compare the versions before applying your draft to the current Note.',
+  'offline.note.deliveryRejected':
+    'The server rejected this update. Your local draft is retained; copy it or keep the server version and archive the draft.',
+  'offline.note.scopeChanged':
+    'The Note type or Deck changed. This draft cannot be applied across that change. Copy it or keep the server version and archive the draft.',
+  'offline.note.deleted':
+    'This Note or its Deck was deleted. Your local draft is retained; it will not restore the Note.',
+  'offline.note.cardChange':
+    'This draft would remove Cards and cannot synchronize. Keep the existing Card directions or gaps, or copy the draft for recovery.',
+  'offline.note.copyDraft': 'Copy saved draft',
+  'offline.note.copyOriginal': 'Copy original server version',
+  'offline.note.applyDraft': 'Apply draft to current Note',
+  'offline.note.keepServer': 'Keep server version and archive draft',
   'offline.renamePending':
     'This collection already has a saved rename waiting to sync. Open Settings to retry or recover it.',
   'offline.renameNotSaved':
@@ -53,7 +85,7 @@ export const en = {
     'The downloaded collection could not be rebuilt. Close other Neuron windows and try again.',
   'offline.title': 'Offline · collection reading',
   'offline.readOnly':
-    'Browse downloaded Folders, Decks and Notes, and rename existing collections. Note editing, Study, Practice and Import require a connection.',
+    'Browse downloaded Folders, Decks and Notes, rename existing collections, and edit existing Notes. Study, Practice, Note creation and Import require a connection.',
   'offline.session':
     'Offline access uses the account previously signed in on this device. The server session has not been freshly validated.',
   'offline.incomplete':

@@ -178,6 +178,8 @@ export interface FixtureOptions {
   readonly signedIn?: boolean;
   readonly decks?: Record<string, unknown>[];
   readonly notes?: Record<string, unknown>[];
+  /** Online API-only editor fixtures have no downloaded collection. */
+  readonly collectionDownload?: boolean;
   /** What the account says about the second factor. Settings draws the state from it. */
   readonly twoFactor?: boolean;
 }
@@ -197,6 +199,10 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
     async (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path === '/api/sync') {
+        if (options.collectionDownload === false) {
+          await route.fulfill({ status: 503, json: { error: { code: 'internal_error' } } });
+          return;
+        }
         const since = Number(new URL(route.request().url()).searchParams.get('since') ?? 0);
         await route.fulfill({
           json: { since, revision: Math.max(42, since), hasMore: false, changes: [] },

@@ -384,7 +384,7 @@ test.describe('reconciliation measurements', () => {
       ).toBeDisabled();
       await expect(
         page.getByText(
-          /Browse downloaded Folders, Decks and Notes, and rename existing collections/,
+          /Browse downloaded Folders, Decks and Notes, rename existing collections, and edit existing Notes/,
         ),
       ).toHaveCount(0);
     }
@@ -435,7 +435,6 @@ test.describe('reconciliation measurements', () => {
       retained,
       ...metrics,
     };
-    console.log('stabilization-evidence', JSON.stringify(evidence));
     await info.attach('stabilization-evidence', {
       body: JSON.stringify(evidence, null, 2),
       contentType: 'application/json',
@@ -563,10 +562,6 @@ test.describe('reconciliation measurements', () => {
       await page.evaluate(() => window.scrollTo(0, 150));
       expect((await page.locator('[data-safe-area-cover]').boundingBox())!.y).toBe(0);
     }
-    console.log(
-      'stabilization-interactions',
-      JSON.stringify({ browser: browserName, baseline, stages }),
-    );
     await info.attach('stabilization-interactions', {
       body: JSON.stringify(stages, null, 2),
       contentType: 'application/json',
@@ -802,9 +797,6 @@ for (const mode of ['fast', 'delayed', 'unavailable', 'interrupted'] as const) {
     expect(scans['notes'] ?? 0).toBeLessThanOrEqual(1);
     expect(scans['decks'] ?? 0).toBeLessThanOrEqual(1);
     expect(scans['cards'] ?? 0).toBeLessThanOrEqual(1);
-    console.log(
-      `collection-latency ${info.project.name} ${mode}: usable Notes cold=${Math.round(cold)}ms warm=${Math.round(warm)}ms`,
-    );
     await info.attach('collection-latency', {
       body: JSON.stringify({ mode, cold, warm, scans }),
       contentType: 'application/json',
@@ -812,7 +804,7 @@ for (const mode of ['fast', 'delayed', 'unavailable', 'interrupted'] as const) {
   });
 }
 
-test('complete download, offline folders/decks/notes/details and read-only route boundaries', async ({
+test('complete download, offline folders/decks/notes/editing and server-only route boundaries', async ({
   page,
   context,
 }) => {
@@ -822,8 +814,10 @@ test('complete download, offline folders/decks/notes/details and read-only route
   await page.getByRole('button', { name: /^Downloaded Folder/ }).click();
   await page.getByRole('button', { name: /^Downloaded Deck/ }).click();
   await page.getByRole('button', { name: /Durable word/ }).click();
-  await expect(page.getByText('Downloaded meaning', { exact: true })).toBeVisible();
-  await expect(page.locator('textarea')).toHaveCount(0);
+  const translation = page.getByRole('textbox', { name: 'Translation' });
+  await expect(translation).toHaveValue('Downloaded meaning');
+  await translation.fill('Edited offline meaning');
+  await expect(page.getByText('Saved on device', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Today', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(page.locator('main header time')).toBeVisible();
@@ -1721,8 +1715,10 @@ test('in-session Library keeps its header, nested expansion and row geometry whe
   await page.getByRole('searchbox').fill('meaning 0');
   await expect(page.locator('[data-rows] [data-row]')).toHaveCount(1);
   await page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }).click();
-  await expect(page.getByText('Downloaded meaning 0', { exact: true })).toBeVisible();
-  await expect(page.locator('input, textarea, select, [data-direct-delete]')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Translation' })).toHaveValue(
+    'Downloaded meaning 0',
+  );
+  await expect(page.locator('[data-direct-delete]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
   await expect(page.getByRole('searchbox')).toBeVisible();
 });
@@ -1764,7 +1760,9 @@ test('transport loss with online browser hints preserves the open Deck and scrol
   const requests = control.collectionReads;
   await page.getByRole('searchbox').fill('meaning 0');
   await page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }).click();
-  await expect(page.getByText('Downloaded meaning 0', { exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Translation' })).toHaveValue(
+    'Downloaded meaning 0',
+  );
   expect(control.collectionReads).toBe(requests);
   await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
   await expect(
@@ -1870,5 +1868,7 @@ test('a late account validation cannot reactivate online controls after connecti
   await page.getByRole('button', { name: /^Downloaded Folder/ }).click();
   await page.getByRole('button', { name: /^Downloaded Deck/ }).click();
   await page.getByRole('button', { name: /Durable word/ }).click();
-  await expect(page.getByText('Downloaded meaning', { exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Translation' })).toHaveValue(
+    'Downloaded meaning',
+  );
 });

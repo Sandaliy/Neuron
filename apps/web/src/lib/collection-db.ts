@@ -10,6 +10,7 @@ import type { PullSyncResult } from '@neuron/shared';
 import { CollectionFailure, collectionDiagnostic } from './collection-failure';
 
 import type { PendingRename } from './collection-outbox';
+import type { PendingNoteEdit } from './note-outbox';
 
 export const COLLECTION_VERSION = 1;
 export const COLLECTION_DATABASE_VERSION = 2;
@@ -222,7 +223,11 @@ const READ_ENTITIES = ['decks', 'notes', 'cards'] as const;
 export async function snapshot(
   db: IDBDatabase,
   includeCards: boolean,
-): Promise<Record<(typeof READ_ENTITIES)[number], CollectionRow[]> & { outbox: PendingRename[] }> {
+): Promise<
+  Record<(typeof READ_ENTITIES)[number], CollectionRow[]> & {
+    outbox: (PendingRename | PendingNoteEdit)[];
+  }
+> {
   const tx = db.transaction([
     'meta',
     'outbox',
@@ -237,7 +242,7 @@ export async function snapshot(
   const [meta, rows, outbox] = await Promise.all([
     result<CollectionMeta | undefined>(tx.objectStore('meta').get('sync')),
     Promise.all(reads),
-    result<PendingRename[]>(tx.objectStore('outbox').getAll()),
+    result<(PendingRename | PendingNoteEdit)[]>(tx.objectStore('outbox').getAll()),
     done,
   ]);
   if (!meta?.complete || meta.format !== COLLECTION_VERSION)
@@ -245,7 +250,9 @@ export async function snapshot(
   return {
     ...Object.fromEntries(READ_ENTITIES.map((entity, index) => [entity, rows[index]])),
     outbox,
-  } as Record<(typeof READ_ENTITIES)[number], CollectionRow[]> & { outbox: PendingRename[] };
+  } as Record<(typeof READ_ENTITIES)[number], CollectionRow[]> & {
+    outbox: (PendingRename | PendingNoteEdit)[];
+  };
 }
 
 /** Recovery is serialized with local writes; unknown storage fails closed. */

@@ -19,6 +19,7 @@ import {
   termOf,
   parseNoteFields,
   updateNoteSchema,
+  editOfflineNoteCommandSchema,
 } from '@neuron/shared';
 import type { NoteTypeName } from '@neuron/shared';
 
@@ -225,6 +226,12 @@ export function noteRoutes(): Hono<RequestBindings> {
       note: serialiseNote(note, typeNames),
       cards: cards.map(serialiseCard),
     });
+  });
+
+  routes.post('/:id/offline-edit', async (context) => {
+    const { id } = readParams(context, idParamSchema);
+    const command = await readBody(context, editOfflineNoteCommandSchema);
+    return context.json(await repositoriesOf(context).collectionNotes.edit(id, command));
   });
 
   /**

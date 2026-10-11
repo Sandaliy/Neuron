@@ -1,4 +1,5 @@
-import { useBlocker, useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useBlocker, useNavigate } from '@tanstack/react-router';
 import { ChevronDown, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -31,8 +32,9 @@ import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { ApiFailure, describe } from '../../lib/api';
 import { flatten, findDeck, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
+import { noteEditFor, saveNoteEdit } from '../../lib/note-outbox';
 import { useNote, useNoteActions } from '../../lib/notes';
-import { useOffline } from '../../lib/offline';
+import { accountEpoch, offlineState, useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
 import { GroupLabel } from '../../ui/card';
 import { Dialog, DialogFooter } from '../../ui/dialog';
@@ -51,9 +53,9 @@ import { CollectionPicker } from '../library/collection-picker';
 import { CardPreview } from './card-preview';
 import { NoteField } from './note-field';
 import { NoteHeader } from './note-header';
-import { ReadOnlyNote } from './read-only-note';
 
 import type { PreviewCard } from './card-preview';
+import type { PendingNoteEdit } from '../../lib/note-outbox';
 
 /**
  * Writing one note.
@@ -63,10 +65,8 @@ import type { PreviewCard } from './card-preview';
  * coming up in reviews. An existing note saves itself, because it is already a
  * card and the only question is whether the correction landed.
  *
- * The saved indicator is honest. It says Saved only after the server said so,
- * it says Saving while a request is out, and it says Not saved with a way to
- * try again when one failed. A green tick that appears on a keystroke is worse
- * than nothing, because it is believed.
+ * The saved indicator distinguishes a committed device draft from confirmed
+ * server synchronization and offers a retry when storage fails.
  *
  * Which fields appear is decided by `editorFields` in packages/shared, from the
  * part of speech and the deck's language: a German noun is asked for its
@@ -87,6 +87,12 @@ export function NoteEditorScreen({
   const decks = useDeckTree();
   const existing = useNote(noteId);
   const offline = useOffline();
+  const savedEdit = useQuery({
+    queryKey: ['note-outbox', offline.accountId, noteId],
+    queryFn: async () => (await noteEditFor(offline.accountId!, noteId!)) ?? null,
+    enabled: noteId !== undefined && offline.accountId !== null,
+    networkMode: 'always',
+  });
   if (offline.offline && !offline.available)
     return (
       <section data-screen="" className="flex flex-col gap-20">
@@ -110,6 +116,23 @@ export function NoteEditorScreen({
     );
   }
 
+  if (noteId !== undefined && offline.accountId && savedEdit.isPending)
+    return (
+      <section data-screen="" className="flex flex-col gap-20">
+        <SkeletonRows rows={6} />
+      </section>
+    );
+  if (noteId !== undefined && savedEdit.error && savedEdit.data === undefined)
+    return (
+      <section data-screen="">
+        <ErrorState
+          message={t('offline.changesUnavailable')}
+          retryLabel={t('common.retry')}
+          onRetry={() => void savedEdit.refetch()}
+        />
+      </section>
+    );
+
   if (noteId !== undefined && existing.error && !existing.data) {
     return (
       <section data-screen="" className="flex flex-col gap-20">
@@ -128,8 +151,19 @@ export function NoteEditorScreen({
     );
   }
 
-  if ((offline.offline || existing.data?.local) && existing.data)
-    return <ReadOnlyNote note={existing.data.note} decks={decks.data ?? []} />;
+  if (noteId === undefined && offline.offline)
+    return (
+      <section data-screen="">
+        <p role="status">{t('offline.incomplete')}</p>
+      </section>
+    );
+
+  const effectiveEdit =
+    savedEdit.data?.state === 'synchronized' &&
+    existing.data &&
+    existing.data.note.rev >= (savedEdit.data.outcome?.revision ?? Infinity)
+      ? undefined
+      : (savedEdit.data ?? undefined);
 
   return (
     <Editor
@@ -138,24 +172,47 @@ export function NoteEditorScreen({
         ? {}
         : { note: existing.data.note, cards: existing.data.cards })}
       decks={decks.data ?? []}
+      local={offline.offline || offline.available || !!savedEdit.error}
+      storageUnavailable={!!savedEdit.error}
+      refreshNote={existing.refetch}
+      initialEdit={effectiveEdit}
+      savedEdit={savedEdit.data ?? undefined}
+      serverActions={
+        !offline.offline &&
+        offline.validated &&
+        !savedEdit.error &&
+        (!effectiveEdit || effectiveEdit.state === 'synchronized')
+      }
       {...(deckId === undefined ? {} : { deckId })}
     />
   );
 }
 
 /** How the last save went, which is the only thing the indicator may claim. */
-type SaveState = 'clean' | 'dirty' | 'saving' | 'saved' | 'failed';
+type SaveState = 'clean' | 'dirty' | 'saving' | 'saved' | 'local' | 'failed';
 
 function Editor({
   note,
   cards = [],
   decks,
   deckId,
+  local,
+  savedEdit,
+  initialEdit,
+  storageUnavailable,
+  refreshNote,
+  serverActions,
 }: {
   readonly note?: Note;
   readonly cards?: readonly Card[];
   readonly decks: readonly DeckNode[];
   readonly deckId?: string;
+  readonly local: boolean;
+  readonly savedEdit?: PendingNoteEdit | undefined;
+  readonly initialEdit?: PendingNoteEdit | undefined;
+  readonly storageUnavailable: boolean;
+  readonly refreshNote: () => Promise<unknown>;
+  readonly serverActions: boolean;
 }) {
   const t = useTranslate();
   const toast = useToast();
@@ -170,20 +227,66 @@ function Editor({
   }, []);
 
   const [deck, setDeck] = useState(
-    note?.deckId ?? deckId ?? flatten(decks).find((row) => row.kind === 'deck')?.id ?? '',
+    (initialEdit?.base.row['deckId'] as string | undefined) ??
+      note?.deckId ??
+      deckId ??
+      flatten(decks).find((row) => row.kind === 'deck')?.id ??
+      '',
   );
-  const [storedType, setNoteType] = useState<NoteTypeName>(note?.noteType ?? 'vocab');
-  const [storedFields, setFields] = useState<Record<string, unknown>>(note?.fields ?? {});
+  const [storedType, setNoteType] = useState<NoteTypeName>(
+    (initialEdit?.base.row['noteType'] as NoteTypeName | undefined) ?? note?.noteType ?? 'vocab',
+  );
+  const [storedFields, setFields] = useState<Record<string, unknown>>(
+    initialEdit?.working.fields ?? note?.fields ?? {},
+  );
   // Field presence is not control lifetime. Retain stored/edited grammar even
   // after clearing a value or changing the metadata which originally exposed it.
-  const [retainedGrammar, setRetainedGrammar] = useState(() => filledPaths(note?.fields));
-  const [grammarOpen, setGrammarOpen] = useState(() =>
-    [...filledPaths(note?.fields)].some((path) => path.startsWith('grammar.')),
+  const [retainedGrammar, setRetainedGrammar] = useState(() =>
+    filledPaths(initialEdit?.working.fields ?? note?.fields),
   );
-  const [tags, setTags] = useState((note?.tags ?? []).join(', '));
+  const [grammarOpen, setGrammarOpen] = useState(() =>
+    [...filledPaths(initialEdit?.working.fields ?? note?.fields)].some((path) =>
+      path.startsWith('grammar.'),
+    ),
+  );
+  const [tags, setTags] = useState((initialEdit?.working.tags ?? note?.tags ?? []).join(', '));
+  const [acceptedAnswers, setAcceptedAnswers] = useState(() => {
+    const values = (initialEdit?.working.fields ?? note?.fields)?.['acceptedAnswers'];
+    return Array.isArray(values) ? values.join('\n') : '';
+  });
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [save, setSave] = useState<SaveState>('clean');
+  const [save, setSave] = useState<SaveState>(initialEdit ? 'local' : 'clean');
+  const [owner] = useState(() => ({ accountId: offlineState().accountId, epoch: accountEpoch() }));
+  const [committedEdit, setCommittedEdit] = useState(initialEdit);
   const draft = useRef({ fields: storedFields, tags, version: 0 });
+  const localEditor = useRef(local || !!savedEdit);
+  const observed = useRef(note);
+  useEffect(() => {
+    if (local || savedEdit) localEditor.current = true;
+    const latest = savedEdit ?? committedEdit;
+    const parsed = noteFieldsSchemas[storedType].safeParse(draft.current.fields);
+    const currentTags = [
+      ...new Set(
+        draft.current.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      ),
+    ].sort();
+    // A fresh row can become the baseline only when every displayed content
+    // value is already saved and matches it. Pending work keeps its original base.
+    if (
+      note &&
+      note.rev >= (observed.current?.rev ?? 0) &&
+      draft.current.version === savedVersion.current &&
+      (!latest || latest.state === 'synchronized') &&
+      note.noteType === storedType &&
+      parsed.success &&
+      JSON.stringify(parsed.data) === JSON.stringify(note.fields) &&
+      JSON.stringify(currentTags) === JSON.stringify([...note.tags].sort())
+    )
+      observed.current = note;
+  }, [local, savedEdit, committedEdit, note, storedType]);
   const savedVersion = useRef(0);
   const saving = useRef<Promise<boolean> | undefined>(undefined);
   const [saveError, setSaveError] = useState<unknown>();
@@ -205,6 +308,11 @@ function Editor({
   const validFields = noteFieldsSchemas[noteType].safeParse(fields);
 
   const settings = settingsFor(decks, deck);
+  const ladder = settings.ladder;
+  const savePlan = useRef({ cards, ladder, storedType });
+  useEffect(() => {
+    savePlan.current = { cards, ladder, storedType };
+  }, [cards, ladder, storedType]);
   const tagList = tags
     .split(',')
     .map((tag) => tag.trim())
@@ -294,7 +402,7 @@ function Editor({
    *
    * The debounce is the effect being torn down and set up again: every
    * keystroke changes the fields, which cancels the timer that was waiting and
-   * starts a new one. Nothing is held in a ref, so nothing can be stale.
+   * starts a new one. The single writer drains the latest draft snapshot.
    */
   const update = actions.update.mutateAsync;
   const persistedId = note?.id;
@@ -310,20 +418,44 @@ function Editor({
         // A single writer drains newer edits after the outstanding request.
         while (savedVersion.current !== draft.current.version) {
           const snapshot = draft.current;
-          await update({
-            id: persistedId,
+          const values = {
             fields: snapshot.fields,
             tags: snapshot.tags
               .split(',')
               .map((tag) => tag.trim())
               .filter(Boolean),
-          });
+          };
+          if (offlineState().offline) localEditor.current = true;
+          if (localEditor.current || offlineState().offline) {
+            const plan = savePlan.current;
+            const parsed = noteFieldsSchemas[plan.storedType].safeParse(snapshot.fields);
+            const removes = parsed.success
+              ? reconcileCards(
+                  plan.cards.map((card) => ({
+                    direction: card.direction,
+                    slot: card.slot,
+                    reps: card.reps,
+                  })),
+                  plan.storedType,
+                  parsed.data,
+                  [...plan.ladder],
+                  plan.storedType,
+                ).remove.length > 0
+              : false;
+            setCommittedEdit(
+              await saveNoteEdit(owner, persistedId, values, observed.current, removes),
+            );
+          } else {
+            await update({ id: persistedId, ...values });
+          }
           savedVersion.current = snapshot.version;
         }
-        setSave('saved');
+        setSave(localEditor.current || offlineState().offline ? 'local' : 'saved');
         return true;
       } catch (error) {
-        setSaveError(error);
+        setSaveError(
+          localEditor.current ? new Error('collection_note_storage', { cause: error }) : error,
+        );
         setSave('failed');
         return false;
       } finally {
@@ -332,7 +464,7 @@ function Editor({
     };
     saving.current = task();
     return saving.current;
-  }, [persistedId, update]);
+  }, [persistedId, update, owner]);
 
   useEffect(() => {
     if (!persistedId || conversion || save !== 'dirty') return;
@@ -340,14 +472,31 @@ function Editor({
     return () => clearTimeout(timer);
   }, [save, persistedId, storedFields, tags, persist, conversion]);
 
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState === 'hidden') void persist();
+    };
+    document.addEventListener('visibilitychange', flush);
+    window.addEventListener('pagehide', persist);
+    return () => {
+      document.removeEventListener('visibilitychange', flush);
+      window.removeEventListener('pagehide', persist);
+    };
+  }, [persist]);
+
   const unsavedDraft =
     !!conversion || save === 'failed' || (!note && (save === 'dirty' || save === 'saving'));
   const navigation = useBlocker({
     withResolver: true,
-    // Flush ordinary autosave without delaying navigation. Explicit drafts and
-    // known failures need a deliberate discard, with a way to keep editing.
+    // A local draft must commit before this form unmounts. Otherwise a late
+    // storage failure would lose the only visible copy. Typing stays independent.
+    // Explicit drafts and known failures need a deliberate discard.
     shouldBlockFn: () => {
-      if (note && !conversion && save !== 'failed') void persist();
+      if (note && !conversion && save !== 'failed') {
+        if (localEditor.current && draft.current.version !== savedVersion.current)
+          return persist().then((saved) => !saved);
+        void persist();
+      }
       return unsavedDraft && !created.current;
     },
     enableBeforeUnload: unsavedDraft || (!!note && (save === 'dirty' || save === 'saving')),
@@ -408,8 +557,14 @@ function Editor({
         fields: validFields.data,
         ...(discard ? { discardCards: true } : {}),
       });
+      observed.current = written.note;
       setNoteType(written.note.noteType);
       setFields(written.note.fields);
+      setAcceptedAnswers(
+        Array.isArray(written.note.fields['acceptedAnswers'])
+          ? written.note.fields['acceptedAnswers'].join('\n')
+          : '',
+      );
       draft.current = { fields: written.note.fields, tags, version: savedVersion.current };
       setConversion(undefined);
       setSave('saved');
@@ -463,13 +618,24 @@ function Editor({
         deckId={deck}
         actions={
           <div className="flex items-center gap-8">
-            {note && !conversion && <SaveIndicator state={save} onRetry={() => void persist()} />}
+            {note && !conversion && (
+              <SaveIndicator
+                state={save}
+                savedEdit={
+                  committedEdit && (!savedEdit || committedEdit.sequence > savedEdit.sequence)
+                    ? committedEdit
+                    : savedEdit
+                }
+                onRetry={() => void persist()}
+              />
+            )}
 
             {note && !conversion ? (
               <Menu label={t('note.edit')}>
                 <MenuItem
                   tone="danger"
                   icon={<Trash2 size={16} strokeWidth={1.5} />}
+                  disabled={!serverActions}
                   onSelect={() => setConfirmDelete(true)}
                 >
                   {t('note.delete')}
@@ -494,7 +660,8 @@ function Editor({
             </span>
             <span
               key={`${note.status}:${cards.map((card) => card.state).join()}`}
-              className="neu-reveal"
+              className={`neu-reveal ${serverActions ? '' : 'invisible'}`}
+              aria-hidden={!serverActions}
             >
               {note.status === 'active' &&
                 (() => {
@@ -531,11 +698,13 @@ function Editor({
           <div className="grid grid-cols-2 gap-8">
             <Button
               className="px-8"
-              disabled={note.status === 'active' || actions.setStatus.isPending}
+              disabled={!serverActions || note.status === 'active' || actions.setStatus.isPending}
               onClick={() => {
                 setStatusError(undefined);
                 void actions.setStatus
                   .mutateAsync({ ids: [note.id], status: 'active' })
+                  // The bulk acknowledgement contains no Note revision.
+                  .then(() => (localEditor.current ? refreshNote() : undefined))
                   .catch(setStatusError);
               }}
             >
@@ -544,6 +713,7 @@ function Editor({
             <Button
               className="px-8"
               disabled={
+                !serverActions ||
                 note.status === 'known' ||
                 actions.setStatus.isPending ||
                 actions.studyAgain.isPending
@@ -553,6 +723,7 @@ function Editor({
                 setStatusError(undefined);
                 void actions.setStatus
                   .mutateAsync({ ids: [note.id], status: 'known' })
+                  .then(() => (localEditor.current ? refreshNote() : undefined))
                   .catch(setStatusError);
               }}
             >
@@ -566,7 +737,9 @@ function Editor({
             <p>{t('note.restartHint')}</p>
             <Button
               variant="text"
-              disabled={actions.studyAgain.isPending || actions.setStatus.isPending}
+              disabled={
+                !serverActions || actions.studyAgain.isPending || actions.setStatus.isPending
+              }
               onClick={() => {
                 setStatusError(undefined);
                 void actions.studyAgain
@@ -593,7 +766,8 @@ function Editor({
                 key={direction}
                 disabled={
                   cards.some((card) => card.direction === direction) ||
-                  actions.enableDirection.isPending
+                  actions.enableDirection.isPending ||
+                  !serverActions
                 }
                 onClick={() => {
                   setStatusError(undefined);
@@ -609,18 +783,17 @@ function Editor({
           <label className="flex flex-col gap-8 text-14 text-secondary">
             {t('study.acceptedAnswers')}
             <TextArea
-              defaultValue={
-                Array.isArray(fields['acceptedAnswers']) ? fields['acceptedAnswers'].join('\n') : ''
-              }
-              onBlur={(event) =>
+              value={acceptedAnswers}
+              onChange={(event) => {
+                setAcceptedAnswers(event.target.value);
                 edit({
                   ...fields,
                   acceptedAnswers: event.target.value
                     .split('\n')
                     .map((value) => value.trim())
                     .filter(Boolean),
-                })
-              }
+                });
+              }}
             />
           </label>
         </details>
@@ -638,6 +811,7 @@ function Editor({
               label={t('note.type')}
               value={noteType}
               disabled={
+                (!serverActions && !!note) ||
                 save === 'saving' ||
                 (!!note && !conversion && (save === 'dirty' || save === 'failed'))
               }
@@ -734,7 +908,7 @@ function Editor({
                         <Select
                           {...props}
                           value={settings.targetLanguage ?? ''}
-                          disabled={!deck}
+                          disabled={!deck || !serverActions}
                           onChange={(event) => {
                             const targetLanguage = event.target.value as LanguageCode;
                             if (!targetLanguage) return;
@@ -812,6 +986,11 @@ function Editor({
       {saveError !== undefined && (
         <p role="alert" className="text-14 text-error">
           {t(describe(saveError).key, describe(saveError).values)}
+        </p>
+      )}
+      {storageUnavailable && (
+        <p role="alert" className="text-14 text-error">
+          {t('offline.changesUnavailable')}
         </p>
       )}
       {statusError !== undefined && (
@@ -942,9 +1121,11 @@ function Editor({
 /** What the last save actually did. Never more than that. */
 function SaveIndicator({
   state,
+  savedEdit,
   onRetry,
 }: {
   readonly state: SaveState;
+  readonly savedEdit?: PendingNoteEdit | undefined;
   readonly onRetry: () => void;
 }) {
   const t = useTranslate();
@@ -960,11 +1141,21 @@ function SaveIndicator({
         </button>
       ) : (
         <span role="status" className="text-secondary">
-          {state === 'saving'
-            ? t('note.saving')
-            : state === 'dirty'
-              ? t('note.saveNeeded')
-              : t('note.saved')}
+          {state === 'saving' ? (
+            t('note.saving')
+          ) : state === 'dirty' ? (
+            t('note.saveNeeded')
+          ) : savedEdit && ['conflict', 'unsupported', 'rejected'].includes(savedEdit.state) ? (
+            <Link to="/settings">{t(`offline.note.${savedEdit.state}`)}</Link>
+          ) : savedEdit?.state === 'draft' ? (
+            t('offline.note.incomplete')
+          ) : savedEdit?.state === 'synchronized' ? (
+            t('offline.note.synchronized')
+          ) : state === 'local' || savedEdit ? (
+            t('offline.note.saved')
+          ) : (
+            t('note.saved')
+          )}
         </span>
       )}
     </div>

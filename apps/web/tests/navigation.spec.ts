@@ -333,7 +333,7 @@ const words = [1, 2].map((n) => ({
 
 test('nested Back actions clear menus and pending edits reach the same Deck', async ({ page }) => {
   await usePreferences(page, { locale: 'en', theme: 'dark' });
-  await useFixtures(page, { decks: [folder], notes: words });
+  await useFixtures(page, { decks: [folder], notes: words, collectionDownload: false });
   let saved = words[0]!;
   let release!: () => void;
   const pending = new Promise<void>((resolve) => {
@@ -420,7 +420,7 @@ test('failed autosaves and unapplied conversions retain their drafts when naviga
   page,
 }) => {
   await usePreferences(page, { locale: 'en', theme: 'light' });
-  await useFixtures(page, { decks: [folder], notes: words });
+  await useFixtures(page, { decks: [folder], notes: words, collectionDownload: false });
   let saved = words[0]!;
   let fail = true;
   await page.route(`**/api/notes/${saved.id}`, (route) => {

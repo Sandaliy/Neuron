@@ -7,6 +7,7 @@ import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 
+import { PendingNotes } from './pending-notes';
 import { PendingRenames } from './pending-renames';
 
 export function OfflineAccess() {
@@ -79,6 +80,7 @@ export function OfflineAccess() {
         </p>
       )}
       <PendingRenames />
+      <PendingNotes />
       <Dialog open={confirm} onOpenChange={setConfirm} title={t('offline.rebuild')}>
         <DialogBody>
           <p className="text-14 text-secondary">{t('offline.rebuildConfirm')}</p>

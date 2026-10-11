@@ -188,6 +188,7 @@ The user is supplied once when the set is built. Do not write ad hoc queries in 
 | `decks.ts`              | Deck tree operations, reorder, restore, `DeckCycle` and `DeckNotFound`                                    |
 | `collection-renames.ts` | Entity-revision rename commands, account write lock and immutable exact-delivery receipts                 |
 | `notes.ts`              | Note create/edit, browse, duplicates, bulk actions, moves and restore, `UnknownNoteType`                  |
+| `collection-notes.ts`   | Note content commands, observed revisions, immutable retries and safe Card reconciliation                 |
 | `note-types.ts`         | The built in types, and turning a type id into the name the wire carries                                  |
 | `cards.ts`              | Card reads including the due query, the per deck counts, suspend, reset                                   |
 | `reviews.ts`            | Recording a review, idempotent by id, and reading a log that respects a reset                             |
@@ -250,6 +251,7 @@ the api anywhere in browser code would cost the session cookie.
 | `auth/password-field.tsx`                       | The policy from `packages/shared`, judged when leaving the field rather than on every keystroke |
 | `settings/settings.tsx`                         | Theme, language, password, codes, the second factor, and leaving                                |
 | `settings/pending-renames.tsx`                  | Account-bound saved names, delivery status, original versions and explicit conflict recovery    |
+| `settings/pending-notes.tsx`                    | Saved Note versions, delivery states and explicit conflict recovery                             |
 | `settings/totp.tsx`                             | Enrollment in three steps that cannot be skipped, and removal                                   |
 | `library/library.tsx`                           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
 | `library/deck-dialogs.tsx`                      | Deck naming, safe move picker and inherited language/level settings                             |
@@ -259,9 +261,9 @@ the api anywhere in browser code would cost the session cookie.
 | `today/study.tsx`                               | Local Daily Study reveal/advance, interval previews, verified answers, Undo, and completion     |
 | `today/practice.tsx`                            | Schedule-free configurable field practice with repeated learning rounds                         |
 | `notes/note-list.tsx`                           | Virtualized note browse, search, filters, sorts and selection                                   |
-| `notes/note-editor.tsx`                         | Explicit create, autosaving edit, conditional fields and card preview                           |
+| `notes/note-editor.tsx`                         | Online creation, durable existing-Note content autosave and Card preview                        |
 | `notes/note-field.tsx`, `notes/note-header.tsx` | Shared field labels/value presentation and Note header/breadcrumbs for editing and reading      |
-| `notes/read-only-note.tsx`                      | Conditional Note reading without mounting autosave or server controls                           |
+| `notes/read-only-note.tsx`                      | Conditional read-only field/header composition                                                  |
 | `notes/note-selection.tsx`                      | Bulk known, move, tag and delete actions                                                        |
 | `notes/card-preview.tsx`                        | The cards a note will keep, add or remove                                                       |
 | `import/import-screen.tsx`                      | Parse, map, preview, deduplicate, chunk, resume, finish and undo an import                      |
@@ -297,37 +299,38 @@ every one of these in every state.
 
 ### The wiring (`src/lib/`, `src/i18n/`, `src/theme/`)
 
-| File                                       | Holds                                                                                   |
-| ------------------------------------------ | --------------------------------------------------------------------------------------- |
-| `lib/api.ts`                               | One request, the error envelope unpacked, and the code turned into a message key        |
-| `lib/auth-client.ts`                       | Better Auth over the same origin, and its own codes mapped onto the shared ones         |
-| `lib/account.ts`                           | Who is signed in. One query, and the session check for the whole app                    |
-| `lib/decks.ts`                             | The tree in one request, and adding up the roots                                        |
-| `lib/notes.ts`                             | Note queries, writes, bulk actions and batched duplicate lookup                         |
-| `lib/study-plan.ts`                        | Early authoritative default plan and account/revision/time compatibility for reuse      |
-| `lib/prompt.ts`                            | Build-time import of `docs/card-generation-prompt.md`                                   |
-| `lib/dialog-state.ts`                      | Resets dialog-local state whenever the dialog opens                                     |
-| `lib/deployment-api-origin.ts`             | Maps a web deployment to the matching api environment and fails closed for previews     |
-| `lib/storage.ts`                           | Local storage that cannot throw, because Safari's private mode does                     |
-| `lib/collection-db.ts`                     | Versioned account-scoped IndexedDB stores, atomic pull pages/cursors and cache recovery |
-| `lib/collection-read.ts`                   | Shared-schema offline collection projections for existing React Query reads             |
-| `lib/collection-outbox.ts`                 | Atomic rename intents, exact retry/acknowledgement and retained conflict recovery       |
-| `lib/collection-transport.ts`              | Collection GET fallback, confirmed transport loss and cancellation/account guards       |
-| `lib/offline.ts`                           | Remembered-account boundaries, pull coordination, connectivity and local sign-out       |
-| `lib/collection-failure.ts`                | Sanitized hydration-stage diagnostics without account identities or collection contents |
-| `lib/pwa.ts`, `scripts/service-worker.mjs` | Versioned shell registration, asset allowlist and non-disruptive worker lifecycle       |
-| `lib/viewport.ts`                          | Where the on-screen keyboard is, as CSS variables a sheet is positioned against         |
-| `preferences/device.ts`                    | A preference that belongs to the device: read at import, applied before React           |
-| `preferences/sync.ts`                      | Tells the account row, one request at a time, and discards the answer                   |
-| `preferences/glass.ts`                     | The three glass levels, and the ceiling the device puts on the chosen one               |
-| `preferences/motion.ts`                    | Whether movement is off, by the system's request or by hand                             |
-| `preferences/frame-rate.ts`                | Samples the frames during a scroll and lowers the glass when they are bad               |
-| `i18n/locale.ts`                           | Which language is on. The catalogue itself is in `packages/shared`                      |
-| `theme/theme.ts`                           | Which theme is on, and the copy of that rule `index.html` runs first                    |
-| `theme/use-theme.ts`                       | The theme as a device preference, and the hook that reads it                            |
-| `styles/global.css`                        | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft     |
-| `vercel.ts`                                | Same-origin api rewrites for production, preview branches, and local Vercel builds      |
-| `scripts/icons.mjs`                        | Draws the icons in `public/` from the same tokens                                       |
+| File                                       | Holds                                                                                           |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `lib/api.ts`                               | One request, the error envelope unpacked, and the code turned into a message key                |
+| `lib/auth-client.ts`                       | Better Auth over the same origin, and its own codes mapped onto the shared ones                 |
+| `lib/account.ts`                           | Who is signed in. One query, and the session check for the whole app                            |
+| `lib/decks.ts`                             | The tree in one request, and adding up the roots                                                |
+| `lib/notes.ts`                             | Note queries, writes, bulk actions and batched duplicate lookup                                 |
+| `lib/study-plan.ts`                        | Early authoritative default plan and account/revision/time compatibility for reuse              |
+| `lib/prompt.ts`                            | Build-time import of `docs/card-generation-prompt.md`                                           |
+| `lib/dialog-state.ts`                      | Resets dialog-local state whenever the dialog opens                                             |
+| `lib/deployment-api-origin.ts`             | Maps a web deployment to the matching api environment and fails closed for previews             |
+| `lib/storage.ts`                           | Local storage that cannot throw, because Safari's private mode does                             |
+| `lib/collection-db.ts`                     | Versioned account-scoped IndexedDB stores, atomic pull pages/cursors and cache recovery         |
+| `lib/collection-read.ts`                   | Shared-schema offline collection projections for existing React Query reads                     |
+| `lib/collection-outbox.ts`                 | Atomic rename intents, exact retry/acknowledgement and retained conflict recovery               |
+| `lib/note-outbox.ts`                       | Durable raw/valid Note drafts, frozen deliveries, acknowledged successors and explicit recovery |
+| `lib/collection-transport.ts`              | Collection GET fallback, confirmed transport loss and cancellation/account guards               |
+| `lib/offline.ts`                           | Remembered-account boundaries, pull coordination, connectivity and local sign-out               |
+| `lib/collection-failure.ts`                | Sanitized hydration-stage diagnostics without account identities or collection contents         |
+| `lib/pwa.ts`, `scripts/service-worker.mjs` | Versioned shell registration, asset allowlist and non-disruptive worker lifecycle               |
+| `lib/viewport.ts`                          | Where the on-screen keyboard is, as CSS variables a sheet is positioned against                 |
+| `preferences/device.ts`                    | A preference that belongs to the device: read at import, applied before React                   |
+| `preferences/sync.ts`                      | Tells the account row, one request at a time, and discards the answer                           |
+| `preferences/glass.ts`                     | The three glass levels, and the ceiling the device puts on the chosen one                       |
+| `preferences/motion.ts`                    | Whether movement is off, by the system's request or by hand                                     |
+| `preferences/frame-rate.ts`                | Samples the frames during a scroll and lowers the glass when they are bad                       |
+| `i18n/locale.ts`                           | Which language is on. The catalogue itself is in `packages/shared`                              |
+| `theme/theme.ts`                           | Which theme is on, and the copy of that rule `index.html` runs first                            |
+| `theme/use-theme.ts`                       | The theme as a device preference, and the hook that reads it                                    |
+| `styles/global.css`                        | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft             |
+| `vercel.ts`                                | Same-origin api rewrites for production, preview branches, and local Vercel builds              |
+| `scripts/icons.mjs`                        | Draws the icons in `public/` from the same tokens                                               |
 
 ### The gallery and the browser tests
 
@@ -342,19 +345,19 @@ every one of these in every state.
 
 ## Documentation
 
-| File                              | Holds                                                                              |
-| --------------------------------- | ---------------------------------------------------------------------------------- |
-| `docs/STATE.md`                   | Current phase, open threads, decision log. Read this first                         |
-| `docs/ROADMAP.md`                 | Product direction, committed milestone order, backlog and maintenance policy       |
-| `docs/architecture.md`            | Why the structure is what it is, and the known limitations                         |
-| `docs/algorithm.md`               | FSRS and the workload manager explained in full, with the simulator results        |
-| `docs/design-system.md`           | The visual system: tokens, inventory, motion, glass, the words, the checklist      |
-| `docs/card-generation-prompt.md`  | Canonical prompt and import output contract used by the web build                  |
-| `docs/design-principles.md`       | A pointer to the file above. The phase 5 values in it are all wrong now            |
-| `docs/copy-audit.md`              | Every interface string in both languages, and what looks wrong with it             |
-| `docs/offline-collection.md`      | Local-first reads, durable renames, account/shell boundaries and safe recovery     |
-| `docs/interaction-performance.md` | Stabilization diagnosis, matched browser measurements and device acceptance limits |
-| `docs/assets/*.svg`               | Charts produced by `sim/main.ts`                                                   |
+| File                              | Holds                                                                                     |
+| --------------------------------- | ----------------------------------------------------------------------------------------- |
+| `docs/STATE.md`                   | Current phase, open threads, decision log. Read this first                                |
+| `docs/ROADMAP.md`                 | Product direction, committed milestone order, backlog and maintenance policy              |
+| `docs/architecture.md`            | Why the structure is what it is, and the known limitations                                |
+| `docs/algorithm.md`               | FSRS and the workload manager explained in full, with the simulator results               |
+| `docs/design-system.md`           | The visual system: tokens, inventory, motion, glass, the words, the checklist             |
+| `docs/card-generation-prompt.md`  | Canonical prompt and import output contract used by the web build                         |
+| `docs/design-principles.md`       | A pointer to the file above. The phase 5 values in it are all wrong now                   |
+| `docs/copy-audit.md`              | Every interface string in both languages, and what looks wrong with it                    |
+| `docs/offline-collection.md`      | Local-first reads, durable renames/Note edits, account/shell boundaries and safe recovery |
+| `docs/interaction-performance.md` | Stabilization diagnosis, matched browser measurements and device acceptance limits        |
+| `docs/assets/*.svg`               | Charts produced by `sim/main.ts`                                                          |
 
 Collection recovery additions: `apps/api/src/db/repositories/purge.ts` owns irreversible deletion and
 server impact counts; `restoration.ts` owns operation-scoped subtree restoration. In the web Library,

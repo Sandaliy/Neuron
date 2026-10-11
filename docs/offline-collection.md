@@ -1,12 +1,12 @@
-# Local-first collection reads and durable offline renames
+# Local-first collection reads and durable offline editing
 
 Phase 8.1 adds a device cache for reading a previously downloaded collection. Online CRUD, scheduling,
 Study, Practice and Import still use their existing server endpoints and reconciliation. Offline reads
 reuse Library hierarchy rows, inline nested expansion, Deck headers/breadcrumbs, search/sorting/filtering
 and virtualized Note rows. Phase 8.2 displays completed local content while authoritative reads continue,
-and permits renaming existing Folders/Decks offline. Note details share their header and conditional field
-presentation with the editor through a reading component with no autosave controller. Study, Practice,
-Note editing/creation, Card generation, restoration and Import application remain online-only. Remote Note media is not
+and permits renaming existing Folders/Decks offline. Phase 8.3 uses the familiar Note Editor for existing
+Notes online and offline, with durable content drafts and safe authenticated delivery. Study, Practice,
+Note creation, type conversion, moves, deletion/restoration, explicit direction changes and Import application remain online-only. Remote Note media is not
 downloaded; its stored reference remains readable.
 
 ## Storage and initial download
@@ -17,7 +17,7 @@ validated, non-secret account presentation and `{ format, cursor, complete, outb
 retain each full sync envelope, including tombstones and `purged`, and its original server row:
 `decks`, `notes`, `cards`, `studyPresets`, `importBatches`, and `reviews`. Cards retain server schedules,
 reset boundaries and placed due dates; Review events retain their immutable history fields. No local
-schedule, Review or Practice command is created. The added `outbox` store retains rename commands and
+schedule, Review or Practice command is created. The `outbox` store retains rename and Note-edit commands and
 their original server rows, delivery outcomes and explicit resolution archives. Revision indexes are present on each
 entity store, with Deck indexes for Notes/Cards and Note/Card indexes for Cards/Reviews.
 
@@ -103,11 +103,13 @@ read in its existing retry/error flow. HTTP refusals and aborted reads never ini
 Interrupted response bodies follow the same transport classification as failed fetches.
 An isolated failed sync pull while the browser remains connected preserves online screens and records
 a stable download failure. An isolated failed online mutation retains its existing error/retry flow. Reconnection, window focus and Settings' Check connection
-Retry action request fresh server account validation; an unsuccessful attempt remains read-only.
+Retry action request fresh server account validation; transport failure retains local capabilities,
+while authentication rejection revokes access.
 Account and connectivity generations guard stale deliveries. The handover cancels pending reads and
 invalidates active collection observers without removing cached query entries or remounting Library
 and Deck screens. Complete snapshot reads replace those entries locally. Local capabilities permit only
-existing Folder/Deck rename; drag/drop, selection mutations, direct/swipe deletion and learning entry controls unmount;
+existing Folder/Deck rename and durable existing-Note content editing; drag/drop, selection mutations,
+direct/swipe deletion and learning entry controls unmount;
 control slots retain their measured space during the current visit. Search covers stored fields and
 tags; status, Card state, source, tag and supported sort filters use saved facts. Server-only due
 counts, Study readiness and Practice progress are hidden. Unreadable local snapshots revoke cache
@@ -140,14 +142,14 @@ beside navigation; no status is inserted before any screen header. Download stat
 remount online screens. A completed snapshot remains readable if incremental synchronization fails.
 Database open and
 transaction operations have bounded failure handling. Blocked/disabled storage, quota errors, unknown
-formats, future database versions and eviction retain ordinary online browsing. A rename cannot proceed
+formats, future database versions and eviction retain ordinary online browsing. A rename or local Note save cannot proceed
 when saved work cannot be checked safely. Recovery clears authoritative entity stores and sync metadata
 from revision zero in one transaction with the outbox check; it never deletes the database or outbox.
 Any pending, conflicted, rejected or unknown operation blocks Rebuild. An unreadable or future database
 also blocks destructive recovery. Synchronized receipts and explicit resolution archives survive a safe
 rebuild. Missing metadata never means a complete empty collection. Device storage is not a backup:
 browser eviction can remove unsynchronized work. Settings distinguishes saved locally from synchronized
-and offers copying a saved name separately.
+and offers copying saved names and Note versions separately.
 
 Failure diagnostics distinguish network/API transport, malformed protocol/boundaries, row schema,
 database open/read, transaction commit and explicit recovery. Only fixed error codes, entity names and
@@ -188,7 +190,106 @@ targets are never automatically restored. Keeping the server version is explicit
 than discards the losing command/base. Rejected operations remain recoverable by copying/archiving;
 transient delivery failures permit exact Retry. No device timestamp last-write-wins rule is used.
 
+## Existing Note content edits
+
+Phase 8.3 saves fields and tags for downloaded existing vocab, basic and cloze Notes. Text, translations,
+definitions, examples, accepted answers, part of speech and compatible grammar/media-reference metadata
+use the maintained field schemas and the same editor controls. Required-field gaps and excessive tags
+remain durable raw drafts until valid. The slice does not download media or add offline creation,
+conversion, moves, deletion/restoration, status/restart or explicit Card-direction operations.
+
+After a complete snapshot is available, ordinary existing-Note saves use IndexedDB before transport,
+including online visits. The existing 700ms typing debounce remains; navigation commits outstanding
+local changes before unmounting, and page hiding attempts a flush. Only a completed storage transaction
+claims a device save. Storage failure
+retains the visible draft, reports failure and offers Retry; leaving a failed draft requires explicit
+discard. Browser termination before a commit, eviction or cleared storage can still lose work. Device
+storage is not a backup.
+
+The unchanged schema-version-2 outbox adds `kind: note-edit`. One transaction retains the original
+observed Note row/revision, stable operation ID, latest working fields/tags and delivery state.
+Operations also have a transaction-allocated sequence, so clock correction and PWA reopening cannot
+select an older UUID as the latest draft. This sequence is local metadata, outside the frozen command.
+Unsent edits coalesce into that Note's latest draft; the original base never advances because of a background
+pull. Before first delivery, `started` freezes the command durably. Further edits update only the working
+draft. An applied acknowledgement atomically settles that command and queues any newer working draft
+under a new identity based on the acknowledged revision and canonical fields/tags. Exact retries retain
+the frozen ID and payload even if the server applied the first attempt without a received acknowledgement.
+Retry waits for an outstanding attempt before making a fresh attempt. An acknowledged archive shows
+the canonical fields/tags actually accepted; newer values belong to its successor. Old commands and resolution
+archives remain recoverable; there is no automatic time-based overwrite of a competing server version.
+
+`POST /notes/:id/offline-edit` accepts only account, operation ID, observed entity revision, fields and
+tags. It checks matching authentication, RLS ownership and live ancestry inside the account write lock.
+Unrelated account writes do not conflict. Shared validation and the normal history-aware Note/Card
+planner run in that same transaction. Surviving Cards retain identities, schedules, suspension/reset
+boundaries and immutable Reviews. Compatible new cloze slots use the established planner. **Any Card
+removal is unsupported**, including unanswered or answered-then-reset Cards; no destructive-confirmation
+override exists on this endpoint. Receipt insertion and Note/Card writes commit together. Immutable
+`sync_receipts` contain a digest and original outcome, without Note content. Altered retry payloads are
+rejected. No SQL migration is required.
+
+Changed Notes and deleted/purged Notes or ancestors produce retained conflicts without restoring or
+overwriting server data. Rejections and unsupported drafts never appear synchronized. Settings exposes
+the local draft, original version and freshly fetched current server version with familiar field labels,
+copy actions and explicit recovery. Applying a draft to a changed Note fetches its current revision,
+refuses changed type/Deck scope and atomically archives the losing operation before creating a new
+command. The server still rechecks revision and Card safety. Keeping the server version archives the
+losing local draft and original base. Deleted targets have no apply/restore action. Draft fields remain
+paired with their original type and Deck when reopening online or offline, including after a remote
+conversion. Recovery explains changed type/Deck scope and refuses to apply across it. Explicitly keeping
+the server version removes the inactive editor's cached draft overlay before its next visit.
+
+An untouched or fully saved form can observe a newer server baseline only when its displayed type,
+fields and tags match that row; older local snapshots cannot regress the observed revision. Explicit
+online conversion adopts its acknowledged row. Online status changes fetch the Note's revision because
+the bulk status acknowledgement contains only a count. These reads retain the mounted form. Pending
+content always retains its original base.
+
+The mounted editor owns its form state; reconciliation never resets fields, selection, focus or its
+Note-ID key. Data provenance does not select another editor or replace the established screen layout.
+Capabilities depend on connectivity, authenticated authority and unresolved work. Note events use a
+separate channel, update one derived collection row and patch cached Note pages; they do not notify
+global collection observers or reopen whole-collection stores while typing. Pages carrying local content
+cannot seed authoritative learning pools. Rebuild continues to reject unresolved drafts, operations and
+unreadable/future storage. Editor saves and delivery settlements check the original account visit;
+sign-out, expiry and account switching revoke access and retain account-isolated pending work.
+
+`offline-notes.spec.ts` covers untouched provisional data, mounted form/focus/caret/scroll/geometry,
+zero extra Note/Card scans during typing and settlement, content/accepted-answer persistence, multiple
+edits during a frozen delivery, conflicts, raw invalid drafts, quota failure during navigation, unreadable
+upgraded storage, expiry, sign-out, account
+switches during delivery, malformed/rejected acknowledgements, Card-removal refusal and blocked Rebuild.
+It also preserves explicit online conversion confirmation and subsequent content editing after confirmed
+conversion/status changes and a return to an older local snapshot.
+Clock-correction/reopening coverage verifies that newer operations remain visible and deliverable even
+when their UUID timestamps sort before earlier synchronized operations.
+`collection-notes.test.ts` exercises real PostgreSQL/RLS, competing operations, exact immutable retries,
+remote edits/deletion/purge/ancestry, validation, cloze additions and answered/reset history protection.
+The live PWA journey also edits Notes across actual server loss and shell reopening, then reconciles
+against real PostgreSQL with an applied acknowledgement lost deliberately.
+
+Physical-iPhone Phase 8.3 acceptance remains separate: download completely; edit multiple fields offline;
+wait for Saved on device (or Draft on device for invalid content); close/reopen the installed PWA;
+verify both raw and valid drafts; reconnect while typing; test competing
+remote edits and deletion; inspect recovery; expire/sign out/switch accounts and recover under the matching
+account; verify keyboard, Today/Library navigation, Deck layout, Setup, swipe and security motion. Copy
+important unsynchronized work before testing storage clearing. PR #49's physical acceptance remains valid
+for the earlier browsing/rename/stabilization release.
+
 ## Verification and later writes
+
+Phase 8.3 release verification on Windows passed 1,088 unit/PostgreSQL tests across 98 files, including
+the eight real Note-edit/RLS cases; all package typechecks, source lint, isolation/design checks,
+formatting and the production web build also passed. The built one-worker phone/desktop interaction gate
+passed 520 cases with four opt-in database journeys and two WebKit-only touch cases skipped by that
+selection. All 66 unchanged visual cases and all five enforced 55 FPS performance cases at 4× CPU passed.
+The dedicated existing-Note suite passed all 36 Chromium/mobile WebKit cases.
+The two real offline/PWA HTTP/PostgreSQL journeys and the two real learning journeys passed separately
+in Chromium and mobile WebKit. Live fixtures wait for the initial HTTP pull and failed account request
+before asserting client progress; their cursor, payload, receipt and five-second UI assertions remain intact.
+All 62 affected mobile WebKit offline cases and the committed touch-swipe regression passed. This is
+targeted coverage, not a rerun or clearance of the historical extended WebKit drag finding.
 
 `offline-live.spec.ts` is opt-in with `CI=true OFFLINE_DATABASE_E2E=true` and the guarded
 `DATABASE_URL_TEST`. It uses actual HTTP, authenticated collection routes and restricted-role
@@ -214,8 +315,7 @@ online browser hints during genuine transport loss, nested expansion/search/deta
 geometry and scroll retention, missing snapshots, false outage prevention and delayed account validation.
 Chromium and WebKit provide browser evidence. PR #47 merged at `e63c64d`; the owner accepted installed
 iPhone offline reopening, Library/Deck/Note browsing, parity and in-session connectivity transitions.
-Phase 8.2 first-entry latency, persisted rename, authenticated reconnect and conflict recovery require
-new physical-iPhone acceptance.
+Phase 8.2 and its stabilization through PR #49 are merged and accepted on the physical iPhone.
 
 `offline-renames.spec.ts` covers persistence, exact lost-ack retries, original dialog revisions, conflicts,
 rejections, session expiry, cross-account isolation, explicit sign-out, quota/transaction abort and safe
@@ -254,7 +354,7 @@ budget. The full serial phone/desktop interaction gate passed 472 tests with six
 skipped; the offline live PostgreSQL/browser path was separately run in Chromium and WebKit.
 All 66 Windows visual cases passed, with the gallery rerun after a Chromium resource-loading failure.
 
-Offline Note editing/creation and Card generation still need atomic shared planning/identity contracts.
+Offline Note creation and its initial Card identity mapping remain later work.
 Local Study admission, scheduling/replay and Review/Undo delivery need separate ownership and failure
 verification; persistent Practice transport and offline Import application are also absent. Current
 server authorization, immutable Review semantics and deletion/restoration ownership remain authoritative.

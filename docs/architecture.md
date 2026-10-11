@@ -613,14 +613,14 @@ that mapping is unavailable. The old `/spike` page remains deleted.
 **The PWA supports downloaded collection reading offline.** Phase 8.1 adds account-scoped, versioned
 IndexedDB storage using whole revision-boundary pulls. Each page and cursor commit atomically;
 interrupted initial hydration remains unavailable offline until a final page commits. Existing React
-Query collection keys and shared schemas supply read-only Folder, Deck and Note views. A remembered
-account grants local reading and saving a rename intent, while reconnection validates authorization before online
+Query collection keys and shared schemas supply collection views. A remembered
+account grants local reading and saving rename/Note content intent, while reconnection validates authorization before online
 controls return. Explicit sign-out blocks automatic cookie reuse and revokes other open tabs.
 Collection transport failures confirm connectivity through account validation even when browser hints
 remain online. Aborted requests, HTTP errors and isolated mutation/sync failures retain their existing
 handling. Handover cancels and invalidates reads while retaining cached entries and mounted Library/
 Deck screens. Read-only capabilities reuse hierarchy rows, breadcrumbs, search/filtering and virtual
-Note rows; shared Note headers/fields provide a reading view without mounting autosave. In-session
+Note rows; Phase 8.3 mounts the familiar existing Note Editor for durable content drafts. In-session
 control slots retain geometry while server-dependent controls unmount. Missing or unreadable local
 snapshots never make stale online rows appear available offline. Connectivity generations also prevent
 late account responses from restoring online operations after another disconnect.
@@ -634,7 +634,7 @@ update guidance live in Settings. No global message precedes page headers. Repea
 joins the active visit instead of queuing downloads; ordinary focus does not retry a failed download.
 An existing complete snapshot stays available during incremental pulls and transient failures.
 Phase 8.2 can seed completed local reads into existing query entries while authoritative GETs continue.
-Local provenance prevents autosave and learning readiness from using provisional data. A cursor/outbox
+Untouched provisional data never triggers autosave; learning readiness still requires authority. A cursor/outbox
 version projection shares snapshot validation/scans without a second durable cache. Online presentation
 retains its normal controls and geometry while required authority disables actions. Provisional freshness
 is zero, so cancelled first reads retry on return. Cached queries avoid snapshot work; ordinary browse
@@ -644,7 +644,13 @@ not notify the global offline observers. The account-bound
 outbox atomically saves existing Folder/Deck rename intent and its original row/revision. Matching
 authenticated reconnection retries the immutable operation; Settings retains conflicts/rejections and
 offers explicit recovery. Compatible database upgrades preserve records. Browser eviction can still
-remove unsynchronized work. Offline Notes, local Study, Review/Undo, Practice synchronization and Import
+remove unsynchronized work. Existing Note content edits retain their observed Note revision and original
+base; delivery freezes the exact command before sending, and further working edits form a new operation
+after acknowledgement. A matching account/RLS transaction reuses shared validation and history-aware
+Card planning, refuses all Card removals and stores an immutable digest/outcome receipt. Conflict recovery
+retains both versions and requires explicit fresh-revision application. Note events patch one collection
+row without whole-store scans or global notifications; mounted form state remains independent of reconciliation.
+Offline Note creation, local Study, Review/Undo, Practice synchronization and Import
 application remain unavailable. See [offline collection contracts](offline-collection.md).
 
 **Preview data is separate and empty.** The long-lived Neon `preview` branch is schema-only, and its
