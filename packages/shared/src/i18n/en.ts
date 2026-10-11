@@ -62,6 +62,33 @@ export const en = {
     'Delivery could not finish. Your saved change is retained; try again after reconnecting.',
   'offline.rebuildBlocked':
     'Rebuild is blocked because saved changes have not synchronized or been resolved. Recover them first.',
+  'offline.recentActivity': 'Recent activity',
+  'offline.moreActivity': 'Show more',
+  'offline.currentVersion': 'Current version',
+  'offline.originalName': 'Original name: {name}',
+  'offline.workSaved': 'All saved work is synchronized.',
+  'offline.workPending': '{count} saved changes waiting to synchronize.',
+  'offline.workAttention': '{count} saved changes need your attention.',
+  'offline.checkingWork': 'Checking saved work…',
+  'offline.reviews': 'Study answers',
+  'offline.reviewArchived': 'Kept for recovery. These events were not synchronized.',
+  'offline.reviewArchivedConfirmed': 'Kept for recovery. The server confirmed this event.',
+  'offline.archiveReviews': 'Keep session for recovery',
+  'offline.archiveReviewConfirm':
+    'Keep this session’s undelivered answers and Undo events on this device without retrying them. They will not change server history. A new Study session will use the server’s current schedules.',
+  'offline.reviewAnswer': 'Study answer',
+  'offline.reviewPending': 'Saved on this device. Waiting to synchronize.',
+  'offline.reviewRejected':
+    'This answer needs recovery. Later answers are kept safely on this device.',
+  'offline.reviewIdReused':
+    'The server has a different event with this identity. Keep a copy for recovery.',
+  'offline.reviewMissing':
+    'The card or answer is no longer available on the server. Restore it if possible, then retry.',
+  'offline.reviewInterrupted':
+    'Delivery was interrupted or could not be confirmed. Retry keeps the same answer.',
+  'offline.copyRecovery': 'Copy recovery record',
+  'error.review_delivery_pending':
+    'Synchronize saved Study answers in Settings before starting another session.',
   'offline.access': 'Offline access',
   'offline.ready': 'Collection downloaded for offline reading.',
   'offline.pending': 'The collection has not finished downloading yet.',
@@ -85,7 +112,7 @@ export const en = {
     'The downloaded collection could not be rebuilt. Close other Neuron windows and try again.',
   'offline.title': 'Offline · collection reading',
   'offline.readOnly':
-    'Browse downloaded Folders, Decks and Notes, rename existing collections, and edit existing Notes. Study, Practice, Note creation and Import require a connection.',
+    'Browse downloaded Folders, Decks and Notes, rename existing collections, and edit existing Notes. Starting Study, Practice, Note creation and Import require a connection. A Study session already started online can continue.',
   'offline.session':
     'Offline access uses the account previously signed in on this device. The server session has not been freshly validated.',
   'offline.incomplete':
@@ -291,7 +318,9 @@ export const en = {
   'study.policyPause': 'New material is limited to leave room for reviews.',
   'study.summaryTime': '{minutes} min spent',
   'study.nextReturn': 'Next scheduled review: {time}',
-  'study.waitForSave': 'Wait for answers to save, or retry the failed save.',
+  'study.savingLocally': 'Saving on this device…',
+  'study.notSavedLocally': 'Answer not saved on this device. Retry before leaving Study.',
+  'study.waitForSave': 'Wait for the answer to save on this device, or retry the failed save.',
   'study.minutes': 'Time for this session',
   'study.defaultTime': 'Daily plan',
   'study.oneOff': 'Applies only to this session. Your daily plan stays the same.',
@@ -897,6 +926,8 @@ export const en = {
 
   'error.not_authenticated': 'Sign in to continue.',
   'error.not_allowed': 'That action was refused. Reload the page and try again.',
+  'error.review_id_reused':
+    'That Study event identity is already used for a different answer. Keep the saved recovery record.',
   'error.not_found': 'That is not here.',
   'error.invalid_request': 'Something in that request was not right.',
   'error.name_taken': 'That name is already used here.',

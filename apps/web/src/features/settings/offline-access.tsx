@@ -9,6 +9,8 @@ import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 
 import { PendingNotes } from './pending-notes';
 import { PendingRenames } from './pending-renames';
+import { PendingReviews } from './pending-reviews';
+import { SyncSummary } from './sync-summary';
 
 export function OfflineAccess() {
   const t = useTranslate();
@@ -23,6 +25,7 @@ export function OfflineAccess() {
     <section aria-label={t('offline.access')} className="flex flex-col gap-12">
       <GroupLabel>{t('offline.access')}</GroupLabel>
       <Card className="flex flex-col gap-12">
+        <SyncSummary />
         <p role="status" className="text-14 text-secondary">
           {t(
             state.available
@@ -81,6 +84,7 @@ export function OfflineAccess() {
       )}
       <PendingRenames />
       <PendingNotes />
+      <PendingReviews />
       <Dialog open={confirm} onOpenChange={setConfirm} title={t('offline.rebuild')}>
         <DialogBody>
           <p className="text-14 text-secondary">{t('offline.rebuildConfirm')}</p>

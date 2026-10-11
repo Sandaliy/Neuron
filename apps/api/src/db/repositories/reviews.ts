@@ -19,7 +19,7 @@ import type {
 } from '@neuron/core';
 import { uuidV7 } from '@neuron/shared';
 
-import { cards, reviews, user, notes, learningRestarts } from '../schema/index.js';
+import { cards, reviews, user, notes, learningRestarts, syncReceipts } from '../schema/index.js';
 
 import {
   fromReviewLog,
@@ -88,7 +88,11 @@ export interface RecordedReview {
 
 export interface ReviewRepository {
   restartDeck: (deckId: string, eventId: string, noteId?: string) => Promise<number>;
-  undo: (reviewId: string, eventId: string) => Promise<typeof cards.$inferSelect>;
+  undo: (
+    reviewId: string,
+    eventId: string,
+    submittedAt?: Date,
+  ) => Promise<typeof cards.$inferSelect & { cancellationId: string }>;
   record: (input: RecordReview) => Promise<RecordedReview>;
   /** Every answer for one card that still counts, oldest first. */
   forCard: (cardId: string) => Promise<ReviewLog[]>;
@@ -333,8 +337,32 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
         return eligible.length;
       });
     },
-    async undo(reviewId, eventId) {
+    async undo(reviewId, eventId, submittedAt) {
       return run(async (tx) => {
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update');
+        const fingerprint = `review-undo:${eventId}`;
+        const [aliasReceipt] = await tx
+          .select()
+          .from(syncReceipts)
+          .where(and(eq(syncReceipts.userId, userId), eq(syncReceipts.fingerprint, fingerprint)));
+        const alias = aliasReceipt?.outcome.reviewUndo;
+        if (
+          aliasReceipt &&
+          (!alias ||
+            alias.targetId !== reviewId ||
+            alias.submittedAt !== (submittedAt?.toISOString() ?? null))
+        )
+          throw new ReviewIdReused();
+        const [receipt] = await tx
+          .select()
+          .from(reviews)
+          .where(and(eq(reviews.userId, userId), eq(reviews.id, eventId)));
+        if (
+          receipt &&
+          (receipt.cancelsReviewId !== reviewId ||
+            (submittedAt && receipt.submittedAt?.getTime() !== submittedAt.getTime()))
+        )
+          throw new ReviewIdReused();
         const [original] = await tx
           .select()
           .from(reviews)
@@ -350,15 +378,33 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
         const [card] = await tx
           .select()
           .from(cards)
-          .where(
-            and(eq(cards.userId, userId), eq(cards.id, original.cardId), isNull(cards.deletedAt)),
-          );
+          .where(and(eq(cards.userId, userId), eq(cards.id, original.cardId)));
         if (!card) throw new CardNotFound(original.cardId);
         const [existing] = await tx
           .select()
           .from(reviews)
           .where(and(eq(reviews.userId, userId), eq(reviews.cancelsReviewId, reviewId)));
-        if (existing) return card;
+        if (existing) {
+          if (alias && alias.cancellationId !== existing.id) throw new ReviewIdReused();
+          if (!receipt && !aliasReceipt) {
+            // Acknowledging an already-canceled target still consumes this
+            // command identity, without inserting a duplicate cancellation.
+            await tx.insert(syncReceipts).values({
+              userId,
+              fingerprint,
+              outcome: {
+                clamped: false,
+                reviewUndo: {
+                  targetId: reviewId,
+                  submittedAt: submittedAt?.toISOString() ?? null,
+                  cancellationId: existing.id,
+                },
+              },
+            });
+          }
+          return { ...card, cancellationId: existing.id };
+        }
+        if (card.purgedAt) throw new CardNotFound(card.id);
         const rev = await nextRev(tx, userId);
         await tx
           .insert(reviews)
@@ -366,6 +412,7 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
             ...original,
             id: eventId,
             cancelsReviewId: reviewId,
+            submittedAt: submittedAt ?? null,
             createdAt: new Date(),
             rev,
           })
@@ -381,11 +428,10 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
             .from(reviews)
             .where(and(eq(reviews.userId, userId), eq(reviews.cancelsReviewId, reviewId)))
             .limit(1);
-          if (concurrent) return card;
+          if (concurrent) return { ...card, cancellationId: concurrent.id };
         }
-        if (!written || written.cancelsReviewId !== reviewId) {
-          throw new Error('undo event id is already in use');
-        }
+        if (!written) throw new CardNotFound(reviewId);
+        if (written.cancelsReviewId !== reviewId) throw new ReviewIdReused();
         const state = await projectionFor(tx, userId, card.id);
         const [updated] = await tx
           .update(cards)
@@ -398,7 +444,7 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
           .where(and(eq(cards.userId, userId), eq(cards.id, card.id)))
           .returning();
         if (!updated) throw new CardNotFound(card.id);
-        return updated;
+        return { ...updated, cancellationId: eventId };
       });
     },
     async record(input) {
@@ -406,6 +452,13 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
         const id = input.id ?? uuidV7();
         // Serialize projection reads as well as writes with recent-answer undo.
         await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update');
+        const [aliasReceipt] = await tx
+          .select({ fingerprint: syncReceipts.fingerprint })
+          .from(syncReceipts)
+          .where(
+            and(eq(syncReceipts.userId, userId), eq(syncReceipts.fingerprint, `review-undo:${id}`)),
+          );
+        if (aliasReceipt) throw new ReviewIdReused();
         const [existing] = await tx
           .select()
           .from(reviews)

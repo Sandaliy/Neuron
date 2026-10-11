@@ -29,6 +29,7 @@ export const API_ERROR_CODES = [
   'not_found',
   /** The request body or query did not match its schema. */
   'invalid_request',
+  'review_id_reused',
   /** A name that has to be unique among its siblings already exists. */
   'name_taken',
   /** A deck was asked to be moved inside itself. */
@@ -118,6 +119,7 @@ export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
   not_allowed: 403,
   not_found: 404,
   invalid_request: 400,
+  review_id_reused: 409,
   name_taken: 409,
   deck_cycle: 409,
   restore_dependency: 409,

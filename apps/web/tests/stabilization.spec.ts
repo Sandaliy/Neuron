@@ -3,7 +3,12 @@ import { expect, test } from '@playwright/test';
 import { advancePractice } from '@neuron/shared';
 import type { PracticeRun } from '@neuron/shared';
 
-import { useFixtures, usePreferences, waitForPracticeSave } from './fixtures';
+import {
+  reviewAcknowledgement,
+  useFixtures,
+  usePreferences,
+  waitForPracticeSave,
+} from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -425,6 +430,7 @@ test('undo is local during a delayed save and regrade follows its compensation',
     if (events.length === 1) await barrier;
     await route.fulfill({
       json: {
+        ...reviewAcknowledgement(route),
         card: {
           ...card,
           state: 'review',
@@ -439,7 +445,7 @@ test('undo is local during a delayed save and regrade follows its compensation',
   });
   await page.route('**/api/reviews/undo', async (route) => {
     events.push('undo');
-    await route.fulfill({ json: { card } });
+    await route.fulfill({ json: { ...reviewAcknowledgement(route), card } });
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Study', exact: true }).click();

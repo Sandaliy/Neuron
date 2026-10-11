@@ -189,6 +189,15 @@ test('offline rename survives reload; lost acknowledgement retries the exact ope
   expect(state.deliveries).toEqual([saved.payload, saved.payload]);
   expect(state.deck.rev).toBe(2);
   await page.reload();
+  await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
+  await page
+    .getByRole('region', { name: 'Saved name changes' })
+    .getByRole('button', { name: 'Recent activity', exact: true })
+    .click();
+  await page
+    .getByRole('region', { name: 'Saved name changes' })
+    .getByRole('button', { name: 'Saved offline name', exact: true })
+    .click();
   await expect(page.getByText('Synchronized with the server', { exact: true })).toBeVisible();
   expect(state.deliveries).toHaveLength(2);
 });
@@ -403,7 +412,7 @@ test('future database versions block recovery and retain the immutable outbox', 
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('pending');
   const saved = await stored(page);
   await page.evaluate(async (accountId) => {
-    const opened = indexedDB.open(`neuron.collection:${accountId}`, 3);
+    const opened = indexedDB.open(`neuron.collection:${accountId}`, 4);
     await new Promise<void>((resolve, reject) => {
       opened.onsuccess = () => {
         opened.result.close();

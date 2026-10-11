@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 
 /** Wait for acknowledged Practice transport before navigating or reloading. */
 export async function waitForPracticeSave(page: Page) {
@@ -448,4 +448,12 @@ export async function usePreferences(
     },
     preferences as Record<string, string>,
   );
+}
+
+/** Real Review acknowledgements identify the exact submitted immutable event. */
+export function reviewAcknowledgement(route: Route) {
+  const body = route.request().postDataJSON();
+  return route.request().url().endsWith('/undo')
+    ? { id: body.id, reviewId: body.reviewId, cancellationId: body.id }
+    : { id: body.id, cardId: body.cardId, applied: true, resync: false, clamped: false };
 }

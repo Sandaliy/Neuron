@@ -28,6 +28,8 @@ import {
   noteEditFor,
   noteEditOverlay,
 } from './note-outbox';
+import { cancelReviewDelivery, deliverReviews, onReviewOutboxChange } from './review-outbox';
+import { projectConfirmedReview } from './review-projection';
 
 import type { CollectionDiagnostic, CollectionStage } from './collection-failure';
 import type { QueryClient, InfiniteData } from '@tanstack/react-query';
@@ -63,6 +65,7 @@ let state: OfflineState = {
 const listeners = new Set<() => void>();
 let client: QueryClient | undefined;
 let epoch = 0;
+const confirmedReviewCards = new Map<string, Card>();
 let connection = 0;
 let probing: Promise<void> | undefined;
 let controller: AbortController | undefined;
@@ -129,8 +132,10 @@ async function transitionReads(local: boolean) {
 /** Revocation happens before transport; late pulls/account requests cannot re-enable this visit. */
 export function revokeOffline(explicit = false) {
   clearCollectionProjection();
+  confirmedReviewCards.clear();
   cancelRenameDelivery();
   cancelNoteDelivery();
+  cancelReviewDelivery();
   epoch++;
   clearTimeout(timer);
   controller?.abort();
@@ -218,6 +223,7 @@ export function acceptAccount(account: Me, startedEpoch: number, startedConnecti
     revokeOffline();
   }
   emit({ offline: false, validated: true, accountId: account.id });
+  void deliverReviews();
   if (reconnecting) void transitionReads(false);
   // Authentication fields are selected explicitly by meSchema; cookies/tokens never enter this store.
   // Repeated account reads/navigation join the current visit; they never queue pulls.
@@ -239,6 +245,7 @@ export function networkLost() {
   emit({ offline: true, validated: false });
   cancelRenameDelivery();
   cancelNoteDelivery();
+  cancelReviewDelivery();
   controller?.abort();
   void transitionReads(true);
 }
@@ -375,6 +382,36 @@ export function retryConnection() {
 
 export function initializeOffline(queryClient: QueryClient) {
   client = queryClient;
+  onReviewOutboxChange((change) => {
+    if (change.accountId !== state.accountId) return;
+    void client?.invalidateQueries({ queryKey: ['review-outbox', change.accountId] });
+    if (change.saved) {
+      void client?.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
+      void deliverReviews();
+    } else if (
+      change.entry &&
+      ['synchronized', 'archived'].includes(change.entry.state) &&
+      change.entry.acknowledgement &&
+      client
+    ) {
+      const after = change.entry.acknowledgement.card;
+      const before = confirmedReviewCards.get(after.id) ?? change.entry.before;
+      projectConfirmedReview(client, before, after, new Date());
+      confirmedReviewCards.set(after.id, after);
+      void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
+      void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
+      void client.invalidateQueries({ queryKey: ['notes'], refetchType: 'none' });
+      const visit = epoch;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        // Reconcile immutable history after this delivery batch, including a
+        // hydration page whose revision boundary preceded the acknowledgement.
+        void (running ?? Promise.resolve()).then(() => {
+          if (visit === epoch) refreshDownload();
+        });
+      }, 500);
+    }
+  });
   onNoteOutboxChange((change) => {
     const id = state.accountId;
     const visit = epoch;
@@ -470,8 +507,10 @@ export function initializeOffline(queryClient: QueryClient) {
   window.addEventListener('storage', (event) => {
     if (event.key === SIGNED_OUT_KEY) {
       if (event.newValue === 'true') {
+        confirmedReviewCards.clear();
         cancelRenameDelivery();
         cancelNoteDelivery();
+        cancelReviewDelivery();
         epoch++;
         controller?.abort();
         db?.close();
@@ -488,8 +527,10 @@ export function initializeOffline(queryClient: QueryClient) {
       } else emit({ signedOut: false });
     }
     if (event.key === CONTEXT_KEY && event.newValue !== state.accountId) {
+      confirmedReviewCards.clear();
       cancelRenameDelivery();
       cancelNoteDelivery();
+      cancelReviewDelivery();
       epoch++;
       controller?.abort();
       db?.close();
@@ -507,7 +548,10 @@ export function initializeOffline(queryClient: QueryClient) {
   });
   window.addEventListener('focus', () => {
     if (state.offline && navigator.onLine) void retryConnection();
-    else refreshDownload();
+    else {
+      void deliverReviews();
+      refreshDownload();
+    }
   });
   client.getMutationCache().subscribe((event) => {
     if (event.type === 'updated' && event.mutation.state.status === 'success') {

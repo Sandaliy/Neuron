@@ -13,7 +13,7 @@ import type { PendingRename } from './collection-outbox';
 import type { PendingNoteEdit } from './note-outbox';
 
 export const COLLECTION_VERSION = 1;
-export const COLLECTION_DATABASE_VERSION = 2;
+export const COLLECTION_DATABASE_VERSION = 3;
 export const collectionName = (accountId: string) => `neuron.collection:${accountId}`;
 export interface CollectionMeta {
   cursor: number;
@@ -36,6 +36,10 @@ export function openCollection(accountId: string): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta');
+      if (!db.objectStoreNames.contains('review-outbox')) {
+        const store = db.createObjectStore('review-outbox', { keyPath: 'operationId' });
+        store.createIndex('state', 'state');
+      }
       if (!db.objectStoreNames.contains('outbox'))
         db.createObjectStore('outbox', { keyPath: 'operationId' });
       for (const entity of SYNC_ENTITIES) {
@@ -59,7 +63,9 @@ export function openCollection(accountId: string): Promise<IDBDatabase> {
       settled = true;
       db.onversionchange = () => db.close();
       if (
-        !['meta', 'outbox', ...SYNC_ENTITIES].every((store) => db.objectStoreNames.contains(store))
+        !['meta', 'outbox', 'review-outbox', ...SYNC_ENTITIES].every((store) =>
+          db.objectStoreNames.contains(store),
+        )
       ) {
         db.close();
         reject(new Error('collection_incompatible'));
@@ -259,9 +265,16 @@ export async function snapshot(
 export async function deleteCollection(accountId: string): Promise<void> {
   const db = await openCollection(accountId);
   try {
-    const tx = db.transaction(['meta', 'outbox', ...SYNC_ENTITIES], 'readwrite');
+    const tx = db.transaction(['meta', 'outbox', 'review-outbox', ...SYNC_ENTITIES], 'readwrite');
     const done = committed(tx);
     let blocked = false;
+    const reviewRead = tx.objectStore('review-outbox').getAll();
+    reviewRead.onsuccess = () => {
+      if (reviewRead.result.some((entry: { state: string }) => entry.state !== 'synchronized')) {
+        blocked = true;
+        tx.abort();
+      }
+    };
     const read = tx.objectStore('outbox').getAll();
     read.onsuccess = () => {
       if (

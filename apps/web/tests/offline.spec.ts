@@ -1311,7 +1311,7 @@ test('future database versions block unsafe rebuild without changing online beha
   await installOfflineFixtures(page, context);
   await download(page);
   await page.evaluate(async () => {
-    const request = indexedDB.open('neuron.collection:offline-reader', 3);
+    const request = indexedDB.open('neuron.collection:offline-reader', 4);
     const db = await new Promise<IDBDatabase>((resolve) => {
       request.onsuccess = () => resolve(request.result);
     });

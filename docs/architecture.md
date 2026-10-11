@@ -650,8 +650,12 @@ after acknowledgement. A matching account/RLS transaction reuses shared validati
 Card planning, refuses all Card removals and stores an immutable digest/outcome receipt. Conflict recovery
 retains both versions and requires explicit fresh-revision application. Note events patch one collection
 row without whole-store scans or global notifications; mounted form state remains independent of reconciliation.
-Offline Note creation, local Study, Review/Undo, Practice synchronization and Import
-application remain unavailable. See [offline collection contracts](offline-collection.md).
+An already-admitted Study sitting now commits durable account-scoped Review/cancellation intents before
+advance or exit. Exact causal delivery reconciles server history and schedules; rejected streams stay
+recoverable. New admission remains online, and reload ends the visit-local Undo stack while retaining
+pending intents. Settings bounds optional synchronized receipt detail and keeps unresolved work visible.
+Offline Note creation, local Study planning, Practice synchronization and Import application remain
+unavailable. See [offline collection contracts](offline-collection.md) and [durable Study transport](offline-study.md).
 
 **Preview data is separate and empty.** The long-lived Neon `preview` branch is schema-only, and its
 `neuron_preview` database contains no production rows. Its application role, authentication role, and

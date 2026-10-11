@@ -1,4 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { useBlocker } from '@tanstack/react-router';
 import { Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -27,7 +26,8 @@ import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { settingsFor, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
-import { projectConfirmedReview } from '../../lib/review-projection';
+import { accountEpoch, offlineState, useOffline } from '../../lib/offline';
+import { saveReviewIntent, requireDeliveredReviews } from '../../lib/review-outbox';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
 import { captureLearningReveal, LearningCard } from '../../ui/learning-card';
@@ -92,7 +92,8 @@ type SessionAnswer = {
   priorDue: string | undefined;
 };
 type Transport =
-  { kind: 'answer'; entry: SessionAnswer } | { kind: 'undo'; entry: SessionAnswer; id: string };
+  | { kind: 'answer'; entry: SessionAnswer }
+  | { kind: 'undo'; entry: SessionAnswer; id: string; reviewedAt: string };
 const RATINGS = ['again', 'hard', 'good', 'easy'] as const;
 
 export function StudyScreen({
@@ -110,7 +111,7 @@ export function StudyScreen({
 }) {
   const t = useTranslate();
   const toast = useToast();
-  const client = useQueryClient();
+  const connection = useOffline();
   const account = useAccount();
   const decks = useDeckTree();
   const [typed, setTyped] = useState('');
@@ -130,6 +131,8 @@ export function StudyScreen({
   const [error, setError] = useState<unknown>();
   const [transportError, setTransportError] = useState<unknown>();
   const [pending, setPending] = useState(0);
+  const [savingAnswer, setSavingAnswer] = useState(false);
+  const [undoQueued, setUndoQueued] = useState(false);
   const [answered, setAnswered] = useState(0);
   const [answeredCards, setAnsweredCards] = useState<Record<string, number>>({});
   const [reason, setReason] = useState('');
@@ -140,10 +143,12 @@ export function StudyScreen({
   const [historyCount, setHistoryCount] = useState(0);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const history = useRef<SessionAnswer[]>([]);
-  const transport = useRef<Transport[]>([]);
-  const transportBusy = useRef(false);
-  const confirmedAnswers = useRef(new Map<string, StudyCard>());
-  const projectedAnswers = useRef(new Set<string>());
+  const commitBusy = useRef(false);
+  const uncommitted = useRef<Transport | undefined>(undefined);
+  const deferredUndo = useRef<Extract<Transport, { kind: 'undo' }> | undefined>(undefined);
+  const sessionId = useRef(uuidV7());
+  const owner = useRef(account.data?.id);
+  const visit = useRef(accountEpoch());
   const queue = useRef<SessionQueue>({ planned: [], retries: [], retryMayRun: false });
   const cards = useRef(new Map<string, StudyCard>());
   const projectedDue = useRef(new Map<string, string>());
@@ -155,15 +160,14 @@ export function StudyScreen({
   const note = plan?.notes.find((item) => item.id === current?.noteId);
   useBlocker({
     shouldBlockFn: () => {
-      // A native pop can arrive before the hook's effect re-registers. Read the
-      // live transport queue so acknowledgement immediately releases navigation.
-      if (transport.current.length) {
+      // Read the transaction ref even before React publishes its saving state.
+      if (uncommitted.current) {
         toast.show(t('study.waitForSave'));
         return true;
       }
       return false;
     },
-    enableBeforeUnload: () => transport.current.length > 0,
+    enableBeforeUnload: () => !!uncommitted.current,
   });
 
   function next() {
@@ -193,6 +197,9 @@ export function StudyScreen({
     setLoading(true);
     setError(undefined);
     try {
+      if (!initialPlan && owner.current) await requireDeliveredReviews(owner.current);
+      if (!initialPlan && (offlineState().offline || !offlineState().validated))
+        throw new Error('review_delivery_pending');
       const result =
         initialPlan ??
         dailyStudySessionSchema.parse(
@@ -238,61 +245,46 @@ export function StudyScreen({
     setNextDue(future.sort()[0] ?? null);
   }
 
-  async function flushTransport() {
-    if (transportBusy.current) return;
-    transportBusy.current = true;
+  async function commit(task: Transport) {
+    if (commitBusy.current || !owner.current || visit.current !== accountEpoch()) return;
+    commitBusy.current = true;
+    uncommitted.current = task;
+    locked.current = true;
+    setPending(1);
+    setSavingAnswer(task.kind === 'answer');
+    setUndoQueued(!!deferredUndo.current);
+    setTransportError(undefined);
     try {
-      while (transport.current[0]) {
-        const task = transport.current[0];
-        try {
-          if (task.kind === 'answer') {
-            const result = await request<{ card: StudyCard }>('/reviews', {
-              method: 'POST',
-              body: task.entry.answer,
-            });
-            confirmedAnswers.current.set(task.entry.answer.id, result.card);
-            if (history.current.some((entry) => entry.answer.id === task.entry.answer.id)) {
-              await client.cancelQueries({ queryKey: ['study-plan'] });
-              await client.cancelQueries({ queryKey: ['decks'] });
-              projectConfirmedReview(client, task.entry.card, result.card, new Date());
-              projectedAnswers.current.add(task.entry.answer.id);
-            }
-          } else {
-            const reverted = await request<{ card: StudyCard }>('/reviews/undo', {
-              method: 'POST',
-              body: { id: task.id, reviewId: task.entry.answer.id },
-            });
-            if (projectedAnswers.current.delete(task.entry.answer.id)) {
-              await client.cancelQueries({ queryKey: ['decks'] });
-              projectConfirmedReview(
-                client,
-                confirmedAnswers.current.get(task.entry.answer.id) ?? task.entry.card,
-                reverted.card,
-                new Date(),
-              );
-            }
-            client.removeQueries({ queryKey: ['study-plan'], type: 'inactive' });
-          }
-          transport.current.shift();
-          setPending(transport.current.length);
-          setTransportError(undefined);
-          void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
-          void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
-          void client.invalidateQueries({ queryKey: ['notes'], refetchType: 'none' });
-        } catch (cause) {
-          setTransportError(cause);
-          break;
+      await saveReviewIntent(
+        owner.current,
+        sessionId.current,
+        task.kind === 'answer'
+          ? { type: 'answer', payload: task.entry.answer }
+          : {
+              type: 'undo',
+              payload: { id: task.id, reviewId: task.entry.answer.id, reviewedAt: task.reviewedAt },
+            },
+        task.entry.card,
+      );
+      if (visit.current !== accountEpoch() || offlineState().accountId !== owner.current) return;
+      uncommitted.current = undefined;
+      if (task.kind === 'answer') {
+        applyAnswer(task.entry);
+        const cancellation = deferredUndo.current;
+        if (cancellation) {
+          deferredUndo.current = undefined;
+          commitBusy.current = false;
+          await commit(cancellation);
         }
-      }
+      } else applyUndo(task.entry);
+    } catch (cause) {
+      setTransportError(cause);
     } finally {
-      transportBusy.current = false;
+      commitBusy.current = false;
+      setPending(0);
+      setSavingAnswer(false);
+      setUndoQueued(false);
     }
-  }
-
-  function enqueue(task: Transport) {
-    transport.current.push(task);
-    setPending(transport.current.length);
-    void flushTransport();
   }
 
   function grade(index: number) {
@@ -305,12 +297,13 @@ export function StudyScreen({
     )
       return;
     locked.current = true;
+    const reviewedAt = new Date();
     const answer: Answer = {
       id: uuidV7(),
       cardId: current.id,
       rating: RATINGS[index]!,
-      reviewedAt: new Date().toISOString(),
-      durationMs: Math.min(3_600_000, Math.max(0, Date.now() - shown.current)),
+      reviewedAt: reviewedAt.toISOString(),
+      durationMs: Math.min(3_600_000, Math.max(0, reviewedAt.getTime() - shown.current)),
     };
     const entry: SessionAnswer = {
       answer,
@@ -318,6 +311,11 @@ export function StudyScreen({
       queue: queue.current,
       priorDue: projectedDue.current.get(current.id),
     };
+    void commit({ kind: 'answer', entry });
+  }
+
+  function applyAnswer(entry: SessionAnswer) {
+    const { answer, card } = entry;
     history.current.push(entry);
     setHistoryCount(history.current.length);
     setRatings((values) => ({ ...values, [answer.rating]: (values[answer.rating] ?? 0) + 1 }));
@@ -327,15 +325,15 @@ export function StudyScreen({
       [answer.cardId]: (counts[answer.cardId] ?? 0) + 1,
     }));
     const predicted = review(
-      workloadCard(current).scheduling,
-      (index + 1) as Rating,
+      workloadCard(card).scheduling,
+      (RATINGS.indexOf(answer.rating) + 1) as Rating,
       new Date(answer.reviewedAt),
       config,
       createSeededRandom(seedFromReviewId(answer.id)),
       answer.durationMs,
     );
     const nextCard: StudyCard = {
-      ...current,
+      ...card,
       state: predicted.next.state,
       due: predicted.next.due.toISOString(),
       stability: predicted.next.stability ?? null,
@@ -345,17 +343,39 @@ export function StudyScreen({
       lapses: predicted.next.lapses,
       learningStep: predicted.next.learningStep,
     };
-    cards.current.set(current.id, nextCard);
+    cards.current.set(card.id, nextCard);
     queue.current = queueSessionRetry(queue.current, workloadCard(nextCard));
-    projectedDue.current.set(current.id, studyAvailableAt(predicted.next, config).toISOString());
+    projectedDue.current.set(card.id, studyAvailableAt(predicted.next, config).toISOString());
     updateNextDue();
     next();
-    enqueue({ kind: 'answer', entry });
   }
 
   function undo() {
-    const previous = history.current.pop();
+    if (commitBusy.current && uncommitted.current?.kind === 'answer') {
+      if (!deferredUndo.current) {
+        deferredUndo.current = {
+          kind: 'undo',
+          entry: uncommitted.current.entry,
+          id: uuidV7(),
+          reviewedAt: new Date().toISOString(),
+        };
+        setUndoQueued(true);
+      }
+      return;
+    }
+    if (locked.current || uncommitted.current) return;
+    const previous = history.current.at(-1);
     if (!previous) return;
+    void commit({
+      kind: 'undo',
+      entry: previous,
+      id: uuidV7(),
+      reviewedAt: new Date().toISOString(),
+    });
+  }
+
+  function applyUndo(previous: SessionAnswer) {
+    history.current.pop();
     setHistoryCount(history.current.length);
     setAnswered((count) => count - 1);
     setAnsweredCards((counts) => ({
@@ -380,7 +400,6 @@ export function StudyScreen({
     setTypingReady(false);
     setReason('');
     locked.current = false;
-    enqueue({ kind: 'undo', entry: previous, id: uuidV7() });
   }
 
   useEffect(() => {
@@ -434,16 +453,18 @@ export function StudyScreen({
         title={t('today.study')}
         exitLabel={t('study.stop')}
         onExit={onFinish}
-        disabled={pending > 0}
+        savingLabel={pending > 0 ? t('study.savingLocally') : undefined}
+        disabled={pending > 0 || !!transportError}
         value={completed}
         max={total}
         action={
-          historyCount > 0 && (
+          (historyCount > 0 || savingAnswer) && (
             <Button
               variant="text"
               className="w-44 text-secondary"
               aria-label={t('study.undo')}
               title={t('study.undo')}
+              disabled={(pending > 0 && (!savingAnswer || undoQueued)) || !!transportError}
               onClick={undo}
             >
               <Undo2 size={20} strokeWidth={1.5} aria-hidden="true" />
@@ -453,9 +474,11 @@ export function StudyScreen({
       />
       {!!transportError && (
         <ErrorState
-          message={t('study.saveFailed')}
+          message={t('study.notSavedLocally')}
           retryLabel={t('common.retry')}
-          onRetry={() => void flushTransport()}
+          onRetry={() => {
+            if (uncommitted.current) void commit(uncommitted.current);
+          }}
         />
       )}
       {!!error && (
@@ -542,7 +565,7 @@ export function StudyScreen({
                     <Button
                       key={rating}
                       layout="stacked"
-                      disabled={!!transportError}
+                      disabled={pending > 0 || !!transportError}
                       className="min-w-0 border-strong px-4 py-8 text-primary"
                       onClick={() => grade(index)}
                     >
@@ -611,7 +634,7 @@ export function StudyScreen({
           <Button
             full
             variant="primary"
-            disabled={pending > 0}
+            disabled={pending > 0 || !!transportError}
             busy={pending > 0}
             aria-label={t('study.finish')}
             onClick={onFinish}
@@ -621,7 +644,7 @@ export function StudyScreen({
           {morePlanned && (
             <Button
               full
-              disabled={pending > 0}
+              disabled={pending > 0 || !!transportError}
               onClick={() => {
                 started.current = Date.now();
                 next();
@@ -632,7 +655,9 @@ export function StudyScreen({
           )}
           {plan.notes.length > 0 && (
             <Button
-              disabled={pending > 0}
+              disabled={
+                pending > 0 || !!transportError || connection.offline || !connection.validated
+              }
               onClick={() => {
                 history.current = [];
                 setHistoryCount(0);
