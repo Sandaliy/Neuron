@@ -164,3 +164,57 @@ iPhone. This is the production acceptance for the reported interaction regressio
 stabilization blocker. It is separate from browser WebKit and CPU-constrained Chromium measurements.
 There is no known remaining physical-iPhone issue from this acceptance report; device frame traces
 and an itemized cold/warm, motion, safe-area, lifecycle and connectivity checklist were not supplied.
+
+## Phase 8.4 durable Study and focused refinement
+
+Controlled measurements on 2026-10-12 compare the accepted PR #49 web source (`4565b1c`) with
+Phase 8.4. The isolated baseline uses the same unchanged dependency versions and compatible
+core/shared runtime. Both builds use the identical `phase84-latency.spec.ts` probe and API fixtures,
+full motion, Panels-only full glass, three serial samples per browser and three warm visits per
+sample. Chromium runs at 4× CPU slowdown; Windows WebKit uses the iPhone 13 profile without CPU
+throttling. Failure-trace recording is disabled only for these timing runs. Ordinary verification
+keeps its unchanged diagnostics. These are controlled browser timings, not device or production-network timings.
+
+| Median observation                              | Chromium PR #49 → Phase 8.4 | Windows WebKit PR #49 → Phase 8.4 |
+| ----------------------------------------------- | --------------------------- | --------------------------------- |
+| Cold Today Study readiness                      | 665.2 → 696.6ms             | 278.9 → 395.5ms                   |
+| Warm Library → Today readiness                  | 79.4 → 81.9ms               | 217.6 → 222.4ms                   |
+| Study entry                                     | 85.3 → 90.3ms               | 122.8 → 110.3ms                   |
+| Top-left exit released after grading            | 291.5 → 37.5ms              | 298 → 194ms                       |
+| Study exit                                      | 78.1 → 78.7ms               | 153.4 → 144.6ms                   |
+| Local Review transaction complete after grading | absent → 26.6ms             | absent → 163ms                    |
+
+The response is held for 250ms. The old exit guard waits for acknowledgement and can remain locked
+indefinitely after an interrupted request. Phase 8.4 releases it after strict local persistence,
+independently of delivery. The transaction and button measurements separate local acceptance from
+server acknowledgement; the remaining render delay is about one native frame in this probe.
+The measured cold-readiness cost remains: the new account-scoped saved-Review check participates in
+readiness. End-to-end timing does not isolate the contribution of that read from other startup work.
+No broad cache rewrite or weaker persistence/admission check was introduced to reduce that number.
+
+The observation extends through the later batched history pull. Chromium reports no delivery or
+editor long tasks, frame p95 at 16.7–16.8ms, and zero layout shift in all final samples. Navigation has
+one approximately 60ms task in both revisions. Editor samples retain seven commits and 448 rendered
+fibers, focus and exact document geometry. Windows WebKit lacks the long-task and layout-shift
+observer APIs; its direct form-geometry assertions pass, and frame observations are reported separately
+from the enforced Chromium scroll contracts.
+
+A reproducible saving-message heading movement initially recorded layout shift `0.0008401`.
+Keeping the title's geometry and positioning the saving message over it removes that movement
+without changing learning motion. Settled Settings history now mounts no full records by default;
+Recent activity initially mounts ten rows and one selected detail. This removes the previous growing
+set of full Note/rename records while retaining every receipt, version, conflict and recovery archive.
+A late-confirmed recovery archive stays intact and becomes optional activity, with explicit confirmation.
+
+The simulated 47px status-bar check scrolls Offline access underneath the existing opaque fixed
+cover and passes in mobile Chromium/WebKit. No reproducible new safe-area painting defect was found;
+no fixed-navigation or keyboard geometry rewrite was made. Actual installed-iPhone painting and
+cold/warm responsiveness remain owner acceptance steps in `offline-study.md`.
+
+Final built verification passes the serial phone/desktop interaction gate (560 passes, ten opt-in
+selection skips), all 77 targeted mobile WebKit Note/Study cases and both worker-enabled real
+PostgreSQL Review journeys. All 66 unchanged Windows visual contracts pass. All five controlled
+performance cases pass with the original 55 FPS threshold enforced at 4× CPU: 5,000 Notes at
+60.0 FPS with 11 mounted rows, 500 Panels-only rows at 60.0 FPS, full-glass Decks at 59.3 FPS and
+mixed collections at 59.0 FPS. The worst frames are 16.8ms for Notes/Panels and 33.4/33.3ms for
+the two shared-glass cases. No baseline, assertion, retry policy or performance threshold was weakened.

@@ -11,6 +11,8 @@ import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { NoteField } from '../notes/note-field';
 
+import { SavedWork } from './saved-work';
+
 export function PendingNotes() {
   const t = useTranslate();
   const state = useOffline();
@@ -30,117 +32,118 @@ export function PendingNotes() {
     <section aria-label={t('offline.note.savedChanges')} className="flex flex-col gap-12">
       <GroupLabel>{t('offline.note.savedChanges')}</GroupLabel>
       <Card className="flex flex-col gap-16">
-        <p className="text-13 text-secondary">{t('offline.note.storageNotice')}</p>
         {entries.error && <p role="alert">{t('offline.changesUnavailable')}</p>}
-        {saved.map((entry) => {
-          const original = entry.base.row as unknown as Note;
-          return (
-            <div
-              key={entry.operationId}
-              className="flex flex-col gap-8 border-t border-subtle pt-12"
-            >
-              <p className="text-14 text-primary">{termOf(entry.working.fields as NoteFields)}</p>
-              <p role="status" className="text-13 text-secondary">
-                {t(`offline.note.${entry.state}`)}
-              </p>
-              <p className="text-12 text-tertiary">
-                {t('offline.note.original', { revision: entry.payload.baseRev })}
-              </p>
-              <SavedVersion
-                title={t('offline.note.localVersion')}
-                noteType={original.noteType}
-                fields={entry.working.fields}
-                tags={entry.working.tags}
-              />
-              {['conflict', 'unsupported', 'rejected'].includes(entry.state) && (
-                <>
-                  <p className="text-13 text-secondary">
-                    {entry.outcome?.reason === 'deleted_remotely'
-                      ? t('offline.note.deleted')
-                      : entry.state === 'unsupported'
-                        ? t('offline.note.cardChange')
-                        : entry.state === 'rejected'
-                          ? t('offline.note.deliveryRejected')
-                          : t('offline.note.changed')}
-                  </p>
-                  <SavedVersion
-                    title={t('offline.note.originalVersion')}
-                    noteType={original.noteType}
-                    fields={original.fields}
-                    tags={original.tags}
-                  />
-                </>
-              )}
-              {entry.state === 'conflict' && entry.outcome?.reason === 'changed_remotely' && (
-                <RemoteComparison
-                  accountId={entry.accountId}
-                  id={entry.entityId}
-                  enabled={state.validated && !state.offline}
+        <SavedWork
+          entries={saved}
+          title={t('offline.recentActivity')}
+          label={(entry) => termOf(entry.working.fields as NoteFields)}
+          render={(entry) => {
+            const original = entry.base.row as unknown as Note;
+            return (
+              <div
+                key={entry.operationId}
+                className="flex flex-col gap-8 border-t border-subtle pt-12"
+              >
+                <p className="text-14 text-primary">{termOf(entry.working.fields as NoteFields)}</p>
+                <p role="status" className="text-13 text-secondary">
+                  {t(`offline.note.${entry.state}`)}
+                </p>
+                <SavedVersion
+                  title={t('offline.note.localVersion')}
+                  noteType={original.noteType}
+                  fields={entry.working.fields}
+                  tags={entry.working.tags}
                 />
-              )}
-              <div className="flex flex-wrap gap-8">
-                <Button
-                  variant="text"
-                  onClick={() =>
-                    void navigator.clipboard.writeText(JSON.stringify(entry.working, null, 2))
-                  }
-                >
-                  {t('offline.note.copyDraft')}
-                </Button>
                 {['conflict', 'unsupported', 'rejected'].includes(entry.state) && (
+                  <>
+                    <p className="text-13 text-secondary">
+                      {entry.outcome?.reason === 'deleted_remotely'
+                        ? t('offline.note.deleted')
+                        : entry.state === 'unsupported'
+                          ? t('offline.note.cardChange')
+                          : entry.state === 'rejected'
+                            ? t('offline.note.deliveryRejected')
+                            : t('offline.note.changed')}
+                    </p>
+                    <SavedVersion
+                      title={t('offline.note.originalVersion')}
+                      noteType={original.noteType}
+                      fields={original.fields}
+                      tags={original.tags}
+                    />
+                  </>
+                )}
+                {entry.state === 'conflict' && entry.outcome?.reason === 'changed_remotely' && (
+                  <RemoteComparison
+                    accountId={entry.accountId}
+                    id={entry.entityId}
+                    enabled={state.validated && !state.offline}
+                  />
+                )}
+                <div className="flex flex-wrap gap-8">
                   <Button
                     variant="text"
                     onClick={() =>
-                      void navigator.clipboard.writeText(JSON.stringify(original, null, 2))
+                      void navigator.clipboard.writeText(JSON.stringify(entry.working, null, 2))
                     }
                   >
-                    {t('offline.note.copyOriginal')}
+                    {t('offline.note.copyDraft')}
                   </Button>
-                )}
-                {entry.state === 'pending' && (
-                  <Button
-                    variant="quiet"
-                    disabled={!state.validated || state.offline}
-                    busy={retry.isPending}
-                    onClick={() => retry.mutate()}
-                  >
-                    {t('common.retry')}
-                  </Button>
-                )}
-                {entry.state === 'conflict' && entry.outcome?.reason === 'changed_remotely' && (
-                  <Button
-                    variant="quiet"
-                    disabled={!state.validated || state.offline}
-                    busy={resolve.isPending}
-                    onClick={() => resolve.mutate(entry.operationId)}
-                  >
-                    {t('offline.note.applyDraft')}
-                  </Button>
-                )}
-                {['conflict', 'unsupported', 'rejected'].includes(entry.state) && (
-                  <Button
-                    variant="text"
-                    busy={keep.isPending}
-                    onClick={() => {
-                      keep.mutate(entry.operationId, {
-                        onSuccess: () => {
-                          // This explicit recovery happens in Settings. The next
-                          // editor visit must not initialize from a cached draft overlay.
-                          client.removeQueries({
-                            queryKey: ['notes', entry.entityId],
-                            exact: true,
-                          });
-                        },
-                      });
-                    }}
-                  >
-                    {t('offline.note.keepServer')}
-                  </Button>
-                )}
+                  {['conflict', 'unsupported', 'rejected'].includes(entry.state) && (
+                    <Button
+                      variant="text"
+                      onClick={() =>
+                        void navigator.clipboard.writeText(JSON.stringify(original, null, 2))
+                      }
+                    >
+                      {t('offline.note.copyOriginal')}
+                    </Button>
+                  )}
+                  {entry.state === 'pending' && (
+                    <Button
+                      variant="quiet"
+                      disabled={!state.validated || state.offline}
+                      busy={retry.isPending}
+                      onClick={() => retry.mutate()}
+                    >
+                      {t('common.retry')}
+                    </Button>
+                  )}
+                  {entry.state === 'conflict' && entry.outcome?.reason === 'changed_remotely' && (
+                    <Button
+                      variant="quiet"
+                      disabled={!state.validated || state.offline}
+                      busy={resolve.isPending}
+                      onClick={() => resolve.mutate(entry.operationId)}
+                    >
+                      {t('offline.note.applyDraft')}
+                    </Button>
+                  )}
+                  {['conflict', 'unsupported', 'rejected'].includes(entry.state) && (
+                    <Button
+                      variant="text"
+                      busy={keep.isPending}
+                      onClick={() => {
+                        keep.mutate(entry.operationId, {
+                          onSuccess: () => {
+                            // This explicit recovery happens in Settings. The next
+                            // editor visit must not initialize from a cached draft overlay.
+                            client.removeQueries({
+                              queryKey: ['notes', entry.entityId],
+                              exact: true,
+                            });
+                          },
+                        });
+                      }}
+                    >
+                      {t('offline.note.keepServer')}
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          }}
+        />
         {(retry.error || resolve.error || keep.error) && (
           <p role="alert" className="text-13 text-error">
             {t(
@@ -173,7 +176,7 @@ function RemoteComparison({
   if (!enabled || !remote.data) return null;
   return (
     <SavedVersion
-      title={t('offline.note.remoteVersion', { revision: remote.data.note.rev })}
+      title={t('offline.currentVersion')}
       noteType={remote.data.note.noteType}
       fields={remote.data.note.fields}
       tags={remote.data.note.tags}

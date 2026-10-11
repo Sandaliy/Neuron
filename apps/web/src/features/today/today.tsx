@@ -13,6 +13,7 @@ import { describe, request } from '../../lib/api';
 import { flatten, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
 import { useReturnScroll } from '../../lib/return-scroll';
+import { requireDeliveredReviews, reviewEvents } from '../../lib/review-outbox';
 import { awaitInitialPlan, confirmedInitialPlan } from '../../lib/study-plan';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
@@ -157,7 +158,7 @@ interface StudyChoices {
 }
 function Waiting({
   decks,
-  authoritative,
+  authoritative: serverAuthority,
   onStart,
   minutes,
   onMinutes,
@@ -178,6 +179,16 @@ function Waiting({
   const actions = useDeckActions();
   const account = useAccount();
   const client = useQueryClient();
+  const savedReviews = useQuery({
+    queryKey: ['review-outbox', account.data?.id],
+    queryFn: () => reviewEvents(account.data!.id),
+    enabled: !!account.data,
+    networkMode: 'always',
+  });
+  const reviewsReady =
+    !!savedReviews.data &&
+    savedReviews.data.every((entry) => ['synchronized', 'archived'].includes(entry.state));
+  const authoritative = serverAuthority && reviewsReady;
   const { draft, change } = useStudyDraft();
   const present = useRef(true);
   useEffect(() => {
@@ -260,6 +271,7 @@ function Waiting({
     queryKey: planKey,
     ...(initial ? { initialData: initial.data, initialDataUpdatedAt: initial.updatedAt } : {}),
     queryFn: async ({ signal }) => {
+      if (account.data?.id) await requireDeliveredReviews(account.data.id);
       if (defaultRequest) {
         const early = await awaitInitialPlan(client, account.data, language);
         if (early) return early.data;
@@ -469,6 +481,10 @@ function Waiting({
             <h2 className="text-24 text-primary">{t('study.noDecks')}</h2>
             <Button onClick={() => setScopeOpen(true)}>{t('study.chooseDecks')}</Button>
           </>
+        ) : !reviewsReady && !savedReviews.isPending ? (
+          <p role="status" className="text-14 text-secondary">
+            {t(savedReviews.error ? 'offline.changesUnavailable' : 'error.review_delivery_pending')}
+          </p>
         ) : plan.error && !result ? (
           <ErrorState
             message={t(describe(plan.error).key)}

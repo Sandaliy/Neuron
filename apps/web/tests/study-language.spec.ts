@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { useFixtures, usePreferences } from './fixtures';
+import { reviewAcknowledgement, useFixtures, usePreferences } from './fixtures';
 import { useSpeech } from './speech-fixture';
 
 const stamp = '2026-01-01T00:00:00Z';
@@ -492,10 +492,15 @@ for (const mode of ['listening', 'production', 'mixed'])
     await page.route('**/api/study/session', (route) => route.fulfill({ json: plan(cards) }));
     await page.route('**/api/reviews', (route) =>
       route.fulfill({
-        json: { card: cards.find((item) => item.id === route.request().postDataJSON().cardId) },
+        json: {
+          ...reviewAcknowledgement(route),
+          card: cards.find((item) => item.id === route.request().postDataJSON().cardId),
+        },
       }),
     );
-    await page.route('**/api/reviews/undo', (route) => route.fulfill({ json: { card: cards[1] } }));
+    await page.route('**/api/reviews/undo', (route) =>
+      route.fulfill({ json: { ...reviewAcknowledgement(route), card: cards[1] } }),
+    );
     await page.goto('/');
     await page.getByRole('button', { name: 'Study', exact: true }).click();
     for (let index = 0; index < 3; index++) {

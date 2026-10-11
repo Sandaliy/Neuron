@@ -4,8 +4,9 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-11, Phase 8.3 existing Note editing implemented on `work/offline-note-editing`;
-protected delivery and physical-iPhone acceptance pending. PR #49 remains accepted on `main` at `4565b1c`.
+Last updated: 2026-10-12, Phase 8.3 merged through PR #50 at `b6dfab7` and physically accepted
+on the installed iPhone. Phase 8.4 durable Study transport and focused UX refinement are implemented
+on `work/durable-study-reviews`; protected delivery and Phase 8.4 physical acceptance remain pending.
 
 ## Current release
 
@@ -111,16 +112,31 @@ and original versions with explicit fresh-revision recovery. Shared Note/Card pl
 Card identities/schedules/Reviews and refuses every Card removal. Local Note events avoid collection
 store scans/global notifications while typing; local content cannot seed authoritative learning pools.
 No SQL migration or IndexedDB version change is needed. See `offline-collection.md` for recovery,
-unsupported transitions and the physical-iPhone acceptance checklist. This slice has not been merged
-or accepted on the physical iPhone yet.
+unsupported transitions and the physical-iPhone acceptance checklist. PR #50 merged at `b6dfab7`;
+the owner confirmed physical-iPhone acceptance of offline editing,
+persistence after PWA reopening, authenticated synchronization and server reconciliation.
 Release verification passed all 1,088 unit/PostgreSQL tests, package typechecks, source lint,
 isolation/design checks, formatting and the production web build. The built serial phone/desktop gate
 passed 520 interactions with six selection skips; all 66 unchanged Windows visuals and all five enforced
 4× CPU performance cases passed. Dedicated Chromium/mobile WebKit Note cases passed 36 of 36.
 Real offline/PWA and learning journeys passed separately in Chromium and mobile WebKit.
 All 62 affected WebKit offline cases and the committed touch-swipe regression passed.
-Offline Note creation, local Study planning, Review/Undo transport,
-Practice synchronization and offline Import application remain unimplemented.
+Phase 8.4 adds account-scoped durable Review/Undo intents before advance or exit, immutable exact
+retry and explicit causal acknowledgement/rejection. An admitted server-planned sitting continues
+offline through its existing Cards and time/workload limits. Undo remains visit-local LIFO and ends
+with exit/reload. Reload retains delivery intents, not a resumed sitting. New Study admission waits
+for authenticated reconciliation; explicit rejected-session recovery archives retain all undelivered
+events without claiming synchronization. Settings summarizes saved work and bounds optional receipt
+details without deleting receipts, drafts, conflicts or archives. The server response addition uses
+existing Review rows and submitted times; no SQL migration is required. IndexedDB upgrades to v3.
+Release verification passes all 1,095 unit/PostgreSQL tests, including restricted-role Review/Undo,
+RLS and canonical replay coverage. The final built serial phone/desktop gate passes 560 interactions
+with ten opt-in selection skips; all 77 targeted mobile WebKit cases, both real-PWA Review journeys,
+66 unchanged Windows visuals and five enforced 55 FPS cases pass.
+See `offline-study.md` for guarantees, recovery and physical-iPhone acceptance steps, and
+`interaction-performance.md` for the matched PR #49 measurements.
+Offline Note creation, local Study planning, persistent Practice synchronization and offline Import
+application remain unimplemented.
 Phase 9 triage/waves/progressive direction admission and Phase 10 personal plans/progress remain later work.
 
 ## Performance monitor diagnosis and policy
@@ -212,10 +228,10 @@ Today or Study.
 
 ## Next
 
-1. Deliver the coherent Phase 8.3 existing-Note slice through its protected PR, required checks and
-   physical-iPhone acceptance. Preserve PR #49's measured geometry and responsiveness contract.
+1. Deliver Phase 8.4 durable Study Review/Undo transport and focused UX refinement through one
+   protected PR, required checks and physical-iPhone acceptance. Preserve the accepted interaction contract.
 2. Establish and verify separate contracts for later Phase 8 work: created Note/Card identities,
-   local Study/replay ownership, Review/Undo and Practice synchronization.
+   offline Study admission/resumption and Practice synchronization.
    Preserve the outbox's account, original revision, atomicity and recoverable intent guarantees.
 3. Keep Phase 9 large-collection triage/waves/progressive admission and Phase 10 personal workload
    customization/statistics separate. Earlier design is appropriate only for concrete storage/sync prerequisites.

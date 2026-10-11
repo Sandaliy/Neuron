@@ -145,8 +145,17 @@ export function reviewRoutes(): Hono<RequestBindings> {
   const routes = new Hono<RequestBindings>();
   routes.post('/undo', async (context) => {
     const body = await readBody(context, undoReviewSchema);
-    const card = await repositoriesOf(context).reviews.undo(body.reviewId, body.id);
-    return context.json({ card: serialiseCard(card) });
+    const card = await repositoriesOf(context).reviews.undo(
+      body.reviewId,
+      body.id,
+      body.reviewedAt,
+    );
+    return context.json({
+      id: body.id,
+      reviewId: body.reviewId,
+      cancellationId: card.cancellationId,
+      card: serialiseCard(card),
+    });
   });
 
   routes.post('/', async (context) => {

@@ -100,7 +100,7 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
     await page.screenshot({ path: info.outputPath('live-typing.png'), animations: 'disabled' });
     await page.getByRole('button', { name: /^Easy / }).click();
     await page.getByRole('button', { name: 'Finish', exact: true }).click();
-    expect(await repo.reviews.countForCards(enabled.map((card) => card.id))).toBe(1);
+    await expect.poll(() => repo.reviews.countForCards(enabled.map((card) => card.id))).toBe(1);
     const beforePractice = await repo.cards.forNote(note.id);
     for (const response of ['typing', 'listening']) {
       await page.goto(`/notes?deckId=${deck.id}`);

@@ -554,7 +554,7 @@ test('original revision and both versions survive remote conflict; recovery requ
     'Losing local meaning',
   );
   await page.getByRole('link', { name: 'Needs review', exact: true }).click();
-  await page.getByText(/Current server Note · revision/).click();
+  await page.getByText('Current version').click();
   await expect(page.getByText('Remote meaning', { exact: true })).toBeVisible();
   expect(state.note.fields['translation']).toBe('Remote meaning');
   await page.getByRole('button', { name: 'Apply draft to current Note', exact: true }).click();
@@ -719,7 +719,7 @@ test('an unreadable upgraded outbox preserves the mounted form and blocks unsafe
     .evaluate((element) => element.setAttribute('data-storage-visit', 'same'));
   await page.evaluate(
     async ({ accountId, entityId }) => {
-      const opened = indexedDB.open(`neuron.collection:${accountId}`, 3);
+      const opened = indexedDB.open(`neuron.collection:${accountId}`, 4);
       await new Promise<void>((resolve, reject) => {
         opened.onsuccess = () => {
           opened.result.close();
@@ -877,3 +877,74 @@ for (const malformed of [false, true])
       ).toHaveCount(0);
     }
   });
+
+test('small and large saved Note histories stay compact by default and disclose retained versions accessibly', async ({
+  page,
+}, info) => {
+  const state = await fixture(page);
+  await editOffline(page, state);
+  await reconnect(page, state);
+  await expect.poll(async () => (await stored(page))[0]?.state).toBe('synchronized');
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  const region = page.getByRole('region', { name: 'Saved Note edits' });
+  await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
+  await expect(region.getByRole('button', { name: 'Recent activity' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
+    0,
+  );
+  await expect(region.getByText(/Original server revision/)).toHaveCount(0);
+  const saved = (await stored(page))[0]!;
+  await page.evaluate(
+    async ({ accountId, saved }) => {
+      const opened = indexedDB.open(`neuron.collection:${accountId}`);
+      const db = await new Promise<IDBDatabase>((resolve) => {
+        opened.onsuccess = () => resolve(opened.result);
+      });
+      const tx = db.transaction('outbox', 'readwrite');
+      for (let index = 1; index <= 249; index++) {
+        const operationId = `01900000-0000-7000-8000-${index.toString().padStart(12, '0')}`;
+        tx.objectStore('outbox').put({
+          ...saved,
+          operationId,
+          sequence: saved.sequence + index,
+          payload: { ...saved.payload, operationId },
+          outcome: { ...saved.outcome, operationId },
+          working: {
+            ...saved.working,
+            fields: { ...saved.working.fields, term: `Saved receipt ${index}` },
+          },
+        });
+      }
+      await new Promise<void>((resolve) => {
+        tx.oncomplete = () => resolve();
+      });
+      db.close();
+    },
+    { accountId: account.id, saved },
+  );
+  await page.reload();
+  await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
+    0,
+  );
+  await region.getByRole('button', { name: 'Recent activity' }).click();
+  await expect(region.getByRole('button', { name: /Saved receipt/ })).toHaveCount(10);
+  await region
+    .getByRole('button', { name: /Saved receipt/ })
+    .first()
+    .click();
+  await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
+    1,
+  );
+  await expect(region.locator('[data-moving="true"]')).toHaveCount(0);
+  await region
+    .getByRole('button', { name: 'Copy saved draft', exact: true })
+    .scrollIntoViewIfNeeded();
+  await expect(
+    region.getByRole('button', { name: 'Copy saved draft', exact: true }),
+  ).toBeInViewport();
+  expect(await stored(page)).toHaveLength(250);
+  await page.screenshot({ path: info.outputPath('compact-note-history.png') });
+});

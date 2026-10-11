@@ -129,7 +129,7 @@ export function toApiError(error: unknown): ApiError {
   if (error instanceof ZodError) {
     return new ApiError('invalid_request', { details: { fields: fieldsOf(error) }, cause: error });
   }
-  if (error instanceof ReviewIdReused) return new ApiError('invalid_request', { cause: error });
+  if (error instanceof ReviewIdReused) return new ApiError('review_id_reused', { cause: error });
 
   if (error instanceof DeckNotFound || error instanceof CardNotFound) {
     return new ApiError('not_found', { cause: error });

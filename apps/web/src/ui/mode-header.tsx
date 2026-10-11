@@ -15,6 +15,7 @@ export function ModeHeader({
   value,
   max,
   progressLabel,
+  savingLabel,
 }: {
   readonly title: string;
   readonly exitLabel: string;
@@ -24,6 +25,7 @@ export function ModeHeader({
   readonly value?: number;
   readonly max?: number;
   readonly progressLabel?: string;
+  readonly savingLabel?: string | undefined;
 }) {
   return (
     <header className="flex flex-col gap-8">
@@ -32,7 +34,8 @@ export function ModeHeader({
           variant="text"
           className="w-44 justify-self-start text-secondary"
           aria-label={exitLabel}
-          title={exitLabel}
+          title={savingLabel ?? exitLabel}
+          busy={!!savingLabel}
           disabled={disabled}
           onClick={() => {
             if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -41,7 +44,17 @@ export function ModeHeader({
         >
           <X size={20} strokeWidth={1.5} aria-hidden="true" />
         </Button>
-        <h1 className="text-17 text-primary">{title}</h1>
+        <h1 aria-label={title} className="relative text-17 text-primary">
+          <span className={savingLabel ? 'opacity-0' : undefined}>{title}</span>
+          {savingLabel && (
+            <span
+              role="status"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-12 whitespace-nowrap text-secondary"
+            >
+              {savingLabel}
+            </span>
+          )}
+        </h1>
         <div className="min-w-0 justify-self-end">{action}</div>
       </div>
       {value !== undefined && max !== undefined && (

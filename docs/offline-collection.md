@@ -355,6 +355,6 @@ skipped; the offline live PostgreSQL/browser path was separately run in Chromium
 All 66 Windows visual cases passed, with the gallery rerun after a Chromium resource-loading failure.
 
 Offline Note creation and its initial Card identity mapping remain later work.
-Local Study admission, scheduling/replay and Review/Undo delivery need separate ownership and failure
-verification; persistent Practice transport and offline Import application are also absent. Current
+Local Study admission remains absent. Already-admitted sittings use [durable Review/Undo transport](offline-study.md);
+persistent Practice transport and offline Import application remain absent. Current
 server authorization, immutable Review semantics and deletion/restoration ownership remain authoritative.

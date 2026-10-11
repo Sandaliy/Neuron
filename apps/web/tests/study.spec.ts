@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { useFixtures, usePreferences } from './fixtures';
+import { reviewAcknowledgement, useFixtures, usePreferences } from './fixtures';
 
 const id = (n: number) => `01900000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const cards = [1, 2, 3].map((n) => ({
@@ -23,7 +23,7 @@ const cards = [1, 2, 3].map((n) => ({
   rev: 1,
 }));
 
-test('study previews, advances before saving, retries the same answer and completes', async ({
+test('study previews, durably advances before acknowledgement, retries the same answer and completes', async ({
   page,
 }) => {
   await usePreferences(page, { locale: 'en', theme: 'dark' });
@@ -96,6 +96,7 @@ test('study previews, advances before saving, retries the same answer and comple
     const card = cards.find((item) => item.id === answer.cardId)!;
     await route.fulfill({
       json: {
+        ...reviewAcknowledgement(route),
         card: {
           ...card,
           state: 'review',
@@ -141,11 +142,7 @@ test('study previews, advances before saving, retries the same answer and comple
   await page.getByRole('button', { name: /^Good / }).click();
   await expect(page.getByText('Question 2', { exact: true })).toBeVisible();
   release();
-  await expect(page.getByText(/An answer could not be confirmed/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Show answer' })).toBeDisabled();
-  await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Show answer' })).toBeEnabled();
-  expect(answers[0]?.id).toBe(answers[1]?.id);
   await page.getByRole('button', { name: 'Show answer' }).click();
   await page.clock.fastForward(60_001);
   await expect(page.getByText('Answer 2', { exact: true })).toBeVisible();
@@ -158,6 +155,14 @@ test('study previews, advances before saving, retries the same answer and comple
   await page.getByRole('button', { name: /^Easy / }).click();
   await page.getByRole('button', { name: 'Finish', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  const retry = page
+    .getByRole('region', { name: 'Study answers' })
+    .getByRole('button', { name: 'Try again', exact: true })
+    .first();
+  if (await retry.isVisible()) await retry.click();
+  await expect.poll(() => answers.length).toBe(4);
+  expect(answers[0]?.id).toBe(answers[1]?.id);
 });
 
 test('Study rewinds the full local session while answers and compensations serialize', async ({
@@ -226,7 +231,12 @@ test('Study rewinds the full local session while answers and compensations seria
       await route.fulfill({ status: 500, json: { error: { code: 'internal_error' } } });
     } else {
       const original = events.find((event) => event.id === body.reviewId)!;
-      await route.fulfill({ json: { card: cards.find((card) => card.id === original.cardId) } });
+      await route.fulfill({
+        json: {
+          ...reviewAcknowledgement(route),
+          card: cards.find((card) => card.id === original.cardId),
+        },
+      });
     }
   });
   await page.route('**/api/reviews', async (route) => {
@@ -240,6 +250,7 @@ test('Study rewinds the full local session while answers and compensations seria
     const original = cards.find((card) => card.id === body.cardId)!;
     await route.fulfill({
       json: {
+        ...reviewAcknowledgement(route),
         card: {
           ...original,
           state: 'review',
@@ -278,10 +289,30 @@ test('Study rewinds the full local session while answers and compensations seria
   }
   await expect(page.getByText('Session complete', { exact: true })).toBeVisible();
   releaseFirst();
-  await expect(page.getByText('An answer could not be confirmed.')).toBeVisible();
   await expect(page.getByText('Session complete', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Try again', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Finish', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Finish', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  const retry = page
+    .getByRole('region', { name: 'Study answers' })
+    .getByRole('button', { name: 'Try again', exact: true })
+    .first();
+  // Pending rows already offer Retry while earlier requests are in flight.
+  // Wait for this injected failure to settle, or for focus to have recovered it.
+  await expect
+    .poll(
+      async () =>
+        events.length === 10 ||
+        (await page
+          .getByText(
+            'Delivery was interrupted or could not be confirmed. Retry keeps the same answer.',
+          )
+          .first()
+          .isVisible()),
+    )
+    .toBe(true);
+  if (events.length < 10) await retry.click();
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await expect.poll(() => events.length).toBe(10);
   expect(events.map((event) => event.kind)).toEqual([
     'answer',
     'answer',
@@ -297,8 +328,7 @@ test('Study rewinds the full local session while answers and compensations seria
   expect(events[3]!.id).toBe(events[4]!.id);
   expect(events[0]!.id).not.toBe(events[7]!.id);
   const beforeExit = { planReads, deckReads };
-  await page.getByRole('button', { name: 'Finish', exact: true }).click();
-  await expect.poll(() => planReads).toBeGreaterThan(beforeExit.planReads);
+  await expect.poll(() => planReads).toBeGreaterThan(1);
   expect(deckReads).toBe(beforeExit.deckReads);
   await page.getByRole('button', { name: 'Study', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Undo last answer' })).toHaveCount(0);
@@ -354,13 +384,19 @@ test('Study rewinds a repeated learning card and keeps future planned work order
   await page.route('**/api/reviews', (route) => {
     const answer = route.request().postDataJSON();
     answers.push(answer);
-    return route.fulfill({ json: { card: cards.find((card) => card.id === answer.cardId) } });
+    return route.fulfill({
+      json: {
+        ...reviewAcknowledgement(route),
+        card: cards.find((card) => card.id === answer.cardId),
+      },
+    });
   });
   await page.route('**/api/reviews/undo', (route) => {
     const command = route.request().postDataJSON();
     cancellations.push(command.reviewId);
     return route.fulfill({
       json: {
+        ...reviewAcknowledgement(route),
         card: cards.find(
           (card) => card.id === answers.find((answer) => answer.id === command.reviewId)?.cardId,
         ),

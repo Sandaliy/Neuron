@@ -3,7 +3,13 @@ import { expect, test } from '@playwright/test';
 import { advancePractice } from '@neuron/shared';
 import type { PracticeRun } from '@neuron/shared';
 
-import { manyDecks, useFixtures, usePreferences, waitForPracticeSave } from './fixtures';
+import {
+  reviewAcknowledgement,
+  manyDecks,
+  useFixtures,
+  usePreferences,
+  waitForPracticeSave,
+} from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -217,7 +223,7 @@ test('a direct learning address exits to its own entry screen', async ({ page })
   await expectTab(page, 'Today');
 });
 
-test('native Back keeps a pending Review protected and returns to Today after acknowledgement', async ({
+test('native Back protects an uncommitted Review and returns to Today after its local commit', async ({
   page,
 }) => {
   await usePreferences(page, { locale: 'en', theme: 'dark' });
@@ -232,12 +238,30 @@ test('native Back keeps a pending Review protected and returns to Today after ac
   await page.route('**/api/reviews', async (route) => {
     await held;
     await route.fulfill({
-      json: { card: { ...card, state: 'review', reps: 1, due: '2027-01-01T00:00:00Z' } },
+      json: {
+        ...reviewAcknowledgement(route),
+        card: { ...card, state: 'review', reps: 1, due: '2027-01-01T00:00:00Z' },
+      },
     });
   });
   await page.getByRole('button', { name: 'Study', exact: true }).click();
+  await page.evaluate(() => {
+    const add = IDBObjectStore.prototype.add;
+    IDBObjectStore.prototype.add = function (value, key) {
+      if (this.name === 'review-outbox') throw new DOMException('full', 'QuotaExceededError');
+      return add.call(this, value, key);
+    };
+    Object.assign(window, {
+      restoreReviewStorage: () => {
+        IDBObjectStore.prototype.add = add;
+      },
+    });
+  });
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
   await page.getByRole('button', { name: /^Good/ }).click();
+  await expect(
+    page.getByText('Answer not saved on this device. Retry before leaving Study.').first(),
+  ).toBeVisible();
   await page.evaluate(() => {
     document.documentElement.dataset['historyRestores'] = '0';
     window.addEventListener('popstate', () => {
@@ -248,16 +272,22 @@ test('native Back keeps a pending Review protected and returns to Today after ac
   });
   await page.goBack();
   await expect(
-    page.getByText('Wait for answers to save, or retry the failed save.', { exact: true }),
+    page.getByText('Wait for the answer to save on this device, or retry the failed save.', {
+      exact: true,
+    }),
   ).toBeVisible();
   await expect.poll(() => page.locator('html').getAttribute('data-history-restores')).toBe('2');
   await expect(page.locator('[data-learning-screen]')).toBeVisible();
   await expect(page).toHaveURL(/learning=study/);
-  release();
+  await page.evaluate(() =>
+    (window as unknown as { restoreReviewStorage: () => void }).restoreReviewStorage(),
+  );
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeEnabled();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expectTab(page, 'Today');
+  release();
 });
 
 for (const rejection of ['transport', 'not_authenticated', 'password_change_required'] as const) {

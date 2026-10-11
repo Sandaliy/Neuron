@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { advancePractice } from '@neuron/shared';
 import type { PracticeRun } from '@neuron/shared';
 
-import { useFixtures, usePreferences } from './fixtures';
+import { reviewAcknowledgement, useFixtures, usePreferences } from './fixtures';
 import { useSpeech } from './speech-fixture';
 
 import type { Locator, Page } from '@playwright/test';
@@ -104,7 +104,10 @@ test('Practice after Study owns history through the Deck chooser and returns to 
   );
   await page.route('**/api/reviews', (route) =>
     route.fulfill({
-      json: { card: cards.find((card) => card.id === route.request().postDataJSON().cardId) },
+      json: {
+        ...reviewAcknowledgement(route),
+        card: cards.find((card) => card.id === route.request().postDataJSON().cardId),
+      },
     }),
   );
   await page.route('**/api/decks/*/practice', (route) =>
@@ -156,9 +159,11 @@ for (const screen of ['Study', 'Practice'] as const)
             },
           }),
         );
-        await page.route('**/api/reviews', (route) => route.fulfill({ json: { card: firstCard } }));
+        await page.route('**/api/reviews', (route) =>
+          route.fulfill({ json: { ...reviewAcknowledgement(route), card: firstCard } }),
+        );
         await page.route('**/api/reviews/undo', (route) =>
-          route.fulfill({ json: { card: firstCard } }),
+          route.fulfill({ json: { ...reviewAcknowledgement(route), card: firstCard } }),
         );
         await page.goto('/');
         await page.getByRole('button', { name: 'Study', exact: true }).click();
@@ -506,6 +511,7 @@ test('Today hides obsolete Ready state until a confirmed answer is reconciled', 
     confirmed = true;
     return route.fulfill({
       json: {
+        ...reviewAcknowledgement(route),
         card: {
           ...base,
           state: 'review',
@@ -552,6 +558,7 @@ for (const reduced of [false, true])
       await barrier;
       await route.fulfill({
         json: {
+          ...reviewAcknowledgement(route),
           card: {
             ...base,
             state: 'review',
@@ -587,7 +594,7 @@ for (const reduced of [false, true])
     await page.screenshot({ path: info.outputPath(`typed-${reduced}.png`) });
     await page.getByRole('button', { name: /^Hard / }).click();
     await expect(page.getByText('Session complete', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Finish', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Finish', exact: true })).toBeEnabled();
     expect(reviews[0]!.rating).toBe('hard');
     release();
     await expect(page.getByRole('button', { name: 'Finish', exact: true })).toBeEnabled();
@@ -652,7 +659,9 @@ for (const screen of ['Study', 'Practice'] as const)
       await page.route('**/api/study/session', (route) =>
         route.fulfill({ json: plan({ ...base, direction: 'listening' }) }),
       );
-      await page.route('**/api/reviews', (route) => route.fulfill({ json: { card: base } }));
+      await page.route('**/api/reviews', (route) =>
+        route.fulfill({ json: { ...reviewAcknowledgement(route), card: base } }),
+      );
       await page.goto('/');
       await page.getByRole('button', { name: 'Study', exact: true }).click();
     } else {
@@ -925,7 +934,9 @@ for (const screen of ['Study', 'Practice'] as const)
           },
         }),
       );
-      await page.route('**/api/reviews', (route) => route.fulfill({ json: { card: base } }));
+      await page.route('**/api/reviews', (route) =>
+        route.fulfill({ json: { ...reviewAcknowledgement(route), card: base } }),
+      );
       await page.goto('/');
       await page.getByRole('button', { name: 'Study', exact: true }).click();
     } else {
