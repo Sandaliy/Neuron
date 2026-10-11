@@ -5,6 +5,34 @@ implementation. Phase 7 (`703890b`) and the accepted PR #47 continuity implement
 provide the interaction references. Disclosure, dialog, scroll restoration, motion tokens and glass
 rules were unchanged between Phase 7 and PR #48. Swipe changed only its disabled-state guards.
 
+## Contract for later Phase 8 work
+
+PR #49's measured zero reconciliation displacement and zero warm/background navigation snapshot scans
+are constraints for later offline capabilities. Progressive data provenance must not select another
+screen layout, remove established controls or reset a mounted form. Connectivity, authenticated authority
+and unresolved work determine capabilities independently. Keep the normal motion/glass contracts and
+the unchanged 55 FPS controlled budgets.
+
+Phase 8.3 integrates durable content saving into the existing Note Editor. An untouched local seed never
+autosaves. The editor retains its Note-ID key, form values, focus, caret and scroll through storage,
+delivery and authoritative reconciliation. Note events patch one derived collection row and existing
+bounded query pages; they do not trigger whole Note/Card-store scans or global collection-state updates
+on each save. Local content overlays cannot become authoritative Study/Practice input. New browser
+regressions observe those boundaries alongside the existing navigation, Setup, swipe and security suites.
+Browser evidence for this slice does not replace its pending installed-iPhone lifecycle/keyboard/motion
+acceptance. Preserve the earlier owner acceptance and the unresolved Windows WebKit drag finding below.
+
+The Phase 8.3 built-app release run on Windows passed 520 phone/desktop interaction cases with one
+worker; four opt-in database journeys and two WebKit-only touch cases were skipped by that selection.
+All 66 unchanged Windows visual contracts passed. All five controlled performance cases passed with
+`PERFORMANCE_ENFORCE_THRESHOLD=true` at 4× CPU slowdown. The 5,000-Note case mounted 11 rows and
+measured 60.0 FPS; Panels-only, full-glass Deck and mixed collection cases each measured 60.0 FPS.
+The dedicated Note suite passed all 36 Chromium/mobile WebKit cases, including zero extra Note/Card
+store scans during typing and delivery settlement, preserved DOM identity/focus/caret/scroll and unchanged
+reconciliation geometry. These are controlled browser measurements, not physical-iPhone timings.
+The affected mobile WebKit offline suite passed all 62 cases, and the committed touch-swipe regression
+passed separately. Real offline/PWA and learning journeys also passed in Chromium and mobile WebKit.
+
 ## Proven causes and repair
 
 1. Provisional local query publication was interpreted as offline presentation. On first Deck entry,
@@ -83,8 +111,9 @@ the reduced cloning/validation mechanism; a sampled stack is not an exact elapse
 Standalone motion samples remain broadly similar: Chromium disclosure and swipe p95 are about
 16.7ms, warm navigation performs no snapshot scans, and security opening still samples a 55ms long
 task. Windows WebKit disclosure p95 is about 60ms and security opening still has a roughly 220ms
-worst frame. These remaining port/compositor observations are not proof that installed-iPhone motion
-is repaired. The measured fix removes competing collection work without altering those animations.
+worst frame. These port/compositor observations do not establish physical-iPhone frame pacing.
+The measured fix removes competing collection work without altering those animations. After PR #49
+merged, the owner separately confirmed that the application feels good on the real iPhone.
 
 ## Geometry, regressions and delivery
 
@@ -94,7 +123,8 @@ direct Practice authority. Existing offline tests cover in-session loss/revalida
 despite online hints, expansion/search/scroll retention, account rejection and late validation.
 The shell test emulates a 47px top inset and checks a stationary cover during scroll. Top padding
 includes the inset at every breakpoint; the cover prevents content painting into it. The exact
-reported physical status-bar overlap remains a device acceptance item.
+reported physical status-bar overlap was not independently instrumented on the device; the owner
+accepted the merged application without reporting a remaining interaction issue.
 
 The Practice card reserves the progress slot while its server summary arrives, so loading and saved
 runs retain the same geometry. An empty authoritative run now keeps the 4px progress slot and its
@@ -112,12 +142,25 @@ built phone/desktop interaction gate passed 486 cases with four opt-in skips; th
 learning journeys passed separately. All 66 unchanged Windows visual contracts passed. Mobile WebKit
 held-response reconciliation, direct Practice authority and interrupted-entry regressions passed.
 
+The extended Windows mobile WebKit run initially finished with 151 passes and 10 fixture-delivery
+failures. A controlling service worker bypassed page-level API routes; the inspected trace shows
+earlier fixture responses succeeding and later account/Deck reads reaching the unavailable preview
+proxy with HTTP 502. A diagnostic configuration blocks service workers for route-backed fixtures;
+the explicit offline/PWA tests still allow them. With real PostgreSQL offline and learning journeys
+enabled, this run finished with **160 passes and one failure** in 14.1 minutes. The remaining failure
+at `stabilization.spec.ts:778` dropped a child before the destination Folder instead of inside it.
+An isolated rerun passed unchanged in 2.7 seconds. Preserve the failed trace and the intermittent
+drag finding; the full extended run is not green. Neither diagnostic configuration nor extra retry
+policy was committed, and the protected CI gate passed independently.
+
 All five controlled performance cases passed with the existing 55 FPS threshold enforced at 4× CPU
 slowdown: 5,000 Notes at 60.0 FPS with 11 mounted rows, 500 Panels-only rows at 60.0 FPS, full-glass
 Decks at 59.0 FPS and mixed collections at 59.7 FPS. Scroll throughput is separate from the cold-entry,
 reconciliation and competing-background-work observations above.
 
-Physical-iPhone acceptance must still cover installed-PWA cold/warm Deck entry, Today/Library,
-Practice, disclosure, committed/reversed swipes, security dialogs, foreground/background return,
-safe-area scroll, connectivity loss/restoration and pending rename delivery/conflicts. Browser
-WebKit coverage and CPU-constrained Chromium evidence do not replace this acceptance.
+PR #49 merged on 2026-10-11 at `4565b1c` after required CI, the unchanged browser/screenshot gate
+and both Vercel checks passed. The owner then reported that the application feels good on the real
+iPhone. This is the production acceptance for the reported interaction regressions and closes the
+stabilization blocker. It is separate from browser WebKit and CPU-constrained Chromium measurements.
+There is no known remaining physical-iPhone issue from this acceptance report; device frame traces
+and an itemized cold/warm, motion, safe-area, lifecycle and connectivity checklist were not supplied.

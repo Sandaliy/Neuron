@@ -7,7 +7,7 @@ import type { Page } from '@playwright/test';
 
 async function setup(page: Page, locale: 'en' | 'ru' = 'en') {
   await setPreferences(page, { theme: locale === 'ru' ? 'light' : 'dark', locale, glass: 'off' });
-  await stubApi(page);
+  await stubApi(page, { collectionDownload: false });
   let note = {
     id: 'mobile',
     deckId: 'd1',

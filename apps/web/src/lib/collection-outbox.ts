@@ -42,34 +42,36 @@ function changed() {
 
 export function validateRenames(input: unknown, accountId: string): PendingRename[] {
   if (!Array.isArray(input)) throw new Error('collection_invalid_outbox');
-  return input.map((entry: PendingRename) => {
-    const payload = renameDeckCommandSchema.parse(entry.payload);
-    if (
-      entry.accountId !== accountId ||
-      payload.accountId !== accountId ||
-      entry.operationId !== payload.operationId ||
-      entry.base?.entity !== 'decks' ||
-      entry.base.id !== entry.entityId ||
-      entry.base.rev !== payload.baseRev ||
-      entry.base.row['rev'] !== payload.baseRev ||
-      entry.base.deleted ||
-      entry.base.purged ||
-      !['pending', 'synchronized', 'conflict', 'rejected', 'resolved'].includes(entry.state)
-    )
-      throw new Error('collection_invalid_outbox');
-    const base = deckSchema.parse({ ...entry.base.row, path: [] });
-    if (base.id !== entry.entityId) throw new Error('collection_invalid_outbox');
-    if (entry.outcome) {
-      const outcome = renameDeckResultSchema.parse(entry.outcome);
-      if (outcome.operationId !== entry.operationId) throw new Error('collection_invalid_outbox');
-    }
-    if (
-      entry.state === 'synchronized' &&
-      (entry.outcome?.status !== 'applied' || entry.outcome.revision <= payload.baseRev)
-    )
-      throw new Error('collection_invalid_outbox');
-    return entry;
-  });
+  return input
+    .filter((entry: PendingRename & { kind?: string }) => entry.kind !== 'note-edit')
+    .map((entry: PendingRename) => {
+      const payload = renameDeckCommandSchema.parse(entry.payload);
+      if (
+        entry.accountId !== accountId ||
+        payload.accountId !== accountId ||
+        entry.operationId !== payload.operationId ||
+        entry.base?.entity !== 'decks' ||
+        entry.base.id !== entry.entityId ||
+        entry.base.rev !== payload.baseRev ||
+        entry.base.row['rev'] !== payload.baseRev ||
+        entry.base.deleted ||
+        entry.base.purged ||
+        !['pending', 'synchronized', 'conflict', 'rejected', 'resolved'].includes(entry.state)
+      )
+        throw new Error('collection_invalid_outbox');
+      const base = deckSchema.parse({ ...entry.base.row, path: [] });
+      if (base.id !== entry.entityId) throw new Error('collection_invalid_outbox');
+      if (entry.outcome) {
+        const outcome = renameDeckResultSchema.parse(entry.outcome);
+        if (outcome.operationId !== entry.operationId) throw new Error('collection_invalid_outbox');
+      }
+      if (
+        entry.state === 'synchronized' &&
+        (entry.outcome?.status !== 'applied' || entry.outcome.revision <= payload.baseRev)
+      )
+        throw new Error('collection_invalid_outbox');
+      return entry;
+    });
 }
 
 export async function renames(accountId: string): Promise<PendingRename[]> {

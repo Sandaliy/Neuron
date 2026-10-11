@@ -43,7 +43,7 @@ test('stored grammar toggles stay editable after clearing, even without language
   page,
 }, testInfo) => {
   await usePreferences(page, { locale: 'en', theme: 'dark' });
-  await useFixtures(page, { decks: [deck] });
+  await useFixtures(page, { decks: [deck], collectionDownload: false });
   let saved = {
     ...notes[0]!,
     noteType: 'vocab',

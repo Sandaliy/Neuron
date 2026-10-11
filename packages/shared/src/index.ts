@@ -183,6 +183,8 @@ export {
   noteSchema,
   noteSortSchema,
   updateNoteSchema,
+  editOfflineNoteCommandSchema,
+  editOfflineNoteResultSchema,
 } from './api/notes.js';
 export type {
   BulkDeleteBody,
@@ -196,6 +198,8 @@ export type {
   Note,
   NoteSort,
   UpdateNoteBody,
+  EditOfflineNoteCommand,
+  EditOfflineNoteResult,
 } from './api/notes.js';
 
 export {

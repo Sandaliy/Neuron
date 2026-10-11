@@ -415,9 +415,11 @@ test('future database versions block recovery and retain the immutable outbox', 
   await reconnect(page, state);
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(
-    page.getByText(
-      'Saved changes could not be read. Rebuild is blocked until they can be checked safely.',
-    ),
+    page
+      .getByRole('region', { name: 'Saved name changes' })
+      .getByText(
+        'Saved changes could not be read. Rebuild is blocked until they can be checked safely.',
+      ),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
   await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();

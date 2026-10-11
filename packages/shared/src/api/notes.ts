@@ -157,6 +157,34 @@ export const updateNoteSchema = z
     'merge needs fields and the same note type, without metadata changes',
   );
 
+/** An exact, revision-checked edit of an existing Note. Card removals are excluded. */
+export const editOfflineNoteCommandSchema = z.strictObject({
+  accountId: z.string().min(1),
+  operationId: idSchema,
+  baseRev: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  fields: z.record(z.string(), z.unknown()),
+  tags: z.array(tagSchema).max(50),
+});
+const noteEditResult = {
+  operationId: idSchema,
+  revision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+};
+export const editOfflineNoteResultSchema = z.discriminatedUnion('status', [
+  z.strictObject({ ...noteEditResult, status: z.literal('applied'), reason: z.never().optional() }),
+  z.strictObject({
+    ...noteEditResult,
+    status: z.literal('conflict'),
+    reason: z.enum(['changed_remotely', 'deleted_remotely']),
+  }),
+  z.strictObject({
+    ...noteEditResult,
+    status: z.literal('unsupported'),
+    reason: z.literal('cards_would_be_lost'),
+  }),
+]);
+export type EditOfflineNoteCommand = z.infer<typeof editOfflineNoteCommandSchema>;
+export type EditOfflineNoteResult = z.infer<typeof editOfflineNoteResultSchema>;
+
 /**
  * Changing the status of many notes at once.
  *

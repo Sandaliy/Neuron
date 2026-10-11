@@ -4,7 +4,8 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-11, Phase 8.2 interaction stabilization.
+Last updated: 2026-10-11, Phase 8.3 existing Note editing implemented on `work/offline-note-editing`;
+protected delivery and physical-iPhone acceptance pending. PR #49 remains accepted on `main` at `4565b1c`.
 
 ## Current release
 
@@ -86,9 +87,9 @@ Browser eviction can still remove device storage; saved locally and synchronized
 Phase 8.2 browser/database verification passes, including real PostgreSQL retry/RLS coverage,
 Chromium/mobile WebKit persistence and conflict recovery, the full built interaction gate, Windows
 visual contracts and the unchanged 55 FPS budgets. The owner confirms that offline rename/outbox
-functionality works, but installed-iPhone production acceptance reports provisional read-only Deck
+functionality works. Initial installed-iPhone production acceptance found provisional read-only Deck
 presentation, shifting controls, interrupted navigation and degraded motion across unrelated screens.
-Further Phase 8 expansion is paused while `work/iphone-stabilization` restores interaction quality.
+These findings prompted the stabilization delivered through PR #49.
 
 The stabilization separates local provenance from connectivity and authenticated authority. Online
 Decks retain their normal geometry with server-dependent controls disabled until authoritative data
@@ -96,10 +97,29 @@ arrives. Zero-freshness seeds retry after interrupted navigation; cached query a
 snapshot work, ordinary browsing omits unused Cards, validation yields between bounded batches, and
 unchanged account state does not notify global observers. The shell preserves the top safe area at
 every breakpoint and covers it above scrolling content. Durable database/outbox formats and rename
-delivery/conflict contracts are preserved. The stabilization awaits protected review and physical-iPhone
-acceptance. See `interaction-performance.md` for measured evidence and platform limits.
+delivery/conflict contracts are preserved. PR #49 merged on 2026-10-11 at `4565b1c`; required CI,
+the unchanged browser/screenshot gate and both Vercel checks passed. After merging, the owner confirmed
+that the application feels good on the real iPhone. This closes the reported production interaction
+acceptance blocker. The device report is owner acceptance, not an instrumented per-interaction trace.
+See `interaction-performance.md` for measured evidence and platform limits.
 See `offline-collection.md` for the storage, lifecycle, recovery and later-write boundaries.
-Offline Note editing/creation, Card generation, local Study planning, Review/Undo transport,
+Phase 8.3 adds durable fields/tags drafts for downloaded existing vocab/basic/cloze Notes in the same
+Note Editor. Raw invalid drafts remain on-device; valid content uses matching-account entity-revision
+delivery and immutable receipts. Unsent edits coalesce; delivery freezes exact retry identity/payload,
+and newer working edits become a new operation after acknowledgement. Remote conflicts retain local
+and original versions with explicit fresh-revision recovery. Shared Note/Card planning preserves retained
+Card identities/schedules/Reviews and refuses every Card removal. Local Note events avoid collection
+store scans/global notifications while typing; local content cannot seed authoritative learning pools.
+No SQL migration or IndexedDB version change is needed. See `offline-collection.md` for recovery,
+unsupported transitions and the physical-iPhone acceptance checklist. This slice has not been merged
+or accepted on the physical iPhone yet.
+Release verification passed all 1,088 unit/PostgreSQL tests, package typechecks, source lint,
+isolation/design checks, formatting and the production web build. The built serial phone/desktop gate
+passed 520 interactions with six selection skips; all 66 unchanged Windows visuals and all five enforced
+4× CPU performance cases passed. Dedicated Chromium/mobile WebKit Note cases passed 36 of 36.
+Real offline/PWA and learning journeys passed separately in Chromium and mobile WebKit.
+All 62 affected WebKit offline cases and the committed touch-swipe regression passed.
+Offline Note creation, local Study planning, Review/Undo transport,
 Practice synchronization and offline Import application remain unimplemented.
 Phase 9 triage/waves/progressive direction admission and Phase 10 personal plans/progress remain later work.
 
@@ -192,17 +212,20 @@ Today or Study.
 
 ## Next
 
-1. Deliver the Phase 8.2 stabilization through the protected PR workflow. Accept stable first/warm
-   Deck entry, Today/Library, Practice loading, disclosure/swipe/dialog motion, safe-area geometry and
-   connectivity transitions on the installed iPhone, while preserving offline renames and conflicts.
-2. Resume Phase 8 work only after stabilization acceptance and contracts for Note/Card planning and created identities, local
-   Study/replay ownership, Review/Undo and Practice synchronization are established and verified.
+1. Deliver the coherent Phase 8.3 existing-Note slice through its protected PR, required checks and
+   physical-iPhone acceptance. Preserve PR #49's measured geometry and responsiveness contract.
+2. Establish and verify separate contracts for later Phase 8 work: created Note/Card identities,
+   local Study/replay ownership, Review/Undo and Practice synchronization.
    Preserve the outbox's account, original revision, atomicity and recoverable intent guarantees.
 3. Keep Phase 9 large-collection triage/waves/progressive admission and Phase 10 personal workload
    customization/statistics separate. Earlier design is appropriate only for concrete storage/sync prerequisites.
 
 ## Open threads
 
+- Extended Windows mobile WebKit coverage passed 160 of 161 cases after isolating service-worker
+  fixture interception. One exact inside-Folder drag assertion failed and passed an unchanged isolated
+  rerun. Its trace is retained; the full extended run is not green. Protected CI and owner iPhone
+  acceptance passed independently. See `interaction-performance.md`; preserve the drag assertion.
 - The long-lived Preview database is intentionally empty and shared by preview deployments. Resetting it
   or moving to one database branch per pull request remains a later automation task.
 - The note-list performance fix preserves selection across virtual mounts, refreshed row data and native
