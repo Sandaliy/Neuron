@@ -54,8 +54,8 @@ export function LibraryScreen() {
   const navigate = useNavigate();
   const decks = useDeckTree();
   const offline = useOffline();
-  const readOnly = offline.offline || decks.local;
-  const unavailable = readOnly && !offline.available;
+  const readOnly = offline.offline || !offline.validated || decks.local;
+  const unavailable = offline.offline && !offline.available;
   const actions = useDeckActions();
   const [open, setOpen] = useState<ReadonlySet<string>>(() => readOpen());
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' });
@@ -101,7 +101,7 @@ export function LibraryScreen() {
     <CollectionDrag tree={tree} actions={actions} readOnly={readOnly}>
       <section data-screen="" data-library-view="" className="flex flex-col gap-20">
         <CollectionHeader
-          readOnly={readOnly}
+          readOnly={offline.offline}
           title={folder?.name ?? t('library.title')}
           actions={
             <>
@@ -119,8 +119,8 @@ export function LibraryScreen() {
                   <ArrowLeft size={18} />
                 </Button>
               )}
-              {!readOnly && (
-                <>
+              {!offline.offline && (
+                <fieldset disabled={readOnly} className="contents">
                   <Button
                     variant="quiet"
                     className="size-44 px-12"
@@ -157,7 +157,7 @@ export function LibraryScreen() {
                     <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
                     <span className="sr-only min-[420px]:not-sr-only">{t('library.newDeck')}</span>
                   </Button>
-                </>
+                </fieldset>
               )}
             </>
           }
@@ -182,7 +182,7 @@ export function LibraryScreen() {
         {!unavailable && decks.error && !decks.data ? (
           <ErrorState
             message={
-              readOnly
+              offline.offline
                 ? t('offline.missing')
                 : t(describe(decks.error).key, describe(decks.error).values)
             }
@@ -193,8 +193,8 @@ export function LibraryScreen() {
 
         {!unavailable && decks.data && !decks.isFetching && !decks.error && visible.length === 0 ? (
           <EmptyState
-            title={t(readOnly ? 'offline.empty' : 'library.emptyTitle')}
-            description={t(readOnly ? 'offline.readOnly' : 'library.emptyBody')}
+            title={t(offline.offline ? 'offline.empty' : 'library.emptyTitle')}
+            description={t(offline.offline ? 'offline.readOnly' : 'library.emptyBody')}
           />
         ) : undefined}
 
@@ -205,6 +205,7 @@ export function LibraryScreen() {
                 key={deck.id}
                 deck={deck}
                 readOnly={readOnly}
+                offline={offline.offline}
                 siblings={visible}
                 tree={tree}
                 actions={actions}
@@ -217,7 +218,7 @@ export function LibraryScreen() {
           </div>
         ) : undefined}
 
-        {(!readOnly || dialog.kind === 'rename') && (
+        {(!readOnly || (offline.offline && dialog.kind === 'rename')) && (
           <DeckDialogs
             state={dialog}
             decks={tree}
@@ -280,6 +281,7 @@ type DialogState =
 function Deck({
   deck,
   readOnly,
+  offline,
   siblings,
   tree,
   actions,
@@ -290,6 +292,7 @@ function Deck({
 }: {
   readonly deck: DeckNode;
   readonly readOnly: boolean;
+  readonly offline: boolean;
   /** The decks at this level, for moving one up or down among them. */
   readonly siblings: readonly DeckNode[];
   /** The whole tree, for deciding whether a drop is allowed. */
@@ -414,7 +417,7 @@ function Deck({
           onClick={() => onOpen(deck.id)}
           interactiveTrailing
           trailing={
-            readOnly ? (
+            offline ? (
               <Menu label={t('library.deckActions', { name: deck.name })}>
                 <MenuItem
                   icon={<Pencil size={16} strokeWidth={1.5} />}
@@ -426,17 +429,21 @@ function Deck({
             ) : (
               <>
                 <Menu label={t('library.deckActions', { name: deck.name })}>
-                  <div className="px-12 py-8 text-13 text-secondary">
-                    {t('library.cardCounts', { due: deck.due, fresh: deck.fresh })}
-                  </div>
-                  <MenuSeparator />
+                  {!readOnly && (
+                    <div className="px-12 py-8 text-13 text-secondary">
+                      {t('library.cardCounts', { due: deck.due, fresh: deck.fresh })}
+                    </div>
+                  )}
+                  {!readOnly && <MenuSeparator />}
                   <MenuItem
+                    disabled={readOnly}
                     icon={<Pencil size={16} strokeWidth={1.5} />}
                     onSelect={() => onAct({ kind: 'rename', deck })}
                   >
                     {t('library.rename')}
                   </MenuItem>
                   <MenuItem
+                    disabled={readOnly}
                     icon={<FolderInput size={16} strokeWidth={1.5} />}
                     onSelect={() => onAct({ kind: 'move', deck })}
                   >
@@ -445,6 +452,7 @@ function Deck({
                   {deck.kind === 'folder' && (
                     <>
                       <MenuItem
+                        disabled={readOnly}
                         icon={<Folder size={16} />}
                         onSelect={() =>
                           onAct({
@@ -458,6 +466,7 @@ function Deck({
                         {t('library.newFolder')}
                       </MenuItem>
                       <MenuItem
+                        disabled={readOnly}
                         icon={<Plus size={16} />}
                         onSelect={() =>
                           onAct({
@@ -473,6 +482,7 @@ function Deck({
                     </>
                   )}
                   <MenuItem
+                    disabled={readOnly}
                     icon={<Settings2 size={16} strokeWidth={1.5} />}
                     onSelect={() => onAct({ kind: 'settings', deck })}
                   >
@@ -483,14 +493,14 @@ function Deck({
 
                   <MenuItem
                     icon={<ArrowUp size={16} strokeWidth={1.5} />}
-                    disabled={index <= 0}
+                    disabled={readOnly || index <= 0}
                     onSelect={() => reorder(-1)}
                   >
                     {t('library.moveUp')}
                   </MenuItem>
                   <MenuItem
                     icon={<ArrowDown size={16} strokeWidth={1.5} />}
-                    disabled={index < 0 || index >= siblings.length - 1}
+                    disabled={readOnly || index < 0 || index >= siblings.length - 1}
                     onSelect={() => reorder(1)}
                   >
                     {t('library.moveDown')}
@@ -499,6 +509,7 @@ function Deck({
                   <MenuSeparator />
 
                   <MenuItem
+                    disabled={readOnly}
                     tone="danger"
                     icon={<Trash2 size={16} strokeWidth={1.5} />}
                     onSelect={() => onAct({ kind: 'delete', deck })}
@@ -536,6 +547,7 @@ function Deck({
               key={child.id}
               deck={child}
               readOnly={readOnly}
+              offline={offline}
               siblings={deck.children}
               tree={tree}
               actions={actions}

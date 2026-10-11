@@ -344,6 +344,10 @@ movement cannot hide a layout change.
 
 The two hardest things about a phone browser, and the two the interface was worst at.
 
+The shell's top padding includes `--safe-top` at every breakpoint. A stationary canvas-colored
+cover occupies that inset above scrolling content, so headings cannot paint into the installed
+phone's status area. It has no pointer interaction or viewport subscription.
+
 **A `position: fixed` element is placed against the layout viewport**, and the bottom navigation relies
 on that native Safari positioning. It does not receive a second browser-chrome translation. The viewport
 tracker is concerned with keyboard geometry: it measures the visual viewport only while a normal-scale
@@ -765,6 +769,9 @@ fits and scrolls naturally when it does not; spelling feedback remains in the an
 The ordinary recognition/Typing prompt-and-answer composition remains unchanged.
 
 Practice entry shows classified progress, a full-width blue Start/Resume action and quiet setup control.
+Its progress slot remains occupied while the server summary arrives, including an empty run, so the
+search and Note list stay at the same position. Online provisional data retains this card and the
+collection toolbar; server-dependent controls are disabled until authority is established.
 Active counters show numbers alone with accessible classification labels. Field recipes are
 available through setup and a compact Card fields disclosure, rather than repeated in active rounds.
 Schedule independence is explained at setup and destructive replacement, not on every primary surface.

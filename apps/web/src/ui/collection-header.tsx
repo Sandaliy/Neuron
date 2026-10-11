@@ -24,7 +24,7 @@ export function CollectionHeader({
           readOnly={readOnly}
           inline
           fallback={actions}
-          className="ml-auto flex shrink-0 items-center gap-4 [&>button]:px-8 [&>button]:py-8"
+          className="ml-auto flex shrink-0 items-center gap-4 [&>button]:px-8 [&>button]:py-8 [&>fieldset>button]:px-8 [&>fieldset>button]:py-8"
         >
           {actions}
         </ReadOnlySlot>

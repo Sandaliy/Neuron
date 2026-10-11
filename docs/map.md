@@ -342,18 +342,19 @@ every one of these in every state.
 
 ## Documentation
 
-| File                             | Holds                                                                          |
-| -------------------------------- | ------------------------------------------------------------------------------ |
-| `docs/STATE.md`                  | Current phase, open threads, decision log. Read this first                     |
-| `docs/ROADMAP.md`                | Product direction, committed milestone order, backlog and maintenance policy   |
-| `docs/architecture.md`           | Why the structure is what it is, and the known limitations                     |
-| `docs/algorithm.md`              | FSRS and the workload manager explained in full, with the simulator results    |
-| `docs/design-system.md`          | The visual system: tokens, inventory, motion, glass, the words, the checklist  |
-| `docs/card-generation-prompt.md` | Canonical prompt and import output contract used by the web build              |
-| `docs/design-principles.md`      | A pointer to the file above. The phase 5 values in it are all wrong now        |
-| `docs/copy-audit.md`             | Every interface string in both languages, and what looks wrong with it         |
-| `docs/offline-collection.md`     | Local-first reads, durable renames, account/shell boundaries and safe recovery |
-| `docs/assets/*.svg`              | Charts produced by `sim/main.ts`                                               |
+| File                              | Holds                                                                              |
+| --------------------------------- | ---------------------------------------------------------------------------------- |
+| `docs/STATE.md`                   | Current phase, open threads, decision log. Read this first                         |
+| `docs/ROADMAP.md`                 | Product direction, committed milestone order, backlog and maintenance policy       |
+| `docs/architecture.md`            | Why the structure is what it is, and the known limitations                         |
+| `docs/algorithm.md`               | FSRS and the workload manager explained in full, with the simulator results        |
+| `docs/design-system.md`           | The visual system: tokens, inventory, motion, glass, the words, the checklist      |
+| `docs/card-generation-prompt.md`  | Canonical prompt and import output contract used by the web build                  |
+| `docs/design-principles.md`       | A pointer to the file above. The phase 5 values in it are all wrong now            |
+| `docs/copy-audit.md`              | Every interface string in both languages, and what looks wrong with it             |
+| `docs/offline-collection.md`      | Local-first reads, durable renames, account/shell boundaries and safe recovery     |
+| `docs/interaction-performance.md` | Stabilization diagnosis, matched browser measurements and device acceptance limits |
+| `docs/assets/*.svg`               | Charts produced by `sim/main.ts`                                                   |
 
 Collection recovery additions: `apps/api/src/db/repositories/purge.ts` owns irreversible deletion and
 server impact counts; `restoration.ts` owns operation-scoped subtree restoration. In the web Library,

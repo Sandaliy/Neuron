@@ -5,8 +5,14 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
 import { useFixtures as installFixtures, usePreferences as installPreferences } from './fixtures';
+import {
+  installInteractionMetrics,
+  startInteractionMetrics,
+  readInteractionMetrics,
+  sampleInteraction,
+} from './interaction-metrics';
 
-import type { BrowserContext, Page, Route } from '@playwright/test';
+import type { BrowserContext, CDPSession, Page, Route } from '@playwright/test';
 
 test.use({ serviceWorkers: 'block' });
 
@@ -188,6 +194,511 @@ async function offline(page: Page, context: BrowserContext) {
   await context.setOffline(true);
   await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
 }
+
+test.describe('reconciliation measurements', () => {
+  test('stabilization continuity during downloaded Deck reconciliation', async ({
+    page,
+    context,
+    browserName,
+  }, info) => {
+    test.setTimeout(180000);
+    await installInteractionMetrics(page);
+    await installPreferences(page, { locale: 'en', theme: 'dark', glass: 'full', motion: 'full' });
+    const size = browserName === 'webkit' ? 1000 : 5000;
+    let refreshed = false;
+    let rows = Array.from({ length: size }, (_, at) => ({
+      ...note,
+      id: `01900000-0000-7000-8000-${String(at + 100).padStart(12, '0')}`,
+      rev: at * 2 + 2,
+      fields: { term: `Stable word ${String(at).padStart(4, '0')}`, translation: 'Stored meaning' },
+    }));
+    await installOfflineFixtures(page, context, {
+      pull: async (route, since) => {
+        await route.fulfill({
+          json:
+            since === 0
+              ? { ...first, changes: [change('decks', { ...deck, parentId: null })] }
+              : since === 1
+                ? last
+                : refreshed && since === size * 2 + 1
+                  ? {
+                      since,
+                      revision: since + 1,
+                      hasMore: false,
+                      changes: [change('notes', { ...rows[0], rev: since + 1 })],
+                    }
+                  : { since, revision: since, hasMore: false, changes: [] },
+        });
+      },
+    });
+    await page.route('**/api/decks', (route) =>
+      route.fulfill({
+        json: {
+          decks: [
+            { ...deck, parentId: null, path: [], children: [], noteCount: size, due: 0, fresh: 0 },
+          ],
+        },
+      }),
+    );
+    await page.route(`**/api/decks/${deckId}/practice`, (route) =>
+      route.fulfill({ json: { run: null, version: 0 } }),
+    );
+    await page.goto('/settings');
+    await expect(
+      page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    ).toBeVisible();
+    // Isolate browsing a previously completed download. Paginated hydration, atomic
+    // cursor application and interrupted downloads have separate regressions below.
+    await page.evaluate(
+      async ({ id, note, card, size }) => {
+        const opened = indexedDB.open(`neuron.collection:${id}`);
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+          opened.onsuccess = () => resolve(opened.result);
+          opened.onerror = () => reject(opened.error);
+        });
+        try {
+          for (let offset = 0; offset < size; offset += 200)
+            await new Promise<void>((resolve, reject) => {
+              const tx = db.transaction(['notes', 'cards', 'meta'], 'readwrite');
+              if (offset === 0) {
+                tx.objectStore('notes').clear();
+                tx.objectStore('cards').clear();
+              }
+              for (let at = offset; at < offset + 200; at++) {
+                const row = {
+                  ...note,
+                  id: `01900000-0000-7000-8000-${String(at + 100).padStart(12, '0')}`,
+                  rev: at * 2 + 2,
+                  fields: {
+                    term: `Stable word ${String(at).padStart(4, '0')}`,
+                    translation: 'Stored meaning',
+                  },
+                };
+                const direction = {
+                  ...card,
+                  id: `01900000-0000-7000-8000-${String(at + 10000).padStart(12, '0')}`,
+                  noteId: row.id,
+                  rev: row.rev + 1,
+                };
+                tx.objectStore('notes').put({
+                  entity: 'notes',
+                  id: row.id,
+                  rev: row.rev,
+                  deleted: false,
+                  purged: false,
+                  row,
+                });
+                tx.objectStore('cards').put({
+                  entity: 'cards',
+                  id: direction.id,
+                  rev: direction.rev,
+                  deleted: false,
+                  purged: false,
+                  row: direction,
+                });
+              }
+              if (offset + 200 === size)
+                tx.objectStore('meta').put(
+                  { cursor: size * 2 + 1, complete: true, format: 1 },
+                  'sync',
+                );
+              tx.oncomplete = () => resolve();
+              tx.onabort = () => reject(tx.error);
+            });
+        } finally {
+          db.close();
+        }
+      },
+      { id: account.id, note, card, size },
+    );
+    await page.reload();
+    await expect(
+      page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    ).toBeVisible();
+    let profiler: CDPSession | undefined;
+    if (browserName === 'chromium') {
+      const cpu = await context.newCDPSession(page);
+      await cpu.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+      if (process.env['STABILIZATION_PROFILE'] === 'true') {
+        profiler = cpu;
+        await profiler.send('Profiler.enable');
+        await profiler.send('Profiler.start');
+      }
+    }
+    await page.evaluate(() => document.documentElement.style.setProperty('--safe-top', '47px'));
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/notes?*', async (route) => {
+      await held;
+      const offset = Number(
+        new URL(route.request().url()).searchParams.get('cursor')?.split(':')[1] ?? 0,
+      );
+      await route.fulfill({
+        json: {
+          items: rows.slice(offset, offset + 1000),
+          ...(offset + 1000 < rows.length ? { nextCursor: `server:${offset + 1000}` } : {}),
+        },
+      });
+    });
+    await startInteractionMetrics(page);
+    const libraryStart = performance.now();
+    await page.getByRole('link', { name: 'Library', exact: true }).click();
+    await expect(page.getByRole('button', { name: /^Downloaded Deck/ })).toBeVisible();
+    const libraryMs = performance.now() - libraryStart;
+    const start = performance.now();
+    await page.getByRole('button', { name: /^Downloaded Deck/ }).click();
+    const firstRow = page.getByRole('button', { name: /Stable word 0000/ });
+    await expect(firstRow).toBeVisible();
+    const firstContentMs = performance.now() - start;
+    await page.locator('[data-screen]').evaluate(async (element) => {
+      await Promise.all(
+        element
+          .getAnimations({ subtree: true })
+          .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+          .map((animation) => animation.finished.catch(() => undefined)),
+      );
+    });
+    const geometry = () =>
+      page.evaluate(() => ({
+        heading: document.querySelector('h1')!.getBoundingClientRect().top,
+        search: document.querySelector('input[type="search"]')!.getBoundingClientRect().top,
+        list: document.querySelector('[data-rows]')!.getBoundingClientRect().top,
+        practice: Array.from(document.querySelectorAll('h2')).some(
+          (node) => node.textContent === 'Practice',
+        ),
+      }));
+    const before = await geometry();
+    await firstRow.evaluate((element) => {
+      Object.assign(window, {
+        originalRow: element,
+        originalScreen: document.querySelector('[data-screen]'),
+      });
+    });
+    const baseline = process.env['STABILIZATION_BASELINE'] === 'true';
+    if (!baseline) {
+      await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
+      await expect(
+        page.getByRole('button', { name: 'Start practice', exact: true }),
+      ).toBeDisabled();
+      await expect(
+        page.getByText(
+          /Browse downloaded Folders, Decks and Notes, and rename existing collections/,
+        ),
+      ).toHaveCount(0);
+    }
+    const authorityStart = performance.now();
+    release();
+    await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
+    const authoritativeActionsMs = performance.now() - start;
+    const reconciliationMs = performance.now() - authorityStart;
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    const after = await geometry();
+    const retained = await page.evaluate(() => {
+      const previous = window as unknown as {
+        originalRow: HTMLElement;
+        originalScreen: HTMLElement;
+      };
+      return {
+        row: previous.originalRow.isConnected,
+        screen: previous.originalScreen === document.querySelector('[data-screen]'),
+      };
+    });
+    const metrics = await readInteractionMetrics(page);
+    if (profiler) {
+      const { profile } = await profiler.send('Profiler.stop');
+      await info.attach('reconciliation.cpuprofile', {
+        body: JSON.stringify(profile),
+        contentType: 'application/json',
+      });
+    }
+    const evidence = {
+      browser: browserName,
+      notes: size,
+      cards: size,
+      cpu: browserName === 'chromium' ? 4 : 'native WebKit',
+      baseline,
+      libraryMs,
+      firstContentMs,
+      stableLayoutMs: baseline ? authoritativeActionsMs : firstContentMs,
+      authoritativeActionsMs,
+      reconciliationMs,
+      before,
+      after,
+      retained,
+      ...metrics,
+    };
+    console.log('stabilization-evidence', JSON.stringify(evidence));
+    await info.attach('stabilization-evidence', {
+      body: JSON.stringify(evidence, null, 2),
+      contentType: 'application/json',
+    });
+    if (!baseline) {
+      expect(before.practice).toBe(true);
+      expect(after.list).toBeCloseTo(before.list, 0);
+      expect(after.search).toBeCloseTo(before.search, 0);
+      expect(before.heading).toBeGreaterThanOrEqual(
+        info.project.name === 'desktop-interaction' ? 24 : 47,
+      );
+      expect(retained).toEqual({ row: true, screen: true });
+    } else {
+      expect(before.practice).toBe(false);
+      expect(Math.abs(after.list - before.list)).toBeGreaterThan(40);
+    }
+    const stages: Record<string, unknown> = {};
+    stages.warmLibrary = await sampleInteraction(page, () =>
+      page.getByRole('link', { name: 'Library', exact: true }).click(),
+    );
+    const warmStart = performance.now();
+    stages.warmDeck = await sampleInteraction(page, async () => {
+      await page.getByRole('button', { name: /^Downloaded Deck/ }).click();
+      await expect(firstRow).toBeVisible();
+      stages.warmContentMs = performance.now() - warmStart;
+    });
+    stages.swipe = await sampleInteraction(page, async () => {
+      await firstRow.dispatchEvent('pointerdown', {
+        pointerType: 'touch',
+        clientX: 300,
+        clientY: 650,
+      });
+      await firstRow.dispatchEvent('pointermove', {
+        pointerType: 'touch',
+        clientX: 240,
+        clientY: 650,
+      });
+      await firstRow.dispatchEvent('pointerup', {
+        pointerType: 'touch',
+        clientX: 240,
+        clientY: 650,
+      });
+    });
+    await expect(page.locator('[data-swipe-action]')).toBeVisible();
+    await firstRow.dispatchEvent('pointerdown', {
+      pointerType: 'touch',
+      clientX: 300,
+      clientY: 650,
+    });
+    await firstRow.dispatchEvent('pointermove', {
+      pointerType: 'touch',
+      clientX: 380,
+      clientY: 650,
+    });
+    await firstRow.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 380, clientY: 650 });
+    await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+    await page.route(`**/api/notes/${rows[0]!.id}`, async (route) => {
+      rows = rows.slice(1);
+      await route.fulfill({ json: { deleted: true } });
+    });
+    stages.swipeDelete = await sampleInteraction(page, async () => {
+      await firstRow.dispatchEvent('pointerdown', {
+        pointerType: 'touch',
+        clientX: 300,
+        clientY: 650,
+      });
+      await firstRow.dispatchEvent('pointermove', {
+        pointerType: 'touch',
+        clientX: 40,
+        clientY: 650,
+      });
+      await firstRow.dispatchEvent('pointerup', {
+        pointerType: 'touch',
+        clientX: 40,
+        clientY: 650,
+      });
+    });
+    await expect(firstRow).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Stable word 0001/ })).toBeVisible();
+    stages.todayNavigation = await sampleInteraction(page, () =>
+      page.getByRole('link', { name: 'Today', exact: true }).click(),
+    );
+    const setup = page.getByRole('button', { name: 'Study setup', exact: true });
+    await expect(setup).toBeVisible();
+    stages.disclosureOpen = await sampleInteraction(page, () => setup.click());
+    await expect(setup).toHaveAttribute('aria-expanded', 'true');
+    stages.disclosureClose = await sampleInteraction(page, () => setup.click());
+    await expect(setup).toHaveAttribute('aria-expanded', 'false');
+    stages.settingsNavigation = await sampleInteraction(page, () =>
+      page.getByRole('link', { name: 'Settings', exact: true }).click(),
+    );
+    stages.securityOpen = await sampleInteraction(page, () =>
+      page.getByRole('button', { name: 'Change your password', exact: true }).click(),
+    );
+    await expect(page.getByRole('dialog')).toBeVisible();
+    stages.securityClose = await sampleInteraction(page, () => page.keyboard.press('Escape'));
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    // Age query freshness without replacing native animation-frame scheduling.
+    await page.evaluate(() => {
+      const now = Date.now.bind(Date);
+      Date.now = () => now() + 360_001;
+    });
+    refreshed = true;
+    stages.backgroundRefreshNavigationAndSetup = await sampleInteraction(page, async () => {
+      await page.evaluate(() => dispatchEvent(new Event('focus')));
+      await expect
+        .poll(() => meta(page))
+        .toEqual({ cursor: size * 2 + 2, complete: true, format: 1 });
+      await page.getByRole('link', { name: 'Library', exact: true }).click();
+      await page.getByRole('link', { name: 'Today', exact: true }).click();
+      await setup.click();
+      await expect(setup).toHaveAttribute('aria-expanded', 'true');
+    });
+    if (!baseline) {
+      const refresh = stages.backgroundRefreshNavigationAndSetup as {
+        scans: Record<string, number>;
+      };
+      expect(refresh.scans['notes'] ?? 0).toBe(0);
+      expect(refresh.scans['cards'] ?? 0).toBe(0);
+    }
+    if (!baseline) {
+      const cover = await page.locator('[data-safe-area-cover]').boundingBox();
+      expect(cover!.y).toBe(0);
+      expect(cover!.height).toBe(47);
+      await page.evaluate(() => window.scrollTo(0, 150));
+      expect((await page.locator('[data-safe-area-cover]').boundingBox())!.y).toBe(0);
+    }
+    console.log(
+      'stabilization-interactions',
+      JSON.stringify({ browser: browserName, baseline, stages }),
+    );
+    await info.attach('stabilization-interactions', {
+      body: JSON.stringify(stages, null, 2),
+      contentType: 'application/json',
+    });
+  });
+});
+
+test('direct Practice entry never turns provisional browse rows into an authoritative pool', async ({
+  page,
+  context,
+}) => {
+  await installContinuityFixtures(page, context);
+  await download(page);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let poolReads = 0;
+  let writes = 0;
+  page.on('request', (request) => {
+    if (request.method() !== 'GET') writes++;
+  });
+  await page.route('**/api/notes?*', async (route) => {
+    if (!new URL(route.request().url()).searchParams.has('sort')) poolReads++;
+    await held;
+    await route.fulfill({ json: { items: [note] } }).catch(() => undefined);
+  });
+  await page.getByRole('button', { name: /^Downloaded Folder/ }).click();
+  await page.getByRole('button', { name: /^Nested Folder/ }).click();
+  await page.getByRole('button', { name: /^Downloaded Deck/ }).click();
+  await expect(page.getByRole('button', { name: /Durable word/ })).toBeVisible();
+  await page.evaluate((deckId) => {
+    history.pushState(
+      { ...history.state, __TSR_index: (history.state?.__TSR_index ?? 0) + 1 },
+      '',
+      `/notes?deckId=${deckId}&learning=practice`,
+    );
+    dispatchEvent(new PopStateEvent('popstate', { state: history.state }));
+  }, deckId);
+  await expect.poll(() => poolReads).toBe(1);
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toHaveCount(0);
+  expect(writes).toBe(0);
+  release();
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
+  expect(writes).toBe(0);
+});
+
+test('a delayed saved Practice summary retains the entry, search and Note positions', async ({
+  page,
+  context,
+}) => {
+  await installContinuityFixtures(page, context);
+  await download(page);
+  let held: Route | undefined;
+  await page.route(`**/api/decks/${deckId}/practice`, (route) => {
+    held = route;
+  });
+  await page.goto(`/notes?deckId=${deckId}`);
+  await expect(page.getByRole('button', { name: /Durable word/ })).toBeVisible();
+  const action = page.getByRole('button', { name: 'Start practice', exact: true });
+  await expect(action).toBeDisabled();
+  const positions = () =>
+    page.evaluate(() => ({
+      search: document.querySelector('input[type="search"]')!.getBoundingClientRect().top,
+      list: document.querySelector('[data-rows]')!.getBoundingClientRect().top,
+    }));
+  const before = await positions();
+  await action.evaluate((element) => Object.assign(window, { originalPracticeAction: element }));
+  await expect.poll(() => Boolean(held)).toBe(true);
+  await held!.fulfill({
+    json: {
+      version: 1,
+      run: {
+        id: reviewId,
+        front: 'term',
+        back: 'translation',
+        response: 'reveal',
+        statuses: { [noteId]: 'known' },
+        queue: [],
+        round: 1,
+      },
+    },
+  });
+  await expect(page.getByRole('button', { name: 'Resume practice', exact: true })).toBeEnabled();
+  expect(await positions()).toEqual(before);
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { originalPracticeAction: HTMLElement }).originalPracticeAction
+          .isConnected,
+    ),
+  ).toBe(true);
+});
+
+test('interrupted provisional Deck entry retries authority on return without reopening the app', async ({
+  page,
+  context,
+}) => {
+  await installOfflineFixtures(page, context);
+  await page.route('**/api/decks', (route) =>
+    route.fulfill({
+      json: {
+        decks: [
+          { ...deck, parentId: null, path: [], children: [], noteCount: 1, due: 0, fresh: 0 },
+        ],
+      },
+    }),
+  );
+  await page.route(`**/api/decks/${deckId}/practice`, (route) =>
+    route.fulfill({ json: { run: null, version: 0 } }),
+  );
+  await download(page);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let reads = 0;
+  await page.route('**/api/notes?*', async (route) => {
+    reads++;
+    await held;
+    await route.fulfill({ json: { items: [note] } }).catch(() => undefined);
+  });
+  await page.getByRole('button', { name: /^Downloaded Deck/ }).click();
+  await expect(page.getByRole('button', { name: /Durable word/ })).toBeVisible();
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: /^Downloaded Deck/ }).click();
+  await expect(page.getByRole('button', { name: /Durable word/ })).toBeVisible();
+  release();
+  await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
+  expect(reads).toBeGreaterThan(1);
+});
 
 for (const mode of ['fast', 'delayed', 'unavailable', 'interrupted'] as const) {
   test(`downloaded collection latency: ${mode}, first and warm entry, 5,000 Notes`, async ({

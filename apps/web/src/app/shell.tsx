@@ -36,6 +36,7 @@ export function Shell() {
   return (
     <div className="flex min-h-dvh flex-col">
       <div aria-hidden="true" data-collection-backdrop="" />
+      <div aria-hidden="true" data-safe-area-cover="" />
       {/*
         Routes mount their own screen, so a tab change replays the arrival
         without remounting this layout. The tabs are siblings, nothing travels
@@ -50,7 +51,7 @@ export function Shell() {
       <main
         key={match?.pathname}
         data-shell-content=""
-        className="relative z-10 mx-auto w-full max-w-[720px] grow px-20 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+40px+var(--keyboard-inset))] sm:pt-24"
+        className="relative z-10 mx-auto w-full max-w-[720px] grow px-20 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+40px+var(--keyboard-inset))] sm:pt-[calc(var(--safe-top)+24px)]"
       >
         <Suspense
           fallback={

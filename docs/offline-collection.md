@@ -55,12 +55,29 @@ autosave until its authoritative detail arrives. Study readiness, Practice progr
 server-owned; their requests do not block the Note list. Existing optimistic data is not replaced by a
 local seed, and authoritative responses still reconcile it through the existing query.
 
+Provenance, connectivity and session authority are separate. While online, provisional Deck content
+uses the normal header, toolbar, search/filter rows and Practice card. Server-dependent controls keep
+their positions and remain disabled until the account and required data are authoritative. A local
+seed never enables an editor, a destructive action, Study planning or a Practice pool. The normal
+Deck layout contains no offline explanation; actual offline status stays beside navigation, with
+readiness and recovery details in Settings. In-session offline handover still retains occupied control
+space and permits durable existing Folder/Deck renames.
+
+Provisional query publication uses a zero freshness timestamp. If navigation cancels the original
+request, returning retries server authority instead of treating local content as a fresh online answer.
+Cached query answers skip local snapshot work altogether; a late local result cannot publish after
+the authoritative request settles. Ordinary repeated account validation publishes no unchanged global
+state snapshot.
+
 The derived projection is shared by account visit, durable cursor, completeness and outbox version.
-One consistent IndexedDB snapshot scan and shared-schema validation supplies all local browse queries
+One consistent IndexedDB snapshot scan and shared-schema validation supplies local browse queries
 at that revision. A new committed revision or outbox state invalidates this projection; sign-out/account
 switches clear it. It is not a second persisted collection. Per-Deck Note counts use one pass rather than
-filtering all Notes separately for each Deck. A local Note result covers its stored matching rows without
-starting an infinite-query next-page fetch that could cancel the in-flight authoritative first page.
+filtering all Notes separately for each Deck. Ordinary hierarchy and Note-list browsing does not clone
+or validate unused Cards. Detail and Card-state reads upgrade the single cached projection from a
+consistent snapshot that includes Cards; Card validation remains on that read boundary. Large Note/
+Card validation yields between bounded batches to let input and paint proceed. Local list pages match
+the server's 1,000-row page size; next-page reads wait for reconciliation and cannot cancel its first page.
 DOM virtualization, search/filter semantics and scroll restoration remain intact.
 
 The Phase 8.1 first-entry network path awaited the Notes API. Transport failure then awaited a shared

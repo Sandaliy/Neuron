@@ -64,6 +64,8 @@ let recovering = false;
 let db: IDBDatabase | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
 const emit = (patch: Partial<OfflineState>) => {
+  if (Object.entries(patch).every(([key, value]) => state[key as keyof OfflineState] === value))
+    return;
   state = { ...state, ...patch };
   listeners.forEach((listener) => listener());
 };

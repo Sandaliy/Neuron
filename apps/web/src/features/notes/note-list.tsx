@@ -2,7 +2,7 @@ import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Plus, Upload, Trash2, Search } from 'lucide-react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { NOTE_SORTS, NOTE_STATUSES, termOf } from '@neuron/shared';
 import type { MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
@@ -117,18 +117,27 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
     ...noteListQuery(query),
     placeholderData: keepPreviousData,
   });
-  const readOnly =
-    offline.offline || decks.local || notes.data?.pages.some((page) => page.local) === true;
+  const serverReady =
+    offline.validated &&
+    !offline.offline &&
+    !decks.local &&
+    notes.data !== undefined &&
+    !notes.isPlaceholderData &&
+    !notes.data.pages.some((page) => page.local);
+  const readOnly = !serverReady;
 
   /** Which deck the screens next to this one should open with. */
   const deckSearch: { deckId?: string } = deckId === undefined ? {} : { deckId };
-  const rows = unavailable ? [] : (notes.data?.pages.flatMap((page) => page.items) ?? []);
+  const rows = useMemo(
+    () => (unavailable ? [] : (notes.data?.pages.flatMap((page) => page.items) ?? [])),
+    [unavailable, notes.data],
+  );
   const deck = deckId === undefined ? undefined : findDeck(decks.data ?? [], deckId);
   const filtered =
     search !== '' || status !== '' || cardState !== '' || tagFilter !== '' || sourceFilter !== '';
 
   /** Every tag on what has been loaded, for the filter to offer. */
-  const tags = [...new Set(rows.flatMap((note) => note.tags))].sort();
+  const tags = useMemo(() => [...new Set(rows.flatMap((note) => note.tags))].sort(), [rows]);
 
   function clearFilters() {
     setTyped('');
@@ -160,13 +169,13 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   return (
     <section data-screen="" className="flex flex-col gap-16">
       <CollectionHeader
-        readOnly={readOnly}
+        readOnly={offline.offline}
         title={deck?.name ?? t('notes.title')}
         actions={
           <>
-            {!readOnly && deck && <RestartLearning deck={deck} />}
-            {!readOnly && (
-              <>
+            {!offline.offline && (
+              <fieldset disabled={!serverReady} className="contents">
+                {deck && <RestartLearning deck={deck} />}
                 <Button
                   variant="quiet"
                   onClick={() => void navigate({ to: '/import', search: deckSearch })}
@@ -182,7 +191,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
                   <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
                   {t('notes.newNote')}
                 </Button>
-              </>
+              </fieldset>
             )}
           </>
         }
@@ -190,19 +199,20 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         <div className="flex min-h-44 flex-wrap items-center justify-between gap-8">
           <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
           {deck && (
-            <ReadOnlySlot readOnly={readOnly} inline>
-              <RestartLearning deck={deck} skillsOnly />
+            <ReadOnlySlot readOnly={offline.offline} inline>
+              <fieldset disabled={!serverReady} className="contents">
+                <RestartLearning deck={deck} skillsOnly />
+              </fieldset>
             </ReadOnlySlot>
           )}
         </div>
       </CollectionHeader>
       {deckId && (
-        <ReadOnlySlot
-          readOnly={readOnly}
-          fallback={<p className="text-13 leading-read text-secondary">{t('offline.readOnly')}</p>}
-        >
+        <ReadOnlySlot readOnly={offline.offline}>
           <PracticeEntry
             deckId={deckId}
+            enabled={offline.validated && !offline.offline}
+            ready={serverReady}
             onOpen={(entry) => {
               rememberScroll();
               void learning.open(entry);
@@ -253,8 +263,9 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
               {filtered ? ' ·' : ''}
             </Button>
             {rows.length > 0 && (
-              <ReadOnlySlot readOnly={readOnly} inline>
+              <ReadOnlySlot readOnly={offline.offline} inline>
                 <Button
+                  disabled={!serverReady}
                   variant="quiet"
                   onClick={() => {
                     setSelecting(true);
@@ -415,8 +426,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           onOpen={(id) => void navigate({ to: '/notes/$noteId', params: { noteId: id } })}
           hasMore={notes.hasNextPage}
           onNeedMore={() => {
-            if (notes.hasNextPage && !notes.isFetchingNextPage) {
-              void notes.fetchNextPage();
+            if (notes.hasNextPage && !notes.isFetching) {
+              void notes.fetchNextPage({ cancelRefetch: false });
             }
           }}
         />

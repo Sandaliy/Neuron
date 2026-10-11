@@ -635,7 +635,12 @@ joins the active visit instead of queuing downloads; ordinary focus does not ret
 An existing complete snapshot stays available during incremental pulls and transient failures.
 Phase 8.2 can seed completed local reads into existing query entries while authoritative GETs continue.
 Local provenance prevents autosave and learning readiness from using provisional data. A cursor/outbox
-version projection shares snapshot validation/scans without a second durable cache. The account-bound
+version projection shares snapshot validation/scans without a second durable cache. Online presentation
+retains its normal controls and geometry while required authority disables actions. Provisional freshness
+is zero, so cancelled first reads retry on return. Cached queries avoid snapshot work; ordinary browse
+snapshots omit unused Cards, and large validation batches yield to input/paint. Detail/Card-state reads
+upgrade the same projection through a consistent snapshot including Cards. Unchanged account state does
+not notify the global offline observers. The account-bound
 outbox atomically saves existing Folder/Deck rename intent and its original row/revision. Matching
 authenticated reconnection retries the immutable operation; Settings retains conflicts/rejections and
 offers explicit recovery. Compatible database upgrades preserve records. Browser eviction can still

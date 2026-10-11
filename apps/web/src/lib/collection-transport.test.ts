@@ -66,6 +66,39 @@ describe('collection transport authority', () => {
     expect(boundary.confirm).toHaveBeenCalledOnce();
     expect(local).toHaveBeenCalledOnce();
   });
+  it('does not open a local snapshot behind an existing query answer', async () => {
+    boundary.available = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: ['server'] }))),
+    );
+    const local = vi.fn();
+    const publish = vi.fn();
+    expect(
+      await collectionRead('/notes', new AbortController().signal, local, publish, () => false),
+    ).toEqual({ items: ['server'] });
+    expect(local).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+  it('cannot publish a slow local projection after the authoritative request settles', async () => {
+    boundary.available = true;
+    let finishLocal!: (value: { items: string[] }) => void;
+    const local = vi.fn(
+      () =>
+        new Promise<{ items: string[] }>((resolve) => {
+          finishLocal = resolve;
+        }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: ['server'] }))),
+    );
+    const publish = vi.fn();
+    await collectionRead('/notes', new AbortController().signal, local, publish);
+    finishLocal({ items: ['stored'] });
+    await Promise.resolve();
+    expect(publish).not.toHaveBeenCalled();
+  });
   it('does not call an available account endpoint proof of an outage', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
     const local = vi.fn();

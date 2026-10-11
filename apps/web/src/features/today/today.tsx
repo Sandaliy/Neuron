@@ -136,6 +136,7 @@ export function TodayScreen() {
           minutes={minutes}
           onMinutes={(minutes) => change({ ...draft, minutes })}
           decks={decks.data}
+          authoritative={!decks.local}
           onStart={(plan) => {
             rememberScroll();
             setStudying(plan);
@@ -156,6 +157,7 @@ interface StudyChoices {
 }
 function Waiting({
   decks,
+  authoritative,
   onStart,
   minutes,
   onMinutes,
@@ -167,6 +169,7 @@ function Waiting({
   readonly minutes: string;
   readonly onMinutes: (value: string) => void;
   readonly decks: readonly DeckNode[];
+  readonly authoritative: boolean;
   readonly onStart: (plan: DailyStudySession) => void;
 }) {
   const t = useTranslate();
@@ -245,11 +248,14 @@ function Waiting({
   ];
   const planIdentity = JSON.stringify(planKey);
   const defaultRequest = !minutes && !direction && !override && scope === undefined;
-  const initial = defaultRequest ? confirmedInitialPlan(client, account.data, language) : undefined;
+  const initial =
+    authoritative && defaultRequest
+      ? confirmedInitialPlan(client, account.data, language)
+      : undefined;
   const startGeneration = useRef(0);
   useLayoutEffect(() => {
     startGeneration.current++;
-  }, [planIdentity]);
+  }, [planIdentity, authoritative]);
   const plan = useQuery<StudyPlanProjection>({
     queryKey: planKey,
     ...(initial ? { initialData: initial.data, initialDataUpdatedAt: initial.updatedAt } : {}),
@@ -297,19 +303,20 @@ function Waiting({
       );
     },
     placeholderData: keepPreviousData,
-    enabled: mutations === 0 && !!account.data,
+    enabled: authoritative && mutations === 0 && !!account.data,
   });
   const result = plan.data;
   const updating = plan.isPlaceholderData || result?.localProjection === true;
   const reconciling = plan.isPlaceholderData || result?.reviewProjection === true;
-  const unsupported = direction
-    ? selected.filter(
-        (id) =>
-          !settingsFor(decks, id).ladder.some(
-            (rung) => rung.direction === direction && rung.opensAtStability === 0,
-          ),
-      )
-    : [];
+  const unsupported =
+    authoritative && direction
+      ? selected.filter(
+          (id) =>
+            !settingsFor(decks, id).ladder.some(
+              (rung) => rung.direction === direction && rung.opensAtStability === 0,
+            ),
+        )
+      : [];
   const singleUnsupported =
     selected.length === 1 && unsupported.length === 1 && result?.cards.length === 0;
   const caughtUp =
@@ -540,6 +547,7 @@ function Waiting({
             variant="primary"
             full
             disabled={
+              !authoritative ||
               !result.cards.length ||
               (direction === 'listening' && listening.some((item) => !item.language)) ||
               plan.isFetching ||
@@ -646,7 +654,7 @@ function Waiting({
             ))}
         </DialogBody>
       </Dialog>
-      {skillDeckId && live.find((deck) => deck.id === skillDeckId) && (
+      {authoritative && skillDeckId && live.find((deck) => deck.id === skillDeckId) && (
         <DeckSettingsDialog
           open
           onOpenChange={(open) => {
