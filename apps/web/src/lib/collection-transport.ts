@@ -7,6 +7,7 @@ export async function collectionRead<T>(
   signal: AbortSignal,
   local: () => Promise<T>,
   publish?: (value: T) => void,
+  needsSeed: () => boolean = () => true,
 ): Promise<T> {
   const visit = accountEpoch();
   const abort = () => {
@@ -18,9 +19,12 @@ export async function collectionRead<T>(
   // Local content is a provisional browse answer, never account validation.
   // The original request remains authoritative and is never cancelled by a timer.
   let seeded = false;
+  let settled = false;
   const seed = () => {
     if (
       seeded ||
+      settled ||
+      !needsSeed() ||
       !offlineState().available ||
       !publish ||
       signal.aborted ||
@@ -31,7 +35,7 @@ export async function collectionRead<T>(
     void local()
       .then((value) => {
         abort();
-        publish(value);
+        if (!settled && needsSeed()) publish(value);
       })
       .catch(() => undefined);
   };
@@ -50,6 +54,7 @@ export async function collectionRead<T>(
     }
     throw error;
   } finally {
+    settled = true;
     unsubscribe();
   }
 }

@@ -4,7 +4,7 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-10, Phase 8.2 local-first collection browsing and durable offline rename.
+Last updated: 2026-10-11, Phase 8.2 interaction stabilization.
 
 ## Current release
 
@@ -70,7 +70,7 @@ retained for the current visit. Note reading mounts no editor/autosave controlle
 or unreadable snapshots present an honest unavailable state. The owner accepted offline reopening,
 Library/Deck/Note browsing, visual parity and in-session connectivity transitions on the installed iPhone.
 
-Phase 8.2 is implemented on `work/offline-renames` for protected PR delivery. Completed local snapshots
+Phase 8.2 merged through PR #48 at `b2644236`. Completed local snapshots
 can supply first-entry Library/Deck/Note content while authoritative requests continue. Local provenance
 keeps autosave, Study readiness, Practice progress and other server operations behind their existing
 authority gates. A revision-keyed derived projection shares validation/scans, and Note counts use a
@@ -85,8 +85,19 @@ Compatible upgrades preserve stores; Rebuild refuses unresolved work or an unrea
 Browser eviction can still remove device storage; saved locally and synchronized are distinct states.
 Phase 8.2 browser/database verification passes, including real PostgreSQL retry/RLS coverage,
 Chromium/mobile WebKit persistence and conflict recovery, the full built interaction gate, Windows
-visual contracts and the unchanged 55 FPS budgets. Protected PR checks and new installed-iPhone
-acceptance remain pending. Existing Phase 8.1 device acceptance does not establish this new write contract.
+visual contracts and the unchanged 55 FPS budgets. The owner confirms that offline rename/outbox
+functionality works, but installed-iPhone production acceptance reports provisional read-only Deck
+presentation, shifting controls, interrupted navigation and degraded motion across unrelated screens.
+Further Phase 8 expansion is paused while `work/iphone-stabilization` restores interaction quality.
+
+The stabilization separates local provenance from connectivity and authenticated authority. Online
+Decks retain their normal geometry with server-dependent controls disabled until authoritative data
+arrives. Zero-freshness seeds retry after interrupted navigation; cached query answers avoid local
+snapshot work, ordinary browsing omits unused Cards, validation yields between bounded batches, and
+unchanged account state does not notify global observers. The shell preserves the top safe area at
+every breakpoint and covers it above scrolling content. Durable database/outbox formats and rename
+delivery/conflict contracts are preserved. The stabilization awaits protected review and physical-iPhone
+acceptance. See `interaction-performance.md` for measured evidence and platform limits.
 See `offline-collection.md` for the storage, lifecycle, recovery and later-write boundaries.
 Offline Note editing/creation, Card generation, local Study planning, Review/Undo transport,
 Practice synchronization and offline Import application remain unimplemented.
@@ -181,9 +192,10 @@ Today or Study.
 
 ## Next
 
-1. Deliver Phase 8.2 through the protected PR workflow. Accept previously unvisited Deck latency,
-   offline rename/reopening, authenticated retry and retained conflicts on the installed iPhone.
-2. Expand offline writes only after contracts for Note/Card planning and created identities, local
+1. Deliver the Phase 8.2 stabilization through the protected PR workflow. Accept stable first/warm
+   Deck entry, Today/Library, Practice loading, disclosure/swipe/dialog motion, safe-area geometry and
+   connectivity transitions on the installed iPhone, while preserving offline renames and conflicts.
+2. Resume Phase 8 work only after stabilization acceptance and contracts for Note/Card planning and created identities, local
    Study/replay ownership, Review/Undo and Practice synchronization are established and verified.
    Preserve the outbox's account, original revision, atomicity and recoverable intent guarantees.
 3. Keep Phase 9 large-collection triage/waves/progressive admission and Phase 10 personal workload

@@ -221,11 +221,18 @@ export async function applyPage(db: IDBDatabase, input: unknown): Promise<void> 
 const READ_ENTITIES = ['decks', 'notes', 'cards'] as const;
 export async function snapshot(
   db: IDBDatabase,
+  includeCards: boolean,
 ): Promise<Record<(typeof READ_ENTITIES)[number], CollectionRow[]> & { outbox: PendingRename[] }> {
-  const tx = db.transaction(['meta', 'outbox', ...READ_ENTITIES]);
+  const tx = db.transaction([
+    'meta',
+    'outbox',
+    ...READ_ENTITIES.filter((entity) => includeCards || entity !== 'cards'),
+  ]);
   const done = committed(tx);
   const reads = READ_ENTITIES.map((entity) =>
-    result<CollectionRow[]>(tx.objectStore(entity).getAll()),
+    entity === 'cards' && !includeCards
+      ? Promise.resolve([])
+      : result<CollectionRow[]>(tx.objectStore(entity).getAll()),
   );
   const [meta, rows, outbox] = await Promise.all([
     result<CollectionMeta | undefined>(tx.objectStore('meta').get('sync')),

@@ -197,6 +197,16 @@
 }
 
 @layer base {
+  /* Installed Safari permits document content to scroll beneath the status area. */
+  [data-safe-area-cover] {
+    position: fixed;
+    inset: 0 0 auto;
+    height: var(--safe-top);
+    z-index: 40;
+    pointer-events: none;
+    background: var(--bg-canvas);
+  }
+
   html {
     /*
      * The bottom bar and the buttons above it are positioned against these, so

@@ -118,11 +118,14 @@ export function DeckPractice({
   const summary = useQuery(practiceQuery(deckId));
   const client = useQueryClient();
   const listKey = [NOTE_KEY, 'list', noteQueryString({ deckId, sort: 'created' })];
-  const listState = client.getQueryState<{ pages: { items: Note[]; nextCursor?: string }[] }>(
-    listKey,
-  );
+  const listState = client.getQueryState<{
+    pages: { items: Note[]; nextCursor?: string; local?: true }[];
+  }>(listKey);
   const complete =
-    !listState?.isInvalidated && listState?.data?.pages.at(-1)?.nextCursor === undefined
+    !listState?.isInvalidated &&
+    listState?.data &&
+    !listState.data.pages.some((page) => page.local) &&
+    listState.data.pages.at(-1)?.nextCursor === undefined
       ? listState?.data?.pages.flatMap((page) => page.items)
       : undefined;
   const pool = useQuery({

@@ -53,8 +53,10 @@ export function noteQuery(id: string | undefined) {
         signal,
         () => localNote(id ?? ''),
         (value) => {
-          if (!client.getQueryData([NOTE_KEY, id])) client.setQueryData([NOTE_KEY, id], value);
+          if (!client.getQueryData([NOTE_KEY, id]))
+            client.setQueryData([NOTE_KEY, id], value, { updatedAt: 0 });
         },
+        () => !client.getQueryData([NOTE_KEY, id]),
       ),
   };
 }
@@ -103,15 +105,21 @@ export function noteListQuery(query: NoteQuery) {
         : collectionRead(
             `/notes?${noteQueryString(query, { limit: '1000', ...(pageParam === undefined ? {} : { cursor: pageParam }) })}`,
             signal,
-            // A completed device snapshot can publish the full browse result. Its
-            // virtualized rows remain bounded, and local pagination cannot cancel
-            // the authoritative first-page request that is still reconciling.
-            () => localNotes(query, pageParam, Number.MAX_SAFE_INTEGER),
+            // Match the server page size. Local cursors are replaced by the
+            // authoritative first page before further online pagination.
+            () => localNotes(query, pageParam),
             (value) => {
               const key = [NOTE_KEY, 'list', noteQueryString(query)];
               if (pageParam === undefined && !client.getQueryData(key))
-                client.setQueryData(key, { pages: [value], pageParams: [undefined] });
+                client.setQueryData(
+                  key,
+                  { pages: [value], pageParams: [undefined] },
+                  { updatedAt: 0 },
+                );
             },
+            () =>
+              pageParam === undefined &&
+              !client.getQueryData([NOTE_KEY, 'list', noteQueryString(query)]),
           ),
     getNextPageParam: (last: { nextCursor?: string }) => last.nextCursor,
   };

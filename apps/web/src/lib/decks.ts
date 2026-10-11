@@ -40,9 +40,13 @@ export function deckTreeQuery() {
     queryKey: DECK_TREE_KEY,
     networkMode: 'always',
     queryFn: async ({ signal, client }: { signal: AbortSignal; client: QueryClient }) => {
-      const data = await collectionRead('/decks', signal, localDeckTree, (value) => {
-        if (!client.getQueryData(DECK_TREE_KEY)) client.setQueryData(DECK_TREE_KEY, value);
-      });
+      const data = await collectionRead(
+        '/decks',
+        signal,
+        localDeckTree,
+        (value) => client.setQueryData(DECK_TREE_KEY, value, { updatedAt: 0 }),
+        () => !client.getQueryData(DECK_TREE_KEY),
+      );
       const accountId = offlineState().accountId;
       if (!accountId || data.local) return data;
       const entries = await renames(accountId).catch(() => []);

@@ -5,14 +5,44 @@ import { metadata, openCollection, snapshot } from './collection-db';
 import { renameOverlay, validateRenames } from './collection-outbox';
 import { accountEpoch, offlineReadFailed, offlineState } from './offline';
 
+import type { CollectionRow } from './collection-db';
 import type { NoteQuery } from './notes';
 
-type Collection = { decks: ReturnType<typeof deckSchema.parse>[]; notes: Note[]; cards: Card[] };
-let projection: { key: string; value: Promise<Collection> } | undefined;
+type Collection = {
+  decks: ReturnType<typeof deckSchema.parse>[];
+  notes: Note[];
+  cards: () => Promise<Card[]>;
+};
+/** Validation stays on the read boundary, but large snapshots must yield to input and paint. */
+async function projectRows<T>(
+  rows: CollectionRow[],
+  project: (row: CollectionRow) => T | undefined,
+): Promise<T[]> {
+  const values: T[] = [];
+  let started = performance.now();
+  for (let at = 0; at < rows.length; at++) {
+    if (at > 0 && at % 64 === 0 && performance.now() - started >= 6) {
+      await new Promise<void>((resolve) => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = () => {
+          channel.port1.close();
+          channel.port2.close();
+          resolve();
+        };
+        channel.port2.postMessage(null);
+      });
+      started = performance.now();
+    }
+    const value = project(rows[at]!);
+    if (value !== undefined) values.push(value);
+  }
+  return values;
+}
+let projection: { key: string; cards: boolean; value: Promise<Collection> } | undefined;
 export function clearCollectionProjection() {
   projection = undefined;
 }
-async function collection(): Promise<Collection> {
+async function collection(includeCards = false): Promise<Collection> {
   const visit = accountEpoch();
   const id = offlineState().accountId;
   if (!id) throw new Error('collection_no_account');
@@ -21,14 +51,14 @@ async function collection(): Promise<Collection> {
     try {
       const meta = await metadata(db);
       const key = `${visit}:${id}:${meta.cursor}:${meta.outboxVersion ?? 0}:${meta.complete}`;
-      if (projection?.key === key) {
+      if (projection?.key === key && (!includeCards || projection.cards)) {
         const cached = await projection.value;
         if (offlineState().accountId !== id || accountEpoch() !== visit)
           throw new Error('collection_account_changed');
         return cached;
       }
       const value = (async () => {
-        const rows = await snapshot(db);
+        const rows = await snapshot(db, includeCards);
         validateRenames(rows.outbox, id);
         if (offlineState().accountId !== id || accountEpoch() !== visit)
           throw new Error('collection_account_changed');
@@ -48,16 +78,34 @@ async function collection(): Promise<Collection> {
           visited.add(id);
           return deck.parentId === null || available(deck.parentId, visited);
         };
-        const notes = rows.notes
-          .filter((row) => !row.deleted && !row.purged && available(String(row.row['deckId'])))
-          .map((change) => noteSchema.parse(change.row));
+        const notes = await projectRows(rows.notes, (row) =>
+          !row.deleted && !row.purged && available(String(row.row['deckId']))
+            ? noteSchema.parse(row.row)
+            : undefined,
+        );
         const noteIds = new Set(notes.map((note) => note.id));
-        const cards = rows.cards
-          .filter((row) => !row.deleted && !row.purged && noteIds.has(String(row.row['noteId'])))
-          .map((change) => cardSchema.parse(change.row));
+        const cardRows = rows.cards;
+        let parsedCards: Promise<Card[]> | undefined;
+        const cards = () =>
+          (parsedCards ??= projectRows(cardRows, (row) =>
+            !row.deleted && !row.purged && noteIds.has(String(row.row['noteId']))
+              ? cardSchema.parse(row.row)
+              : undefined,
+          )
+            .then((cards) => {
+              if (offlineState().accountId !== id || accountEpoch() !== visit)
+                throw new Error('collection_account_changed');
+              return cards;
+            })
+            .catch((error) => {
+              offlineReadFailed(error, visit, id);
+              throw error;
+            }));
+        if (offlineState().accountId !== id || accountEpoch() !== visit)
+          throw new Error('collection_account_changed');
         return { decks: decks.filter((deck) => available(deck.id)), notes, cards };
       })();
-      projection = { key, value };
+      projection = { key, cards: includeCards, value };
       try {
         return await value;
       } catch (error) {
@@ -107,10 +155,10 @@ export async function localDeckTree(): Promise<{ decks: DeckNode[]; local?: true
 }
 
 export async function localNote(id: string): Promise<{ note: Note; cards: Card[]; local?: true }> {
-  const { notes, cards } = await collection();
+  const { notes, cards } = await collection(true);
   const note = notes.find((note) => note.id === id);
   if (!note) throw new Error('collection_note_missing');
-  return { note, cards: cards.filter((card) => card.noteId === id), local: true };
+  return { note, cards: (await cards()).filter((card) => card.noteId === id), local: true };
 }
 
 export async function localNotes(
@@ -118,20 +166,24 @@ export async function localNotes(
   cursor?: string,
   pageSize = 1000,
 ): Promise<{ items: Note[]; nextCursor?: string; local?: true }> {
-  const { notes, cards } = await collection();
-  const byNote = new Map<string, Card[]>();
-  for (const card of cards) byNote.set(card.noteId, [...(byNote.get(card.noteId) ?? []), card]);
+  const { notes, cards } = await collection(Boolean(query.cardState));
+  const byNote = new Set<string>();
+  if (query.cardState)
+    for (const card of await cards()) {
+      if (card.state === query.cardState) byNote.add(card.noteId);
+    }
+  const search = query.search?.toLocaleLowerCase();
   const filtered = notes.filter(
     (note) =>
       (!query.deckId || note.deckId === query.deckId) &&
       (!query.status || note.status === query.status) &&
       (!query.tag || note.tags.includes(query.tag)) &&
       (!query.source || note.source === query.source) &&
-      (!query.search ||
+      (!search ||
         `${JSON.stringify(note.fields)} ${note.tags.join(' ')}`
           .toLocaleLowerCase()
-          .includes(query.search.toLocaleLowerCase())) &&
-      (!query.cardState || byNote.get(note.id)?.some((card) => card.state === query.cardState)),
+          .includes(search)) &&
+      (!query.cardState || byNote.has(note.id)),
   );
   filtered.sort(
     (a, b) =>
