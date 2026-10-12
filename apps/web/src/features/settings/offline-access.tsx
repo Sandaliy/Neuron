@@ -76,15 +76,15 @@ export function OfflineAccess() {
           <p className="text-13 text-tertiary">{t('offline.shellPending')}</p>
         )}
         {shell.waiting && <p className="text-13 text-tertiary">{t('offline.update')}</p>}
+        <PendingRenames />
+        <PendingNotes />
+        <PendingReviews />
       </Card>
       {state.failure?.code === 'collection_pending_work' && (
         <p role="alert" className="text-13 text-secondary">
           {t('offline.rebuildBlocked')}
         </p>
       )}
-      <PendingRenames />
-      <PendingNotes />
-      <PendingReviews />
       <Dialog open={confirm} onOpenChange={setConfirm} title={t('offline.rebuild')}>
         <DialogBody>
           <p className="text-14 text-secondary">{t('offline.rebuildConfirm')}</p>

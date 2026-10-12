@@ -888,7 +888,7 @@ test('small and large saved Note histories stay compact by default and disclose 
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   const region = page.getByRole('region', { name: 'Saved Note edits' });
   await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
-  await expect(region.getByRole('button', { name: 'Recent activity' })).toHaveAttribute(
+  await expect(region.getByRole('button', { name: 'Saved Note edits' })).toHaveAttribute(
     'aria-expanded',
     'false',
   );
@@ -929,12 +929,40 @@ test('small and large saved Note histories stay compact by default and disclose 
   await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
     0,
   );
-  await region.getByRole('button', { name: 'Recent activity' }).click();
+  await region.getByRole('button', { name: 'Saved Note edits' }).click();
   await expect(region.getByRole('button', { name: /Saved receipt/ })).toHaveCount(10);
-  await region
+  const frames = await region
     .getByRole('button', { name: /Saved receipt/ })
     .first()
-    .click();
+    .evaluate(async (button) => {
+      const content = document.getElementById(button.getAttribute('aria-controls')!)!;
+      const inner = content.firstElementChild!;
+      const parent = content.parentElement!.closest('.neu-disclosure') as HTMLElement;
+      const frames: Array<{ visible: boolean; complete: boolean; parentAuto: boolean }> = [];
+      (button as HTMLButtonElement).click();
+      const start = performance.now();
+      await new Promise<void>((resolve) => {
+        const sample = () => {
+          const style = getComputedStyle(inner);
+          frames.push({
+            visible: style.visibility !== 'hidden' && Number(style.opacity) > 0.01,
+            complete:
+              content.getBoundingClientRect().height >= inner.getBoundingClientRect().height - 1,
+            parentAuto: parent.style.height === 'auto',
+          });
+          if (performance.now() - start < 500) requestAnimationFrame(sample);
+          else resolve();
+        };
+        requestAnimationFrame(sample);
+      });
+      return frames;
+    });
+  await info.attach('nested-history-reveal-frames', {
+    body: JSON.stringify(frames),
+    contentType: 'application/json',
+  });
+  expect(frames.some((frame) => frame.visible && !frame.complete)).toBe(false);
+  expect(frames.every((frame) => frame.parentAuto)).toBe(true);
   await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
     1,
   );

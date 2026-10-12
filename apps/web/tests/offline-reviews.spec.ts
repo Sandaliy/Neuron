@@ -472,11 +472,11 @@ test('a large synchronized history mounts only bounded optional activity and pre
   await page.reload();
   const region = page.getByRole('region', { name: 'Study answers' });
   await expect(region.getByRole('button', { name: 'Copy recovery record' })).toHaveCount(0);
-  await expect(region.getByRole('button', { name: 'Recent activity' })).toHaveAttribute(
+  await expect(region.getByRole('button', { name: 'Study answers' })).toHaveAttribute(
     'aria-expanded',
     'false',
   );
-  await region.getByRole('button', { name: 'Recent activity' }).click();
+  await region.getByRole('button', { name: 'Study answers' }).click();
   await expect(region.getByRole('button', { name: 'Study answer', exact: true })).toHaveCount(10);
   await region.getByRole('button', { name: 'Study answer', exact: true }).first().click();
   await expect(region.getByRole('button', { name: 'Copy recovery record' })).toHaveCount(1);
@@ -648,10 +648,11 @@ test('a late acknowledgement after concurrent archive retains the receipt and re
   expect(recovered.acknowledgement?.card.reps).toBe(1);
   await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
   const history = page.getByRole('region', { name: 'Study answers' });
-  await expect(
-    history.getByRole('button', { name: 'Recent activity', exact: true }),
-  ).toHaveAttribute('aria-expanded', 'false');
-  await history.getByRole('button', { name: 'Recent activity', exact: true }).click();
+  await expect(history.getByRole('button', { name: 'Study answers', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await history.getByRole('button', { name: 'Study answers', exact: true }).click();
   await history.getByRole('button', { name: 'Study answer', exact: true }).click();
   await expect(
     page.getByText('Kept for recovery. The server confirmed this event.', { exact: true }),

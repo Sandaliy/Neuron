@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { reviewAcknowledgement, useFixtures, usePreferences } from './fixtures';
+import { reviewAcknowledgement, storedStudyEvents, useFixtures, usePreferences } from './fixtures';
 
 const id = (n: number) => `01900000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const cards = [1, 2, 3].map((n) => ({
@@ -428,6 +428,12 @@ test('Study rewinds a repeated learning card and keeps future planned work order
   await page.getByRole('button', { name: /^Easy / }).click();
   await expect(page.getByText('Question 2', { exact: true })).toBeVisible();
   await expect
+    .poll(
+      async () =>
+        (await storedStudyEvents(page)).filter((entry) => entry.event.type === 'answer').length,
+    )
+    .toBe(4);
+  await expect
     .poll(() => cancellations)
     .toEqual(
       answers
@@ -435,6 +441,11 @@ test('Study rewinds a repeated learning card and keeps future planned work order
         .reverse()
         .map((answer) => answer.id),
     );
+  // Local acceptance advances the sitting before its causal delivery reaches HTTP.
+  await expect.poll(() => answers.length).toBe(4);
+  await expect
+    .poll(async () => (await storedStudyEvents(page)).map((entry) => entry.state))
+    .toEqual(Array(7).fill('synchronized'));
   expect(answers[0]!.cardId).toBe(answers[2]!.cardId);
   expect(answers[3]!.id).not.toBe(answers[0]!.id);
 });

@@ -8,10 +8,10 @@ import { request } from '../../lib/api';
 import { applySavedNote, retryNoteEdits, keepServerNote, noteEdits } from '../../lib/note-outbox';
 import { useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
-import { Card, GroupLabel } from '../../ui/card';
+import { GroupLabel } from '../../ui/card';
 import { NoteField } from '../notes/note-field';
 
-import { SavedWork } from './saved-work';
+import { SavedWork, workIsSettled } from './saved-work';
 
 export function PendingNotes() {
   const t = useTranslate();
@@ -30,12 +30,14 @@ export function PendingNotes() {
   if (!entries.error && saved.length === 0) return null;
   return (
     <section aria-label={t('offline.note.savedChanges')} className="flex flex-col gap-12">
-      <GroupLabel>{t('offline.note.savedChanges')}</GroupLabel>
-      <Card className="flex flex-col gap-16">
+      {saved.some((entry) => !workIsSettled(entry)) && (
+        <GroupLabel>{t('offline.note.savedChanges')}</GroupLabel>
+      )}
+      <div className="flex flex-col gap-16">
         {entries.error && <p role="alert">{t('offline.changesUnavailable')}</p>}
         <SavedWork
           entries={saved}
-          title={t('offline.recentActivity')}
+          title={t('offline.note.savedChanges')}
           label={(entry) => termOf(entry.working.fields as NoteFields)}
           render={(entry) => {
             const original = entry.base.row as unknown as Note;
@@ -153,7 +155,7 @@ export function PendingNotes() {
             )}
           </p>
         )}
-      </Card>
+      </div>
     </section>
   );
 }

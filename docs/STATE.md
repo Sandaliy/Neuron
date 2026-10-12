@@ -4,9 +4,17 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-12, Phase 8.3 merged through PR #50 at `b6dfab7` and physically accepted
-on the installed iPhone. Phase 8.4 durable Study transport and focused UX refinement are implemented
-on `work/durable-study-reviews`; protected delivery and Phase 8.4 physical acceptance remain pending.
+Last updated: 2026-10-12. Phase 8.4 merged through PR #51 at `b8dae4d`, but the owner rejected
+physical-iPhone acceptance because offline access and Settings/editor/security interactions regressed.
+This is a release blocker. Stabilization is in progress on `work/phase84-stabilization`; Phase 8.5 and
+additional offline functionality remain deferred.
+
+Local stabilization verification passes: 1,096 unit/PostgreSQL tests, 570 built phone/desktop
+interactions with ten existing opt-in skips, 36 focused Chromium/mobile WebKit cases, eight real-PWA
+and database journeys, all 66 unchanged Windows visuals and five enforced 55 FPS performance cases.
+Populated v2 cold offline upgrades, interrupted recovery and restoration independent of suspended
+session validation preserve saved work. Protected PR checks and installed-iPhone acceptance remain
+outstanding; local browser evidence does not close the device release blocker.
 
 ## Current release
 
@@ -228,15 +236,27 @@ Today or Study.
 
 ## Next
 
-1. Deliver Phase 8.4 durable Study Review/Undo transport and focused UX refinement through one
-   protected PR, required checks and physical-iPhone acceptance. Preserve the accepted interaction contract.
-2. Establish and verify separate contracts for later Phase 8 work: created Note/Card identities,
-   offline Study admission/resumption and Practice synchronization.
-   Preserve the outbox's account, original revision, atomicity and recoverable intent guarantees.
-3. Keep Phase 9 large-collection triage/waves/progressive admission and Phase 10 personal workload
-   customization/statistics separate. Earlier design is appropriate only for concrete storage/sync prerequisites.
+1. Deliver the Phase 8.4 production stabilization through one protected PR. Preserve downloaded
+   collections and all pending work, then verify the built PWA, in-place v2 upgrade, PostgreSQL/RLS,
+   required browser/visual gates and existing performance budgets.
+2. Obtain owner acceptance of the updated installed iPhone: cold offline reopening, live connection
+   loss, authenticated reconnection, retained Note/name/Review/Undo work, complete disclosure text,
+   Grammar controls and native password-field/keyboard geometry. Keep the release blocker open until
+   that acceptance is received.
+3. Resume the committed roadmap only after stabilization acceptance. Do not begin Phase 8.5 or expand
+   offline functionality as part of this repair.
 
 ## Open threads
+
+- Phase 8.4 physical acceptance failed after PR #51. A suspended `/account` fetch reproduces indefinite
+  startup loading despite intact downloaded storage. Known offline startup and loss-event restoration
+  now bypass that dependency without granting cached session authority. Actual prior-shell/v2 upgrades
+  and interrupted migration recovery pass in Chromium/mobile WebKit; physical-iPhone confirmation
+  of the repaired lifecycle is pending. See `offline-collection.md` and `offline-study.md`.
+- PR #50/#51 first attempts crashed in Chromium context creation with identical native fault offsets.
+  The post-merge Study failure is a separate local-acceptance versus server-delivery assertion race.
+  Routed fixtures now block incidental service workers; explicit real-worker PWA coverage remains.
+  Preserve native-crash uncertainty, failure artifacts, all assertions and the fail-closed required gate.
 
 - Extended Windows mobile WebKit coverage passed 160 of 161 cases after isolating service-worker
   fixture interception. One exact inside-Folder drag assertion failed and passed an unchanged isolated

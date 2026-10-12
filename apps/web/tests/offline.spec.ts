@@ -195,6 +195,249 @@ async function offline(page: Page, context: BrowserContext) {
   await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
 }
 
+for (const interrupted of [false, true])
+  test(`a populated v2 collection upgrades on a cold offline PWA launch, interrupted=${interrupted}`, async ({
+    browser,
+  }) => {
+    test.skip(!process.env['CI'], 'Requires the built application shell.');
+    const server = createServer(async (request, response) => {
+      const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+      if (pathname === '/seed') {
+        response.setHeader('Content-Type', 'text/html');
+        response.end('<!doctype html><html><body>Prior collection storage</body></html>');
+        return;
+      }
+      const asset =
+        pathname.startsWith('/assets/') ||
+        ['/sw.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'].includes(
+          pathname,
+        )
+          ? pathname.slice(1)
+          : 'index.html';
+      try {
+        response.setHeader(
+          'Content-Type',
+          asset.endsWith('.js')
+            ? 'application/javascript'
+            : asset.endsWith('.css')
+              ? 'text/css'
+              : asset.endsWith('.png')
+                ? 'image/png'
+                : asset.endsWith('.svg')
+                  ? 'image/svg+xml'
+                  : 'text/html',
+        );
+        response.end(await readFile(path.join(process.cwd(), 'dist', asset)));
+      } catch {
+        response.writeHead(404);
+        response.end();
+      }
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing origin');
+    const origin = `http://127.0.0.1:${address.port}`;
+    const context = await browser.newContext({ serviceWorkers: 'allow', baseURL: origin });
+    let page = await context.newPage();
+    const renameId = '01900000-0000-7000-8000-000000000081';
+    const editId = '01900000-0000-7000-8000-000000000082';
+    const rename = {
+      operationId: renameId,
+      accountId: account.id,
+      entityId: deck.id,
+      state: 'pending',
+      payload: {
+        operationId: renameId,
+        accountId: account.id,
+        baseRev: deck.rev,
+        name: 'Saved offline deck',
+      },
+      base: change('decks', deck),
+    };
+    const fields = { ...note.fields, term: 'Saved offline word' };
+    const edit = {
+      kind: 'note-edit',
+      operationId: editId,
+      accountId: account.id,
+      entityId: note.id,
+      state: 'pending',
+      sequence: 2,
+      started: true,
+      payload: {
+        operationId: editId,
+        accountId: account.id,
+        baseRev: note.rev,
+        fields,
+        tags: note.tags,
+      },
+      working: { fields, tags: note.tags },
+      base: change('notes', note),
+    };
+    const archived = {
+      ...edit,
+      operationId: '01900000-0000-7000-8000-000000000083',
+      state: 'resolved',
+      sequence: 1,
+      payload: { ...edit.payload, operationId: '01900000-0000-7000-8000-000000000083' },
+      working: { fields: note.fields, tags: note.tags },
+    };
+    const fingerprint = (page: Page) =>
+      page.evaluate(async (accountId) => {
+        const opened = indexedDB.open(`neuron.collection:${accountId}`);
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+          opened.onsuccess = () => resolve(opened.result);
+          opened.onerror = () => reject(opened.error);
+        });
+        try {
+          const stores = Array.from(db.objectStoreNames).filter((name) => name !== 'review-outbox');
+          const values = await Promise.all(
+            stores.map(
+              (name) =>
+                new Promise((resolve, reject) => {
+                  const store = db.transaction(name).objectStore(name);
+                  const keys = store.getAllKeys();
+                  const rows = store.getAll();
+                  rows.onsuccess = () => resolve({ name, keys: keys.result, rows: rows.result });
+                  rows.onerror = () => reject(rows.error);
+                }),
+            ),
+          );
+          return { version: db.version, values };
+        } finally {
+          db.close();
+        }
+      }, account.id);
+    try {
+      await page.goto('/seed');
+      await page.evaluate(
+        async ({ account, rows, pending, interrupted }) => {
+          const opened = indexedDB.open(`neuron.collection:${account.id}`, 2);
+          opened.onupgradeneeded = () => {
+            const db = opened.result;
+            db.createObjectStore('meta');
+            db.createObjectStore('outbox', { keyPath: 'operationId' });
+            for (const entity of [
+              'decks',
+              'notes',
+              'cards',
+              'reviews',
+              'studyPresets',
+              'importBatches',
+            ]) {
+              const store = db.createObjectStore(entity, { keyPath: 'id' });
+              store.createIndex('rev', 'rev');
+              if (entity === 'notes' || entity === 'cards')
+                store.createIndex('deckId', 'row.deckId');
+              if (entity === 'cards' || entity === 'reviews')
+                store.createIndex('noteOrCardId', entity === 'cards' ? 'row.noteId' : 'row.cardId');
+            }
+          };
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            opened.onsuccess = () => resolve(opened.result);
+            opened.onerror = () => reject(opened.error);
+          });
+          const tx = db.transaction(Array.from(db.objectStoreNames), 'readwrite');
+          tx.objectStore('meta').put(account, 'account');
+          tx.objectStore('meta').put(
+            { cursor: 2, complete: true, format: 1, outboxVersion: 2 },
+            'sync',
+          );
+          tx.objectStore('meta').put(2, 'note-sequence');
+          for (const row of rows) tx.objectStore(row.entity).put(row);
+          for (const entry of pending) tx.objectStore('outbox').put(entry);
+          await new Promise<void>((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onabort = () => reject(tx.error);
+          });
+          db.close();
+          localStorage.setItem('neuron.offline.account', account.id);
+          if (interrupted) localStorage.setItem('interrupt-upgrade', 'true');
+          await navigator.serviceWorker.register('/sw.js');
+          await navigator.serviceWorker.ready;
+        },
+        {
+          account,
+          rows: [...first.changes, ...last.changes],
+          pending: [rename, edit, archived],
+          interrupted,
+        },
+      );
+      const before = await fingerprint(page);
+      expect(before.version).toBe(2);
+      await context.addInitScript(() => {
+        Object.defineProperty(Navigator.prototype, 'onLine', {
+          configurable: true,
+          get: () => false,
+        });
+        const original = IDBDatabase.prototype.createObjectStore;
+        IDBDatabase.prototype.createObjectStore = function (name, options) {
+          const store = original.call(this, name, options);
+          if (name === 'review-outbox' && localStorage.getItem('interrupt-upgrade') === 'true')
+            store.transaction.abort();
+          return store;
+        };
+      });
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      });
+      await page.close();
+      page = await context.newPage();
+      await page.goto('/library');
+      if (interrupted) {
+        await expect(page.getByText(/offline storage could not be opened or read/)).toBeVisible();
+        expect(await fingerprint(page)).toEqual(before);
+        await page.evaluate(() => localStorage.removeItem('interrupt-upgrade'));
+        await page.getByRole('button', { name: 'Try again', exact: true }).click();
+      }
+      await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
+      await page.getByRole('button', { name: /^Downloaded Folder/ }).click();
+      await expect(page.getByRole('button', { name: /^Saved offline deck/ })).toBeVisible();
+      const after = await fingerprint(page);
+      expect(after.version).toBe(3);
+      expect(after.values).toEqual(before.values);
+      await page.goto(`/notes/${note.id}`);
+      await expect(page.getByRole('textbox', { name: 'Word', exact: true })).toHaveValue(
+        'Saved offline word',
+      );
+      await page.close();
+      page = await context.newPage();
+      await page.goto('/library');
+      await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
+      expect((await fingerprint(page)).values).toEqual(before.values);
+    } finally {
+      await context.close();
+      server.close();
+    }
+  });
+
+test('a lost connection restores the downloaded account while its startup validation is suspended', async ({
+  page,
+  context,
+}) => {
+  await installOfflineFixtures(page, context);
+  await download(page);
+  let started = false;
+  let release!: () => void;
+  const suspended = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/account', async (route) => {
+    started = true;
+    await suspended;
+    await route.abort('internetdisconnected').catch(() => undefined);
+  });
+  try {
+    await page.reload();
+    await expect.poll(() => started).toBe(true);
+    await offline(page, context);
+    await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
+    expect(await meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
+  } finally {
+    release();
+  }
+});
+
 test.describe('reconciliation measurements', () => {
   test('stabilization continuity during downloaded Deck reconciliation', async ({
     page,
@@ -834,6 +1077,7 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
   // A real disposable origin avoids worker-owned fixture interception and the WebKit
   // offline-emulation navigation failure. Shutting it down removes the actual network.
   let updatedWorker = false;
+  const priorBuild = process.env['PWA_PRIOR_BUILD'];
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     if (url.pathname.startsWith('/api/')) {
@@ -875,7 +1119,12 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
         ? url.pathname.slice(1)
         : 'index.html';
     try {
-      const content = await readFile(path.join(process.cwd(), 'dist', asset));
+      const content = await readFile(
+        path.join(
+          priorBuild && !updatedWorker ? priorBuild : path.join(process.cwd(), 'dist'),
+          asset,
+        ),
+      );
       response.setHeader(
         'Content-Type',
         asset.endsWith('.js')
@@ -891,7 +1140,7 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
                   : 'text/html',
       );
       response.end(
-        asset === 'sw.js' && updatedWorker
+        asset === 'sw.js' && updatedWorker && !priorBuild
           ? content
               .toString()
               .replace(/const VERSION = [^;]+;/, 'const VERSION = "waiting-test-version";')
@@ -911,7 +1160,7 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
     baseURL: origin,
     viewport: { width: 375, height: 812 },
   });
-  const page = await context.newPage();
+  let page = await context.newPage();
   try {
     await download(page);
     await page.evaluate(async () => {
@@ -949,6 +1198,24 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
     expect(activeVersion).not.toBe('waiting-test-version');
     await page.getByRole('link', { name: 'Settings', exact: true }).click();
     await expect(page.getByText(/Close all Neuron windows/)).toBeVisible();
+    if (priorBuild) {
+      await page.close();
+      page = await context.newPage();
+      await download(page);
+      await expect
+        .poll(() =>
+          page.evaluate(async () => {
+            const opened = indexedDB.open('neuron.collection:offline-reader');
+            const db = await new Promise<IDBDatabase>((resolve) => {
+              opened.onsuccess = () => resolve(opened.result);
+            });
+            const version = db.version;
+            db.close();
+            return version;
+          }),
+        )
+        .toBe(3);
+    }
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
       server.closeAllConnections();

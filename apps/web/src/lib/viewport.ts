@@ -83,7 +83,7 @@ function measure(): void {
   // A panned visual viewport only matters to an open keyboard dialog. Leaving
   // this at zero while Safari's chrome moves avoids a document-wide style write
   // on every ordinary scroll event.
-  const top = settle(Math.max(0, Math.round(visual.offsetTop)), published.top);
+  const top = settle(keyboardOpen ? Math.max(0, Math.round(visual.offsetTop)) : 0, published.top);
 
   if (keyboard !== published.keyboard) {
     published.keyboard = keyboard;

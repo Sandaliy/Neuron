@@ -34,6 +34,10 @@ export function openCollection(accountId: string): Promise<IDBDatabase> {
     };
     const timeout = setTimeout(() => fail(new Error('collection_open_timeout')), 5000);
     request.onupgradeneeded = () => {
+      if (settled) {
+        request.transaction?.abort();
+        return;
+      }
       const db = request.result;
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta');
       if (!db.objectStoreNames.contains('review-outbox')) {

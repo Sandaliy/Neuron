@@ -43,6 +43,9 @@ export default defineConfig({
 
   use: {
     baseURL: 'http://127.0.0.1:5173',
+    // Routed API fixtures must own their requests. Real PWA journeys explicitly
+    // enable workers and use disposable HTTP origins instead of page routes.
+    serviceWorkers: 'block',
     trace: 'retain-on-failure',
   },
 
@@ -57,6 +60,8 @@ export default defineConfig({
       name: 'phone',
       testMatch: /(?:gallery|screens)\.spec\.ts/,
       use: {
+        // Visual baselines include real shell readiness, as before.
+        serviceWorkers: 'allow',
         ...devices['Desktop Chrome'],
         viewport: { width: 375, height: 812 },
       },
@@ -65,6 +70,7 @@ export default defineConfig({
       name: 'desktop',
       testMatch: /(?:gallery|screens)\.spec\.ts/,
       use: {
+        serviceWorkers: 'allow',
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },
       },

@@ -104,6 +104,8 @@ export const en = {
     'The server response could not be validated. Retry after updating Neuron; rebuilding storage will not repair this response.',
   'offline.failure.schema':
     'A collection row could not be validated. Retry after updating Neuron; rebuilding storage will not repair this response.',
+  'offline.startupStorage':
+    'This device’s offline storage could not be opened or read. Your saved work has not been removed. Close other Neuron windows and retry; reconnect to the same account if the problem continues.',
   'offline.failure.database':
     'This device’s offline storage could not be opened or read. Retry, or rebuild if the saved download needs recovery.',
   'offline.failure.transaction':

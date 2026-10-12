@@ -55,13 +55,19 @@ export function SessionGate({ children }: { readonly children: ReactNode }) {
     );
   }
 
-  if (failure) {
+  if (failure || offline.failure) {
     const { key, values } = describe(failure);
 
     return (
       <div className="mx-auto w-full max-w-[720px] px-16 py-32">
         <ErrorState
-          message={offline.offline ? t('offline.incomplete') : t(key, values)}
+          message={
+            offline.failure
+              ? t('offline.startupStorage')
+              : offline.offline
+                ? t('offline.incomplete')
+                : t(key, values)
+          }
           retryLabel={t('common.retry')}
           onRetry={() => void account.refetch()}
         />

@@ -11,7 +11,10 @@ downloaded; its stored reference remains readable.
 
 ## Storage and initial download
 
-`neuron.collection:<account id>` is an IndexedDB database at schema version 2; snapshot format remains 1.
+`neuron.collection:<account id>` is an IndexedDB database at schema version 3; snapshot format remains 1.
+The v2 to v3 upgrade adds only `review-outbox` and its state index. It does not recreate existing
+stores or rewrite collection rows, pending Note/name work, receipts, archives or the cursor. An
+interrupted upgrade aborts atomically; opening failures expose recovery without deleting stored work.
 Upgrade adds missing stores without recreating existing stores or clearing records. The `meta` store holds a
 validated, non-secret account presentation and `{ format, cursor, complete, outboxVersion? }`. The six entity stores
 retain each full sync envelope, including tombstones and `purged`, and its original server row:
@@ -358,3 +361,22 @@ Offline Note creation and its initial Card identity mapping remain later work.
 Local Study admission remains absent. Already-admitted sittings use [durable Review/Undo transport](offline-study.md);
 persistent Practice transport and offline Import application remain absent. Current
 server authorization, immutable Review semantics and deletion/restoration ownership remain authoritative.
+
+## Phase 8.4 production stabilization
+
+PR #51 merged at `b8dae4d`, but installed-iPhone offline acceptance failed. A built-app reproduction
+keeps `/account` validation pending while connectivity is lost: the collection and remembered account
+remain intact, but the session gate never receives the remembered presentation. Previously restoration
+ran only after the fetch rejected. Known offline startup now reads the remembered account directly,
+and a loss event cancels obsolete validation and restores the account independently of that request.
+Connection/account epochs prevent a late local read from replacing fresh validation or another account.
+Remembered presentation remains unvalidated; authenticated matching-account acceptance still owns
+reconnection and delivery. Focus, foreground visibility and restored-page events resume reconciliation.
+
+The real prior PR #50 shell update and v2 to v3 database upgrade pass in Chromium and mobile WebKit.
+A separate built-worker cold-launch test seeds all prior entity stores, pending Note/name commands and
+a resolved recovery archive at v2, stops the HTTP origin, and upgrades offline. It compares every key
+and value, including metadata/cursor, before and after. Aborting the upgrade retains the complete v2
+database, displays actionable storage recovery, and permits Retry without rebuilding or clearing it.
+This establishes browser behavior; it does not identify the owner's precise network-event sequence
+or replace installed-iPhone acceptance of the updated production PWA.

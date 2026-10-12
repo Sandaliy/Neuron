@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useBlocker, useNavigate } from '@tanstack/react-router';
-import { ChevronDown, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { availableForStudy, studyAvailableAt, createSchedulerConfig } from '@neuron/core';
@@ -853,113 +853,109 @@ function Editor({
             </>
           ))}
 
-        {sections.map((section) => (
-          <fieldset
-            key={section.name}
-            disabled={(!!conversion || !note) && save === 'saving'}
-            className={
-              section.name === 'grammar'
-                ? 'flex min-w-0 flex-col gap-16 rounded-12 border border-subtle bg-sunken p-12'
-                : 'flex min-w-0 flex-col gap-16'
-            }
-          >
-            {section.name === 'grammar' ? (
-              <Button
-                type="button"
-                variant="text"
-                className="justify-between text-secondary"
-                contentAlign="spread"
-                aria-expanded={grammarOpen}
-                aria-controls="note-grammar"
-                onClick={() => setGrammarOpen(!grammarOpen)}
-              >
-                <span>{t('note.section.grammar')}</span>
-                <span className="flex items-center gap-8">
-                  {[...filledPaths(fields)].some((path) => path.startsWith('grammar.')) && (
-                    <span className="text-12 font-normal">{t('note.grammarStored')}</span>
+        {sections.map((section) => {
+          const content = (
+            <div
+              id={section.name === 'grammar' ? 'note-grammar' : undefined}
+              className={
+                section.name === 'grammar'
+                  ? 'grid grid-cols-2 gap-16 max-[340px]:grid-cols-1'
+                  : 'flex flex-col gap-16'
+              }
+            >
+              {section.name === 'grammar' && (
+                <div className="col-span-full flex flex-col gap-8">
+                  {!settings.targetLanguage && (
+                    <p className="text-13 text-secondary">{t('note.grammarLanguage')}</p>
                   )}
-                  <ChevronDown
-                    size={16}
-                    aria-hidden="true"
-                    className={`transition-transform dur-control ${grammarOpen ? 'rotate-180' : ''}`}
-                  />
-                </span>
-              </Button>
-            ) : section.labelKey ? (
-              <GroupLabel>{t(section.labelKey)}</GroupLabel>
-            ) : undefined}
-
-            {(section.name !== 'grammar' || grammarOpen) && (
-              <div
-                id={section.name === 'grammar' ? 'note-grammar' : undefined}
-                className={
-                  section.name === 'grammar'
-                    ? 'neu-reveal grid grid-cols-2 gap-16'
-                    : 'flex flex-col gap-16'
-                }
-              >
-                {section.name === 'grammar' && (
-                  <div className="col-span-2 flex flex-col gap-8">
-                    {!settings.targetLanguage && (
-                      <p className="text-13 text-secondary">{t('note.grammarLanguage')}</p>
+                  <FormField label={t('library.targetLanguage')}>
+                    {(props) => (
+                      <Select
+                        {...props}
+                        value={settings.targetLanguage ?? ''}
+                        disabled={!deck || !serverActions}
+                        onChange={(event) => {
+                          const targetLanguage = event.target.value as LanguageCode;
+                          if (!targetLanguage) return;
+                          deckActions.update.mutate(
+                            {
+                              id: deck,
+                              settings: { ...findDeck(decks, deck)?.settings, targetLanguage },
+                            },
+                            { onError: (error) => toast.show(t(describe(error).key)) },
+                          );
+                        }}
+                      >
+                        <option value="">{t('library.notSet')}</option>
+                        {LANGUAGE_CODES.map((code) => (
+                          <option key={code} value={code}>
+                            {t(`lang.${code}` as MessageKey)}
+                          </option>
+                        ))}
+                      </Select>
                     )}
-                    <FormField label={t('library.targetLanguage')}>
-                      {(props) => (
-                        <Select
-                          {...props}
-                          value={settings.targetLanguage ?? ''}
-                          disabled={!deck || !serverActions}
-                          onChange={(event) => {
-                            const targetLanguage = event.target.value as LanguageCode;
-                            if (!targetLanguage) return;
-                            deckActions.update.mutate(
-                              {
-                                id: deck,
-                                settings: { ...findDeck(decks, deck)?.settings, targetLanguage },
-                              },
-                              { onError: (error) => toast.show(t(describe(error).key)) },
-                            );
-                          }}
-                        >
-                          <option value="">{t('library.notSet')}</option>
-                          {LANGUAGE_CODES.map((code) => (
-                            <option key={code} value={code}>
-                              {t(`lang.${code}` as MessageKey)}
-                            </option>
-                          ))}
-                        </Select>
-                      )}
-                    </FormField>
-                    {settings.targetLanguage && section.fields.length === 0 && (
-                      <p className="text-13 text-secondary">{t('note.grammarUnavailable')}</p>
-                    )}
-                  </div>
-                )}
-                {section.fields.map((field) => (
-                  <div
+                  </FormField>
+                  {settings.targetLanguage && section.fields.length === 0 && (
+                    <p className="text-13 text-secondary">{t('note.grammarUnavailable')}</p>
+                  )}
+                </div>
+              )}
+              {section.fields.map((field) => (
+                <div
+                  key={field.path}
+                  className={
+                    section.name === 'grammar' && field.kind === 'multiline'
+                      ? 'col-span-full min-w-0'
+                      : 'min-w-0'
+                  }
+                >
+                  <NoteField
                     key={field.path}
-                    className={
-                      section.name === 'grammar' && field.kind === 'multiline'
-                        ? 'col-span-2 min-w-0'
-                        : 'min-w-0'
-                    }
-                  >
-                    <NoteField
-                      key={field.path}
-                      field={field}
-                      value={readField(fields, field.path)}
-                      onChange={(value) => {
-                        if (field.path.startsWith('grammar.'))
-                          setRetainedGrammar((paths) => new Set([...paths, field.path]));
-                        edit(writeField(fields, field.path, value));
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </fieldset>
-        ))}
+                    field={field}
+                    value={readField(fields, field.path)}
+                    onChange={(value) => {
+                      if (field.path.startsWith('grammar.'))
+                        setRetainedGrammar((paths) => new Set([...paths, field.path]));
+                      edit(writeField(fields, field.path, value));
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          );
+          return (
+            <fieldset
+              key={section.name}
+              disabled={(!!conversion || !note) && save === 'saving'}
+              className={
+                section.name === 'grammar'
+                  ? 'flex min-w-0 flex-col rounded-12 border border-subtle bg-sunken p-12'
+                  : 'flex min-w-0 flex-col gap-16'
+              }
+            >
+              {section.name === 'grammar' ? (
+                <Disclosure
+                  title={t('note.section.grammar')}
+                  detail={
+                    [...filledPaths(fields)].some((path) => path.startsWith('grammar.')) ? (
+                      <span className="text-12 text-secondary">{t('note.grammarStored')}</span>
+                    ) : undefined
+                  }
+                  open={grammarOpen}
+                  onOpenChange={setGrammarOpen}
+                  reveal="settled"
+                >
+                  {content}
+                </Disclosure>
+              ) : (
+                <>
+                  {section.labelKey && <GroupLabel>{t(section.labelKey)}</GroupLabel>}
+                  {content}
+                </>
+              )}
+            </fieldset>
+          );
+        })}
 
         <FormField label={t('note.tags')} hint={t('note.tagsHint')}>
           {(props) => (

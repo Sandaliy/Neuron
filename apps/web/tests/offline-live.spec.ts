@@ -448,7 +448,7 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
       .click();
     await expect.poll(() => renameDeliveries.length).toBe(2);
     const savedNames = page.getByRole('region', { name: 'Saved name changes' });
-    await savedNames.getByRole('button', { name: 'Recent activity', exact: true }).click();
+    await savedNames.getByRole('button', { name: 'Saved name changes', exact: true }).click();
     await savedNames.getByRole('button', { name: 'Durably renamed Deck', exact: true }).click();
     await expect(
       savedNames.getByText('Synchronized with the server', { exact: true }),

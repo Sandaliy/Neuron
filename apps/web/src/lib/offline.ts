@@ -180,26 +180,65 @@ export function offlineReadFailed(error: unknown, visit: number, accountId: stri
 
 export async function rememberedAccount(): Promise<Me | undefined> {
   const visit = epoch;
+  const startedConnection = connection;
   const id = contextId();
   if (!id) return;
-  const opened = await openCollection(id);
+  let opened: IDBDatabase | undefined;
   try {
+    opened = await openCollection(id);
     const account = meSchema.parse(
       await result(opened.transaction('meta').objectStore('meta').get('account')),
     );
     const meta = await metadata(opened);
-    if (account.id !== id || contextId() !== id || visit !== epoch || state.signedOut) return;
+    if (
+      account.id !== id ||
+      contextId() !== id ||
+      visit !== epoch ||
+      state.signedOut ||
+      startedConnection !== connection ||
+      !state.offline
+    )
+      return;
     emit({
       offline: true,
       validated: false,
       accountId: id,
       download: meta.complete ? 'ready' : 'idle',
       available: meta.complete,
+      failure: null,
     });
     return account;
+  } catch (error) {
+    if (visit === epoch && startedConnection === connection && contextId() === id && state.offline)
+      emit({
+        accountId: id,
+        available: false,
+        download: 'unavailable',
+        failure: collectionDiagnostic(error, 'database'),
+      });
+    throw error;
   } finally {
-    opened.close();
+    opened?.close();
   }
+}
+
+/** Offline restoration must not wait for a suspended session-validation fetch. */
+async function restoreOfflineAccount() {
+  const visit = epoch;
+  const startedConnection = connection;
+  // A live account already keeps the gate open. Let its failed validation finish
+  // normally so cancellation cannot leave that query invalidated on navigation.
+  if (!client?.getQueryData<Me>(['account']))
+    await client?.cancelQueries({ queryKey: ['account'] });
+  const account = await rememberedAccount().catch(() => undefined);
+  if (
+    account &&
+    visit === epoch &&
+    startedConnection === connection &&
+    state.offline &&
+    client?.getQueryData<Me>(['account'])?.id !== account.id
+  )
+    client?.setQueryData(['account'], account);
 }
 
 export function acceptAccount(account: Me, startedEpoch: number, startedConnection: number) {
@@ -241,12 +280,16 @@ export function acceptAccount(account: Me, startedEpoch: number, startedConnecti
 export function networkLost() {
   if (!client) return;
   connection++;
-  if (state.offline) return;
+  if (state.offline) {
+    void restoreOfflineAccount();
+    return;
+  }
   emit({ offline: true, validated: false });
   cancelRenameDelivery();
   cancelNoteDelivery();
   cancelReviewDelivery();
   controller?.abort();
+  void restoreOfflineAccount();
   void transitionReads(true);
 }
 
@@ -382,6 +425,7 @@ export function retryConnection() {
 
 export function initializeOffline(queryClient: QueryClient) {
   client = queryClient;
+  if (state.offline && !state.signedOut) void restoreOfflineAccount();
   onReviewOutboxChange((change) => {
     if (change.accountId !== state.accountId) return;
     void client?.invalidateQueries({ queryKey: ['review-outbox', change.accountId] });
@@ -546,12 +590,23 @@ export function initializeOffline(queryClient: QueryClient) {
       if (!locallySignedOut()) void client?.invalidateQueries({ queryKey: ['account'] });
     }
   });
-  window.addEventListener('focus', () => {
+  const foreground = () => {
+    if (!navigator.onLine) {
+      networkLost();
+      return;
+    }
     if (state.offline && navigator.onLine) void retryConnection();
     else {
       void deliverReviews();
       refreshDownload();
     }
+  };
+  window.addEventListener('focus', foreground);
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) foreground();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') foreground();
   });
   client.getMutationCache().subscribe((event) => {
     if (event.type === 'updated' && event.mutation.state.status === 'success') {

@@ -1,10 +1,11 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { useTranslate } from '../i18n/locale';
 import { NAVIGATION_EVENT } from '../lib/interactions';
+import { motionIsReduced } from '../preferences/motion';
 
 import type { ReactNode } from 'react';
 
@@ -61,6 +62,21 @@ export function Dialog({
 }) {
   const t = useTranslate();
   const content = useRef<HTMLDivElement>(null);
+  const entrance = useRef<number | undefined>(undefined);
+  const attachContent = useCallback((element: HTMLDivElement | null) => {
+    content.current = element;
+    if (entrance.current !== undefined) cancelAnimationFrame(entrance.current);
+    entrance.current = undefined;
+    if (!element) return;
+    element.dataset['entranceReady'] = String(motionIsReduced());
+    if (!motionIsReduced()) {
+      // Begin after portal/focus setup, so mounting cannot consume the entrance.
+      entrance.current = requestAnimationFrame(() => {
+        entrance.current = undefined;
+        if (element.isConnected) element.dataset['entranceReady'] = 'true';
+      });
+    }
+  }, []);
 
   /*
    * The screen behind the dialog is not inside this component, so the push back
@@ -106,7 +122,7 @@ export function Dialog({
         */}
         <div data-dialog-band="">
           <RadixDialog.Content
-            ref={content}
+            ref={attachContent}
             data-g="panel"
             /*
              * The dialog takes the focus, not the first field in it.
@@ -149,7 +165,7 @@ export function Dialog({
                * ring around it, as though the panel were the control. The trap
                * still holds and the first Tab still reaches the first control.
                */
-              'relative z-50 flex w-full flex-col focus:outline-none',
+              'neu-dialog relative z-50 flex w-full flex-col focus:outline-none',
               'max-h-full max-w-[420px]',
               'rounded-24 p-20 sm:p-24',
               'data-[state=open]:neu-panel-in data-[state=closed]:neu-panel-out',
