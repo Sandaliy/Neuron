@@ -192,7 +192,7 @@ test('offline rename survives reload; lost acknowledgement retries the exact ope
   await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
   await page
     .getByRole('region', { name: 'Saved name changes' })
-    .getByRole('button', { name: 'Recent activity', exact: true })
+    .getByRole('button', { name: 'Saved name changes', exact: true })
     .click();
   await page
     .getByRole('region', { name: 'Saved name changes' })

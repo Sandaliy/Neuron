@@ -6,6 +6,10 @@ import { Disclosure } from '../../ui/disclosure';
 
 import type { ReactNode } from 'react';
 
+export const workIsSettled = (entry: { state: string; acknowledgement?: unknown }) =>
+  ['synchronized', 'resolved'].includes(entry.state) ||
+  (entry.state === 'archived' && entry.acknowledgement !== undefined);
+
 /** Settled receipts stay durable, with a bounded, optional presentation. */
 export function SavedWork<
   T extends { operationId: string; state: string; acknowledgement?: unknown },
@@ -24,11 +28,8 @@ export function SavedWork<
   const [open, setOpen] = useState(false);
   const [limit, setLimit] = useState(10);
   const [selected, setSelected] = useState<string>();
-  const settled = (entry: T) =>
-    ['synchronized', 'resolved'].includes(entry.state) ||
-    (entry.state === 'archived' && entry.acknowledgement !== undefined);
-  const active = entries.filter((entry) => !settled(entry));
-  const recent = entries.filter(settled).reverse();
+  const active = entries.filter((entry) => !workIsSettled(entry));
+  const recent = entries.filter(workIsSettled).reverse();
   return (
     <>
       {active.slice(0, limit).map(render)}
@@ -47,26 +48,26 @@ export function SavedWork<
           }
           open={open}
           onOpenChange={setOpen}
+          reveal="settled"
         >
-          {open && (
-            <div className="flex flex-col gap-8">
-              {recent.slice(0, limit).map((entry) => (
-                <Disclosure
-                  key={entry.operationId}
-                  title={label(entry)}
-                  open={selected === entry.operationId}
-                  onOpenChange={(expanded) => setSelected(expanded ? entry.operationId : undefined)}
-                >
-                  {selected === entry.operationId && render(entry)}
-                </Disclosure>
-              ))}
-              {limit < recent.length && (
-                <Button variant="text" onClick={() => setLimit(limit + 10)}>
-                  {t('offline.moreActivity')}
-                </Button>
-              )}
-            </div>
-          )}
+          <div className="-mx-4 flex max-h-[320px] flex-col gap-8 overflow-y-auto px-4">
+            {recent.slice(0, limit).map((entry) => (
+              <Disclosure
+                key={entry.operationId}
+                title={label(entry)}
+                open={selected === entry.operationId}
+                onOpenChange={(expanded) => setSelected(expanded ? entry.operationId : undefined)}
+                reveal="settled"
+              >
+                {selected === entry.operationId && render(entry)}
+              </Disclosure>
+            ))}
+            {limit < recent.length && (
+              <Button variant="text" onClick={() => setLimit(limit + 10)}>
+                {t('offline.moreActivity')}
+              </Button>
+            )}
+          </div>
         </Disclosure>
       )}
     </>

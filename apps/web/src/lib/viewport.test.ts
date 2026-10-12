@@ -90,6 +90,17 @@ describe('tracking the visual viewport', () => {
     expect(variables()).toEqual({ inset: '0px', chrome: '0px', height: '812px' });
   });
 
+  it('does not reposition a dialog for viewport panning without a detected keyboard', async () => {
+    const { trackViewport } = await import('./viewport');
+    stop = trackViewport();
+    await report({ height: 770, offsetTop: 100 });
+    expect(document.documentElement.dataset['keyboard']).toBe('closed');
+    expect(document.documentElement.style.getPropertyValue('--visual-viewport-top')).toBe('0px');
+    await report({ height: 476, offsetTop: 40 });
+    expect(document.documentElement.dataset['keyboard']).toBe('open');
+    expect(document.documentElement.style.getPropertyValue('--visual-viewport-top')).toBe('40px');
+  });
+
   it('measures what the keyboard covers when the layout viewport does not move', async () => {
     const { trackViewport } = await import('./viewport');
 

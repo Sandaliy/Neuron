@@ -44,6 +44,15 @@ export function accountQuery() {
         });
       const epoch = accountEpoch();
       const connection = connectionEpoch();
+      if (!navigator.onLine) {
+        const remembered = await rememberedAccount();
+        if (remembered) return remembered;
+        throw new ApiFailure({
+          code: 'network_unreachable',
+          status: 0,
+          correlationId: 'offline-startup',
+        });
+      }
       try {
         const account = await request<Me>('/account', { signal });
         acceptAccount(account, epoch, connection);

@@ -218,3 +218,90 @@ performance cases pass with the original 55 FPS threshold enforced at 4× CPU: 5
 60.0 FPS with 11 mounted rows, 500 Panels-only rows at 60.0 FPS, full-glass Decks at 59.3 FPS and
 mixed collections at 59.0 FPS. The worst frames are 16.8ms for Notes/Panels and 33.4/33.3ms for
 the two shared-glass cases. No baseline, assertion, retry policy or performance threshold was weakened.
+
+## Phase 8.4 production stabilization after PR #51
+
+Physical-iPhone acceptance rejected merged PR #51 (`b8dae4d`). The release blocker stays open until
+the updated installed PWA passes the owner checklist in `offline-study.md`.
+
+The built reproduction suspends account validation, then loses connectivity while an intact download
+exists. The session gate waits indefinitely because remembered-account restoration depends on that
+fetch rejecting. Known offline startup now reads the remembered account directly; loss events restore
+it independently when the gate lacks account data. A live cached account does not cancel its own
+validation, preserving normal query completion and avoiding an additional navigation-time probe.
+Cached identity never grants delivery authority. Account/connection epochs, session rejection and
+explicit sign-out still protect reconnection and account isolation.
+
+The actual PR #50 shell and v2 collection upgrade pass against the final worker/build. A separate
+populated v2 cold-offline test compares every prior store key/value, metadata/cursor and pending
+Note/name operation before and after upgrade; an aborted upgrade preserves v2 until explicit Retry.
+No migration rewrite, storage reset, protocol rollback or service-worker activation change was needed.
+The owner's precise physical network/foreground event sequence remains unobserved.
+
+Offline readiness and saved work share one Settings surface. Completed history is optional and
+bounded; active recovery remains available. Grammar and nested saved-work disclosures reserve their
+complete space before revealing content and settle to natural height. Study setup retains measured
+endpoints for animated configuration changes. Grammar controls remain mounted; German boolean
+controls align with adjacent native fields. The existing Radix panel entrance uses the shared 240ms
+curve after its first ready frame, and dialog viewport offset follows an actual keyboard rather than
+ordinary viewport panning. Recovery-code dismissal safeguards and focus management remain intact.
+
+The exact CI evidence separates these failures:
+
+| Run                                                                              | Proven failure stage                                                                 | Stabilization response                                                                 |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| [PR #50, attempt 1](https://github.com/Sandaliy/Neuron/actions/runs/38156972928) | Desktop Chromium `browser.newContext`, before navigation/page execution              | Investigate worker/context lifecycle; preserve native crash evidence                   |
+| [PR #51, attempt 1](https://github.com/Sandaliy/Neuron/actions/runs/38177074574) | Phone Chromium at the same stage and native fault offsets; aggregate correctly fails | Same classification, with no aggregate-gate relaxation                                 |
+| [Post-merge main](https://github.com/Sandaliy/Neuron/actions/runs/38180934248)   | Fourth Review absent from recorded HTTP despite local sitting advancement            | Assert committed local intents separately from HTTP delivery and synchronized receipts |
+
+The crashes share headless-shell revision 1234, `SEGV_MAPERR 0000000001b0` and relative fault offsets
+including `0x6b59199`, `0x6b20a28` and `0x69786d1`. Installed Playwright 1.62.1 reproduces a worker
+protocol-session leak: 20 closed worker-enabled contexts leave 21 sessions instead of the original
+one; blocked workers leave one. This matches [upstream issue 43009](https://github.com/microsoft/playwright/issues/43009),
+but does not conclusively establish the native SIGSEGV cause. Routed interaction fixtures now block
+incidental workers; real-PWA journeys and existing visual shell-readiness coverage explicitly allow
+them. Repeated offline diagnostics include deliberate fixture failures and worker/route interference;
+they are not proof of production collection loss, and diagnostics remain enabled.
+
+Final local verification passes 1,096 unit/PostgreSQL/RLS tests (99 files), all package typechecks,
+tracked-source lint/formatting, core/design checks and builds. The complete built serial phone/desktop
+gate passes 570 cases with ten existing opt-in skips (11.6 minutes). The 36 focused Chromium
+phone/desktop and mobile WebKit cases pass, including intermediate disclosure/dialog frames,
+Grammar retention, original language-resize assertions, populated upgrade and interrupted recovery.
+Eight worker-enabled browser/database journeys pass (5.8 minutes), including the actual prior shell
+update and real Note/name/Review/Undo delivery. All 31 browser selection/aggregate tests pass.
+All 66 unchanged Windows visual baselines pass. Initial iteration failures in measured Study resize,
+the Grammar screenshot identifier and account-query cancellation were fixed at their sources.
+The visual worker override restores the original readiness state instead of refreshing baselines.
+
+All five original performance cases pass with 55 FPS enforced at 4× CPU: 5,000 Notes at 60.0 FPS
+with 11 mounted rows, 500 Panels-only rows at 59.7 FPS, full-glass Decks at 59.0 FPS and mixed
+collections at 59.3 FPS. Worst frames are 16.8ms, 33.3ms, 33.3ms and 33.4ms respectively.
+Full-gate security opening records zero layout shift and 53–55ms long tasks, comparable with the
+earlier 55ms observation; this does not establish physical-iPhone compositor behavior.
+
+Three matched samples per browser compare archived PR #51 source and the repaired build using the
+same dependencies, fixture ownership, full motion and probe. Chromium is throttled 4×; Windows
+WebKit is unthrottled. Tracing is disabled only for these timing samples, not ordinary verification.
+
+| Median observation              | Chromium PR #51 → repair | Windows WebKit PR #51 → repair |
+| ------------------------------- | ------------------------ | ------------------------------ |
+| Cold Today readiness            | 839.4 → 831.8ms          | 402.7 → 388.8ms                |
+| Warm Library → Today            | 88.9 → 86.6ms            | 230.2 → 228.8ms                |
+| Study entry                     | 95.2 → 95.6ms            | 124.1 → 124.3ms                |
+| Local Review commit             | 31.7 → 32.7ms            | 157 → 153ms                    |
+| DOM-observed exit guard release | 41.1 → 42.2ms            | 189 → 185ms                    |
+| Study exit                      | 85.0 → 86.2ms            | 146.4 → 180.1ms                |
+
+Chromium records zero layout shift in every sampled stage, no delivery/editor long tasks and one
+72–74ms navigation task in both revisions. Editor commits remain seven; rendered fibers increase
+448 → 462 because closed Grammar controls stay mounted. Delivery/editor worst frames remain about
+16.8ms. WebKit exposes neither long-task nor layout-shift observers; empty arrays do not establish
+absence. Direct focus/form geometry assertions pass. Its Study-exit sample is 34ms slower, with
+navigation frames up to 63ms in the repaired samples. This measured port/pacing difference remains
+explicit rather than being declared a device improvement. Installed-iPhone keyboard geometry,
+frame pacing and exact network/foreground behavior require owner acceptance.
+
+No assertion, retry policy, required check identity, coverage, timeout, performance threshold or visual
+baseline was relaxed. Hosted PR checks and production/device acceptance are separate from these
+local results; Phase 8.5 remains deferred.

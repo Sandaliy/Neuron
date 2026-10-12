@@ -12,9 +12,9 @@ import {
 } from '../../lib/collection-outbox';
 import { retryDownload, useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
-import { Card, GroupLabel } from '../../ui/card';
+import { GroupLabel } from '../../ui/card';
 
-import { SavedWork } from './saved-work';
+import { SavedWork, workIsSettled } from './saved-work';
 
 export function PendingRenames() {
   const t = useTranslate();
@@ -47,8 +47,10 @@ export function PendingRenames() {
   if (!entries.error && saved.length === 0) return null;
   return (
     <section aria-label={t('offline.savedChanges')} className="flex flex-col gap-12">
-      <GroupLabel>{t('offline.savedChanges')}</GroupLabel>
-      <Card className="flex flex-col gap-12">
+      {saved.some((entry) => !workIsSettled(entry)) && (
+        <GroupLabel>{t('offline.savedChanges')}</GroupLabel>
+      )}
+      <div className="flex flex-col gap-12">
         {entries.error && (
           <p role="alert" className="text-13 text-secondary">
             {t('offline.changesUnavailable')}
@@ -59,7 +61,7 @@ export function PendingRenames() {
         )}
         <SavedWork
           entries={saved}
-          title={t('offline.recentActivity')}
+          title={t('offline.savedChanges')}
           label={(entry) => entry.payload.name}
           render={(entry) => (
             <div key={entry.operationId} className="flex flex-col gap-8">
@@ -127,7 +129,7 @@ export function PendingRenames() {
             {t('offline.renameRetryFailed')}
           </p>
         )}
-      </Card>
+      </div>
     </section>
   );
 }

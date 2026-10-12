@@ -98,7 +98,7 @@ account switching, sign-out, explicit archive recovery and bounded large history
 HTTP/PostgreSQL journey reopens offline with undelivered answers, Undo and regrading, loses a real
 committed response, retries exactly and verifies immutable history and canonical schedules.
 
-The final release run passes all 1,095 unit/PostgreSQL tests, 560 built phone/desktop interactions
+PR #51 pre-stabilization verification passed all 1,095 unit/PostgreSQL tests, 560 built phone/desktop interactions
 (ten opt-in selection skips), 77 targeted mobile WebKit cases, both real-PWA Review journeys,
 66 unchanged Windows visual contracts and all five enforced 55 FPS cases. Package typechecks,
 source lint, isolation/design checks, tracked-file formatting and the production build also pass.
@@ -123,3 +123,28 @@ acceptance is separate from Chromium, WebKit, screenshot and database evidence. 
 6. Compare cold/warm navigation, Study entry/exit and editor typing with the accepted experience.
    Sign out/switch accounts with pending work: the other account must not expose or send it; signing
    back into the original account should recover it.
+
+## Phase 8.4 stabilization acceptance
+
+PR #51 is merged at `b8dae4d`; physical-iPhone acceptance failed and remains a release blocker.
+The stabilization preserves Review/Undo schemas, identities, causal predecessors, exact retry,
+authoritative replay and retained recovery archives. Startup restoration is independent of a suspended
+account fetch; a remembered account never authorizes delivery. The Study regression now checks local
+committed intents, recorded HTTP and synchronized acknowledgements as separate milestones.
+
+Offline readiness and saved work share one Settings card. Active work retains direct recovery actions;
+settled receipts use optional, bounded history. Nested disclosure content waits for complete space,
+and settled parents follow natural height. Grammar fields remain mounted through disclosure changes.
+Password dialogs retain Radix focus management and recovery-code dismissal safeguards.
+
+Before accepting production, repeat offline cold reopening of an upgraded existing download, live
+connection loss, authenticated reconnection, saved Note/name work and admitted Study answer/Undo
+persistence on the owner's installed iPhone. Confirm complete disclosure text and stable password
+focus with the native keyboard. Browser evidence is separate from this device acceptance.
+
+Final stabilization verification passes 1,096 unit/PostgreSQL tests, 570 built phone/desktop
+interactions (ten existing opt-in skips), 36 focused Chromium/mobile WebKit cases and eight
+worker-enabled PWA/database cases. The latter include the actual PR #50 shell upgrade and real
+PostgreSQL Note/name delivery, Review/Undo persistence, exact retries and authoritative replay.
+All 66 unchanged Windows visual contracts and five enforced 55 FPS performance cases pass.
+Required hosted checks and the installed-iPhone acceptance above remain separate release gates.

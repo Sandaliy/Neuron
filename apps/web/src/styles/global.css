@@ -1127,7 +1127,11 @@
 }
 
 @utility neu-panel-in {
-  animation: neu-panel-in var(--dur-2) var(--ease-enter) backwards;
+  animation: neu-panel-in var(--dur-3) var(--ease-inout) backwards;
+}
+.neu-dialog[data-state='open']:not([data-entrance-ready='true']) {
+  opacity: 0;
+  animation-play-state: paused;
 }
 
 @utility neu-panel-out {
@@ -1391,6 +1395,17 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
 }
 .neu-disclosure[data-disclosure-open='true']:not([data-moving='true']) {
   overflow: visible;
+}
+.neu-disclosure-content {
+  transition: opacity var(--dur-2) var(--ease-inout);
+}
+.neu-note-toggle-control {
+  /* Match a native field's line, vertical padding and border without moving its label. */
+  min-height: calc(1lh + var(--u-3) * 2 + 2px);
+}
+.neu-disclosure[data-revealing='true'] > .neu-disclosure-content {
+  opacity: 0;
+  visibility: hidden;
 }
 
 /* Collection objects share a surface; Folder identity carries the hierarchy. */

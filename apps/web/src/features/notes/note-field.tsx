@@ -34,7 +34,9 @@ export function NoteField({
     event.preventDefault();
 
     const form = event.currentTarget.closest('[data-screen]');
-    const focusable = [...(form?.querySelectorAll<HTMLElement>('input, select, textarea') ?? [])];
+    const focusable = [
+      ...(form?.querySelectorAll<HTMLElement>('input, select, textarea') ?? []),
+    ].filter((element) => !element.closest('[inert]') && !element.matches(':disabled'));
     const next = focusable[focusable.indexOf(event.currentTarget) + 1];
 
     next?.focus();
@@ -68,13 +70,14 @@ export function NoteField({
   }
   if (field.kind === 'toggle')
     return (
-      <label
-        htmlFor={id}
-        className="flex min-h-44 cursor-pointer items-center justify-between gap-8 text-13 text-secondary"
-      >
-        <span>{t(field.labelKey)}</span>
-        <Switch id={id} label={t(field.labelKey)} checked={value === true} onChange={onChange} />
-      </label>
+      <div data-field="" className="flex flex-col gap-8">
+        <label htmlFor={id} className="cursor-pointer text-13 font-semibold text-secondary">
+          {t(field.labelKey)}
+        </label>
+        <div className="neu-note-toggle-control flex items-center text-16">
+          <Switch id={id} label={t(field.labelKey)} checked={value === true} onChange={onChange} />
+        </div>
+      </div>
     );
   return (
     <FormField

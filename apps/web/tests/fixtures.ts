@@ -1,6 +1,31 @@
 import { expect } from '@playwright/test';
 
+import type { PendingReview } from '../src/lib/review-outbox';
 import type { Page, Route } from '@playwright/test';
+
+/** Read committed local intents independently of UI progress or recorded HTTP. */
+export function storedStudyEvents(page: Page, accountId = 'user_1') {
+  return page.evaluate(async (accountId) => {
+    const opened = indexedDB.open(`neuron.collection:${accountId}`);
+    opened.onupgradeneeded = () => opened.transaction?.abort();
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      opened.onsuccess = () => resolve(opened.result);
+      opened.onerror = () => reject(opened.error);
+    });
+    try {
+      const read = db.transaction('review-outbox').objectStore('review-outbox').getAll();
+      return await new Promise<PendingReview[]>((resolve, reject) => {
+        read.onsuccess = () =>
+          resolve(
+            read.result.sort((a: PendingReview, b: PendingReview) => a.sequence - b.sequence),
+          );
+        read.onerror = () => reject(read.error);
+      });
+    } finally {
+      db.close();
+    }
+  }, accountId);
+}
 
 /** Wait for acknowledged Practice transport before navigating or reloading. */
 export async function waitForPracticeSave(page: Page) {

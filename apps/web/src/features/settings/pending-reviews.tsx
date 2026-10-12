@@ -5,10 +5,10 @@ import { useTranslate } from '../../i18n/locale';
 import { useOffline } from '../../lib/offline';
 import { reviewEvents, retryReviews, archiveReviewSession } from '../../lib/review-outbox';
 import { Button } from '../../ui/button';
-import { Card, GroupLabel } from '../../ui/card';
+import { GroupLabel } from '../../ui/card';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 
-import { SavedWork } from './saved-work';
+import { SavedWork, workIsSettled } from './saved-work';
 
 export function PendingReviews() {
   const t = useTranslate();
@@ -28,12 +28,14 @@ export function PendingReviews() {
   if (!events.error && !events.data?.length) return null;
   return (
     <section aria-label={t('offline.reviews')} className="flex flex-col gap-12">
-      <GroupLabel>{t('offline.reviews')}</GroupLabel>
-      <Card className="flex flex-col gap-12">
+      {(events.data ?? []).some((entry) => !workIsSettled(entry)) && (
+        <GroupLabel>{t('offline.reviews')}</GroupLabel>
+      )}
+      <div className="flex flex-col gap-12">
         {events.error && <p role="alert">{t('offline.changesUnavailable')}</p>}
         <SavedWork
           entries={events.data ?? []}
-          title={t('offline.recentActivity')}
+          title={t('offline.reviews')}
           label={(entry) =>
             t(entry.event.type === 'answer' ? 'offline.reviewAnswer' : 'study.undo')
           }
@@ -94,7 +96,7 @@ export function PendingReviews() {
           )}
         />
         {(retry.error || archive.error) && <p role="alert">{t('offline.reviewInterrupted')}</p>}
-      </Card>
+      </div>
       <Dialog
         open={!!archiveId}
         onOpenChange={() => setArchiveId(undefined)}

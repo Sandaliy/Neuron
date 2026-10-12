@@ -302,8 +302,10 @@ fill `forwards`, because something on its way out has to stay where it ended unt
 `src/styles/motion.test.ts` fails the build on `both`.
 
 - Screens and routes do not animate globally. Motion belongs to the control or content changing state.
-- Dialogs appear in place with opacity and scale 0.99 to 1 over `--dur-2`. Closing reverses
-  those endpoints over `--dur-1`. The scrim fades in and out on the same timings.
+- Dialogs appear in place with opacity and scale 0.99 to 1 over `--dur-3` on the in/out curve,
+  preserving visible intermediate frames. Portal/focus setup pauses the entrance until its first ready
+  frame, so mounting cannot consume the visible fade. Closing reverses those endpoints over `--dur-1`.
+  The scrim retains its existing `--dur-2` fade.
 - The app background stays stationary at every width. The scrim, glass surface and shadow provide
   depth without transforming the root or changing the containing block of fixed navigation.
 - Menus use a 2px approach and scale 0.99 from Radix's collision-aware trigger origin. Opening takes
@@ -760,7 +762,11 @@ enters/exits with native CSS opacity and height transitions. One persistent size
 the natural endpoint; unrelated renders do not cancel motion. This bounded inline-layout exception
 keeps surrounding content moving continuously and reverses from the displayed height. Content
 changes during opening retarget the endpoint. An 8px horizontal gutter protects field focus halos
-during motion; settled open content permits visible overflow. Reduced motion changes visibility immediately.
+during motion. Study setup keeps measured endpoints so confirmed configuration changes animate.
+Grammar and saved-work panels settle to natural height with visible overflow, so a nested
+expansion does not start a second clipping animation in its parent. Grammar and saved-work details
+reveal their content after the height transition, retaining mounted controls and native reversal.
+Reduced motion changes visibility immediately.
 Note Card previews use this pattern; a type conversion that removes Cards keeps the preview open.
 
 Listening reveals replace the instruction and large playback prompt with an answer-focused group:

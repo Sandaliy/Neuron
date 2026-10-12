@@ -14,6 +14,7 @@ export function Disclosure({
   open,
   onOpenChange,
   className = '',
+  reveal = 'continuous',
 }: {
   readonly title: ReactNode;
   readonly leading?: ReactNode;
@@ -22,6 +23,7 @@ export function Disclosure({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly className?: string;
+  readonly reveal?: 'continuous' | 'settled';
 }) {
   const id = useId();
   const content = useRef<HTMLDivElement>(null);
@@ -33,6 +35,7 @@ export function Disclosure({
     const element = content.current;
     if (!element) return;
     const target = expanded.current ? height : 0;
+    if (expanded.current && element.style.height === 'auto') return;
     if (endpoint.current !== undefined && Math.abs(endpoint.current - target) < 0.5) return;
     endpoint.current = target;
     element.dataset['moving'] = String(
@@ -43,15 +46,27 @@ export function Disclosure({
     element.style.height = `${target}px`;
   }, []);
   useLayoutEffect(() => {
+    const element = content.current;
+    if (element?.style.height === 'auto' && !open) {
+      element.style.height = `${element.getBoundingClientRect().height}px`;
+      element.getBoundingClientRect();
+    }
     expanded.current = open;
     if (!mounted.current && content.current) content.current.style.transition = 'none';
     resize(inner.current?.getBoundingClientRect().height ?? 0);
+    if (element) {
+      element.dataset['revealing'] = String(
+        open && reveal === 'settled' && element.dataset['moving'] === 'true',
+      );
+      if (open && reveal === 'settled' && element.dataset['moving'] !== 'true')
+        element.style.height = 'auto';
+    }
     if (!mounted.current && content.current) {
       content.current.getBoundingClientRect();
       content.current.style.removeProperty('transition');
     }
     mounted.current = true;
-  }, [open, resize]);
+  }, [open, resize, reveal]);
   useLayoutEffect(() => {
     // One observer for the disclosure's lifetime. Native CSS transitions retain
     // the displayed height on reversal; unrelated renders cannot restart them.
@@ -91,11 +106,21 @@ export function Disclosure({
         className="neu-disclosure -mx-8 px-8"
         style={{ height: '0px' }}
         onTransitionEnd={(event) => {
-          if (event.target === event.currentTarget && event.propertyName === 'height')
+          if (event.target === event.currentTarget && event.propertyName === 'height') {
             event.currentTarget.dataset['moving'] = 'false';
+            event.currentTarget.dataset['revealing'] = 'false';
+            if (expanded.current && reveal === 'settled') event.currentTarget.style.height = 'auto';
+          }
+        }}
+        onTransitionCancel={(event) => {
+          if (event.target === event.currentTarget && motionIsReduced()) {
+            event.currentTarget.dataset['moving'] = 'false';
+            event.currentTarget.dataset['revealing'] = 'false';
+            if (expanded.current && reveal === 'settled') event.currentTarget.style.height = 'auto';
+          }
         }}
       >
-        <div ref={inner} className="flow-root pt-12 pb-8">
+        <div ref={inner} className="neu-disclosure-content flow-root pt-12 pb-8">
           {children}
         </div>
       </div>
