@@ -411,8 +411,8 @@ fixture, Windows WebKit's sustained swipe rates for PR #49 and the repair are:
 Full-glass trusted input observation is 105ms median / 108ms p95 on PR #49 and 102ms / 111ms on
 the repair. Sustained movement observes no store-wide IndexedDB `getAll` reads in either revision and reduces 175 React
 commits to zero. Direct surface transforms, a fixed background action plane and unchanged state
-attributes avoid per-frame inherited style invalidation and action-width layout. An isolated
-`will-change: transform` probe did not improve full-glass pacing and was not retained. The remaining
+attributes avoid per-frame inherited style invalidation and action-width layout. An initial isolated
+`will-change: transform` probe did not improve Windows WebKit full-glass pacing. The remaining
 rendering cost is strongly dependent on glass configuration in this Windows port, including the
 accepted baseline. This reproduces a low frame rate in the port, not the owner's native regression or
 its cause. It remains below the target and is an explicit unresolved performance risk; no effects,
@@ -451,9 +451,42 @@ WebSocket close, with 98 of 99 files passing. Its isolated nine-case Review suit
 the full run is not relabelled as a single clean pass. An earlier broad browser run similarly records
 one pre-application `ERR_NO_BUFFER_SPACE`. Available memory/port counts did not show exhaustion, and a
 bare-browser control completed 200 contexts / 6,600 requests without reproducing it. The original
-failure remains unexplained runner evidence. The final full browser run follows additional lifecycle
-and gesture corrections and passes; retries, timeouts and assertions were not relaxed for either issue.
+failure remains unexplained runner evidence. The earlier full browser run followed additional lifecycle
+and gesture corrections and passed; retries, timeouts and assertions were not relaxed for either issue.
 Hosted required checks and physical acceptance remain separate from all local results.
+
+PR #53's first hosted run (`38744365152`) exposed two further defects. The phone handover assertion
+observed scroll moving from 500 to 522px. The longer unavailable Practice label wrapped onto a second
+line, increasing the card height by 22.5px and triggering scroll anchoring. The same exact failure is
+reproducible locally at 320px. Both action labels now determine the button's natural height, with only
+the current label visible and accessible. The original exact geometry and reconnect assertions remain;
+an additional narrow-phone case covers the wrapping boundary.
+
+The desktop active-swipe case measured 53.24 FPS with Max glass on panels and cards, against 59.67 FPS
+with Panels only and 60.00 FPS with glass off. The failed interval contained zero React commits,
+long tasks or store scans. A local Chromium compositor capture of the same 180-frame movement showed
+451 raster tasks / 149.80ms without surface promotion. Promoting only the active pointer's surface
+reduced this to 22 tasks / 15.27ms in the repaired application. The promotion ends with release,
+cancellation or loss of eligibility; inactive rows do not retain layers. The full-glass appearance is
+preserved. This addresses measured raster cost without reducing blur, changing gesture semantics or
+relaxing the 55 FPS floor. Local Chromium was already near 60 FPS before this correction, so the
+hosted improvement still requires a new hosted result. Windows WebKit remains below target and this
+correction does not establish a native-iPhone performance fix. The aggregate browser check correctly
+failed because of the two interaction failures; its contract and topology are unchanged.
+
+The full local follow-up also identified a rapid-entry helper comparing raw button `textContent`,
+which now includes the hidden sizing label. It resolves the same buttons by accessible name before
+dispatching both clicks in one turn; all original route and setup assertions remain. Its three focused
+Chromium/WebKit cases pass. The interrupted broad run remains non-passing evidence.
+
+The subsequent full built interaction gate records 595 passes, ten existing skips and one
+`ERR_NO_BUFFER_SPACE` in Practice Listen to Type before application loading. Its trace has only the
+failed document request and an `about:blank` frame, with no scripts or API requests. A resource check
+shows about 22.3 GiB of free memory and fewer than 800 TCP records, without establishing the cause.
+This recurring local runner failure remains unexplained; the full run is not reclassified as green.
+The affected Practice journey subsequently passes separately in both Chromium projects and mobile
+WebKit. The correction also passes the web typecheck, changed-source lint, design-token check and
+eight motion contract tests. No assertion, timeout, retry, baseline or protected check was relaxed.
 
 ### Storage, diagnostics and acceptance
 

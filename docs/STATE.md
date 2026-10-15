@@ -18,16 +18,27 @@ details reveal complete controls during expansion. Saved history shares one opti
 disclosure. Swipe movement uses transient DOM state instead of React updates per pointer event.
 Retained content-free diagnostics record application stages for the remaining native investigation.
 
-Local verification passes 594 built interaction cases (ten existing skips), sixteen phone-context
-PWA/database journeys, 66 Windows visuals, five original enforced performance cases and 31 browser
+The initial local verification passed 594 built interaction cases (ten existing skips), sixteen
+phone-context PWA/database journeys, 66 Windows visuals, five original enforced performance cases and 31 browser
 gate contracts. A broad WebKit run plus focused corrections covers lifecycle, mounted controls and
 touch swipe semantics. The full unit/database run has a setup transport exception; its affected
 nine-case suite passes separately. See `interaction-performance.md` for exact evidence and limits.
 
-Protected PR delivery is prepared; required hosted checks and installed-iPhone acceptance remain
-outstanding. Chromium gestures sustain 60 FPS, while Windows WebKit full-glass swipes remain around
-9.8 FPS on both accepted PR #49 and the repair. No native performance fix or physical acceptance is
-claimed. Browser evidence does not close this release blocker. Use the short checklist and retained
+Protected PR #53 is open. Its first hosted verification and Windows visual jobs passed, but phone
+handover geometry and desktop full-glass swipe pacing failed; the aggregate gate correctly failed.
+The handover defect reproduces at 320px and is repaired by reserving both Practice action labels'
+natural height. Active swipe surface promotion reduces measured Chromium raster work from 451 tasks
+to 22 without changing glass quality. Fifteen focused Chromium/WebKit cases and three rapid-entry
+checks pass. The latest full built interaction run records 595 passes, ten existing skips and one
+unexplained Chromium `ERR_NO_BUFFER_SPACE` before the application loads. Its trace contains only
+the failed document request and an `about:blank` frame. The affected journey passes separately in
+both Chromium projects and mobile WebKit. The full run is not green; hosted checks on the corrected
+head remain required.
+
+Installed-iPhone acceptance remains outstanding. Chromium gestures sustain 60 FPS locally, while
+Windows WebKit full-glass swipes remain around 9.8 FPS on both accepted PR #49 and the repair.
+No native performance fix or physical acceptance is claimed. Browser evidence does not close this
+release blocker. Use the short checklist and retained
 startup export described in `offline-study.md`; Phase 8.5 remains deferred.
 
 ## Current release

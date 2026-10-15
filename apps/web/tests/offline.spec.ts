@@ -2243,71 +2243,75 @@ test('in-session Library keeps its header, nested expansion and row geometry whe
   await expect(page.getByRole('searchbox')).toBeVisible();
 });
 
-test('transport loss with online browser hints preserves the open Deck and scroll, then validates before reconnecting', async ({
-  page,
-  context,
-}) => {
-  const control = await installContinuityFixtures(page, context);
-  await download(page);
-  await page.goto(`/notes?deckId=${deckId}`);
-  await expect(
-    page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }),
-  ).toBeVisible();
-  await page
-    .locator('main section[data-screen]')
-    .evaluate((element) => element.setAttribute('data-visit', 'same-deck'));
-  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeVisible();
-  await page.getByRole('searchbox').fill('cached');
-  await expect(page.getByRole('searchbox')).not.toHaveAttribute('aria-busy', 'true');
-  // Refetch the same search result set while scroll is away from the page top.
-  await page.evaluate(() => scrollTo(0, 500));
-  const before = await geometry(page);
-  const accounts = control.accountReads;
-  control.lost = true;
-  await page.getByRole('searchbox').evaluate((element) => {
-    const input = element as HTMLInputElement;
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-      input,
-      'Cached',
-    );
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
-  expect(await page.evaluate(() => navigator.onLine)).toBe(true);
-  await expect(page.locator('[data-visit="same-deck"]')).toHaveCount(1);
-  expect(await geometry(page)).toEqual(before);
-  expect(control.accountReads).toBe(accounts + 1);
-  const requests = control.collectionReads;
-  await page.getByRole('searchbox').fill('meaning 0');
-  await page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }).click();
-  await expect(page.getByRole('textbox', { name: 'Translation' })).toHaveValue(
-    'Downloaded meaning 0',
-  );
-  expect(control.collectionReads).toBe(requests);
-  await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
-  for (const name of ['New note', 'Import', 'Select notes', 'Practice requires a connection.'])
-    await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
-  control.lost = false;
-  control.updated = true;
-  let release!: () => void;
-  control.holdAccount = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  try {
-    await page.evaluate(() => window.dispatchEvent(new Event('online')));
-    await expect.poll(() => control.accountReads).toBe(accounts + 2);
-    await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
-    release();
-    await expect(page.getByText('Offline · collection reading', { exact: true })).toHaveCount(0);
+// Exercise a wrapped unavailable label as well as each project's normal viewport.
+for (const width of [undefined, 320]) {
+  test(`transport loss with online browser hints preserves the open Deck and scroll, then validates before reconnecting${width ? ` at ${width}px` : ''}`, async ({
+    page,
+    context,
+  }) => {
+    if (width) await page.setViewportSize({ width, height: 812 });
+    const control = await installContinuityFixtures(page, context);
+    await download(page);
+    await page.goto(`/notes?deckId=${deckId}`);
     await expect(
-      page.getByRole('button', { name: /Durable word Reconciled meaning/ }),
+      page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }),
     ).toBeVisible();
-    await expect.poll(() => meta(page)).toEqual({ cursor: 3, complete: true, format: 1 });
-  } finally {
-    release();
-  }
-});
+    await page
+      .locator('main section[data-screen]')
+      .evaluate((element) => element.setAttribute('data-visit', 'same-deck'));
+    await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeVisible();
+    await page.getByRole('searchbox').fill('cached');
+    await expect(page.getByRole('searchbox')).not.toHaveAttribute('aria-busy', 'true');
+    // Refetch the same search result set while scroll is away from the page top.
+    await page.evaluate(() => scrollTo(0, 500));
+    const before = await geometry(page);
+    const accounts = control.accountReads;
+    control.lost = true;
+    await page.getByRole('searchbox').evaluate((element) => {
+      const input = element as HTMLInputElement;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        'Cached',
+      );
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => navigator.onLine)).toBe(true);
+    await expect(page.locator('[data-visit="same-deck"]')).toHaveCount(1);
+    expect(await geometry(page)).toEqual(before);
+    expect(control.accountReads).toBe(accounts + 1);
+    const requests = control.collectionReads;
+    await page.getByRole('searchbox').fill('meaning 0');
+    await page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }).click();
+    await expect(page.getByRole('textbox', { name: 'Translation' })).toHaveValue(
+      'Downloaded meaning 0',
+    );
+    expect(control.collectionReads).toBe(requests);
+    await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
+    for (const name of ['New note', 'Import', 'Select notes', 'Practice requires a connection.'])
+      await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
+    control.lost = false;
+    control.updated = true;
+    let release!: () => void;
+    control.holdAccount = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    try {
+      await page.evaluate(() => window.dispatchEvent(new Event('online')));
+      await expect.poll(() => control.accountReads).toBe(accounts + 2);
+      await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
+      release();
+      await expect(page.getByText('Offline · collection reading', { exact: true })).toHaveCount(0);
+      await expect(
+        page.getByRole('button', { name: /Durable word Reconciled meaning/ }),
+      ).toBeVisible();
+      await expect.poll(() => meta(page)).toEqual({ cursor: 3, complete: true, format: 1 });
+    } finally {
+      release();
+    }
+  });
+}
 
 test('incomplete snapshot never presents cached online collection rows as available offline', async ({
   page,

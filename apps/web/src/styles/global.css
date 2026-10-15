@@ -1401,6 +1401,9 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
 }
 .neu-swipe[data-swipe-dragging='true'] > div {
   transition: none;
+  /* Promote only the surface owned by the active pointer. Otherwise each
+     transform can rerasterize the glass-backed row group during the gesture. */
+  will-change: transform;
 }
 .neu-swipe[data-swipe-armed='true'] > [data-swipe-action] svg {
   transform: scale(1.25);

@@ -502,17 +502,17 @@ test('rapid Practice entry taps keep the first route and its setup intent togeth
   await waitForPracticeSave(page);
   await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Resume practice', exact: true })).toBeVisible();
-  await page.evaluate(() => {
-    const buttons = [...document.querySelectorAll('button')];
-    (
-      buttons.find((button) => button.textContent?.trim() === 'Practice setup') as HTMLButtonElement
-    ).click();
-    (
-      buttons.find(
-        (button) => button.textContent?.trim() === 'Resume practice',
-      ) as HTMLButtonElement
-    ).click();
-  });
+  // Resolve accessible names before dispatch so both taps still share one turn.
+  await page.evaluate(
+    ([setup, resume]) => {
+      (setup as HTMLButtonElement).click();
+      (resume as HTMLButtonElement).click();
+    },
+    [
+      await page.getByRole('button', { name: 'Practice setup', exact: true }).elementHandle(),
+      await page.getByRole('button', { name: 'Resume practice', exact: true }).elementHandle(),
+    ],
+  );
   await expect(page).toHaveURL(/entry=setup/);
   await expect(page.getByRole('button', { name: 'Word', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Show answer', exact: true })).toHaveCount(0);
