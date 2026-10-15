@@ -89,7 +89,9 @@ export const en = {
   'offline.copyRecovery': 'Copy recovery record',
   'error.review_delivery_pending':
     'Synchronize saved Study answers in Settings before starting another session.',
-  'offline.access': 'Offline access',
+  'offline.access': 'Offline & sync',
+  'offline.diagnostics': 'Save startup diagnostics',
+  'offline.practiceUnavailable': 'Practice requires a connection.',
   'offline.ready': 'Collection downloaded for offline reading.',
   'offline.pending': 'The collection has not finished downloading yet.',
   'offline.onlineAvailable': 'You can keep using Neuron online.',

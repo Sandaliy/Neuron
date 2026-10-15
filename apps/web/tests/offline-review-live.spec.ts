@@ -121,6 +121,9 @@ test('an admitted offline sitting reopens its durable events and retries a lost 
     serviceWorkers: 'allow',
     baseURL: origin,
     viewport: info.project.use.viewport ?? { width: 390, height: 844 },
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true,
   });
   let page = await context.newPage();
   try {

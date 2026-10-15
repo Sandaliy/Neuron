@@ -252,6 +252,9 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
     serviceWorkers: 'allow',
     baseURL: origin,
     viewport: info.project.use.viewport ?? { width: 390, height: 844 },
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true,
   });
   let page = await context.newPage();
   const key = (row: PullSyncResult['changes'][number]) => `${row.entity}:${row.id}`;
@@ -448,7 +451,7 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
       .click();
     await expect.poll(() => renameDeliveries.length).toBe(2);
     const savedNames = page.getByRole('region', { name: 'Saved name changes' });
-    await savedNames.getByRole('button', { name: 'Saved name changes', exact: true }).click();
+    await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
     await savedNames.getByRole('button', { name: 'Durably renamed Deck', exact: true }).click();
     await expect(
       savedNames.getByText('Synchronized with the server', { exact: true }),

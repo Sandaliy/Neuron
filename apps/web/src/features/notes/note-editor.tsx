@@ -943,7 +943,7 @@ function Editor({
                   }
                   open={grammarOpen}
                   onOpenChange={setGrammarOpen}
-                  reveal="settled"
+                  reveal="progressive"
                 >
                   {content}
                 </Disclosure>

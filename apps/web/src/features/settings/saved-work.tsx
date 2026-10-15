@@ -25,7 +25,6 @@ export function SavedWork<
   title: string;
 }) {
   const t = useTranslate();
-  const [open, setOpen] = useState(false);
   const [limit, setLimit] = useState(10);
   const [selected, setSelected] = useState<string>();
   const active = entries.filter((entry) => !workIsSettled(entry));
@@ -39,17 +38,7 @@ export function SavedWork<
         </Button>
       )}
       {recent.length > 0 && (
-        <Disclosure
-          title={title}
-          detail={
-            <span className="text-12 text-secondary" data-numeric="">
-              {recent.length}
-            </span>
-          }
-          open={open}
-          onOpenChange={setOpen}
-          reveal="settled"
-        >
+        <div aria-label={title}>
           <div className="-mx-4 flex max-h-[320px] flex-col gap-8 overflow-y-auto px-4">
             {recent.slice(0, limit).map((entry) => (
               <Disclosure
@@ -57,7 +46,7 @@ export function SavedWork<
                 title={label(entry)}
                 open={selected === entry.operationId}
                 onOpenChange={(expanded) => setSelected(expanded ? entry.operationId : undefined)}
-                reveal="settled"
+                reveal="progressive"
               >
                 {selected === entry.operationId && render(entry)}
               </Disclosure>
@@ -68,7 +57,7 @@ export function SavedWork<
               </Button>
             )}
           </div>
-        </Disclosure>
+        </div>
       )}
     </>
   );

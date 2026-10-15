@@ -195,13 +195,21 @@ async function offline(page: Page, context: BrowserContext) {
   await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
 }
 
-for (const interrupted of [false, true])
-  test(`a populated v2 collection upgrades on a cold offline PWA launch, interrupted=${interrupted}`, async ({
+for (const [interrupted, onlineHint, stalled] of [
+  [false, false, false],
+  [true, false, false],
+  [false, true, true],
+  [false, false, true],
+] as const)
+  test(`a populated v2 collection upgrades on a cold offline PWA launch, interrupted=${interrupted}, onlineHint=${onlineHint}, stalled=${stalled}`, async ({
     browser,
-  }) => {
+  }, info) => {
     test.skip(!process.env['CI'], 'Requires the built application shell.');
+    const shellRoot = process.env['PWA_SHELL_TEST_DIST'] ?? path.join(process.cwd(), 'dist');
     const server = createServer(async (request, response) => {
       const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+      // A reachable origin can leave API requests suspended indefinitely.
+      if (pathname.startsWith('/api/')) return;
       if (pathname === '/seed') {
         response.setHeader('Content-Type', 'text/html');
         response.end('<!doctype html><html><body>Prior collection storage</body></html>');
@@ -227,7 +235,7 @@ for (const interrupted of [false, true])
                   ? 'image/svg+xml'
                   : 'text/html',
         );
-        response.end(await readFile(path.join(process.cwd(), 'dist', asset)));
+        response.end(await readFile(path.join(shellRoot, asset)));
       } catch {
         response.writeHead(404);
         response.end();
@@ -237,7 +245,14 @@ for (const interrupted of [false, true])
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Missing origin');
     const origin = `http://127.0.0.1:${address.port}`;
-    const context = await browser.newContext({ serviceWorkers: 'allow', baseURL: origin });
+    const context = await browser.newContext({
+      serviceWorkers: 'allow',
+      baseURL: origin,
+      viewport: { width: 375, height: 812 },
+      deviceScaleFactor: 3,
+      isMobile: true,
+      hasTouch: true,
+    });
     let page = await context.newPage();
     const renameId = '01900000-0000-7000-8000-000000000081';
     const editId = '01900000-0000-7000-8000-000000000082';
@@ -364,10 +379,10 @@ for (const interrupted of [false, true])
       );
       const before = await fingerprint(page);
       expect(before.version).toBe(2);
-      await context.addInitScript(() => {
+      await context.addInitScript((onlineHint) => {
         Object.defineProperty(Navigator.prototype, 'onLine', {
           configurable: true,
-          get: () => false,
+          get: () => onlineHint,
         });
         const original = IDBDatabase.prototype.createObjectStore;
         IDBDatabase.prototype.createObjectStore = function (name, options) {
@@ -376,13 +391,15 @@ for (const interrupted of [false, true])
             store.transaction.abort();
           return store;
         };
-      });
-      await new Promise<void>((resolve) => {
-        server.close(() => resolve());
-        server.closeAllConnections();
-      });
+      }, onlineHint);
+      if (!stalled)
+        await new Promise<void>((resolve) => {
+          server.close(() => resolve());
+          server.closeAllConnections();
+        });
       await page.close();
       page = await context.newPage();
+      const startup = Date.now();
       await page.goto('/library');
       if (interrupted) {
         await expect(page.getByText(/offline storage could not be opened or read/)).toBeVisible();
@@ -391,6 +408,12 @@ for (const interrupted of [false, true])
         await page.getByRole('button', { name: 'Try again', exact: true }).click();
       }
       await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
+      const startupMs = Date.now() - startup;
+      if (!interrupted) expect(startupMs).toBeLessThan(3000);
+      await info.attach('cold-pwa-startup', {
+        body: JSON.stringify({ interrupted, onlineHint, stalled, startupMs }),
+        contentType: 'application/json',
+      });
       await page.getByRole('button', { name: /^Downloaded Folder/ }).click();
       await expect(page.getByRole('button', { name: /^Saved offline deck/ })).toBeVisible();
       const after = await fingerprint(page);
@@ -408,8 +431,215 @@ for (const interrupted of [false, true])
     } finally {
       await context.close();
       server.close();
+      server.closeAllConnections();
     }
   });
+
+test('repeated foreground and offline events cannot invalidate interrupted account restoration', async ({
+  page,
+  context,
+}, info) => {
+  await installOfflineFixtures(page, context);
+  await download(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
+    const original = IDBFactory.prototype.open;
+    IDBFactory.prototype.open = function (...args) {
+      const request = original.apply(this, args);
+      Object.defineProperty(request, 'onsuccess', {
+        set(callback: (event: Event) => void) {
+          request.addEventListener('success', (event) =>
+            setTimeout(() => callback.call(request, event), 120),
+          );
+        },
+      });
+      return request;
+    };
+    let count = 0;
+    const events = setInterval(() => {
+      window.dispatchEvent(new Event('offline'));
+      window.dispatchEvent(new Event('focus'));
+      document.dispatchEvent(new Event('visibilitychange'));
+      if (++count === 100) clearInterval(events);
+    }, 30);
+  });
+  const start = Date.now();
+  await page.reload();
+  await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
+  const startup = Date.now() - start;
+  expect(startup).toBeLessThan(3000);
+  await info.attach('restoration-events', {
+    body: JSON.stringify({ startup }),
+    contentType: 'application/json',
+  });
+  expect(await meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
+});
+
+test('foreground stalled HTTP hands a mounted Deck to local reads without a pending account request', async ({
+  page,
+  context,
+}, info) => {
+  await installContinuityFixtures(page, context);
+  await download(page);
+  await page.goto(`/notes?deckId=${deckId}`);
+  const practice = page.getByRole('button', { name: 'Start practice', exact: true });
+  await expect(practice).toBeEnabled();
+  await page
+    .locator('main section[data-screen]')
+    .evaluate((element) => element.setAttribute('data-visit', 'foreground'));
+  await page.route('**/api/**', () => undefined);
+  const start = Date.now();
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+  });
+  await expect(
+    page.getByRole('button', { name: 'Practice requires a connection.', exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }),
+  ).toBeVisible();
+  const handover = Date.now() - start;
+  expect(handover).toBeLessThan(5000);
+  await expect(page.locator('[data-visit="foreground"]')).toHaveCount(1);
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(
+    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+  ).toBeVisible();
+  await info.attach('foreground-handover', {
+    body: JSON.stringify({ handover }),
+    contentType: 'application/json',
+  });
+});
+
+test('cached navigation detects stalled HTTP without a connectivity or foreground event', async ({
+  page,
+  context,
+}, info) => {
+  await installContinuityFixtures(page, context);
+  await download(page);
+  await page.goto(`/notes?deckId=${deckId}`);
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
+  // Warm every destination before the loss. No data GET is needed on return.
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await page.route('**/api/**', () => undefined);
+  const at = Date.now();
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
+  const handover = Date.now() - at;
+  expect(handover).toBeLessThan(5000);
+  await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
+  await info.attach('cached-navigation-handover', {
+    body: JSON.stringify({ handover }),
+    contentType: 'application/json',
+  });
+});
+
+test('a false offline hint cannot overrule a freshly accepted server session', async ({
+  page,
+  context,
+}) => {
+  await installContinuityFixtures(page, context);
+  await download(page);
+  await page.evaluate(() => {
+    Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
+    window.dispatchEvent(new Event('offline'));
+  });
+  await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.getByText('Offline · collection reading', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New deck', exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => navigator.onLine)).toBe(false);
+  let created = false;
+  await page.route('**/api/decks', (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    created = true;
+    return route.fulfill({ json: { deck: { ...deck, ...route.request().postDataJSON() } } });
+  });
+  await page.getByRole('button', { name: 'New deck', exact: true }).click();
+  await page.getByRole('dialog').getByLabel('Name', { exact: true }).fill('Connection checked');
+  await page.getByRole('dialog').getByRole('button', { name: 'Create', exact: true }).click();
+  await expect.poll(() => created).toBe(true);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('repeated foreground events with a false offline hint join one accepted validation', async ({
+  page,
+  context,
+}) => {
+  await installContinuityFixtures(page, context);
+  await download(page);
+  let probes = 0;
+  await page.route('**/api/account', async (route) => {
+    probes++;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await route.fulfill({ json: account });
+  });
+  await page.evaluate(async () => {
+    Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
+    window.dispatchEvent(new Event('offline'));
+    for (let at = 0; at < 8; at++) {
+      window.dispatchEvent(new Event('focus'));
+      document.dispatchEvent(new Event('visibilitychange'));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  });
+  await expect(page.getByText('Offline · collection reading', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New deck', exact: true })).toBeEnabled();
+  expect(probes).toBe(1);
+  expect(await page.evaluate(() => navigator.onLine)).toBe(false);
+});
+
+test('startup diagnostics retain a failed launch after recovery without content or identifiers', async ({
+  page,
+}) => {
+  await installFixtures(page);
+  // Fail the real entry module after the shell has recorded startup. Recovery
+  // must retain that launch even though React never mounted its export control.
+  const entryModule = /\/(?:assets\/index-[^/?]+\.js|src\/main\.tsx)(?:\?.*)?$/;
+  await page.route(entryModule, (route) => route.abort('failed'));
+  await page.goto('/settings');
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem('neuron.lifecycle') ?? '[]').some(
+          (row: { stage: string }) => row.stage === 'script-error',
+        ),
+      ),
+    )
+    .toBe(true);
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toHaveCount(0);
+  const initial = await page.evaluate(() => {
+    const lifecycle = (window as Window & { neuronLifecycle: (stage: string) => void })
+      .neuronLifecycle;
+    for (let at = 0; at < 120; at++) lifecycle('foreground');
+    return JSON.parse(localStorage.getItem('neuron.lifecycle')!) as Array<{
+      at: number;
+      stage: string;
+    }>;
+  });
+  const failed = initial.find((row) => row.stage === 'script-error')!;
+  expect(failed).toBeDefined();
+  await page.unroute(entryModule);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Save startup diagnostics', exact: true }).click();
+  const artifact = await download;
+  const stream = (await artifact.createReadStream())!;
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(chunk as Buffer);
+  const rows = JSON.parse(Buffer.concat(chunks).toString()) as Array<Record<string, unknown>>;
+  expect(rows.some((row) => row['stage'] === 'script-error' && row['at'] === failed.at)).toBe(true);
+  expect(rows.length).toBeLessThanOrEqual(120);
+  expect(rows.every((row) => Object.keys(row).sort().join(',') === 'at,elapsed,online,stage')).toBe(
+    true,
+  );
+});
 
 test('a lost connection restores the downloaded account while its startup validation is suspended', async ({
   page,
@@ -721,7 +951,7 @@ test.describe('reconciliation measurements', () => {
         clientY: 650,
       });
     });
-    await expect(page.locator('[data-swipe-action]')).toBeVisible();
+    await expect(page.locator('[data-swipe-action]:visible')).toBeVisible();
     await firstRow.dispatchEvent('pointerdown', {
       pointerType: 'touch',
       clientX: 300,
@@ -733,7 +963,7 @@ test.describe('reconciliation measurements', () => {
       clientY: 650,
     });
     await firstRow.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 380, clientY: 650 });
-    await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+    await expect(page.locator('[data-swipe-action]:visible')).toHaveCount(0);
     await page.route(`**/api/notes/${rows[0]!.id}`, async (route) => {
       rows = rows.slice(1);
       await route.fulfill({ json: { deleted: true } });
@@ -1159,6 +1389,9 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
     serviceWorkers: 'allow',
     baseURL: origin,
     viewport: { width: 375, height: 812 },
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true,
   });
   let page = await context.newPage();
   try {
@@ -1170,6 +1403,18 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
     await expect
       .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
       .toBe(true);
+    if (priorBuild)
+      expect(
+        await page.evaluate(async () => {
+          const opened = indexedDB.open('neuron.collection:offline-reader');
+          const db = await new Promise<IDBDatabase>((resolve) => {
+            opened.onsuccess = () => resolve(opened.result);
+          });
+          const version = db.version;
+          db.close();
+          return version;
+        }),
+      ).toBe(2);
     updatedWorker = true;
     await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.ready;
@@ -1200,6 +1445,12 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
     await expect(page.getByText(/Close all Neuron windows/)).toBeVisible();
     if (priorBuild) {
       await page.close();
+      // The waiting shell is already cached. Its first launch and database
+      // upgrade must work after the actual HTTP origin has disappeared.
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      });
       page = await context.newPage();
       await download(page);
       await expect
@@ -1968,7 +2219,9 @@ test('in-session Library keeps its header, nested expansion and row geometry whe
   await expect(page.locator('[data-visit="same-library"]')).toHaveCount(1);
   expect(await row.boundingBox()).toEqual(before);
   expect(await geometry(page)).toEqual(header);
-  await expect(page.getByRole('button', { name: /Drag|New deck|New folder/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Drag/i })).toHaveCount(0);
+  for (const button of await page.getByRole('button', { name: /New deck|New folder/i }).all())
+    await expect(button).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Hide what is inside', exact: true })).toHaveCount(
     2,
   );
@@ -2032,9 +2285,8 @@ test('transport loss with online browser hints preserves the open Deck and scrol
   );
   expect(control.collectionReads).toBe(requests);
   await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
-  await expect(
-    page.getByRole('button', { name: /New Note|Import|Start Practice|Select notes/i }),
-  ).toHaveCount(0);
+  for (const name of ['New note', 'Import', 'Select notes', 'Practice requires a connection.'])
+    await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
   control.lost = false;
   control.updated = true;
   let release!: () => void;
@@ -2045,7 +2297,7 @@ test('transport loss with online browser hints preserves the open Deck and scrol
     await page.evaluate(() => window.dispatchEvent(new Event('online')));
     await expect.poll(() => control.accountReads).toBe(accounts + 2);
     await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'New note', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
     release();
     await expect(page.getByText('Offline · collection reading', { exact: true })).toHaveCount(0);
     await expect(
@@ -2065,10 +2317,14 @@ test('incomplete snapshot never presents cached online collection rows as availa
   await page.goto('/library');
   await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
   await expect.poll(() => meta(page)).toEqual({ cursor: 1, complete: false, format: 1 });
-  control.lost = true;
   await page.getByRole('button', { name: /^Downloaded Folder/ }).click();
   await page.getByRole('button', { name: /^Nested Folder/ }).click();
   await page.getByRole('button', { name: /^Downloaded Deck/ }).click();
+  await expect(
+    page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }),
+  ).toBeVisible();
+  control.lost = true;
+  await page.getByRole('searchbox').fill('cached');
   await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
   await expect(
     page.getByText(
@@ -2079,7 +2335,7 @@ test('incomplete snapshot never presents cached online collection rows as availa
     ),
   ).toBeVisible();
   await expect(page.locator('[data-rows]')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'New note', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
 });
 
 test('HTTP read errors and isolated failed mutations do not establish a transport outage', async ({
@@ -2131,7 +2387,8 @@ test('a late account validation cannot reactivate online controls after connecti
   await context.setOffline(true);
   await held!.fulfill({ json: account }).catch(() => undefined);
   await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: /New deck|New folder/i })).toHaveCount(0);
+  for (const button of await page.getByRole('button', { name: /New deck|New folder/i }).all())
+    await expect(button).toBeDisabled();
   await page.getByRole('button', { name: /^Downloaded Folder/ }).click();
   await page.getByRole('button', { name: /^Downloaded Deck/ }).click();
   await page.getByRole('button', { name: /Durable word/ }).click();

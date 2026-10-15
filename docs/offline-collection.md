@@ -63,8 +63,9 @@ uses the normal header, toolbar, search/filter rows and Practice card. Server-de
 their positions and remain disabled until the account and required data are authoritative. A local
 seed never enables an editor, a destructive action, Study planning or a Practice pool. The normal
 Deck layout contains no offline explanation; actual offline status stays beside navigation, with
-readiness and recovery details in Settings. In-session offline handover still retains occupied control
-space and permits durable existing Folder/Deck renames.
+readiness and recovery details in Settings. In-session offline handover retains recognizable disabled
+controls and permits durable existing Folder/Deck renames. Practice retains its mounted entry with a
+concise connection requirement. No measured empty slot replaces it, and its action cannot admit a session.
 
 Provisional query publication uses a zero freshness timestamp. If navigation cancels the original
 request, returning retries server authority instead of treating local content as a fresh online answer.
@@ -91,31 +92,42 @@ isolated HTTP error still do not change connectivity or permission state.
 
 ## Account boundaries
 
-Local storage remembers only the selected account ID and a local sign-out marker. Account metadata
-comes from that account's database. A failed account-validation request may permit this remembered account to
-read the local snapshot; it never establishes a newly validated server session. Settings explains
+Local storage remembers the selected account ID and a local sign-out marker. Account metadata comes
+from that account's database. Startup restores this presentation alongside server validation, without
+waiting for HTTP rejection or trusting `navigator.onLine`. The local read is bound to the account visit,
+context and sign-out marker, and coalesced across repeated lifecycle events. Successful server validation
+supersedes a late local result. Local presentation can read the completed snapshot; it never establishes
+a newly validated server session. Settings explains
 this distinction. Reconnection validates `/account` before online controls return or another
 pull begins. Authentication rejection revokes local access and returns to sign-in. Account switching
 cancels the previous visit's reads/pull and clears collection query entries before the next collection
 is exposed. Late account responses and pulls cannot re-enable an ended visit.
 
 Offline events and unreachable account requests enter local access. Collection GET transport
-failures also request a single shared `/account` validation attempt. This detects genuine transport
-loss when `navigator.onLine` remains true. A reachable account endpoint leaves an isolated failed
+failures also request a single shared `/account` validation attempt. An HTTP request, including a delivery or sync pull, still pending after
+1.5 seconds requests the same validation; account validation ends after two seconds without a response.
+This bounds handover even when HTTP never rejects and the browser hint stays online. These deadlines
+revoke authority, never acknowledge writes or reset storage. Local startup is independent of both deadlines.
+A reachable account endpoint leaves an isolated failed
 read in its existing retry/error flow. HTTP refusals and aborted reads never initiate this probe.
 Interrupted response bodies follow the same transport classification as failed fetches.
 An isolated failed sync pull while the browser remains connected preserves online screens and records
 a stable download failure. An isolated failed online mutation retains its existing error/retry flow. Reconnection, window focus and Settings' Check connection
 Retry action request fresh server account validation; transport failure retains local capabilities,
 while authentication rejection revokes access.
-Account and connectivity generations guard stale deliveries. The handover cancels pending reads and
+Account and connectivity generations guard stale deliveries. Repeated loss events retain one offline
+visit; a fresh loss during reconnection still invalidates that validation. Foreground events join a shared
+validation before scheduling further delivery or download. A stale browser hint on repeated focus or
+visibility events cannot invalidate the validation already in flight. The handover cancels pending reads and
 invalidates active collection observers without removing cached query entries or remounting Library
 and Deck screens. Complete snapshot reads replace those entries locally. Local capabilities permit only
 existing Folder/Deck rename and durable existing-Note content editing; drag/drop, selection mutations,
-direct/swipe deletion and learning entry controls unmount;
-control slots retain their measured space during the current visit. Search covers stored fields and
+direct/swipe deletion remains unavailable and learning entry controls remain disabled.
+Control regions show deliberate unavailable states during the current visit and on re-entry.
+Search covers stored fields and
 tags; status, Card state, source, tag and supported sort filters use saved facts. Server-only due
-counts, Study readiness and Practice progress are hidden. Unreadable local snapshots revoke cache
+counts and Study readiness are hidden. Previously loaded Practice progress remains descriptive beside
+its disabled entry; it cannot authorize another run. Unreadable local snapshots revoke cache
 availability rather than presenting stale online rows as completed offline data.
 
 Explicit sign-out revokes access before remote transport, clears the selected account, and blocks
@@ -137,7 +149,7 @@ update asks the learner to close all Neuron windows and reopen online. Activatio
 shell caches only after the old worker has no active clients.
 
 Collection completeness and shell readiness are separate. Initial downloading and successful background
-sync are silent outside Settings. Settings' compact Offline access section reports readiness, unfinished
+sync are silent outside Settings. Settings' compact Offline & sync section reports readiness, unfinished
 downloads, failures and shell/update guidance. It offers Retry from the durable cursor and Rebuild
 behind deliberate confirmation for storage, transaction or recovery failures. Network and response
 validation failures offer Retry without unnecessary cache deletion. A read-only connection indicator is positioned outside content flow
@@ -380,3 +392,24 @@ and value, including metadata/cursor, before and after. Aborting the upgrade ret
 database, displays actionable storage recovery, and permits Retry without rebuilding or clearing it.
 This establishes browser behavior; it does not identify the owner's precise network-event sequence
 or replace installed-iPhone acceptance of the updated production PWA.
+
+## Retained lifecycle diagnostics
+
+The shell records fixed stage names before application modules execute. The application records account
+validation, local restoration, collection reads, foreground events and gate readiness. Records contain
+only a launch timestamp, elapsed milliseconds and the browser connectivity hint. They contain no account
+identifiers, URLs, collection content, operation payloads, errors, credentials or session material.
+The current launch retains up to forty records, including its first eight stages, recent failure stages
+and latest events; up to eighty records from preceding launches stay intact during recovery. Nothing is uploaded automatically.
+
+Settings > Offline & sync > Save startup diagnostics exports the sanitized records. The same action is
+available on a failed startup screen. After a native black-screen failure, reopen online and export before
+additional launches; no cache clearing or reinstallation is needed. A shell record without a module record
+points to module loading; restore-start without restore-ready points to local storage; account-start with
+account-deadline identifies stalled validation. Read-ready and gate-ready are data/render milestones,
+not a substitute for the owner timing when the collection becomes visibly usable.
+
+A browser that neither reports a loss nor performs any request exposes no immediate evidence of an idle
+outage. Offline events revoke authority immediately; foreground, cached navigation and stalled HTTP work detect
+stale online hints. Native installed-iPhone event ordering, storage scheduling and compositor behavior remain owner
+acceptance boundaries.

@@ -1,5 +1,5 @@
 import { Trash2 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import type { ReactNode } from 'react';
 
@@ -34,17 +34,29 @@ export function SwipeDelete({
     origin: number;
     offset: number;
     horizontal: boolean;
+    width: number;
   } | null>(null);
   const suppress = useRef(false);
-  const [offset, setOffset] = useState<number | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const surface = useRef<HTMLDivElement>(null);
   const [committing, setCommitting] = useState(false);
-  const [armed, setArmed] = useState(false);
-  const x = disabled ? 0 : (offset ?? (open ? -64 : 0));
+  const paint = (x: number, dragging = false, armed = false) => {
+    const element = root.current;
+    if (!element || !surface.current) return;
+    surface.current.style.transform = `translateX(${x}px)`;
+    const states = { swipeActive: x < 0, swipeDragging: dragging, swipeArmed: armed };
+    for (const [key, value] of Object.entries(states))
+      if (element.dataset[key] !== String(value)) element.dataset[key] = String(value);
+  };
+  useLayoutEffect(() => {
+    if (disabled) gesture.current = null;
+    if (!gesture.current) paint(disabled ? 0 : open ? -64 : 0);
+  }, [open, disabled]);
   return (
     <div
-      className={`relative h-52 select-none overflow-hidden ${x < 0 ? '[&_[data-direct-delete]]:invisible' : ''}`}
+      ref={root}
+      className="neu-swipe relative h-52 select-none overflow-hidden"
       style={{ touchAction: 'pan-y' }}
-      data-swipe-armed={armed || undefined}
       onPointerDown={(event) => {
         if (
           disabled ||
@@ -54,15 +66,17 @@ export function SwipeDelete({
         )
           return;
         suppress.current = false;
-        onOpen(false);
-        setOffset(x);
+        const x = open ? -64 : 0;
         gesture.current = {
           x: event.clientX,
           y: event.clientY,
           origin: x,
           offset: x,
           horizontal: false,
+          width: event.currentTarget.clientWidth,
         };
+        onOpen(false);
+        paint(x, true);
       }}
       onPointerMove={(event) => {
         const g = gesture.current;
@@ -72,8 +86,7 @@ export function SwipeDelete({
         if (!g.horizontal) {
           if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
             gesture.current = null;
-            setOffset(null);
-            setArmed(false);
+            paint(0);
             return;
           }
           if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
@@ -81,24 +94,22 @@ export function SwipeDelete({
           if (event.isTrusted) event.currentTarget.setPointerCapture(event.pointerId);
         }
         suppress.current = true;
-        const width = event.currentTarget.clientWidth;
+        const width = g.width;
         g.offset = Math.max(-width, Math.min(0, g.origin + dx));
-        setOffset(g.offset);
-        setArmed(-g.offset >= commitDistance(width));
+        paint(g.offset, true, -g.offset >= commitDistance(width));
       }}
       onPointerCancel={() => {
         gesture.current = null;
-        setOffset(null);
-        setArmed(false);
+        paint(open ? -64 : 0);
       }}
       onPointerUp={(event) => {
         const g = gesture.current;
         gesture.current = null;
         if (disabled || !g?.horizontal) {
-          setOffset(null);
+          paint(open ? -64 : 0);
           return;
         }
-        const commit = -g.offset >= commitDistance(event.currentTarget.clientWidth);
+        const commit = -g.offset >= commitDistance(g.width);
         if (commit) {
           // The virtual row can unmount immediately. Keep only its departing
           // surface above the list until the leftward animation finishes.
@@ -133,17 +144,15 @@ export function SwipeDelete({
           );
           void animation.finished.finally(() => ghost.remove());
           setCommitting(true);
-          setOffset(-event.currentTarget.clientWidth);
+          paint(-g.width);
           void Promise.resolve(onDelete()).finally(() => {
             // A fast failure may restore the row before React unmounts it.
             setCommitting(false);
-            setOffset(null);
-            setArmed(false);
+            paint(0);
           });
         } else {
           onOpen(g.offset < -32);
-          setOffset(null);
-          setArmed(false);
+          paint(g.offset < -32 ? -64 : 0);
         }
       }}
       onClickCapture={(event) => {
@@ -153,25 +162,16 @@ export function SwipeDelete({
         event.stopPropagation();
       }}
     >
-      {x < 0 && (
-        <button
-          type="button"
-          data-swipe-action=""
-          aria-label={label}
-          className="absolute inset-y-0 right-0 flex items-center justify-end bg-error px-20 text-on-accent"
-          style={{ width: Math.max(64, -x) }}
-          onClick={onDelete}
-        >
-          <Trash2 size={20} aria-hidden="true" className={armed ? 'scale-125' : ''} />
-        </button>
-      )}
-      <div
-        className="flex h-52 bg-base transition-transform dur-reveal"
-        style={{
-          transform: `translateX(${x}px)`,
-          transition: offset !== null && !committing ? 'none' : undefined,
-        }}
+      <button
+        type="button"
+        data-swipe-action=""
+        aria-label={label}
+        className="absolute inset-0 flex items-center justify-end bg-error px-20 text-on-accent"
+        onClick={onDelete}
       >
+        <Trash2 size={20} aria-hidden="true" />
+      </button>
+      <div ref={surface} className="flex h-52 bg-base transition-transform dur-reveal">
         {children}
       </div>
     </div>

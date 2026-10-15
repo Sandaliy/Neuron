@@ -3,13 +3,16 @@ import { useQuery } from '@tanstack/react-query';
 import type { Me } from '@neuron/shared';
 
 import { ApiFailure, request } from './api';
+import { lifecycle } from './lifecycle';
 import {
   acceptAccount,
   accountEpoch,
+  beginAccountValidation,
+  endAccountValidation,
   connectionEpoch,
   locallySignedOut,
+  networkLost,
   rememberedAccount,
-  revokeOffline,
 } from './offline';
 
 /**
@@ -43,26 +46,34 @@ export function accountQuery() {
           correlationId: 'local-sign-out',
         });
       const epoch = accountEpoch();
-      const connection = connectionEpoch();
-      if (!navigator.onLine) {
-        const remembered = await rememberedAccount();
-        if (remembered) return remembered;
-        throw new ApiFailure({
-          code: 'network_unreachable',
-          status: 0,
-          correlationId: 'offline-startup',
-        });
-      }
+      const connection = beginAccountValidation();
+      const transport = new AbortController();
+      lifecycle('account-start');
+      const cancel = () => transport.abort();
+      signal.addEventListener('abort', cancel, { once: true });
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        const account = await request<Me>('/account', { signal });
+        const account = await Promise.race([
+          request<Me>('/account', { signal: transport.signal }),
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => {
+              lifecycle('account-deadline');
+              reject(
+                new ApiFailure({
+                  code: 'network_unreachable',
+                  status: 0,
+                  correlationId: 'account-deadline',
+                }),
+              );
+              if (!signal.aborted && epoch === accountEpoch() && connection === connectionEpoch())
+                networkLost();
+              transport.abort();
+            }, 2000);
+          }),
+        ]);
         acceptAccount(account, epoch, connection);
         return account;
       } catch (error) {
-        if (
-          error instanceof ApiFailure &&
-          (error.code === 'not_authenticated' || error.code === 'password_change_required')
-        )
-          revokeOffline();
         if (
           error instanceof ApiFailure &&
           error.code === 'network_unreachable' &&
@@ -72,6 +83,10 @@ export function accountQuery() {
           if (remembered) return remembered;
         }
         throw error;
+      } finally {
+        endAccountValidation(connection);
+        clearTimeout(timeout);
+        signal.removeEventListener('abort', cancel);
       }
     },
     // A failure here is a signed out person or a server that is down. Both are

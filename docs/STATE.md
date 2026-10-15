@@ -4,17 +4,31 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-12. Phase 8.4 merged through PR #51 at `b8dae4d`, but the owner rejected
-physical-iPhone acceptance because offline access and Settings/editor/security interactions regressed.
-This is a release blocker. Stabilization is in progress on `work/phase84-stabilization`; Phase 8.5 and
-additional offline functionality remain deferred.
+Last updated: 2026-10-15. Phase 8.4 stabilization PR #52 merged at `f37c236` with required checks
+passing, but the owner again rejected installed-iPhone acceptance. Cold offline loading, slow
+handover, empty Deck regions and interaction responsiveness remain a release blocker. Phase 8.5
+and additional offline functionality remain deferred.
 
-Local stabilization verification passes: 1,096 unit/PostgreSQL tests, 570 built phone/desktop
-interactions with ten existing opt-in skips, 36 focused Chromium/mobile WebKit cases, eight real-PWA
-and database journeys, all 66 unchanged Windows visuals and five enforced 55 FPS performance cases.
-Populated v2 cold offline upgrades, interrupted recovery and restoration independent of suspended
-session validation preserve saved work. Protected PR checks and installed-iPhone acceptance remain
-outstanding; local browser evidence does not close the device release blocker.
+The follow-up is on `work/offline-lifecycle`. A worker-enabled populated-v2 reproduction proves that
+an online browser hint plus suspended HTTP prevents local startup in PR #52. Restoration now runs
+independently of that hint and account validation; repeated loss events cannot invalidate its read.
+Account validation has a bounded deadline, foreground probes coalesce, and stalled HTTP work
+requests independent validation. Disabled controls replace measured empty slots; Grammar and receipt
+details reveal complete controls during expansion. Saved history shares one optional Recent activity
+disclosure. Swipe movement uses transient DOM state instead of React updates per pointer event.
+Retained content-free diagnostics record application stages for the remaining native investigation.
+
+Local verification passes 594 built interaction cases (ten existing skips), sixteen phone-context
+PWA/database journeys, 66 Windows visuals, five original enforced performance cases and 31 browser
+gate contracts. A broad WebKit run plus focused corrections covers lifecycle, mounted controls and
+touch swipe semantics. The full unit/database run has a setup transport exception; its affected
+nine-case suite passes separately. See `interaction-performance.md` for exact evidence and limits.
+
+Protected PR delivery is prepared; required hosted checks and installed-iPhone acceptance remain
+outstanding. Chromium gestures sustain 60 FPS, while Windows WebKit full-glass swipes remain around
+9.8 FPS on both accepted PR #49 and the repair. No native performance fix or physical acceptance is
+claimed. Browser evidence does not close this release blocker. Use the short checklist and retained
+startup export described in `offline-study.md`; Phase 8.5 remains deferred.
 
 ## Current release
 

@@ -12,11 +12,10 @@ import {
 } from '../../lib/collection-outbox';
 import { retryDownload, useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
-import { GroupLabel } from '../../ui/card';
 
 import { SavedWork, workIsSettled } from './saved-work';
 
-export function PendingRenames() {
+export function PendingRenames({ history = false }: { readonly history?: boolean }) {
   const t = useTranslate();
   const state = useOffline();
   const client = useQueryClient();
@@ -43,12 +42,14 @@ export function PendingRenames() {
     },
   });
   const keep = useMutation({ mutationFn: keepServerVersion });
-  const saved = entries.data ?? [];
+  const saved = (entries.data ?? []).filter((entry) => workIsSettled(entry) === history);
   if (!entries.error && saved.length === 0) return null;
   return (
     <section aria-label={t('offline.savedChanges')} className="flex flex-col gap-12">
-      {saved.some((entry) => !workIsSettled(entry)) && (
-        <GroupLabel>{t('offline.savedChanges')}</GroupLabel>
+      {saved.length > 0 && (
+        <p className={history ? 'text-12 text-secondary' : 'text-14 font-semibold text-primary'}>
+          {t('offline.savedChanges')}
+        </p>
       )}
       <div className="flex flex-col gap-12">
         {entries.error && (

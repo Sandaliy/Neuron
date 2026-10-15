@@ -1,7 +1,14 @@
 import { apiErrorSchema } from '@neuron/shared';
 import type { ApiErrorCode, MessageKey, MessageValues } from '@neuron/shared';
 
-import { accountEpoch, connectionEpoch, networkLost, offlineState, revokeOffline } from './offline';
+import {
+  accountEpoch,
+  confirmConnection,
+  connectionEpoch,
+  networkLost,
+  offlineState,
+  revokeOffline,
+} from './offline';
 
 /**
  * Talking to the api.
@@ -128,7 +135,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const { method = 'GET', body, signal } = options;
   const visit = accountEpoch();
   const connection = connectionEpoch();
-  if (method !== 'GET' && (offlineState().offline || !navigator.onLine)) {
+  if (method !== 'GET' && offlineState().offline) {
     throw new ApiFailure({
       code: 'network_unreachable',
       status: 0,
@@ -138,6 +145,16 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   let response: Response;
   let text: string;
+  // Suspended delivery/sync can be the only active HTTP work. Validate transport
+  // independently. This watchdog never retries or acknowledges the operation;
+  // the account authority owns any resulting transport cancellation.
+  const probe =
+    path === '/account'
+      ? undefined
+      : setTimeout(() => {
+          if (!signal?.aborted && visit === accountEpoch() && offlineState().validated)
+            void confirmConnection();
+        }, 1500);
 
   try {
     response = await fetch(`${API_BASE}${path}`, {
@@ -175,6 +192,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       status: 0,
       correlationId: 'no-response',
     });
+  } finally {
+    clearTimeout(probe);
   }
 
   if (

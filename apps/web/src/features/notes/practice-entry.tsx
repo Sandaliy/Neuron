@@ -14,11 +14,13 @@ export function PracticeEntry({
   onOpen,
   enabled = true,
   ready = true,
+  offline = false,
 }: {
   readonly deckId: string;
   readonly onOpen: (entry: 'resume' | 'setup') => void;
   readonly enabled?: boolean;
   readonly ready?: boolean;
+  readonly offline?: boolean;
 }) {
   const t = useTranslate();
   const summary = useQuery({ ...practiceQuery(deckId), enabled });
@@ -35,7 +37,7 @@ export function PracticeEntry({
           </span>
         )}
       </div>
-      {summary.error ? (
+      {!offline && summary.error ? (
         <ErrorState
           message={t(describe(summary.error).key)}
           retryLabel={t('common.retry')}
@@ -53,7 +55,9 @@ export function PracticeEntry({
             disabled={!ready || !enabled || summary.isPending || !!summary.error}
             onClick={() => onOpen('resume')}
           >
-            {t(run ? 'practice.resume' : 'practice.start')}
+            {t(
+              offline ? 'offline.practiceUnavailable' : run ? 'practice.resume' : 'practice.start',
+            )}
           </Button>
           <Button
             variant="quiet"

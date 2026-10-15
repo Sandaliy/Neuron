@@ -1,9 +1,12 @@
 import { Navigate } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
 import { useTranslate } from '../i18n/locale';
 import { useAccount } from '../lib/account';
 import { ApiFailure, describe } from '../lib/api';
+import { lifecycle, exportLifecycle } from '../lib/lifecycle';
 import { useOffline } from '../lib/offline';
+import { Button } from '../ui/button';
 import { ErrorState, SkeletonRows } from '../ui/states';
 
 import type { ReactNode } from 'react';
@@ -33,6 +36,10 @@ export function SessionGate({ children }: { readonly children: ReactNode }) {
   const account = useAccount();
   const offline = useOffline();
   const failure = account.error;
+  const accountId = account.data?.id;
+  useEffect(() => {
+    if (accountId) lifecycle('gate-ready');
+  }, [accountId]);
 
   if (failure instanceof ApiFailure && failure.code === 'not_authenticated') {
     return <Navigate to="/sign-in" replace />;
@@ -71,6 +78,9 @@ export function SessionGate({ children }: { readonly children: ReactNode }) {
           retryLabel={t('common.retry')}
           onRetry={() => void account.refetch()}
         />
+        <Button variant="text" onClick={exportLifecycle}>
+          {t('offline.diagnostics')}
+        </Button>
       </div>
     );
   }

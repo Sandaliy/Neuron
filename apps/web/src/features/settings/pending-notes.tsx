@@ -8,12 +8,11 @@ import { request } from '../../lib/api';
 import { applySavedNote, retryNoteEdits, keepServerNote, noteEdits } from '../../lib/note-outbox';
 import { useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
-import { GroupLabel } from '../../ui/card';
 import { NoteField } from '../notes/note-field';
 
 import { SavedWork, workIsSettled } from './saved-work';
 
-export function PendingNotes() {
+export function PendingNotes({ history = false }: { readonly history?: boolean }) {
   const t = useTranslate();
   const state = useOffline();
   const client = useQueryClient();
@@ -26,12 +25,14 @@ export function PendingNotes() {
   const retry = useMutation({ mutationFn: retryNoteEdits });
   const resolve = useMutation({ mutationFn: applySavedNote });
   const keep = useMutation({ mutationFn: keepServerNote });
-  const saved = entries.data ?? [];
+  const saved = (entries.data ?? []).filter((entry) => workIsSettled(entry) === history);
   if (!entries.error && saved.length === 0) return null;
   return (
     <section aria-label={t('offline.note.savedChanges')} className="flex flex-col gap-12">
-      {saved.some((entry) => !workIsSettled(entry)) && (
-        <GroupLabel>{t('offline.note.savedChanges')}</GroupLabel>
+      {saved.length > 0 && (
+        <p className={history ? 'text-12 text-secondary' : 'text-14 font-semibold text-primary'}>
+          {t('offline.note.savedChanges')}
+        </p>
       )}
       <div className="flex flex-col gap-16">
         {entries.error && <p role="alert">{t('offline.changesUnavailable')}</p>}

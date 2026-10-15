@@ -23,7 +23,7 @@ export function Disclosure({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly className?: string;
-  readonly reveal?: 'continuous' | 'settled';
+  readonly reveal?: 'continuous' | 'progressive';
 }) {
   const id = useId();
   const content = useRef<HTMLDivElement>(null);
@@ -55,10 +55,7 @@ export function Disclosure({
     if (!mounted.current && content.current) content.current.style.transition = 'none';
     resize(inner.current?.getBoundingClientRect().height ?? 0);
     if (element) {
-      element.dataset['revealing'] = String(
-        open && reveal === 'settled' && element.dataset['moving'] === 'true',
-      );
-      if (open && reveal === 'settled' && element.dataset['moving'] !== 'true')
+      if (open && reveal === 'progressive' && element.dataset['moving'] !== 'true')
         element.style.height = 'auto';
     }
     if (!mounted.current && content.current) {
@@ -67,6 +64,34 @@ export function Disclosure({
     }
     mounted.current = true;
   }, [open, resize, reveal]);
+  useLayoutEffect(() => {
+    const element = content.current;
+    const body = inner.current;
+    if (reveal !== 'progressive' || !element || !body || motionIsReduced()) return;
+    // Measure text/control endpoints once. Reveal complete units as space opens,
+    // rather than holding every word until the whole form has expanded.
+    const top = body.getBoundingClientRect().top;
+    const units = Array.from(
+      body.querySelectorAll<HTMLElement>('label, input, textarea, select, button, p, summary'),
+    )
+      .filter((unit) => unit.closest('.neu-disclosure') === element)
+      .map((unit) => ({ unit, bottom: unit.getBoundingClientRect().bottom - top }));
+    let frame = 0;
+    const sample = () => {
+      const height = element.getBoundingClientRect().height;
+      for (const { unit, bottom } of units) {
+        const visibility = height + 0.5 >= bottom ? '' : 'hidden';
+        if (unit.style.visibility !== visibility) unit.style.visibility = visibility;
+      }
+      if (element.dataset['moving'] === 'true') frame = requestAnimationFrame(sample);
+      else for (const { unit } of units) unit.style.removeProperty('visibility');
+    };
+    sample();
+    return () => {
+      cancelAnimationFrame(frame);
+      for (const { unit } of units) unit.style.removeProperty('visibility');
+    };
+  }, [open, reveal]);
   useLayoutEffect(() => {
     // One observer for the disclosure's lifetime. Native CSS transitions retain
     // the displayed height on reversal; unrelated renders cannot restart them.
@@ -108,15 +133,15 @@ export function Disclosure({
         onTransitionEnd={(event) => {
           if (event.target === event.currentTarget && event.propertyName === 'height') {
             event.currentTarget.dataset['moving'] = 'false';
-            event.currentTarget.dataset['revealing'] = 'false';
-            if (expanded.current && reveal === 'settled') event.currentTarget.style.height = 'auto';
+            if (expanded.current && reveal === 'progressive')
+              event.currentTarget.style.height = 'auto';
           }
         }}
         onTransitionCancel={(event) => {
           if (event.target === event.currentTarget && motionIsReduced()) {
             event.currentTarget.dataset['moving'] = 'false';
-            event.currentTarget.dataset['revealing'] = 'false';
-            if (expanded.current && reveal === 'settled') event.currentTarget.style.height = 'auto';
+            if (expanded.current && reveal === 'progressive')
+              event.currentTarget.style.height = 'auto';
           }
         }}
       >

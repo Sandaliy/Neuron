@@ -5,12 +5,11 @@ import { useTranslate } from '../../i18n/locale';
 import { useOffline } from '../../lib/offline';
 import { reviewEvents, retryReviews, archiveReviewSession } from '../../lib/review-outbox';
 import { Button } from '../../ui/button';
-import { GroupLabel } from '../../ui/card';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 
 import { SavedWork, workIsSettled } from './saved-work';
 
-export function PendingReviews() {
+export function PendingReviews({ history = false }: { readonly history?: boolean }) {
   const t = useTranslate();
   const state = useOffline();
   const events = useQuery({
@@ -25,16 +24,19 @@ export function PendingReviews() {
     mutationFn: archiveReviewSession,
     onSuccess: () => setArchiveId(undefined),
   });
-  if (!events.error && !events.data?.length) return null;
+  const saved = (events.data ?? []).filter((entry) => workIsSettled(entry) === history);
+  if (!events.error && !saved.length) return null;
   return (
     <section aria-label={t('offline.reviews')} className="flex flex-col gap-12">
-      {(events.data ?? []).some((entry) => !workIsSettled(entry)) && (
-        <GroupLabel>{t('offline.reviews')}</GroupLabel>
+      {saved.length > 0 && (
+        <p className={history ? 'text-12 text-secondary' : 'text-14 font-semibold text-primary'}>
+          {t('offline.reviews')}
+        </p>
       )}
       <div className="flex flex-col gap-12">
         {events.error && <p role="alert">{t('offline.changesUnavailable')}</p>}
         <SavedWork
-          entries={events.data ?? []}
+          entries={saved}
           title={t('offline.reviews')}
           label={(entry) =>
             t(entry.event.type === 'answer' ? 'offline.reviewAnswer' : 'study.undo')

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
+import { exportLifecycle } from '../../lib/lifecycle';
 import { retryConnection, retryDownload, useOffline } from '../../lib/offline';
 import { useShellCache } from '../../lib/pwa';
 import { Button } from '../../ui/button';
@@ -26,7 +27,7 @@ export function OfflineAccess() {
       <GroupLabel>{t('offline.access')}</GroupLabel>
       <Card className="flex flex-col gap-12">
         <SyncSummary />
-        <p role="status" className="text-14 text-secondary">
+        <p role="status" className="text-13 text-secondary">
           {t(
             state.available
               ? 'offline.ready'
@@ -79,7 +80,15 @@ export function OfflineAccess() {
         <PendingRenames />
         <PendingNotes />
         <PendingReviews />
+        <SyncSummary>
+          <PendingRenames history />
+          <PendingNotes history />
+          <PendingReviews history />
+        </SyncSummary>
       </Card>
+      <Button variant="text" className="self-start" onClick={exportLifecycle}>
+        <span className="font-normal text-12 text-tertiary">{t('offline.diagnostics')}</span>
+      </Button>
       {state.failure?.code === 'collection_pending_work' && (
         <p role="alert" className="text-13 text-secondary">
           {t('offline.rebuildBlocked')}

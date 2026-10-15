@@ -126,14 +126,15 @@ acceptance is separate from Chromium, WebKit, screenshot and database evidence. 
 
 ## Phase 8.4 stabilization acceptance
 
-PR #51 is merged at `b8dae4d`; physical-iPhone acceptance failed and remains a release blocker.
+PR #52 is merged at `f37c236` with required checks passing; the owner rejected physical-iPhone
+acceptance for a second time. This remains a release blocker; Phase 8.5 is blocked.
 The stabilization preserves Review/Undo schemas, identities, causal predecessors, exact retry,
 authoritative replay and retained recovery archives. Startup restoration is independent of a suspended
 account fetch; a remembered account never authorizes delivery. The Study regression now checks local
 committed intents, recorded HTTP and synchronized acknowledgements as separate milestones.
 
 Offline readiness and saved work share one Settings card. Active work retains direct recovery actions;
-settled receipts use optional, bounded history. Nested disclosure content waits for complete space,
+settled receipts use optional, bounded history. Disclosure labels and controls appear as complete units during expansion,
 and settled parents follow natural height. Grammar fields remain mounted through disclosure changes.
 Password dialogs retain Radix focus management and recovery-code dismissal safeguards.
 
@@ -142,9 +143,30 @@ connection loss, authenticated reconnection, saved Note/name work and admitted S
 persistence on the owner's installed iPhone. Confirm complete disclosure text and stable password
 focus with the native keyboard. Browser evidence is separate from this device acceptance.
 
-Final stabilization verification passes 1,096 unit/PostgreSQL tests, 570 built phone/desktop
+PR #52's pre-acceptance verification passed 1,096 unit/PostgreSQL tests, 570 built phone/desktop
 interactions (ten existing opt-in skips), 36 focused Chromium/mobile WebKit cases and eight
 worker-enabled PWA/database cases. The latter include the actual PR #50 shell upgrade and real
 PostgreSQL Note/name delivery, Review/Undo persistence, exact retries and authoritative replay.
 All 66 unchanged Windows visual contracts and five enforced 55 FPS performance cases pass.
 Required hosted checks and the installed-iPhone acceptance above remain separate release gates.
+
+## Installed-iPhone follow-up acceptance
+
+Browser verification cannot reproduce native installed-iPhone lifecycle/compositing conclusively. After
+protected delivery, use the existing installed PWA and its existing download, with no storage reset:
+
+1. Receive the update online, close all Neuron windows, and reopen online to confirm Offline & sync
+   and Save startup diagnostics are present. Close, enable airplane mode and cold-launch. Time until
+   Library, a Deck and an existing Note are usable; target 1–3 seconds on a warmed device.
+2. Open a Deck online, background the PWA, enable airplane mode and return. Repeat without backgrounding.
+   Local presentation should arrive within five seconds, with stable controls and no blank Practice region.
+   Move through Library, Deck, Note and Settings once in each direction.
+3. With Liquid glass Max, Panels and cards, and animations enabled, swipe, reverse/cancel a swipe and open
+   Grammar. Text should appear during expansion. Compare Panels only and glass off if pacing is poor.
+4. Save a Note/name edit and admitted Study answer/Undo offline. Reopen offline, then reconnect to the same
+   account. Confirm pending work survives and reconciles once; completed receipts remain optional history.
+
+If startup fails, recover online and immediately save startup diagnostics in Settings > Offline & sync.
+Provide the approximate failed-launch time, measured visible delay and chosen glass setting with that
+content-free export. A failure before the HTML bootstrap runs cannot produce a new shell record. Keep
+physical acceptance open if any of these steps fails, even when browser/database checks pass.

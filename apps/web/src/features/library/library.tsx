@@ -119,46 +119,44 @@ export function LibraryScreen() {
                   <ArrowLeft size={18} />
                 </Button>
               )}
-              {!offline.offline && (
-                <fieldset disabled={readOnly} className="contents">
-                  <Button
-                    variant="quiet"
-                    className="size-44 px-12"
-                    aria-label={t('deleted.title')}
-                    onClick={() => void navigate({ to: '/library/deleted' })}
-                  >
-                    <Trash2 size={16} aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="quiet"
-                    onClick={() =>
-                      setDialog({
-                        kind: 'create',
-                        collectionKind: 'folder',
-                        parentId: folder?.id ?? null,
-                      })
-                    }
-                  >
-                    <Folder size={16} aria-hidden="true" />
-                    <span className="sr-only sm:not-sr-only">{t('library.newFolder')}</span>
-                  </Button>
+              <fieldset disabled={readOnly} className="contents">
+                <Button
+                  variant="quiet"
+                  className="size-44 px-12"
+                  aria-label={t('deleted.title')}
+                  onClick={() => void navigate({ to: '/library/deleted' })}
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </Button>
+                <Button
+                  variant="quiet"
+                  onClick={() =>
+                    setDialog({
+                      kind: 'create',
+                      collectionKind: 'folder',
+                      parentId: folder?.id ?? null,
+                    })
+                  }
+                >
+                  <Folder size={16} aria-hidden="true" />
+                  <span className="sr-only sm:not-sr-only">{t('library.newFolder')}</span>
+                </Button>
 
-                  <Button
-                    variant="primary"
-                    className="px-12"
-                    onClick={() =>
-                      setDialog({
-                        kind: 'create',
-                        collectionKind: 'deck',
-                        parentId: folder?.id ?? null,
-                      })
-                    }
-                  >
-                    <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
-                    <span className="sr-only min-[420px]:not-sr-only">{t('library.newDeck')}</span>
-                  </Button>
-                </fieldset>
-              )}
+                <Button
+                  variant="primary"
+                  className="px-12"
+                  onClick={() =>
+                    setDialog({
+                      kind: 'create',
+                      collectionKind: 'deck',
+                      parentId: folder?.id ?? null,
+                    })
+                  }
+                >
+                  <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+                  <span className="sr-only min-[420px]:not-sr-only">{t('library.newDeck')}</span>
+                </Button>
+              </fieldset>
             </>
           }
         >

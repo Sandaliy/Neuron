@@ -173,26 +173,24 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         title={deck?.name ?? t('notes.title')}
         actions={
           <>
-            {!offline.offline && (
-              <fieldset disabled={!serverReady} className="contents">
-                {deck && <RestartLearning deck={deck} />}
-                <Button
-                  variant="quiet"
-                  onClick={() => void navigate({ to: '/import', search: deckSearch })}
-                >
-                  <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
-                  <span className="sr-only sm:not-sr-only">{t('notes.import')}</span>
-                </Button>
+            <fieldset disabled={!serverReady} className="contents">
+              {deck && <RestartLearning deck={deck} />}
+              <Button
+                variant="quiet"
+                onClick={() => void navigate({ to: '/import', search: deckSearch })}
+              >
+                <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
+                <span className="sr-only sm:not-sr-only">{t('notes.import')}</span>
+              </Button>
 
-                <Button
-                  variant="primary"
-                  onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
-                >
-                  <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
-                  {t('notes.newNote')}
-                </Button>
-              </fieldset>
-            )}
+              <Button
+                variant="primary"
+                onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
+              >
+                <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+                {t('notes.newNote')}
+              </Button>
+            </fieldset>
           </>
         }
       >
@@ -208,17 +206,16 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         </div>
       </CollectionHeader>
       {deckId && (
-        <ReadOnlySlot readOnly={offline.offline}>
-          <PracticeEntry
-            deckId={deckId}
-            enabled={offline.validated && !offline.offline}
-            ready={serverReady}
-            onOpen={(entry) => {
-              rememberScroll();
-              void learning.open(entry);
-            }}
-          />
-        </ReadOnlySlot>
+        <PracticeEntry
+          deckId={deckId}
+          enabled={offline.validated && !offline.offline}
+          ready={serverReady}
+          offline={offline.offline}
+          onOpen={(entry) => {
+            rememberScroll();
+            void learning.open(entry);
+          }}
+        />
       )}
 
       {!unavailable && (rows.length > 0 || filtered || typed !== '') && (!selecting || readOnly) ? (

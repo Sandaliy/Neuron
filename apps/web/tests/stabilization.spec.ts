@@ -653,7 +653,7 @@ test('a committed touch swipe deletes on release without a second tap', async ({
   await page.mouse.up();
   await expect(row).toHaveCount(0);
   await expect.poll(() => deleted).toBe(1);
-  await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+  await expect(page.locator('[data-swipe-action]:visible')).toHaveCount(0);
 });
 
 test('a committed touch pointer swipe deletes on release', async ({ page, browserName }) => {
@@ -908,17 +908,17 @@ test('partial swipe, reversal, cancel and failed commit preserve row geometry', 
     });
   };
   await gesture([250, 230]);
-  await expect(page.locator('[data-swipe-action]')).toBeVisible();
+  await expect(page.locator('[data-swipe-action]:visible')).toBeVisible();
   await expect
     .poll(async () => Math.round((await row.boundingBox())!.width))
     .toBe(Math.round(start.width));
   await page.screenshot({ path: testInfo.outputPath('swipe-partial.png'), animations: 'disabled' });
   await gesture([340, 380]);
-  await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+  await expect(page.locator('[data-swipe-action]:visible')).toHaveCount(0);
   await gesture([200, 260, 300]);
-  await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+  await expect(page.locator('[data-swipe-action]:visible')).toHaveCount(0);
   await gesture([220], true);
-  await expect(page.locator('[data-swipe-action]')).toHaveCount(0);
+  await expect(page.locator('[data-swipe-action]:visible')).toHaveCount(0);
   expect(attempts).toBe(0);
   await gesture([200, 100, 40]);
   await expect.poll(() => attempts).toBe(1);

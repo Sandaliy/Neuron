@@ -102,16 +102,42 @@ test('Grammar reveals complete text, preserves mounted controls and aligns Germa
   const frames = await grammar.evaluate(async (button) => {
     const content = document.getElementById(button.getAttribute('aria-controls')!)!;
     const inner = content.firstElementChild!;
-    const frames: Array<{ height: number; visible: boolean; complete: boolean }> = [];
+    const frames: Array<{
+      height: number;
+      visible: boolean;
+      complete: boolean;
+      clippedUnits: number;
+    }> = [];
     (button as HTMLButtonElement).click();
     const start = performance.now();
     await new Promise<void>((resolve) => {
       const sample = () => {
         const height = content.getBoundingClientRect().height;
         const style = getComputedStyle(inner);
+        const boundary = content.getBoundingClientRect().bottom;
+        const clippedUnits = Array.from(
+          inner.querySelectorAll('label, input, textarea, select, button, p, summary'),
+        ).filter((unit) => {
+          // Closed native details can retain layout boxes without painting their body.
+          const closed = unit.closest('details:not([open])');
+          if (closed && !closed.querySelector(':scope > summary')?.contains(unit)) return false;
+          const bounds = unit.getBoundingClientRect();
+          return (
+            getComputedStyle(unit).visibility !== 'hidden' &&
+            bounds.height > 0 &&
+            bounds.top < boundary - 1 &&
+            bounds.bottom > boundary + 1
+          );
+        }).length;
         frames.push({
+          clippedUnits,
           height,
-          visible: style.visibility !== 'hidden' && Number(style.opacity) > 0.01,
+          visible:
+            Array.from(inner.querySelectorAll('label, input, textarea, select, button, p')).some(
+              (unit) => getComputedStyle(unit).visibility !== 'hidden',
+            ) &&
+            style.visibility !== 'hidden' &&
+            Number(style.opacity) > 0.01,
           complete: height >= inner.getBoundingClientRect().height - 1,
         });
         if (performance.now() - start < 500) requestAnimationFrame(sample);
@@ -126,7 +152,8 @@ test('Grammar reveals complete text, preserves mounted controls and aligns Germa
     contentType: 'application/json',
   });
   expect(frames.filter((frame) => frame.height > 1 && !frame.complete).length).toBeGreaterThan(3);
-  expect(frames.some((frame) => frame.visible && !frame.complete)).toBe(false);
+  expect(frames.some((frame) => frame.visible && !frame.complete)).toBe(true);
+  expect(frames.every((frame) => frame.clippedUnits === 0)).toBe(true);
   const past = page.getByLabel('Präteritum', { exact: true });
   await past.fill('ging');
   await past.evaluate((element) => {

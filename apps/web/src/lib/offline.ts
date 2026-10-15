@@ -21,6 +21,7 @@ import {
   renameOverlay,
 } from './collection-outbox';
 import { clearCollectionProjection, projectCollectionNote } from './collection-read';
+import { lifecycle } from './lifecycle';
 import {
   cancelNoteDelivery,
   deliverNoteEdits,
@@ -67,6 +68,7 @@ let client: QueryClient | undefined;
 let epoch = 0;
 const confirmedReviewCards = new Map<string, Card>();
 let connection = 0;
+let validatingConnection = false;
 let probing: Promise<void> | undefined;
 let controller: AbortController | undefined;
 let running: Promise<void> | undefined;
@@ -171,6 +173,13 @@ export function beginOnlineAccount() {
 }
 export const accountEpoch = () => epoch;
 export const connectionEpoch = () => connection;
+export function beginAccountValidation() {
+  validatingConnection = true;
+  return ++connection;
+}
+export function endAccountValidation(startedConnection: number) {
+  if (startedConnection === connection) validatingConnection = false;
+}
 
 export function offlineReadFailed(error: unknown, visit: number, accountId: string) {
   if (visit !== epoch || state.accountId !== accountId || !state.offline) return;
@@ -178,11 +187,24 @@ export function offlineReadFailed(error: unknown, visit: number, accountId: stri
   emit({ available: false, download: 'unavailable', failure });
 }
 
-export async function rememberedAccount(): Promise<Me | undefined> {
+let restoration: { visit: number; promise: Promise<Me | undefined> } | undefined;
+export function rememberedAccount(): Promise<Me | undefined> {
+  if (restoration?.visit === epoch) return restoration.promise;
+  const own = { visit: epoch, promise: readRememberedAccount() };
+  restoration = own;
+  void own.promise
+    .finally(() => {
+      if (restoration === own) restoration = undefined;
+    })
+    .catch(() => undefined);
+  return own.promise;
+}
+
+async function readRememberedAccount(): Promise<Me | undefined> {
   const visit = epoch;
-  const startedConnection = connection;
   const id = contextId();
   if (!id) return;
+  lifecycle('restore-start');
   let opened: IDBDatabase | undefined;
   try {
     opened = await openCollection(id);
@@ -190,26 +212,22 @@ export async function rememberedAccount(): Promise<Me | undefined> {
       await result(opened.transaction('meta').objectStore('meta').get('account')),
     );
     const meta = await metadata(opened);
-    if (
-      account.id !== id ||
-      contextId() !== id ||
-      visit !== epoch ||
-      state.signedOut ||
-      startedConnection !== connection ||
-      !state.offline
-    )
-      return;
+    if (account.id !== id || contextId() !== id || visit !== epoch || state.signedOut) return;
+    if (state.validated) return;
+    const transition = !state.offline || state.accountId !== id;
     emit({
       offline: true,
-      validated: false,
       accountId: id,
       download: meta.complete ? 'ready' : 'idle',
       available: meta.complete,
       failure: null,
     });
+    if (transition) void transitionReads(true);
+    lifecycle('restore-ready');
     return account;
   } catch (error) {
-    if (visit === epoch && startedConnection === connection && contextId() === id && state.offline)
+    lifecycle('restore-failed');
+    if (visit === epoch && contextId() === id && !state.validated)
       emit({
         accountId: id,
         available: false,
@@ -225,16 +243,14 @@ export async function rememberedAccount(): Promise<Me | undefined> {
 /** Offline restoration must not wait for a suspended session-validation fetch. */
 async function restoreOfflineAccount() {
   const visit = epoch;
-  const startedConnection = connection;
-  // A live account already keeps the gate open. Let its failed validation finish
-  // normally so cancellation cannot leave that query invalidated on navigation.
-  if (!client?.getQueryData<Me>(['account']))
-    await client?.cancelQueries({ queryKey: ['account'] });
+  if (client?.getQueryData<Me>(['account']) || state.signedOut) return;
+  // Local presentation and server validation run independently. Neither a browser
+  // hint nor repeated foreground events may invalidate an account-scoped read.
   const account = await rememberedAccount().catch(() => undefined);
   if (
     account &&
     visit === epoch &&
-    startedConnection === connection &&
+    !state.validated &&
     state.offline &&
     client?.getQueryData<Me>(['account'])?.id !== account.id
   )
@@ -242,10 +258,6 @@ async function restoreOfflineAccount() {
 }
 
 export function acceptAccount(account: Me, startedEpoch: number, startedConnection: number) {
-  if (!navigator.onLine) {
-    networkLost();
-    throw new DOMException('Connection visit ended', 'AbortError');
-  }
   if (
     startedEpoch !== epoch ||
     startedConnection !== connection ||
@@ -262,7 +274,8 @@ export function acceptAccount(account: Me, startedEpoch: number, startedConnecti
     revokeOffline();
   }
   emit({ offline: false, validated: true, accountId: account.id });
-  void deliverReviews();
+  lifecycle('account-ready');
+  if (newAccount || reconnecting) void deliverReviews();
   if (reconnecting) void transitionReads(false);
   // Authentication fields are selected explicitly by meSchema; cookies/tokens never enter this store.
   // Repeated account reads/navigation join the current visit; they never queue pulls.
@@ -279,11 +292,17 @@ export function acceptAccount(account: Me, startedEpoch: number, startedConnecti
 
 export function networkLost() {
   if (!client) return;
-  connection++;
   if (state.offline) {
+    // A fresh loss invalidates a reconnect response, but repeated loss events
+    // do not create new visits or interfere with account-scoped local reads.
+    if (validatingConnection) connection++;
+    validatingConnection = false;
     void restoreOfflineAccount();
     return;
   }
+  connection++;
+  validatingConnection = false;
+  lifecycle('offline');
   emit({ offline: true, validated: false });
   cancelRenameDelivery();
   cancelNoteDelivery();
@@ -296,8 +315,13 @@ export function networkLost() {
 /** A failed collection read is confirmed through the session authority, not connectivity hints. */
 export function confirmConnection() {
   if (state.offline || state.signedOut) return Promise.resolve();
+  return confirmForeground();
+}
+
+function confirmForeground() {
+  if (state.signedOut) return Promise.resolve();
   if (!probing) {
-    probing = Promise.resolve(retryConnection())
+    probing = Promise.resolve(retryConnection(false))
       .catch(() => undefined)
       .finally(() => {
         probing = undefined;
@@ -419,13 +443,15 @@ function refreshDownload() {
   void retryDownload();
 }
 
-export function retryConnection() {
-  return client?.invalidateQueries({ queryKey: ['account'] });
+export function retryConnection(replace = true) {
+  // Real reconnection and explicit Retry supersede a suspended validation.
+  // Focus/visibility probes join it instead of repeatedly restarting its deadline.
+  return client?.invalidateQueries({ queryKey: ['account'] }, { cancelRefetch: replace });
 }
 
 export function initializeOffline(queryClient: QueryClient) {
   client = queryClient;
-  if (state.offline && !state.signedOut) void restoreOfflineAccount();
+  if (!state.signedOut) void restoreOfflineAccount();
   onReviewOutboxChange((change) => {
     if (change.accountId !== state.accountId) return;
     void client?.invalidateQueries({ queryKey: ['review-outbox', change.accountId] });
@@ -543,7 +569,10 @@ export function initializeOffline(queryClient: QueryClient) {
       })
       .catch(() => undefined);
   });
-  window.addEventListener('offline', networkLost);
+  window.addEventListener('offline', () => {
+    lifecycle('offline-event');
+    networkLost();
+  });
   window.addEventListener('online', () => {
     // Remain read-only until the server has freshly accepted this account.
     void retryConnection();
@@ -591,21 +620,26 @@ export function initializeOffline(queryClient: QueryClient) {
     }
   });
   const foreground = () => {
-    if (!navigator.onLine) {
-      networkLost();
-      return;
-    }
-    if (state.offline && navigator.onLine) void retryConnection();
-    else {
+    lifecycle('foreground');
+    // A connectivity hint cannot cancel the validation another foreground event
+    // just started. Real loss events revoke authority; focus only requests it.
+    // Coalesce focus/pageshow/visibility into one bounded probe.
+    void confirmForeground().then(() => {
+      if (!state.validated || state.offline) return;
       void deliverReviews();
       refreshDownload();
-    }
+    });
   };
-  window.addEventListener('focus', foreground);
+  window.addEventListener('focus', () => {
+    lifecycle('focus');
+    foreground();
+  });
   window.addEventListener('pageshow', (event) => {
+    lifecycle(event.persisted ? 'pageshow-cached' : 'pageshow');
     if (event.persisted) foreground();
   });
   document.addEventListener('visibilitychange', () => {
+    lifecycle(document.visibilityState === 'visible' ? 'visible' : 'hidden');
     if (document.visibilityState === 'visible') foreground();
   });
   client.getMutationCache().subscribe((event) => {

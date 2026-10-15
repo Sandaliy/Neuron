@@ -1,14 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
 import { renames } from '../../lib/collection-outbox';
 import { noteEdits } from '../../lib/note-outbox';
 import { useOffline } from '../../lib/offline';
 import { reviewEvents } from '../../lib/review-outbox';
+import { Disclosure } from '../../ui/disclosure';
 
-export function SyncSummary() {
+import { workIsSettled } from './saved-work';
+
+import type { ReactNode } from 'react';
+
+export function SyncSummary({ children }: { readonly children?: ReactNode }) {
   const t = useTranslate();
   const state = useOffline();
+  const [open, setOpen] = useState(false);
   const options = { enabled: !!state.accountId, networkMode: 'always' as const };
   const names = useQuery({
     queryKey: ['outbox', state.accountId],
@@ -31,9 +38,19 @@ export function SyncSummary() {
       !['synchronized', 'resolved'].includes(entry.state) &&
       !(entry.state === 'archived' && 'acknowledgement' in entry && entry.acknowledgement),
   );
-  if (!entries.length && !names.error && !notes.error && !reviews.error) return null;
+  if (children)
+    return entries.some(workIsSettled) ? (
+      <Disclosure
+        title={<span className="font-normal text-secondary">{t('offline.recentActivity')}</span>}
+        open={open}
+        onOpenChange={setOpen}
+        reveal="progressive"
+      >
+        {open && <div className="flex flex-col gap-16">{children}</div>}
+      </Disclosure>
+    ) : null;
   return (
-    <p role="status" className="text-14 text-secondary">
+    <p role="status" className="text-14 text-primary">
       {t(
         names.error || notes.error || reviews.error
           ? 'offline.changesUnavailable'
