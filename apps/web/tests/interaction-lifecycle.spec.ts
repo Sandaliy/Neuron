@@ -6,7 +6,14 @@ import {
   startInteractionMetrics,
   readInteractionMetrics,
 } from './interaction-metrics';
-test.use({ viewport: { width: 375, height: 812 } });
+test.use({
+  viewport: { width: 375, height: 812 },
+  // Continuous trace screenshots repeatedly composite the full glass scene on
+  // software-rendered hosted browsers. Keep DOM/network traces and a failure
+  // screenshot without charging that recording work to the interaction budget.
+  trace: { mode: 'retain-on-failure', screenshots: false },
+  screenshot: 'only-on-failure',
+});
 
 for (const glassScope of ['all', 'floating', 'off'] as const) {
   test(`active swipe frame pacing and input latency: ${glassScope}`, async ({
