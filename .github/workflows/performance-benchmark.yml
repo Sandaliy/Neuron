@@ -1,50 +1,39 @@
 name: Performance benchmark
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  fps:
-    name: 5,000-note frame-rate monitor
-    runs-on: windows-2022
+  controls:
+    name: Controlled active swipe comparisons
+    runs-on: ubuntu-latest
     timeout-minutes: 20
-
     steps:
-      - name: Check out the repository
-        uses: actions/checkout@v5
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v5
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build browser app
-        run: pnpm --filter "@neuron/web..." build
-
-      - name: Install Chromium
-        run: pnpm --filter @neuron/web test:screens:install
-
-      - name: Measure collection frame rates
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "@neuron/web..." build
+      - run: pnpm --filter @neuron/web exec playwright install --with-deps chromium
+      - name: Original full trace measurement
+        continue-on-error: true
         env:
-          PERFORMANCE_BENCHMARK: 'true'
-        run: pnpm --filter @neuron/web test:screens tests/00-note-list-performance.spec.ts tests/performance.spec.ts --project=phone-performance --workers=1
-
-      - name: Keep benchmark diagnostics
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v5
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-swipe-traced
+        run: pnpm --filter @neuron/web test:screens tests/interaction-lifecycle.spec.ts --project=phone-interaction --workers=1 --repeat-each=3
+      - name: Identical application without recording
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-swipe-untraced
+        run: pnpm --filter @neuron/web test:screens tests/interaction-lifecycle.spec.ts --project=phone-interaction --workers=1 --repeat-each=3 --trace=off
+      - uses: actions/upload-artifact@v5
+        if: always()
         with:
-          name: frame-rate-benchmark
+          name: controlled-swipe-comparisons
           path: |
-            apps/web/playwright-report/
+            apps/web/playwright-swipe-traced/
+            apps/web/playwright-swipe-untraced/
             apps/web/test-results/
           retention-days: 14
