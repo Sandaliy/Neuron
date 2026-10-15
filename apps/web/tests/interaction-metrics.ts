@@ -105,6 +105,9 @@ export async function readInteractionMetrics(page: Page) {
       longTasks: metrics.tasks,
       layoutShift: metrics.shifts.reduce((sum, value) => sum + value, 0),
       frameCount: frames.length,
+      fps: frames.length
+        ? (1000 * frames.length) / frames.reduce((sum, frame) => sum + frame, 0)
+        : 0,
       p95FrameMs: frames[Math.floor(frames.length * 0.95)] ?? 0,
       worstFrameMs: frames.at(-1) ?? 0,
       scans: metrics.scans,

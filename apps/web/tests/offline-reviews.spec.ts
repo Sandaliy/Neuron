@@ -123,6 +123,42 @@ async function settings(page: Page) {
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
 }
+test('a suspended Review delivery detects loss without an account request or lifecycle event and retains the exact retry', async ({
+  page,
+}, info) => {
+  const state = await useReviewFixture(page);
+  const attempts: Record<string, unknown>[] = [];
+  const holdAccount = () => undefined;
+  const holdReview = (route: Route) => {
+    attempts.push(route.request().postDataJSON());
+  };
+  await page.route('**/api/account', holdAccount);
+  await page.route('**/api/reviews', holdReview);
+  const at = Date.now();
+  await answer(page);
+  await expect.poll(() => attempts.length).toBe(1);
+  const original = (await stored(page))[0]!;
+  const practice = page.getByRole('button', { name: 'Practice', exact: true });
+  await expect(practice).toBeEnabled();
+  await expect(practice).toBeDisabled();
+  const handover = Date.now() - at;
+  expect(handover).toBeLessThan(5000);
+  const pending = (await stored(page))[0]!;
+  expect(pending.event).toEqual(original.event);
+  expect(pending.operationId).toBe(original.operationId);
+  expect(pending.state).toBe('pending');
+  await expect(page.getByRole('button', { name: 'Finish', exact: true })).toBeEnabled();
+  await page.unroute('**/api/account', holdAccount);
+  await page.unroute('**/api/reviews', holdReview);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(async () => (await stored(page))[0]?.state).toBe('synchronized');
+  expect(state.requests[0]!.body).toEqual(attempts[0]);
+  await info.attach('review-transport-handover', {
+    body: JSON.stringify({ handover }),
+    contentType: 'application/json',
+  });
+});
+
 test('local commit releases exit and Undo before delayed server acknowledgement; immutable events keep causal order', async ({
   page,
 }) => {
@@ -290,14 +326,14 @@ test('Settings paints the simulated iPhone status area over scrolling headings',
   await installFixtures(page);
   await page.goto('/settings');
   await page.evaluate(() => document.documentElement.style.setProperty('--safe-top', '47px'));
-  await page.getByRole('region', { name: 'Offline access' }).evaluate((element) => {
+  await page.getByRole('region', { name: 'Offline & sync' }).evaluate((element) => {
     document.body.style.minHeight = '2400px';
     window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - 12);
   });
   await expect
     .poll(() =>
       page
-        .getByRole('region', { name: 'Offline access' })
+        .getByRole('region', { name: 'Offline & sync' })
         .evaluate((element) => Math.round(element.getBoundingClientRect().top)),
     )
     .toBe(12);
@@ -472,11 +508,11 @@ test('a large synchronized history mounts only bounded optional activity and pre
   await page.reload();
   const region = page.getByRole('region', { name: 'Study answers' });
   await expect(region.getByRole('button', { name: 'Copy recovery record' })).toHaveCount(0);
-  await expect(region.getByRole('button', { name: 'Study answers' })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: 'Recent activity', exact: true })).toHaveAttribute(
     'aria-expanded',
     'false',
   );
-  await region.getByRole('button', { name: 'Study answers' }).click();
+  await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
   await expect(region.getByRole('button', { name: 'Study answer', exact: true })).toHaveCount(10);
   await region.getByRole('button', { name: 'Study answer', exact: true }).first().click();
   await expect(region.getByRole('button', { name: 'Copy recovery record' })).toHaveCount(1);
@@ -648,11 +684,11 @@ test('a late acknowledgement after concurrent archive retains the receipt and re
   expect(recovered.acknowledgement?.card.reps).toBe(1);
   await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
   const history = page.getByRole('region', { name: 'Study answers' });
-  await expect(history.getByRole('button', { name: 'Study answers', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: 'Recent activity', exact: true })).toHaveAttribute(
     'aria-expanded',
     'false',
   );
-  await history.getByRole('button', { name: 'Study answers', exact: true }).click();
+  await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
   await history.getByRole('button', { name: 'Study answer', exact: true }).click();
   await expect(
     page.getByText('Kept for recovery. The server confirmed this event.', { exact: true }),

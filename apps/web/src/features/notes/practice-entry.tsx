@@ -14,17 +14,21 @@ export function PracticeEntry({
   onOpen,
   enabled = true,
   ready = true,
+  offline = false,
 }: {
   readonly deckId: string;
   readonly onOpen: (entry: 'resume' | 'setup') => void;
   readonly enabled?: boolean;
   readonly ready?: boolean;
+  readonly offline?: boolean;
 }) {
   const t = useTranslate();
   const summary = useQuery({ ...practiceQuery(deckId), enabled });
   const run = summary.data?.run;
   const statuses = Object.values(run?.statuses ?? {});
   const classified = statuses.filter((status) => status !== 'unseen').length;
+  const onlineLabel = t(run ? 'practice.resume' : 'practice.start');
+  const offlineLabel = t('offline.practiceUnavailable');
   return (
     <Card className="flex flex-col gap-16">
       <div className="flex w-full flex-wrap items-center justify-between gap-8">
@@ -35,7 +39,7 @@ export function PracticeEntry({
           </span>
         )}
       </div>
-      {summary.error ? (
+      {!offline && summary.error ? (
         <ErrorState
           message={t(describe(summary.error).key)}
           retryLabel={t('common.retry')}
@@ -53,7 +57,14 @@ export function PracticeEntry({
             disabled={!ready || !enabled || summary.isPending || !!summary.error}
             onClick={() => onOpen('resume')}
           >
-            {t(run ? 'practice.resume' : 'practice.start')}
+            {/* Both labels determine natural height, including wrapped translations.
+                Changing authority must not move the collection below this action. */}
+            <span className="inline-grid">
+              <span className="[grid-area:1/1] invisible" aria-hidden="true">
+                {offline ? onlineLabel : offlineLabel}
+              </span>
+              <span className="[grid-area:1/1]">{offline ? offlineLabel : onlineLabel}</span>
+            </span>
           </Button>
           <Button
             variant="quiet"

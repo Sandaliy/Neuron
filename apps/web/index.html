@@ -41,6 +41,91 @@
       frame of a phone that turned the effect off still carries the blur.
     -->
     <script>
+      // Content-free lifecycle breadcrumbs survive a failed launch and recovery.
+      (function () {
+        var key = 'neuron.lifecycle';
+        var stages = [
+          'shell',
+          'module',
+          'restore-start',
+          'restore-ready',
+          'restore-failed',
+          'account-start',
+          'account-ready',
+          'account-deadline',
+          'offline',
+          'foreground',
+          'focus',
+          'visible',
+          'hidden',
+          'pageshow',
+          'pageshow-cached',
+          'offline-event',
+          'gate-ready',
+          'read-start',
+          'read-ready',
+          'worker-ready',
+          'script-error',
+        ];
+        var start = Date.now();
+        var records = [];
+        try {
+          var previous = JSON.parse(localStorage.getItem(key) || '[]');
+          if (Array.isArray(previous))
+            records = previous
+              .filter(function (row) {
+                return (
+                  row &&
+                  stages.indexOf(row.stage) >= 0 &&
+                  Number.isFinite(row.at) &&
+                  Number.isFinite(row.elapsed) &&
+                  typeof row.online === 'boolean'
+                );
+              })
+              .slice(-80)
+              .map(function (row) {
+                return { stage: row.stage, at: row.at, elapsed: row.elapsed, online: row.online };
+              });
+        } catch (_) {}
+        var current = [];
+        window.neuronLifecycleReport = function () {
+          return JSON.stringify(records.concat(current));
+        };
+        window.neuronLifecycle = function (stage) {
+          if (stages.indexOf(stage) < 0) return;
+          current.push({
+            stage: stage,
+            at: start,
+            elapsed: Date.now() - start,
+            online: navigator.onLine,
+          });
+          // Pin startup and failure stages through repeated foreground events.
+          // Preceding launches stay intact throughout this recovery.
+          if (current.length > 40) {
+            var failures = current.filter(function (row) {
+              return ['restore-failed', 'account-deadline', 'script-error'].indexOf(row.stage) >= 0;
+            });
+            current = current.slice(0, 8).concat(failures.slice(-8), current.slice(-24));
+            current = current.filter(function (row, index) {
+              return current.indexOf(row) === index;
+            });
+          }
+          try {
+            localStorage.setItem(key, window.neuronLifecycleReport());
+          } catch (_) {}
+        };
+        window.neuronLifecycle('shell');
+        window.addEventListener(
+          'error',
+          function () {
+            window.neuronLifecycle('script-error');
+          },
+          true,
+        );
+        window.addEventListener('unhandledrejection', function () {
+          window.neuronLifecycle('script-error');
+        });
+      })();
       (function () {
         try {
           var stored = localStorage.getItem('neuron.theme');

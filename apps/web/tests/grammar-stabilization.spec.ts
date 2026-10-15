@@ -42,6 +42,7 @@ for (const [language, part, field] of [
     await expect(
       page.getByText('Choose the deck language to set up grammar for this note.'),
     ).toBeVisible();
+    await expect(page.getByLabel('Language being learned', { exact: true })).toBeVisible();
     await page.getByLabel('Language being learned', { exact: true }).focus();
     await page.getByLabel('Language being learned', { exact: true }).selectOption(language);
     await expect(page.getByLabel(field, { exact: true })).toBeVisible();

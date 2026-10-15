@@ -305,3 +305,209 @@ frame pacing and exact network/foreground behavior require owner acceptance.
 No assertion, retry policy, required check identity, coverage, timeout, performance threshold or visual
 baseline was relaxed. Hosted PR checks and production/device acceptance are separate from these
 local results; Phase 8.5 remains deferred.
+
+## Phase 8.4 lifecycle follow-up after PR #52
+
+PR #52 merged at `f37c236` with required checks passing. The owner again rejected installed-iPhone
+acceptance. Its two-minute cold loading and roughly thirty-second live handover were owner observations,
+not instrumented browser measurements. Phase 8.5 remains blocked.
+
+### Causal findings
+
+- PR #52 restores a remembered account only after a negative connectivity hint or network rejection.
+  With `navigator.onLine=true` and suspended HTTP, a complete account-scoped database and cached shell
+  cannot open the gate. The same populated-v2, worker-enabled test fails on the archived build and passes
+  with independent local restoration. Local identity does not validate a server session.
+- Every repeated offline event advanced the connectivity generation used to reject local restoration.
+  A continuing event stream delayed the old fixture to 3,444ms. Local restoration now belongs to the
+  account visit and is shared across events. Fresh loss still invalidates a reconnect response.
+- A repeated foreground event with a false offline hint could invalidate the successful validation
+  started by the preceding event. A delayed response plus eight focus/visibility pairs reproduces the
+  stuck local state. Foreground now joins validation without treating a stale hint as another loss.
+- Fresh query caches can supply navigation without any data GET. The old build performs no independent
+  liveness check on that path and misses the outage for the test's entire five-second observation.
+  Navigation now requests one coalesced, non-blocking account validation. Stalled HTTP, including
+  delivery and sync, requests validation after 1.5 seconds; validation ends after two seconds without a
+  response. A timer never retries a mutation or acknowledges an intent. Foreground events validate even
+  when the browser hint is false. Ordinary same-account navigation does not start a pull or Review scan.
+- `ReadOnlySlot` deliberately removed server controls while retaining measured dimensions. This directly
+  explains the empty Practice area and the different geometry of a fresh offline visit. Recognizable
+  disabled controls and a connection explanation now occupy that region on handover and re-entry.
+- `reveal="settled"` hid all content until height expansion finished, then started another fade. The repair
+  reveals complete labels/controls during expansion, retains mounted Grammar inputs and natural settled
+  height, and leaves the default Study setup disclosure unchanged.
+- Swipe movement read `clientWidth` and updated React offset/armed state on every pointer move. The
+  archived builds commit approximately sixty times per sixty driver moves and 175 times during the
+  sustained frame-driven gesture. Width is now captured on pointer-down; transient movement and arming
+  update the existing surface directly. Thresholds, vertical-scroll arbitration, confirmation and rollback
+  still use the original interaction paths.
+
+These are reproduced code/browser causes. The owner's exact native startup event order and reported
+10 FPS compositor behavior have not been reproduced conclusively. The swipe code itself was unchanged
+between accepted PR #49 and PR #52, so its cost is not proof of the reported regression's native cause.
+
+### User-visible and interaction measurements
+
+Archived PR #49 (`4565b1c`), PR #52 and the repair use the same installed dependencies, fixture data,
+375px viewport, full motion and Max glass with Panels and cards. Chromium runs at 4x CPU slowdown;
+Windows mobile WebKit is unthrottled. Three independent runs supply each navigation/Grammar median.
+Timing probes disable tracing; ordinary interaction and lifecycle failure diagnostics retain it.
+
+| Chromium observation                                             |   PR #49 |   PR #52 |   Repair |
+| ---------------------------------------------------------------- | -------: | -------: | -------: |
+| Cold online Library readiness                                    |  652.7ms |  636.2ms |  637.5ms |
+| Warm Settings to Library                                         |   80.7ms |   74.4ms |   80.2ms |
+| Grammar first complete visible content                           |   33.5ms |  266.2ms |   79.6ms |
+| Grammar expanded geometry                                        |   33.5ms |  245.6ms |  244.9ms |
+| Trusted swipe median input to next-frame observation, full glass |   14.3ms |   14.3ms |   16.0ms |
+| Trusted swipe p95 input observation, full glass                  |   16.5ms |   16.5ms |   17.5ms |
+| Sustained swipe frame rate, full glass                           | 60.0 FPS | 60.0 FPS | 60.0 FPS |
+| Sustained swipe React commits                                    |      175 |      175 |        0 |
+
+PR #49 conditionally mounted Grammar without the later container expansion; its geometry timing is not
+an equivalent expansion animation. Input observation is measured inside the browser from trusted event
+arrival to the following animation-frame sample. It excludes driver round trips and is not native touch
+latency. A separate 180-frame injected touch path supplies movement on every paint frame, avoiding idle
+frames between driver commands. Panels-only and glass-off cases also retain the original 55 FPS floor;
+the tests assert that chosen glass remains active. No global effect or visual quality was reduced.
+
+| Built-PWA/local observation                                         |             Archived PR #52 |        Repair |
+| ------------------------------------------------------------------- | --------------------------: | ------------: |
+| Complete v2 cold launch, online hint, HTTP never answers            |   not usable within 5,000ms |         185ms |
+| Complete v2 cold launch, offline hint, origin stopped               |              not remeasured |         173ms |
+| Complete v2 cold launch, offline hint, suspended HTTP               |              not remeasured |         185ms |
+| Local restoration during continuing offline/focus/visibility events |                     3,444ms |     388–405ms |
+| Cached navigation with no loss/foreground event and stalled HTTP    |    not local within 5,000ms | 2,402–2,426ms |
+| Foreground handover with no pending account request                 |              not remeasured |       2,416ms |
+| Suspended Review POST, no loss event or pending account request     | still enabled after 5,000ms | 4,182–4,216ms |
+
+Cold timing ends when the downloaded Folder is visibly usable, rather than when an internal fetch ends.
+Interrupted migration timing includes explicit recovery and is a separate correctness case.
+Handover observations end at a visible disabled/unavailable control or offline presentation; assertion
+polling includes observation overhead. Review handover includes answering and local persistence.
+Final worker-enabled runs use an explicit phone viewport, touch, mobile layout and 3x pixel density,
+without CPU emulation. Windows WebKit observes 416–440ms for the same three complete-v2 cold cases.
+The deliberately interrupted upgrade plus explicit Retry takes 2,550ms in Chromium and 2,840ms in
+WebKit; it preserves the old database before recovery. These remain browser timings.
+
+Windows WebKit medians for PR #49 / PR #52 / repair are 232.0 / 226.7 / 234.5ms cold readiness and
+488.5 / 489.2 / 497.4ms warm navigation. Grammar first content changes from 22 / 290 / 104ms; repaired
+expansion settles at 246ms. Its full-glass disclosure samples are 48.9 / 32.1 / 43.7 FPS, with worst
+frames 45 / 45 / 46ms. This port remains below 55 FPS in that motion probe. Chromium's enforced
+55 FPS contracts and native installed-iPhone acceptance are distinct; these WebKit results are retained
+as a limitation, not described as a passing device performance result.
+
+The settled gesture fixture answers Practice successfully, waits for fonts and verifies that the
+gesture point actually hits an on-screen row. Earlier probes could miss trusted input when the row
+was outside the viewport or a late error moved it; those idle-frame samples are excluded. With this
+fixture, Windows WebKit's sustained swipe rates for PR #49 and the repair are:
+
+| Glass configuration   |   PR #49 |   Repair |
+| --------------------- | -------: | -------: |
+| Max, Panels and cards |  9.8 FPS |  9.8 FPS |
+| Max, Panels only      | 17.4 FPS | 21.1 FPS |
+| Glass off             | 22.5 FPS | 25.3 FPS |
+
+Full-glass trusted input observation is 105ms median / 108ms p95 on PR #49 and 102ms / 111ms on
+the repair. Sustained movement observes no store-wide IndexedDB `getAll` reads in either revision and reduces 175 React
+commits to zero. Direct surface transforms, a fixed background action plane and unchanged state
+attributes avoid per-frame inherited style invalidation and action-width layout. An initial isolated
+`will-change: transform` probe did not improve Windows WebKit full-glass pacing. The remaining
+rendering cost is strongly dependent on glass configuration in this Windows port, including the
+accepted baseline. This reproduces a low frame rate in the port, not the owner's native regression or
+its cause. It remains below the target and is an explicit unresolved performance risk; no effects,
+quality, original 55 FPS Chromium assertion or retry policy were reduced to conceal it.
+The final swipe comparison uses identical trace-disabled runners on all revisions. Chromium's
+next-frame observation stays around one frame; these samples establish no input-latency improvement.
+Traced release runs observe a different input/frame phase (roughly 8–11ms) and are not substituted
+for the matched comparison. Removing React work is measurable; native responsiveness remains unproven.
+
+### Verification evidence and limits
+
+The final built, serial phone/desktop gate passes 594 cases with ten existing opt-in skips. All five
+original controlled performance cases pass with 55 FPS enforced: 5,000 Notes at 60.0 FPS with eleven
+mounted rows, Panels-only collections at 59.7 FPS, and full-glass Deck/mixed collections at 59.3 FPS.
+The 31 browser-selection/aggregate contract tests pass. All 66 Windows visual comparisons pass after
+reviewing and updating eight intentional Settings references and two phone-dialog references whose
+Settings backdrop moved; dialog geometry is unchanged. No unrelated baseline was refreshed.
+
+Sixteen explicit phone-context journeys pass on Chromium and WebKit, including complete-v2 startup
+with a stopped origin or suspended HTTP under either hint, interrupted upgrade/recovery, the actual
+prior PR #50 worker shell's first upgraded launch with the origin already stopped, real PostgreSQL/RLS
+collection hydration and Note/name conflicts/retries, and admitted Study/Undo with a lost real database
+acknowledgement and exact replay. API responses remain excluded from the worker cache. These tests
+use touch, mobile layout, phone viewports and 3x pixel density; they do not install a native iPhone PWA.
+
+The broader WebKit run passes 122 of 123 cases; its obsolete assertion that offline controls disappear
+was corrected to require visible disabled controls. That case, repeated foreground validation, failed
+entry-script diagnostics and swipe release/reversal/cancel/rollback then pass in six focused cases.
+Six gesture/frame cases pass across Chromium/WebKit with glass selection retained; WebKit frame-rate
+observations above remain below target and are not described as passing performance evidence.
+Archived PR #52 fails the final cold-start, suspended-Review and gesture-work reproductions as expected;
+earlier archived comparisons also fail continuing-event restoration and cached-navigation handover.
+
+The full unit/database run records 1,094 passes and two skipped cases after a Review-suite setup
+WebSocket close, with 98 of 99 files passing. Its isolated nine-case Review suite subsequently passes;
+the full run is not relabelled as a single clean pass. An earlier broad browser run similarly records
+one pre-application `ERR_NO_BUFFER_SPACE`. Available memory/port counts did not show exhaustion, and a
+bare-browser control completed 200 contexts / 6,600 requests without reproducing it. The original
+failure remains unexplained runner evidence. The earlier full browser run followed additional lifecycle
+and gesture corrections and passed; retries, timeouts and assertions were not relaxed for either issue.
+Hosted required checks and physical acceptance remain separate from all local results.
+
+PR #53's first hosted run (`38744365152`) exposed two further defects. The phone handover assertion
+observed scroll moving from 500 to 522px. The longer unavailable Practice label wrapped onto a second
+line, increasing the card height by 22.5px and triggering scroll anchoring. The same exact failure is
+reproducible locally at 320px. Both action labels now determine the button's natural height, with only
+the current label visible and accessible. The original exact geometry and reconnect assertions remain;
+an additional narrow-phone case covers the wrapping boundary.
+
+The desktop active-swipe case measured 53.24 FPS with Max glass on panels and cards, against 59.67 FPS
+with Panels only and 60.00 FPS with glass off. The failed interval contained zero React commits,
+long tasks or store scans. A local Chromium compositor capture of the same 180-frame movement showed
+451 raster tasks / 149.80ms without surface promotion. Promoting only the active pointer's surface
+reduced this to 22 tasks / 15.27ms in the repaired application. The promotion ends with release,
+cancellation or loss of eligibility; inactive rows do not retain layers. The full-glass appearance is
+preserved. This addresses measured raster cost without reducing blur, changing gesture semantics or
+relaxing the 55 FPS floor. Local Chromium was already near 60 FPS before this correction, so the
+hosted improvement still requires a new hosted result. Windows WebKit remains below target and this
+correction does not establish a native-iPhone performance fix. The aggregate browser check correctly
+failed because of the two interaction failures; its contract and topology are unchanged.
+
+The full local follow-up also identified a rapid-entry helper comparing raw button `textContent`,
+which now includes the hidden sizing label. It resolves the same buttons by accessible name before
+dispatching both clicks in one turn; all original route and setup assertions remain. Its three focused
+Chromium/WebKit cases pass. The interrupted broad run remains non-passing evidence.
+
+The subsequent full built interaction gate records 595 passes, ten existing skips and one
+`ERR_NO_BUFFER_SPACE` in Practice Listen to Type before application loading. Its trace has only the
+failed document request and an `about:blank` frame, with no scripts or API requests. A resource check
+shows about 22.3 GiB of free memory and fewer than 800 TCP records, without establishing the cause.
+This recurring local runner failure remains unexplained; the full run is not reclassified as green.
+The affected Practice journey subsequently passes separately in both Chromium projects and mobile
+WebKit. The correction also passes the web typecheck, changed-source lint, design-token check and
+eight motion contract tests. No assertion, timeout, retry, baseline or protected check was relaxed.
+
+### Storage, diagnostics and acceptance
+
+There is no SQL migration, IndexedDB version change, reset or cache-clearing repair. Populated v2 tests
+compare every prior store key/value, metadata/cursor, pending exact Note/name payload and recovery
+archive before and after the additive v3 upgrade. Interrupted upgrades retain v2 and recover with Retry.
+Review tests hold delivery independently of local commit, retain the original pending event and prove an
+identical retry after authenticated reconnection. Existing account rejection, isolation and canonical
+replay checks remain in place. Offline & sync groups completed categories under quiet Recent activity;
+unresolved work and its recovery actions remain outside that history. No receipt or archive is removed.
+
+Content-free lifecycle records begin in the shell before modules load and survive subsequent recovery.
+Settings and the startup error screen can export them. They identify shell/module loading, local reads,
+account deadlines and the ordering of focus, visibility, pageshow and offline events, without identifiers,
+URLs, content, credentials, payloads or raw errors. Nothing is uploaded automatically.
+Both browsers verify recovery after the real entry module is blocked, with the failed launch still
+present in the exported report. This is diagnostic coverage, not proof that native startup is fixed.
+Dispatch before the HTML bootstrap executes remains outside these diagnostics; a missing shell record
+at the reported launch time distinguishes that boundary from an application restoration stall.
+
+An entirely idle page with no loss event, foreground event or HTTP work has no immediate observable
+outage. The next navigation or request checks it. Native shell loading, IndexedDB scheduling and glass
+compositing remain physical-device risks. Use the four-step acceptance checklist in `offline-study.md`;
+a failed device check keeps Phase 8.5 blocked, regardless of browser or hosted check results.

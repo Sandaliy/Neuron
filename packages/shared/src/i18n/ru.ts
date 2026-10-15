@@ -94,7 +94,9 @@ export const ru = {
   'offline.copyRecovery': 'Копировать данные для восстановления',
   'error.review_delivery_pending':
     'Синхронизируй сохранённые ответы в настройках перед началом нового обучения.',
-  'offline.access': 'Доступ без сети',
+  'offline.access': 'Офлайн и синхронизация',
+  'offline.diagnostics': 'Сохранить диагностику запуска',
+  'offline.practiceUnavailable': 'Для практики нужно подключение.',
   'offline.ready': 'Коллекция загружена для чтения без сети.',
   'offline.pending': 'Загрузка коллекции ещё не завершена.',
   'offline.onlineAvailable': 'Ты можешь продолжать пользоваться Neuron с подключением к сети.',

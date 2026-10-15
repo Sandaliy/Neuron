@@ -321,6 +321,7 @@ every one of these in every state.
 | `lib/collection-transport.ts`              | Collection GET fallback, confirmed transport loss and cancellation/account guards                  |
 | `lib/offline.ts`                           | Remembered-account boundaries, pull coordination, connectivity and local sign-out                  |
 | `lib/collection-failure.ts`                | Sanitized hydration-stage diagnostics without account identities or collection contents            |
+| `lib/lifecycle.ts`                         | Retained content-free startup and foreground diagnostics, with an explicit local export            |
 | `lib/pwa.ts`, `scripts/service-worker.mjs` | Versioned shell registration, asset allowlist and non-disruptive worker lifecycle                  |
 | `lib/viewport.ts`                          | Where the on-screen keyboard is, as CSS variables a sheet is positioned against                    |
 | `preferences/device.ts`                    | A preference that belongs to the device: read at import, applied before React                      |

@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import { lifecycle } from './lifecycle';
+
 let shell = { ready: false, waiting: false };
 const listeners = new Set<() => void>();
 const snapshot = () => shell;
@@ -32,6 +34,7 @@ export function registerShell() {
       const channel = new MessageChannel();
       channel.port1.onmessage = (event) => {
         emit({ ready: event.data === __SHELL_VERSION__ });
+        if (event.data === __SHELL_VERSION__) lifecycle('worker-ready');
         channel.port1.close();
       };
       registration.active.postMessage('shell-version', [channel.port2]);

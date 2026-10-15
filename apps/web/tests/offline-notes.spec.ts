@@ -888,7 +888,7 @@ test('small and large saved Note histories stay compact by default and disclose 
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   const region = page.getByRole('region', { name: 'Saved Note edits' });
   await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
-  await expect(region.getByRole('button', { name: 'Saved Note edits' })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: 'Recent activity', exact: true })).toHaveAttribute(
     'aria-expanded',
     'false',
   );
@@ -929,7 +929,7 @@ test('small and large saved Note histories stay compact by default and disclose 
   await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
     0,
   );
-  await region.getByRole('button', { name: 'Saved Note edits' }).click();
+  await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
   await expect(region.getByRole('button', { name: /Saved receipt/ })).toHaveCount(10);
   const frames = await region
     .getByRole('button', { name: /Saved receipt/ })
@@ -938,14 +938,40 @@ test('small and large saved Note histories stay compact by default and disclose 
       const content = document.getElementById(button.getAttribute('aria-controls')!)!;
       const inner = content.firstElementChild!;
       const parent = content.parentElement!.closest('.neu-disclosure') as HTMLElement;
-      const frames: Array<{ visible: boolean; complete: boolean; parentAuto: boolean }> = [];
+      const frames: Array<{
+        visible: boolean;
+        complete: boolean;
+        parentAuto: boolean;
+        clippedUnits: number;
+      }> = [];
       (button as HTMLButtonElement).click();
       const start = performance.now();
       await new Promise<void>((resolve) => {
         const sample = () => {
           const style = getComputedStyle(inner);
+          const boundary = content.getBoundingClientRect().bottom;
+          const clippedNodes = Array.from(
+            inner.querySelectorAll('label, input, textarea, select, button, p, summary'),
+          ).filter((unit) => {
+            // Closed native details can retain layout boxes without painting their body.
+            const closed = unit.closest('details:not([open])');
+            if (closed && !closed.querySelector(':scope > summary')?.contains(unit)) return false;
+            const bounds = unit.getBoundingClientRect();
+            return (
+              getComputedStyle(unit).visibility !== 'hidden' &&
+              bounds.height > 0 &&
+              bounds.top < boundary - 1 &&
+              bounds.bottom > boundary + 1
+            );
+          });
           frames.push({
-            visible: style.visibility !== 'hidden' && Number(style.opacity) > 0.01,
+            clippedUnits: clippedNodes.length,
+            visible:
+              Array.from(inner.querySelectorAll('label, input, textarea, select, button, p')).some(
+                (unit) => getComputedStyle(unit).visibility !== 'hidden',
+              ) &&
+              style.visibility !== 'hidden' &&
+              Number(style.opacity) > 0.01,
             complete:
               content.getBoundingClientRect().height >= inner.getBoundingClientRect().height - 1,
             parentAuto: parent.style.height === 'auto',
@@ -961,7 +987,8 @@ test('small and large saved Note histories stay compact by default and disclose 
     body: JSON.stringify(frames),
     contentType: 'application/json',
   });
-  expect(frames.some((frame) => frame.visible && !frame.complete)).toBe(false);
+  expect(frames.some((frame) => frame.visible && !frame.complete)).toBe(true);
+  expect(frames.every((frame) => frame.clippedUnits === 0)).toBe(true);
   expect(frames.every((frame) => frame.parentAuto)).toBe(true);
   await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
     1,

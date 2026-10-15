@@ -7,8 +7,9 @@ import { accountQuery } from './lib/account';
 import { ApiFailure } from './lib/api';
 import { deckTreeQuery } from './lib/decks';
 import { trackPresses } from './lib/interactions';
+import { lifecycle } from './lib/lifecycle';
 import { noteListQuery, noteQuery } from './lib/notes';
-import { initializeOffline, offlineState } from './lib/offline';
+import { confirmConnection, initializeOffline, offlineState } from './lib/offline';
 import { practiceQuery } from './lib/practice';
 import { registerShell } from './lib/pwa';
 import { initialStudyQuery } from './lib/study-plan';
@@ -121,13 +122,17 @@ function warmUp(path = window.location.pathname, search = window.location.search
 }
 
 initializeOffline(queryClient);
+lifecycle('module');
 registerShell();
 warmUp();
 // Missing route reads start alongside the screen download. Existing observers
 // retain ownership of write invalidation and reconciliation during learning exits.
-router.subscribe('onBeforeLoad', ({ toLocation }) =>
-  warmUp(toLocation.pathname, toLocation.searchStr),
-);
+router.subscribe('onBeforeLoad', ({ toLocation }) => {
+  warmUp(toLocation.pathname, toLocation.searchStr);
+  // Fresh query caches can serve a whole visit without another GET. Navigation
+  // still observes transport, independently of browser connectivity events.
+  if (offlineState().validated) void confirmConnection();
+});
 
 // Started before the first render, so a dialog opened straight away already
 // knows where the keyboard is.
