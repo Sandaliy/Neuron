@@ -1,12 +1,14 @@
 import { availableForStudy, createSchedulerConfig } from '@neuron/core';
 import type { Card, DailyStudySession, DeckNode, Me, Note } from '@neuron/shared';
 
+import type { OfflineStudyPlan } from './offline-study-snapshot';
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 
 type Detail = { note: Note; cards: Card[] };
 export type StudyPlanProjection = DailyStudySession & {
   localProjection?: boolean;
   reviewProjection?: boolean;
+  offlineStudy?: OfflineStudyPlan['offlineStudy'];
 };
 type Pages = InfiniteData<{ items: Note[]; nextCursor?: string }>;
 type Change = { before: Note; after: Note; cards?: Card[]; oldCards?: Card[] };

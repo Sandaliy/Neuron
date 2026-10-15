@@ -18,6 +18,39 @@ export const undoReviewResultSchema = z.object({
   card: cardSchema,
 });
 
+/** The existing revision-stream Review row, including replay and cancellation metadata. */
+export const reviewHistoryRowSchema = z.object({
+  id: idSchema,
+  cardId: idSchema,
+  rev: z.number().int().min(0),
+  rating: ratingSchema,
+  reviewedAt: instantSchema,
+  submittedAt: instantSchema.nullable(),
+  durationMs: z.number().int().min(0),
+  elapsedDays: z.number().int().min(0),
+  scheduledDays: z.number().int().min(0),
+  placedDue: instantSchema,
+  stateBefore: cardStateSchema,
+  stabilityBefore: z.number().positive().nullable(),
+  difficultyBefore: z.number().min(1).max(10).nullable(),
+  resetsLearning: z.boolean(),
+  restartId: idSchema.nullable(),
+  cancelsReviewId: idSchema.nullable(),
+  priorState: cardSchema
+    .pick({
+      state: true,
+      stability: true,
+      difficulty: true,
+      due: true,
+      lastReview: true,
+      reps: true,
+      lapses: true,
+      learningStep: true,
+    })
+    .nullable(),
+});
+export type ReviewHistoryRow = z.infer<typeof reviewHistoryRowSchema>;
+
 /**
  * Answering a card. The busiest endpoint there is, and the one with the most
  * ways to go wrong.

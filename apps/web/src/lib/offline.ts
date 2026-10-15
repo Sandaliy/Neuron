@@ -486,6 +486,7 @@ export function initializeOffline(queryClient: QueryClient) {
     const id = state.accountId;
     const visit = epoch;
     if (!id || change.accountId !== id) return;
+    void client?.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
     void client?.invalidateQueries({ queryKey: ['note-outbox', id], exact: true });
     void client?.invalidateQueries({ queryKey: ['note-outbox', id, change.entityId], exact: true });
     void noteEditFor(id, change.entityId)

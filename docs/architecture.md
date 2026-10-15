@@ -318,8 +318,8 @@ This is the Phase 8.0 server foundation. Phase 8.1 adds IndexedDB, shell updates
 Phase 8.2 adds a narrow entity-revision rename command: `POST /decks/:id/rename` compares the original
 observed entity revision under the account write lock, checks live ancestry, and records a command
 digest/outcome in the existing immutable receipt table. Exact retries retain their original result;
-unrelated account revision advances do not conflict. Offline Undo transport, Practice synchronization
-and local Card identity mapping for offline-created Notes remain later work.
+unrelated account revision advances do not conflict. Phase 8.4's durable Review outbox also transports
+append-only Undo; Practice synchronization and Card identities for offline-created Notes remain later work.
 
 ## The index decision, measured
 
@@ -652,10 +652,13 @@ retains both versions and requires explicit fresh-revision application. Note eve
 row without whole-store scans or global notifications; mounted form state remains independent of reconciliation.
 An already-admitted Study sitting now commits durable account-scoped Review/cancellation intents before
 advance or exit. Exact causal delivery reconciles server history and schedules; rejected streams stay
-recoverable. New admission remains online, and reload ends the visit-local Undo stack while retaining
-pending intents. Settings bounds optional synchronized receipt detail and keeps unresolved work visible.
-Offline Note creation, local Study planning, Practice synchronization and Import application remain
-unavailable. See [offline collection contracts](offline-collection.md) and [durable Study transport](offline-study.md).
+recoverable. Phase 8.5 plans new offline sittings from complete validated downloads and committed local events
+through the same shared deterministic planner as the API. A lazy worker owns collection cloning,
+validation, replay and forecast work. Matching settings/revision and usable history permit conservative
+new admission; uncertainty restricts it and never grants override. Provisional browse/content overlays
+remain insufficient learning authority. Reload ends the visit-local Undo stack while retaining pending intents. Settings bounds optional synchronized receipt detail and keeps unresolved work visible.
+Offline Note creation, Practice synchronization and Import application remain unavailable. No new
+SQL migration, IndexedDB version or Review event protocol is introduced by local Study planning. See [offline collection contracts](offline-collection.md) and [durable Study transport](offline-study.md).
 
 **Preview data is separate and empty.** The long-lived Neon `preview` branch is schema-only, and its
 `neuron_preview` database contains no production rows. Its application role, authentication role, and

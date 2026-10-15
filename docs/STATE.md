@@ -4,42 +4,41 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-15. Phase 8.4 stabilization PR #52 merged at `f37c236` with required checks
-passing, but the owner again rejected installed-iPhone acceptance. Cold offline loading, slow
-handover, empty Deck regions and interaction responsiveness remain a release blocker. Phase 8.5
-and additional offline functionality remain deferred.
+Last updated: 2026-10-15. Phase 8.4 stabilization PR #53 merged at `5d9c680` after its
+required checks passed. The owner confirms installed production iPhone acceptance of offline access
+and the reported interaction regressions. This closes the Phase 8.4 device blocker. It is owner
+acceptance, not an instrumented native frame-rate measurement.
 
-The follow-up is on `work/offline-lifecycle`. A worker-enabled populated-v2 reproduction proves that
-an online browser hint plus suspended HTTP prevents local startup in PR #52. Restoration now runs
-independently of that hint and account validation; repeated loss events cannot invalidate its read.
-Account validation has a bounded deadline, foreground probes coalesce, and stalled HTTP work
-requests independent validation. Disabled controls replace measured empty slots; Grammar and receipt
-details reveal complete controls during expansion. Saved history shares one optional Recent activity
-disclosure. Swipe movement uses transient DOM state instead of React updates per pointer event.
-Retained content-free diagnostics record application stages for the remaining native investigation.
+Phase 8.5 is implemented on `work/offline-study-planning`, pending protected PR checks and its own
+physical-iPhone acceptance. A complete downloaded collection can plan and start Study locally through
+the familiar Today/setup/card interfaces. The API and downloaded planner share one deterministic
+planning pipeline over `packages/core`; a lazily created, shell-cached worker performs local cloning,
+validation, replay and forecasting. Online planning keeps its existing transaction/read topology.
 
-The initial local verification passed 594 built interaction cases (ten existing skips), sixteen
-phone-context PWA/database journeys, 66 Windows visuals, five original enforced performance cases and 31 browser
-gate contracts. A broad WebKit run plus focused corrections covers lifecycle, mounted controls and
-touch swipe semantics. The full unit/database run has a setup transport exception; its affected
-nine-case suite passes separately. See `interaction-performance.md` for exact evidence and limits.
+New admission requires matching downloaded account settings/revision, complete usable history and
+explainable local workload. Missing history, unresolved Review recovery and unreconciled Note edits
+restrict new material, including override, and exclude affected work. Valid pending Review/Undo
+intents are deduplicated and replayed before each new sitting. Answers and visit-local Undo keep the
+existing durable outbox, causal delivery, exact retries and server reconciliation. No database version,
+SQL migration, persisted event format or scheduling policy changes. Reload retains committed work,
+not a sitting or its Undo stack. Other devices' later changes reconcile after authenticated reconnection.
 
-Protected PR #53 is open. Its first hosted verification and Windows visual jobs passed, but phone
-handover geometry and desktop full-glass swipe pacing failed; the aggregate gate correctly failed.
-The handover defect reproduces at 320px and is repaired by reserving both Practice action labels'
-natural height. Active swipe surface promotion reduces measured Chromium raster work from 451 tasks
-to 22 without changing glass quality. Fifteen focused Chromium/WebKit cases and three rapid-entry
-checks pass. The latest full built interaction run records 595 passes, ten existing skips and one
-unexplained Chromium `ERR_NO_BUFFER_SPACE` before the application loads. Its trace contains only
-the failed document request and an `about:blank` frame. The affected journey passes separately in
-both Chromium projects and mobile WebKit. The full run is not green; hosted checks on the corrected
-head remain required.
+The post-merge main run `38775107806` measured 47.9 FPS in sustained full-glass swipe movement. Matched
+hosted controls reproduce 50.3–53.5 FPS with continuous trace screenshots and 60 FPS without them.
+Keeping DOM/network/action traces while excluding continuous screenshot recording passes nine hosted
+cases at 60 FPS; nine unrecorded controls also pass. Failure screenshots, original gestures, assertions,
+4× CPU throttle, 55 FPS threshold, glass appearance and the protected gate remain. No product rendering
+regression was confirmed. See `interaction-performance.md` for evidence and platform limits.
 
-Installed-iPhone acceptance remains outstanding. Chromium gestures sustain 60 FPS locally, while
-Windows WebKit full-glass swipes remain around 9.8 FPS on both accepted PR #49 and the repair.
-No native performance fix or physical acceptance is claimed. Browser evidence does not close this
-release blocker. Use the short checklist and retained
-startup export described in `offline-study.md`; Phase 8.5 remains deferred.
+PostgreSQL/RLS parity passes thirteen cases spanning languages, directions, workloads, day boundaries,
+settings, cancellation/restart and causal pending answer/Undo/regrade. Both built-PWA Chromium/mobile
+WebKit cold-start/reopen/reconciliation journeys pass, including a lost response and remote answer.
+The full unit/PostgreSQL suite passes 1,122 tests. The full built serial interaction checkpoint passes
+608 cases with twelve opt-in skips; final conservative guards pass fifteen snapshot tests and eleven
+focused Chromium/WebKit cases, plus the two real database/PWA journeys. The Chromium-only large-data
+measurement has one explicit WebKit skip: its storage preparation did not finish, so no large-WebKit
+performance result is claimed. All 66 unchanged Windows visuals, five enforced 55 FPS cases and 31
+browser-gate contracts pass. Hosted PR checks and the Phase 8.5 installed-iPhone checklist remain open.
 
 ## Current release
 
@@ -168,8 +167,8 @@ with ten opt-in selection skips; all 77 targeted mobile WebKit cases, both real-
 66 unchanged Windows visuals and five enforced 55 FPS cases pass.
 See `offline-study.md` for guarantees, recovery and physical-iPhone acceptance steps, and
 `interaction-performance.md` for the matched PR #49 measurements.
-Offline Note creation, local Study planning, persistent Practice synchronization and offline Import
-application remain unimplemented.
+Phase 8.5 local Study planning is described above and in `offline-study.md`. Offline Note creation,
+persistent Practice synchronization and offline Import application remain unimplemented.
 Phase 9 triage/waves/progressive direction admission and Phase 10 personal plans/progress remain later work.
 
 ## Performance monitor diagnosis and policy
@@ -261,23 +260,20 @@ Today or Study.
 
 ## Next
 
-1. Deliver the Phase 8.4 production stabilization through one protected PR. Preserve downloaded
-   collections and all pending work, then verify the built PWA, in-place v2 upgrade, PostgreSQL/RLS,
-   required browser/visual gates and existing performance budgets.
-2. Obtain owner acceptance of the updated installed iPhone: cold offline reopening, live connection
-   loss, authenticated reconnection, retained Note/name/Review/Undo work, complete disclosure text,
-   Grammar controls and native password-field/keyboard geometry. Keep the release blocker open until
-   that acceptance is received.
-3. Resume the committed roadmap only after stabilization acceptance. Do not begin Phase 8.5 or expand
-   offline functionality as part of this repair.
+1. Deliver Phase 8.5 through the protected PR workflow after relevant database, built-PWA,
+   interaction, visual and unchanged performance checks. Inspect hosted checks once after the final push.
+2. Obtain separate installed production iPhone acceptance of new offline Study: cold startup, setup,
+   Typing/Listening, answer/Undo/completion, exit/reopen, subsequent planning and reconnection.
+3. Keep Offline Practice, Note creation, Import application and Phase 9 direction unlocking outside
+   this slice. Any material protocol, persistence or scheduling expansion requires owner approval.
 
 ## Open threads
 
-- Phase 8.4 physical acceptance failed after PR #51. A suspended `/account` fetch reproduces indefinite
-  startup loading despite intact downloaded storage. Known offline startup and loss-event restoration
-  now bypass that dependency without granting cached session authority. Actual prior-shell/v2 upgrades
-  and interrupted migration recovery pass in Chromium/mobile WebKit; physical-iPhone confirmation
-  of the repaired lifecycle is pending. See `offline-collection.md` and `offline-study.md`.
+- Phase 8.5 physical acceptance remains pending. Phase 8.4 was accepted after PR #53; retain its
+  earlier failure evidence and content-free lifecycle diagnostics for future native investigations.
+- Local new-card admission is a conservative decision over the last complete download and this
+  device's committed events. It cannot observe other devices' subsequent offline work. Reconnection
+  retains server authority and never silently acknowledges rejected events.
 - PR #50/#51 first attempts crashed in Chromium context creation with identical native fault offsets.
   The post-merge Study failure is a separate local-acceptance versus server-delivery assertion race.
   Routed fixtures now block incidental service workers; explicit real-worker PWA coverage remains.

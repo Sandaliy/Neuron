@@ -27,6 +27,7 @@ import { describe, request } from '../../lib/api';
 import { settingsFor, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
 import { accountEpoch, offlineState, useOffline } from '../../lib/offline';
+import { localStudyPlan } from '../../lib/offline-study';
 import { saveReviewIntent, requireDeliveredReviews } from '../../lib/review-outbox';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
@@ -197,17 +198,27 @@ export function StudyScreen({
     setLoading(true);
     setError(undefined);
     try {
-      if (!initialPlan && owner.current) await requireDeliveredReviews(owner.current);
-      if (!initialPlan && (offlineState().offline || !offlineState().validated))
+      if (!initialPlan && !offlineState().offline && owner.current)
+        await requireDeliveredReviews(owner.current);
+      if (!initialPlan && !offlineState().offline && !offlineState().validated)
         throw new Error('review_delivery_pending');
       const result =
         initialPlan ??
-        dailyStudySessionSchema.parse(
-          await request('/study/session', {
-            method: 'POST',
-            body: { ...requestChoices, ...(minutes ? { minutes: Number(minutes) } : {}) },
-          }),
-        );
+        (offlineState().offline
+          ? await localStudyPlan(
+              {
+                ...requestChoices,
+                ...(minutes ? { minutes: Number(minutes) } : {}),
+              },
+              undefined,
+              account.data,
+            )
+          : dailyStudySessionSchema.parse(
+              await request('/study/session', {
+                method: 'POST',
+                body: { ...requestChoices, ...(minutes ? { minutes: Number(minutes) } : {}) },
+              }),
+            ));
       const supported = result.cards;
       cards.current = new Map(supported.map((card) => [card.id, card]));
       queue.current = { planned: supported.map(workloadCard), retries: [], retryMayRun: false };

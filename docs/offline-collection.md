@@ -1,11 +1,12 @@
 # Local-first collection reads and durable offline editing
 
 Phase 8.1 adds a device cache for reading a previously downloaded collection. Online CRUD, scheduling,
-Study, Practice and Import still use their existing server endpoints and reconciliation. Offline reads
+Study, Practice and Import retain their existing server endpoints and reconciliation. Offline reads
 reuse Library hierarchy rows, inline nested expansion, Deck headers/breadcrumbs, search/sorting/filtering
 and virtualized Note rows. Phase 8.2 displays completed local content while authoritative reads continue,
 and permits renaming existing Folders/Decks offline. Phase 8.3 uses the familiar Note Editor for existing
-Notes online and offline, with durable content drafts and safe authenticated delivery. Study, Practice,
+Notes online and offline, with durable content drafts and safe authenticated delivery. Phase 8.5 adds
+qualified local Study planning as described in `offline-study.md`. Practice,
 Note creation, type conversion, moves, deletion/restoration, explicit direction changes and Import application remain online-only. Remote Note media is not
 downloaded; its stored reference remains readable.
 
@@ -19,8 +20,9 @@ Upgrade adds missing stores without recreating existing stores or clearing recor
 validated, non-secret account presentation and `{ format, cursor, complete, outboxVersion? }`. The six entity stores
 retain each full sync envelope, including tombstones and `purged`, and its original server row:
 `decks`, `notes`, `cards`, `studyPresets`, `importBatches`, and `reviews`. Cards retain server schedules,
-reset boundaries and placed due dates; Review events retain their immutable history fields. No local
-schedule, Review or Practice command is created. The `outbox` store retains rename and Note-edit commands and
+reset boundaries and placed due dates; Review events retain their immutable history fields. Entity stores
+keep server rows; local Study schedule projections remain read-only. Committed Review/Undo intents use
+the separate `review-outbox`, with no local Card creation or Practice synchronization. The `outbox` store retains rename and Note-edit commands and
 their original server rows, delivery outcomes and explicit resolution archives. Revision indexes are present on each
 entity store, with Deck indexes for Notes/Cards and Note/Card indexes for Cards/Reviews.
 
@@ -47,15 +49,17 @@ joins the existing visit without queuing more pulls. Focus and acknowledged writ
 snapshots; a failed download remains stable until explicit Retry, reload or real reconnection.
 Online pulls update durable storage without replacing existing optimistic React Query projections.
 Local reads use the existing collection query keys and shared domain schemas; live ancestry and
-tombstones filter the read view. Offline due counts and local Study readiness are not presented.
+tombstones filter the read view. Browse-derived due counts never authorize Study. Phase 8.5 uses a
+separate validated complete-snapshot planning path, not the provisional browse projection.
 
 ## First-entry browsing
 
 Router module/data preloading remains unchanged. A collection GET can publish a provisional local answer
 into its existing React Query entry while the original server request continues. The local answer is
 marked as local; it never validates an account or establishes server freshness. Note reading mounts no
-autosave until its authoritative detail arrives. Study readiness, Practice progress and scheduling stay
-server-owned; their requests do not block the Note list. Existing optimistic data is not replaced by a
+autosave until its authoritative detail arrives. Server scheduling and Practice progress retain their
+authority; qualified offline Study uses the dedicated planning path. These requests do not block the
+Note list. Existing optimistic data is not replaced by a
 local seed, and authoritative responses still reconcile it through the existing query.
 
 Provenance, connectivity and session authority are separate. While online, provisional Deck content
@@ -370,7 +374,7 @@ skipped; the offline live PostgreSQL/browser path was separately run in Chromium
 All 66 Windows visual cases passed, with the gallery rerun after a Chromium resource-loading failure.
 
 Offline Note creation and its initial Card identity mapping remain later work.
-Local Study admission remains absent. Already-admitted sittings use [durable Review/Undo transport](offline-study.md);
+Phase 8.5 adds qualified local Study admission and retains [durable Review/Undo transport](offline-study.md);
 persistent Practice transport and offline Import application remain absent. Current
 server authorization, immutable Review semantics and deletion/restoration ownership remain authoritative.
 

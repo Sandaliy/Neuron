@@ -6,6 +6,7 @@ import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe } from '../../lib/api';
 import { settingsFor, useDeckActions } from '../../lib/decks';
+import { useOffline } from '../../lib/offline';
 import {
   compatibleVoices,
   preferVoice,
@@ -27,10 +28,17 @@ export function useListeningAvailability(
 ) {
   const account = useAccount();
   const { voices, ready } = useSystemVoiceState();
+  const { offline } = useOffline();
+  const available = offline ? voices.filter((voice) => voice.localService) : voices;
   return selected.map((deck) => {
     const language =
       settingsFor(decks, deck.id).targetLanguage ?? account.data?.settings.targetLanguage;
-    return { deck, language, voice: resolveVoice(voices, language), confirmed: !language || ready };
+    return {
+      deck,
+      language,
+      voice: resolveVoice(available, language),
+      confirmed: !language || ready,
+    };
   });
 }
 
@@ -46,7 +54,9 @@ export function ListeningSetup({
   const toast = useToast();
   const actions = useDeckActions();
   const availability = useListeningAvailability(decks, selected);
-  const voices = useSystemVoices();
+  const systemVoices = useSystemVoices();
+  const { offline } = useOffline();
+  const voices = offline ? systemVoices.filter((voice) => voice.localService) : systemVoices;
   const [editing, setEditing] = useState<DeckNode>();
   const [, rerender] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -62,7 +72,12 @@ export function ListeningSetup({
               {deck.name}: {t(language ? 'study.voiceUnavailable' : 'study.languageRequired')}
             </p>
             {!language && (
-              <Button variant="text" className="self-start px-8" onClick={() => setEditing(deck)}>
+              <Button
+                variant="text"
+                className="self-start px-8"
+                disabled={offline}
+                onClick={() => setEditing(deck)}
+              >
                 {t('library.targetLanguage')}
               </Button>
             )}

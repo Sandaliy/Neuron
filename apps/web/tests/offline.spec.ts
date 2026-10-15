@@ -1294,8 +1294,10 @@ test('complete download, offline folders/decks/notes/editing and server-only rou
   await page.getByRole('link', { name: 'Today', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(page.locator('main header time')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Library', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Start Study|Start Practice/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Study setup/ })).toBeVisible();
+  // This browsing fixture has incomplete Review history and an unreconciled
+  // Note edit. The familiar setup must not admit that work as a new sitting.
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toHaveCount(0);
   await page.evaluate(() => history.pushState({}, '', '/import'));
   await page.goBack();
 });

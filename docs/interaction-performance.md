@@ -510,4 +510,57 @@ at the reported launch time distinguishes that boundary from an application rest
 An entirely idle page with no loss event, foreground event or HTTP work has no immediate observable
 outage. The next navigation or request checks it. Native shell loading, IndexedDB scheduling and glass
 compositing remain physical-device risks. Use the four-step acceptance checklist in `offline-study.md`;
-a failed device check keeps Phase 8.5 blocked, regardless of browser or hosted check results.
+a failed device check kept Phase 8.5 blocked until the owner accepted PR #53. New offline Study has its
+own physical-iPhone acceptance checklist in `offline-study.md`.
+
+## Phase 8.5 hosted measurement investigation
+
+PR #53 merged as `5d9c680`; the owner accepted installed production iPhone offline access and the
+reported interactions. That acceptance is separate from instrumented native frame pacing.
+
+The post-merge [main run 38775107806](https://github.com/Sandaliy/Neuron/actions/runs/38775107806)
+failed the phone sustained full-glass swipe at 47.8985 FPS, with 182 sampled frames, 33.4ms p95 and
+50ms worst frame. It recorded zero React commits, long tasks, layout shifts or IndexedDB scans.
+Panels-only and glass-off both measured 60 FPS. Its desktop interaction and Windows visual jobs passed.
+The exact same product tree passed PR #53 at 55.1515 FPS on phone and 59.6741 FPS on desktop; the
+phone margin was narrow. Nine unchanged local cases measured about 60 FPS. Local isolation/stationary
+plane probes did not establish an additional product rendering defect, so those alternatives were discarded.
+
+[Controlled hosted run 38778730044](https://github.com/Sandaliy/Neuron/actions/runs/38778730044)
+uses one Ubuntu runner, the same built application, 4× CPU throttle, gestures and assertions. Three
+full-glass sustained samples with continuous trace screenshots measure 50.32, 53.27 and 53.53 FPS.
+Without recording, all three measure 60 FPS. Panels-only/off remain 60 FPS in both conditions.
+The three original traced assertions failed; the informational workflow's success is not a passing
+performance result for them.
+
+The narrow fixture correction disables continuous screenshots only for `interaction-lifecycle.spec.ts`.
+DOM/action/network trace snapshots, frame/input telemetry and a failure screenshot remain. The
+[corrected hosted run 38779250944](https://github.com/Sandaliy/Neuron/actions/runs/38779250944)
+passes all nine cases at 60 FPS with those retained traces, and all nine unrecorded controls pass at
+60 FPS. Continuous screenshot compositing caused the measured hosted penalty. No glass appearance,
+55 FPS floor, assertion, gesture, retry, CPU throttle, browser coverage or required gate was reduced.
+The temporary diagnostic workflow is absent from the release diff; the normal performance monitor is
+unchanged. Native WebKit/iPhone frame-rate limits remain distinct from this measurement correction.
+
+Offline Study adds a lazy shell-cached worker. Its account-scoped collection clone, validation, history
+projection and shared forecast do not run on the main thread. New regression measurements retain
+5,000 Notes and 15,000 existing Cards, record UI-thread scans/frame/long-task telemetry during setup,
+and bound local entry without replacing ordinary interaction or performance acceptance gates.
+
+On the final built application, the 4× CPU Chromium sample records 377ms for setup/language change
+and 417ms for deliberate Study entry, with no UI-thread entity scans or long tasks. Both real PWA
+cold-offline entries satisfy the unchanged five-second assertion. The full built serial interaction
+checkpoint passes 608 cases with twelve opt-in skips. After the final conservative snapshot/settings
+guards, eleven focused Chromium/WebKit cases and both PostgreSQL/PWA journeys pass; the latter use
+explicit completed-download and final-response boundaries rather than racing background work.
+All 66 unchanged Windows visual contracts and five enforced performance cases pass, with measured
+scroll rates of 59.7–60 FPS against the unchanged 55 FPS floor. Browser selection/gate contracts pass
+all 31 cases.
+
+The 5,000-Note/15,000-Card CPU benchmark requires Chromium CDP. On this Windows WebKit runner, a
+large test download exceeded the existing transaction deadline before planning, and direct fixture
+population did not finish within its setup limit. That preparation failure is not a passing local
+planning measurement. The WebKit benchmark is explicitly skipped; functional cold offline Study,
+Typing/local Listening and real PWA/database reconciliation remain verified separately. No product
+deadline or assertion was relaxed to claim a large-WebKit result. Installed-iPhone acceptance remains
+required for native startup, keyboard, voices, motion and glass behavior with the owner's collection.
