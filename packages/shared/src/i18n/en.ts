@@ -2,6 +2,22 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'offline.study.ready': 'Available from your download. Answers save on this device.',
+  'offline.study.settings':
+    'New cards need matching downloaded settings. Connect to update your download.',
+  'offline.study.history':
+    'New cards are paused while learning history is incomplete. Connect to update your download.',
+  'offline.study.recovery':
+    'Unresolved answers need synchronization or recovery. Affected cards and new material are paused.',
+  'offline.study.content':
+    'Cards with local Note edits wait for reconciliation. New material is paused.',
+  'offline.study.incomplete':
+    'Finish downloading your collection online before starting Study offline.',
+  'offline.study.unavailable':
+    'Study cannot read this download. Check Offline & sync in Settings and retry. Saved work is retained.',
+  'offline.study.invalidHistory':
+    'Downloaded learning history cannot be used safely. Connect and retry. Saved answers are retained.',
+  'offline.study.account': 'Sign in to this collection’s account before starting Study.',
   'offline.renameSaved': 'Name saved on this device. It will sync after sign-in is confirmed.',
   'offline.note.saved': 'Saved on device',
   'offline.note.notSaved':
@@ -116,7 +132,7 @@ export const en = {
     'The downloaded collection could not be rebuilt. Close other Neuron windows and try again.',
   'offline.title': 'Offline · collection reading',
   'offline.readOnly':
-    'Browse downloaded Folders, Decks and Notes, rename existing collections, and edit existing Notes. Starting Study, Practice, Note creation and Import require a connection. A Study session already started online can continue.',
+    'Browse your download, rename collections, edit existing Notes and start Study when learning data is complete. Practice, Note creation and Import require a connection.',
   'offline.session':
     'Offline access uses the account previously signed in on this device. The server session has not been freshly validated.',
   'offline.incomplete':

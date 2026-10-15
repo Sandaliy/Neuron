@@ -243,6 +243,7 @@ export type {
 export {
   reviewBatchResultSchema,
   reviewResultSchema,
+  reviewHistoryRowSchema,
   submitReviewBatchSchema,
   submitReviewSchema,
   undoReviewSchema,
@@ -358,4 +359,8 @@ export type { MessageKey, MessageValues, Messages } from './i18n/index.js';
 export * from './practice.js';
 
 export { studyDecks } from './study-scope.js';
+export type { ReviewHistoryRow } from './api/reviews.js';
 export * from './typed-answer.js';
+
+export { planDailyStudy } from './study-planner.js';
+export type { PlanningDeck } from './study-planner.js';

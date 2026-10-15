@@ -2,6 +2,7 @@ import { Volume2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
+import { useOffline } from '../../lib/offline';
 import { resolveVoice, speak, useSystemVoices } from '../../lib/speech';
 import { Button } from '../../ui/button';
 
@@ -17,6 +18,7 @@ export function Speaker({
 }) {
   const t = useTranslate();
   const voices = useSystemVoices();
+  const { offline } = useOffline();
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (!('speechSynthesis' in window)) return;
@@ -25,7 +27,10 @@ export function Speaker({
       speech.cancel();
     };
   }, [text, language]);
-  const voice = resolveVoice(voices, language);
+  const voice = resolveVoice(
+    offline ? voices.filter((voice) => voice.localService) : voices,
+    language,
+  );
   return (
     <span
       className={

@@ -1,50 +1,16 @@
-import {
-  cardSchema,
-  reviewResultSchema,
-  submitReviewSchema,
-  undoReviewSchema,
-  undoReviewResultSchema,
-} from '@neuron/shared';
-import type { Card, ReviewResult } from '@neuron/shared';
+import { reviewResultSchema, undoReviewResultSchema } from '@neuron/shared';
+import type { Card } from '@neuron/shared';
 
 import { ApiFailure, request } from './api';
 import { committed, openCollection, result, COLLECTION_VERSION } from './collection-db';
 import { accountEpoch, offlineState } from './offline';
+import { validateEvent, validateReviewIntent as validate } from './review-intent';
 
 import type { CollectionMeta } from './collection-db';
+import type { PendingReview, ReviewIntent } from './review-intent';
 
-export type ReviewIntent =
-  | {
-      type: 'answer';
-      payload: {
-        id: string;
-        cardId: string;
-        rating: 'again' | 'hard' | 'good' | 'easy';
-        reviewedAt: string;
-        durationMs: number;
-      };
-    }
-  | { type: 'undo'; payload: { id: string; reviewId: string; reviewedAt: string } };
-function validateEvent(event: ReviewIntent) {
-  if (event.type === 'answer') submitReviewSchema.parse(event.payload);
-  else if (event.type === 'undo') undoReviewSchema.parse(event.payload);
-  else throw new Error('review_invalid_outbox');
-}
-// Keep timestamps as their original JSON strings, including after validation.
-export interface PendingReview {
-  kind: 'review-event';
-  operationId: string;
-  accountId: string;
-  sessionId: string;
-  sequence: number;
-  predecessor: string | null;
-  event: ReviewIntent;
-  before: Card;
-  state: 'pending' | 'rejected' | 'synchronized' | 'archived';
-  failure?: string | undefined;
-  acknowledgement?:
-    ReviewResult | { id: string; reviewId: string; cancellationId: string; card: Card };
-}
+export type { PendingReview, ReviewIntent } from './review-intent';
+
 type Change = { accountId: string; saved: boolean; entry?: PendingReview };
 const listeners = new Set<(change: Change) => void>();
 const channel =
@@ -64,44 +30,6 @@ export function onReviewOutboxChange(listener: (change: Change) => void) {
   return () => {
     listeners.delete(listener);
   };
-}
-function validate(value: unknown, accountId: string): PendingReview {
-  const entry = value as PendingReview;
-  if (
-    !entry ||
-    entry.kind !== 'review-event' ||
-    !Number.isSafeInteger(entry.sequence) ||
-    entry.sequence < 1 ||
-    !['pending', 'rejected', 'synchronized', 'archived'].includes(entry.state)
-  )
-    throw new Error('review_invalid_outbox');
-  cardSchema.parse(entry.before);
-  validateEvent(entry.event);
-  undoReviewSchema.parse({ id: entry.sessionId, reviewId: entry.operationId });
-  if (entry.predecessor)
-    undoReviewSchema.parse({ id: entry.predecessor, reviewId: entry.operationId });
-  if (entry.acknowledgement)
-    (entry.event.type === 'answer' ? reviewResultSchema : undoReviewResultSchema).parse(
-      entry.acknowledgement,
-    );
-  const parsed = entry;
-  if (
-    parsed.accountId !== accountId ||
-    parsed.operationId !== parsed.event.payload.id ||
-    (parsed.event.type === 'answer' && parsed.event.payload.cardId !== parsed.before.id) ||
-    (parsed.state === 'synchronized' && !parsed.acknowledgement) ||
-    (parsed.acknowledgement &&
-      (parsed.acknowledgement.id !== parsed.operationId ||
-        parsed.acknowledgement.card.id !== parsed.before.id ||
-        (parsed.event.type === 'answer' &&
-          (!('cardId' in parsed.acknowledgement) ||
-            parsed.acknowledgement.cardId !== parsed.before.id)) ||
-        (parsed.event.type === 'undo' &&
-          (!('reviewId' in parsed.acknowledgement) ||
-            parsed.acknowledgement.reviewId !== parsed.event.payload.reviewId))))
-  )
-    throw new Error('review_invalid_outbox');
-  return entry;
 }
 export async function reviewEvents(accountId: string): Promise<PendingReview[]> {
   const db = await openCollection(accountId);

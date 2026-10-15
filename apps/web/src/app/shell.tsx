@@ -29,7 +29,7 @@ export function Shell() {
   const match = useRouterState({ select: (state) => state.matches.at(-1) });
   const current = TABS.findIndex((tab) => tab.to === match?.staticData.navTab);
   const collectionRead =
-    (match?.pathname === '/' && (match.search as { learning?: string }).learning === 'study') ||
+    match?.pathname === '/' ||
     match?.pathname === '/library' ||
     (match?.pathname === '/notes' && !(match.search as { learning?: string }).learning) ||
     (match?.pathname.startsWith('/notes/') && match.pathname !== '/notes/new');

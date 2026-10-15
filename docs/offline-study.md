@@ -1,9 +1,49 @@
-# Durable Study Review transport
+# Offline Study planning and durable Reviews
 
-Phase 8.4 continues an already-started, server-planned Study sitting after connectivity loss.
-The admitted Card list, existing retry reducer, time budget and workload limits remain unchanged.
-There is no offline admission, additional new-Card selection, offline Practice, Note creation or
-Import application. A new sitting still requires authenticated server planning.
+Phase 8.4 continues an already-started Study sitting after connectivity loss. Phase 8.5 also starts
+new sittings from a complete usable download, using the existing Today, setup, learning card, Typing,
+Listening, progress, Undo and completion interfaces. Offline Practice, Note creation and Import
+application remain outside this release.
+
+## Downloaded planning and conservative admission
+
+The API and local planner call `planDailyStudy` in `packages/shared`. Its deterministic FSRS/workload
+implementation remains in `packages/core`. Scope, inherited language/settings, due and learning priority,
+retry timing, sibling suppression, backlog recovery, weekday/day-cutoff behavior, shared time and daily
+introduction policy are unchanged. Language and direction filter the shared admission decision; they do
+not acquire separate budgets. Existing server Card identities are read, never generated from local Notes.
+
+A lazy worker reads account settings, sync metadata, Cards, original Notes, Decks, raw Reviews, Note work
+and Review intents in one transaction over the existing account database. It validates row boundaries,
+history references, current-life answer counts, causal sequences and account ownership. Collection
+cloning, validation, replay and forecasting stay off the UI thread. The built shell caches the worker
+before offline use. Ordinary online planning and unrelated navigation do not create it.
+
+New material is allowed only when the remembered account revision matches the completed download
+cursor, settings are compatible, history is usable and unresolved local work does not undermine the
+decision. The active visit's known account settings must also agree; newer known settings govern safe
+due work but restrict new material until the download catches up. A settings mismatch, incomplete history, rejected/archived undelivered Reviews or pending Note
+content restrict new admission, including one-off override. Affected Cards/Notes are withheld; other due
+work remains available when its state is sufficient. A missing/incomplete download or unreadable causal
+stream cannot start Study. Settings/check-connection recovery retains all original records.
+
+Valid pending answers and cancellations are merged with downloaded history by immutable identity.
+Already downloaded exact events are not counted twice. Canonical core replay accounts for locally
+committed work from previous sittings before selecting more Cards; cancellation removes its target's
+effect without deleting either event. The Start action replans locally before opening an offline sitting.
+Advancement uses only the admitted queue and local durable writes, without waiting for HTTP.
+
+This decision covers the last complete server download plus this device's committed events. It cannot
+observe another device's later activity while disconnected. Server delivery/replay remains authoritative
+on reconnection. Unknown settings/history never turn a missing response into permission for override.
+Downloaded provenance by itself is insufficient: ordinary provisional browse data and Note overlays are
+not planning inputs. Device-local Listening requires a compatible voice marked as a local service;
+installing voices and changing server Deck settings require the relevant online/device support.
+
+There is no SQL migration, IndexedDB version change, additional durable store, event-format change or
+parallel scheduler. Closing/restarting retains committed Review work; it does not resume the sitting or
+restore its visit-local Undo stack. A new sitting uses a fresh local plan. Storage loss/eviction remains
+an existing browser limitation; no reset or clearing operation is used as recovery.
 
 ## Local acceptance and exit
 
@@ -39,7 +79,8 @@ answer target before changing the queue. A quick Undo request during an answer t
 its original cancellation ID/time and commits after that answer; navigation stays guarded through
 both transactions. Original answer intents are never edited or removed, even when neither event has
 reached the server. Exiting/reloading ends the local Undo stack; reopening does
-not offer historical Undo. Reload preserves undelivered events, not the sitting’s queue or admission.
+not offer historical Undo. Reload preserves undelivered events, not the sitting’s queue or admission. Phase 8.5 can build a new
+sitting from the retained complete snapshot and those events.
 
 The coordinator sends a causal stream under a freshly validated matching account. A cancellation’s
 answer and each preceding event must be acknowledged first. Network interruption, request timeout,
@@ -64,7 +105,8 @@ restart boundaries and original event time/timezone/day-cutoff behavior. Concurr
 remain immutable and participate in replay. Recoverable deletion accepts late events for retained
 Cards; a purge rejects new events while exact already-committed retries remain acknowledgeable.
 Server results reconcile Card projections; subsequent planning uses authoritative Review history and
-workload admission rather than local predictions. Projections never authorize an additional Card.
+workload admission rather than local predictions. Provisional projections never authorize an additional Card; new offline admission uses the validated
+complete-snapshot planning path above.
 
 ## Recovery and account boundaries
 
@@ -111,7 +153,8 @@ acceptance is separate from Chromium, WebKit, screenshot and database evidence. 
    mode. Grade, Undo, regrade and continue through the admitted Cards. Check familiar reveal/typing/
    learning motion and existing time limits; exit should release after the local save.
 2. Exit with pending answers, close/reopen the PWA offline and inspect Settings. Saved answers must
-   survive; historical Undo and entirely offline new Study must remain unavailable.
+   survive and historical Undo must remain unavailable. New offline Study follows the Phase 8.5
+   planning and conservative admission rules above.
 3. Reconnect/sign in to the same account. Verify pending delivery clears, history has no duplicate
    answers and Card intervals/learning steps match the authoritative results. Repeat interruption near
    answer/Undo delivery; Retry must preserve the original events.
@@ -126,8 +169,10 @@ acceptance is separate from Chromium, WebKit, screenshot and database evidence. 
 
 ## Phase 8.4 stabilization acceptance
 
-PR #52 is merged at `f37c236` with required checks passing; the owner rejected physical-iPhone
-acceptance for a second time. This remains a release blocker; Phase 8.5 is blocked.
+PR #52 merged at `f37c236` with required checks passing, but its physical-iPhone acceptance failed.
+PR #53 subsequently merged at `5d9c680`. The owner now confirms installed production iPhone acceptance
+of offline access and the interaction follow-up. This closes the Phase 8.4 blocker, separately from
+Phase 8.5 acceptance.
 The stabilization preserves Review/Undo schemas, identities, causal predecessors, exact retry,
 authoritative replay and retained recovery archives. Startup restoration is independent of a suspended
 account fetch; a remembered account never authorizes delivery. The Study regression now checks local
@@ -150,23 +195,33 @@ PostgreSQL Note/name delivery, Review/Undo persistence, exact retries and author
 All 66 unchanged Windows visual contracts and five enforced 55 FPS performance cases pass.
 Required hosted checks and the installed-iPhone acceptance above remain separate release gates.
 
-## Installed-iPhone follow-up acceptance
+## Phase 8.4 installed-iPhone acceptance
 
-Browser verification cannot reproduce native installed-iPhone lifecycle/compositing conclusively. After
-protected delivery, use the existing installed PWA and its existing download, with no storage reset:
+PR #53 merged at `5d9c680`. The owner confirms that offline access and the reported interaction
+regressions work acceptably on the installed production iPhone. This closes the previous device
+blocker; it is separate from instrumented browser frame measurements and Phase 8.5 acceptance.
 
-1. Receive the update online, close all Neuron windows, and reopen online to confirm Offline & sync
-   and Save startup diagnostics are present. Close, enable airplane mode and cold-launch. Time until
-   Library, a Deck and an existing Note are usable; target 1–3 seconds on a warmed device.
-2. Open a Deck online, background the PWA, enable airplane mode and return. Repeat without backgrounding.
-   Local presentation should arrive within five seconds, with stable controls and no blank Practice region.
-   Move through Library, Deck, Note and Settings once in each direction.
-3. With Liquid glass Max, Panels and cards, and animations enabled, swipe, reverse/cancel a swipe and open
-   Grammar. Text should appear during expansion. Compare Panels only and glass off if pacing is poor.
-4. Save a Note/name edit and admitted Study answer/Undo offline. Reopen offline, then reconnect to the same
-   account. Confirm pending work survives and reconciles once; completed receipts remain optional history.
+## Phase 8.5 acceptance
 
-If startup fails, recover online and immediately save startup diagnostics in Settings > Offline & sync.
-Provide the approximate failed-launch time, measured visible delay and chosen glass setting with that
-content-free export. A failure before the HTML bootstrap runs cannot produce a new shell record. Keep
-physical acceptance open if any of these steps fails, even when browser/database checks pass.
+PostgreSQL/RLS tests compare complete downloaded snapshots against authenticated planning across
+languages, directions, time budgets, study-day boundaries, inherited/paused scope, cancellation, restart
+and changed settings. Causal pending answer/Undo/regrade matches real server delivery. Built-PWA
+Chromium/mobile WebKit journeys cold-open after HTTP stops, start new Study, answer/Undo/regrade,
+exit/reopen, withhold repeated admission and reconcile a lost response plus a concurrent remote answer.
+Browser fixtures additionally exercise Typing/native Return, installed local voices, missing downloads,
+settings uncertainty, session rejection and sign-out. Physical-iPhone evidence remains separate.
+
+After protected delivery, use the installed production PWA and its existing completed download:
+
+1. Receive the update online, confirm the download and installed target-language voices, then close all
+   windows. Enable airplane mode and cold-open Today. Confirm familiar setup, correct language/direction,
+   one-off time, admission explanation and responsive navigation without a storage reset.
+2. Start Study offline. Use recognition, Typing/native Return and supported local Listening. Grade, Undo,
+   regrade and finish or stop. Check progress, glass/motion, keyboard geometry and immediate advancement
+   after local saving, including a learning/relearning retry when due.
+3. Close/reopen offline. Confirm saved answers remain in Settings, no previous sitting/Undo stack is
+   implied, and the next plan accounts for committed work across languages and the study-day cutoff.
+   Where settings/history are uncertain, confirm new material/override are restricted with clear recovery.
+4. Reconnect to the same account, including interruption near answer/Undo delivery. Confirm exact retries,
+   no duplicate/lost answers and authoritative scheduling. Check sign-out/account switching retain work
+   only in its owning account. Compare Today/Deck/Note/Settings responsiveness with accepted PR #53.

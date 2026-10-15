@@ -1,17 +1,5 @@
 import { Hono } from 'hono';
 
-import {
-  availableForDailyStudy,
-  dailyStudyAvailableAt,
-  studyDayAnswers,
-  buildSession,
-  createBudget,
-  createSchedulerConfig,
-  createSeededRandom,
-  createWorkloadConfig,
-  dayIndexOf,
-  forecast,
-} from '@neuron/core';
 import type { WorkloadCard } from '@neuron/core';
 import {
   createImportSchema,
@@ -21,6 +9,7 @@ import {
   importChunkSchema,
   openingCards,
   resolveDeckSettings,
+  planDailyStudy,
   studyDecks,
   updatePresetSchema,
 } from '@neuron/shared';
@@ -74,20 +63,6 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       }
 
       const settings = resolveDeckSettings([account.settings, ...deckChain]);
-      const scheduler = createSchedulerConfig({
-        timezone: account.timezone,
-        dayCutoffHour: account.dayCutoffHour,
-        desiredRetention: settings.targetRetention,
-      });
-      const budget = createBudget({
-        minutesByWeekday: settings.budgetMinutes,
-        allowCarryOver: settings.allowCarryOver,
-      });
-      const config = createWorkloadConfig({
-        scheduler,
-        budget,
-        maximumNewCardsPerDay: settings.maximumNewCardsPerDay,
-      });
       const now = new Date();
       const liveDecks = studyDecks(collections);
       let scope = body.deckIds;
@@ -107,7 +82,6 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
               .map((deck) => deck.id),
         ),
       ].sort();
-      const selected = new Set(scopeDeckIds);
       const rows = await repositories.cards.forSession({ deckIds: scopeDeckIds });
       const cards: WorkloadCard[] = rows.map((row) => ({
         id: row.id,
@@ -117,70 +91,16 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
         scheduling: toSchedulingState(row),
       }));
       const readAt = performance.now();
-      const languageByDeck = new Map(
-        scopeDeckIds.map((id) => {
-          const chain: DeckSettings[] = [];
-          let deck = collections.find((item) => item.id === id);
-          const seen = new Set<string>();
-          while (deck && !seen.has(deck.id)) {
-            seen.add(deck.id);
-            chain.unshift((deck.settings ?? {}) as DeckSettings);
-            deck = collections.find((item) => item.id === deck!.parentId);
-          }
-          return [
-            id,
-            resolveDeckSettings([account.settings, ...chain]).targetLanguage ?? null,
-          ] as const;
-        }),
-      );
-      const languages = [...new Set(languageByDeck.values())].sort((a, b) =>
-        (a ?? '').localeCompare(b ?? ''),
-      );
-      const targetLanguage =
-        body.targetLanguage === undefined ? (languages[0] ?? null) : body.targetLanguage;
-      const sessionDeckIds = scopeDeckIds.filter((id) => languageByDeck.get(id) === targetLanguage);
-      const supported = cards.filter(
-        (card) =>
-          sessionDeckIds.includes(card.deckId!) &&
-          (body.direction === undefined || card.direction === body.direction),
-      );
-      const logs = allLogs.filter(
-        (log) => scope === undefined || (log.deckId !== undefined && selected.has(log.deckId)),
-      );
-      const answers = studyDayAnswers(cards, logs, now, scheduler);
-      const available = (card: WorkloadCard) =>
-        availableForDailyStudy(card, answers, now, scheduler);
-      const nextAt = (card: WorkloadCard) => dailyStudyAvailableAt(card, answers, now, scheduler);
-      const future = (pool: readonly WorkloadCard[]) =>
-        pool
-          .filter(
-            (card) =>
-              !available(card) &&
-              (card.scheduling.state !== 'new' || answers.notes.has(card.noteId)),
-          )
-          .map((card) => nextAt(card).toISOString())
-          .sort()[0] ?? null;
-      // Language and skill never own a copy of the account's automatic allowance.
-      // Explicit temporary Deck scope retains its existing workload universe.
-      const load = forecast({ cards, config, now, logs });
-      const sharedRequest = {
-        budget,
-        config,
+      const session = planDailyStudy({
+        account,
+        collections,
+        scopeDeckIds,
+        settings,
+        cards,
+        allLogs,
+        body,
         now,
-        logs,
-        answers,
-        load,
-        ...(body.minutes === undefined ? {} : { oneOffMinutes: body.minutes }),
-        newCardMode: body.newCards,
-      };
-      const seed = sessionSeed(account.id, scopeDeckIds.join(','), dayIndexOf(now, scheduler));
-      const aggregate = buildSession({ ...sharedRequest, cards, rng: createSeededRandom(seed) });
-      const session = buildSession({
-        ...sharedRequest,
-        cards: supported,
-        backlog: aggregate.backlog,
-        automaticNewCardLimit: aggregate.newCount,
-        rng: createSeededRandom(seed),
+        explicitScope: scope !== undefined,
       });
       const byId = new Map(rows.map((row) => [row.id, row]));
       const plannedAt = performance.now();
@@ -194,21 +114,6 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
       return {
         ...session,
         planningContext: { accountId: account.id, revision: account.currentRev },
-        scopeDeckIds: sessionDeckIds,
-        targetLanguage,
-        languages,
-        aggregateReady: aggregate.cards.length,
-        deckSummaries: sessionDeckIds.map((deckId) => {
-          const pool = supported.filter((card) => card.deckId === deckId);
-          return {
-            deckId,
-            due: pool.filter((card) => card.scheduling.state !== 'new' && available(card)).length,
-            fresh: pool.filter((card) => card.scheduling.state === 'new' && available(card)).length,
-            nextDue: future(pool),
-          };
-        }),
-        availableCount: supported.filter(available).length,
-        nextDue: future(supported),
         notes: notes.map((note) => serialiseNote(note, typeNames)),
         cards: session.cards.flatMap((card) => {
           const row = byId.get(card.id);
@@ -223,17 +128,6 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
   });
 
   return routes;
-}
-
-/** Stable per-user, per-scope, per-calendar-day seed for review tie breaking. */
-function sessionSeed(userId: string, deckId: string | undefined, day: number): number {
-  let seed = 0;
-
-  for (const character of `${userId}:${deckId ?? 'all'}:${day}`) {
-    seed = (Math.imul(seed, 31) + character.charCodeAt(0)) | 0;
-  }
-
-  return seed >>> 0;
 }
 
 /** Saved ways of studying. */

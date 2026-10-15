@@ -12,6 +12,8 @@ import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { flatten, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
+import { useOffline } from '../../lib/offline';
+import { localStudyPlan } from '../../lib/offline-study';
 import { useReturnScroll } from '../../lib/return-scroll';
 import { requireDeliveredReviews, reviewEvents } from '../../lib/review-outbox';
 import { awaitInitialPlan, confirmedInitialPlan } from '../../lib/study-plan';
@@ -65,6 +67,7 @@ export function estimateMinutes(due: number): number {
 export function TodayScreen() {
   const t = useTranslate();
   const decks = useDeckTree();
+  const connection = useOffline();
   const learning = useLearningNavigation('study');
   const { draft, change, finish } = useStudyDraft();
   const [studying, setStudying] = useState<DailyStudySession>();
@@ -127,7 +130,13 @@ export function TodayScreen() {
       {decks.isPending && <Skeleton className="h-56 w-full" />}
       {decks.error && !decks.data && (
         <ErrorState
-          message={t(describe(decks.error).key)}
+          message={t(
+            connection.offline
+              ? connection.available
+                ? 'offline.study.unavailable'
+                : 'offline.study.incomplete'
+              : describe(decks.error).key,
+          )}
           retryLabel={t('common.retry')}
           onRetry={() => void decks.refetch()}
         />
@@ -179,6 +188,8 @@ function Waiting({
   const actions = useDeckActions();
   const account = useAccount();
   const client = useQueryClient();
+  const connection = useOffline();
+  const local = connection.offline && connection.available;
   const savedReviews = useQuery({
     queryKey: ['review-outbox', account.data?.id],
     queryFn: () => reviewEvents(account.data!.id),
@@ -188,7 +199,7 @@ function Waiting({
   const reviewsReady =
     !!savedReviews.data &&
     savedReviews.data.every((entry) => ['synchronized', 'archived'].includes(entry.state));
-  const authoritative = serverAuthority && reviewsReady;
+  const authoritative = local || (!connection.offline && serverAuthority && reviewsReady);
   const { draft, change } = useStudyDraft();
   const present = useRef(true);
   useEffect(() => {
@@ -256,11 +267,12 @@ function Waiting({
     ]),
     account.data?.id,
     account.data?.revision,
+    connection.offline,
   ];
   const planIdentity = JSON.stringify(planKey);
   const defaultRequest = !minutes && !direction && !override && scope === undefined;
   const initial =
-    authoritative && defaultRequest
+    !local && authoritative && defaultRequest
       ? confirmedInitialPlan(client, account.data, language)
       : undefined;
   const startGeneration = useRef(0);
@@ -271,6 +283,18 @@ function Waiting({
     queryKey: planKey,
     ...(initial ? { initialData: initial.data, initialDataUpdatedAt: initial.updatedAt } : {}),
     queryFn: async ({ signal }) => {
+      const body = {
+        ...(minutes ? { minutes: Number(minutes) } : {}),
+        ...(direction
+          ? { direction: direction as 'recognition' | 'recall' | 'production' | 'listening' }
+          : {}),
+        ...(override ? { newCards: 'override' as const } : {}),
+        ...(scope === undefined
+          ? {}
+          : { deckIds: scope.filter((id) => live.some((deck) => deck.id === id)) }),
+        targetLanguage: language,
+      };
+      if (connection.offline) return localStudyPlan(body, signal, account.data);
       if (account.data?.id) await requireDeliveredReviews(account.data.id);
       if (defaultRequest) {
         const early = await awaitInitialPlan(client, account.data, language);
@@ -280,15 +304,7 @@ function Waiting({
         await request('/study/session', {
           method: 'POST',
           signal,
-          body: {
-            ...(minutes ? { minutes: Number(minutes) } : {}),
-            ...(direction ? { direction } : {}),
-            ...(override ? { newCards: 'override' } : {}),
-            ...(scope === undefined
-              ? {}
-              : { deckIds: scope.filter((id) => live.some((deck) => deck.id === id)) }),
-            targetLanguage: language,
-          },
+          body,
         }),
       );
     },
@@ -315,11 +331,13 @@ function Waiting({
       );
     },
     placeholderData: keepPreviousData,
+    ...(local ? { networkMode: 'always' as const, retry: false as const } : {}),
     enabled: authoritative && mutations === 0 && !!account.data,
   });
   const result = plan.data;
-  const updating = plan.isPlaceholderData || result?.localProjection === true;
-  const reconciling = plan.isPlaceholderData || result?.reviewProjection === true;
+  const wrongAuthority = !!result && !!result.offlineStudy !== connection.offline;
+  const updating = plan.isPlaceholderData || result?.localProjection === true || wrongAuthority;
+  const reconciling = plan.isPlaceholderData || result?.reviewProjection === true || wrongAuthority;
   const unsupported =
     authoritative && direction
       ? selected.filter(
@@ -428,6 +446,7 @@ function Waiting({
             <Button
               variant="text"
               className="self-start px-8"
+              disabled={connection.offline}
               onClick={() =>
                 unsupported.length === 1 ? setSkillDeckId(unsupported[0]) : setSkillReviewOpen(true)
               }
@@ -441,6 +460,7 @@ function Waiting({
             <input
               type="checkbox"
               checked={override}
+              disabled={!!result?.offlineStudy?.limit}
               onChange={(event) => setOverride(event.target.checked)}
             />
             {t('study.moreNew')}
@@ -481,7 +501,11 @@ function Waiting({
             <h2 className="text-24 text-primary">{t('study.noDecks')}</h2>
             <Button onClick={() => setScopeOpen(true)}>{t('study.chooseDecks')}</Button>
           </>
-        ) : !reviewsReady && !savedReviews.isPending ? (
+        ) : connection.offline && !connection.available ? (
+          <p role="status" className="text-14 text-secondary">
+            {t('offline.study.incomplete')}
+          </p>
+        ) : !local && !reviewsReady && !savedReviews.isPending ? (
           <p role="status" className="text-14 text-secondary">
             {t(savedReviews.error ? 'offline.changesUnavailable' : 'error.review_delivery_pending')}
           </p>
@@ -557,6 +581,15 @@ function Waiting({
             </div>
           </>
         )}
+        {result?.offlineStudy && (
+          <p role="status" className="text-13 text-secondary">
+            {t(
+              result.offlineStudy.limit
+                ? `offline.study.${result.offlineStudy.limit}`
+                : 'offline.study.ready',
+            )}
+          </p>
+        )}
         {setup}
         {selected.length > 0 && result && !reconciling && !singleUnsupported && !caughtUp && (
           <Button
@@ -565,7 +598,8 @@ function Waiting({
             disabled={
               !authoritative ||
               !result.cards.length ||
-              (direction === 'listening' && listening.some((item) => !item.language)) ||
+              (direction === 'listening' &&
+                listening.some((item) => !item.language || (connection.offline && !item.voice))) ||
               plan.isFetching ||
               plan.isPlaceholderData ||
               mutations > 0 ||
@@ -583,6 +617,7 @@ function Waiting({
                 dayIndexOf(new Date(plan.dataUpdatedAt), boundary) === dayIndexOf(now, boundary);
               const beforeNextDue = !result.nextDue || Date.parse(result.nextDue) > now.getTime();
               if (
+                !local &&
                 !plan.isStale &&
                 currentDay &&
                 beforeNextDue &&

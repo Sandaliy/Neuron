@@ -94,6 +94,15 @@ export class ApiFailure extends Error {
  * @returns the key and the values its placeholders need
  */
 export function describe(error: unknown): { key: MessageKey; values: MessageValues } {
+  if (error instanceof Error && error.message.startsWith('offline_study_')) {
+    const keys: Record<string, MessageKey> = {
+      offline_study_incomplete: 'offline.study.incomplete',
+      offline_study_history: 'offline.study.invalidHistory',
+      offline_study_settings: 'offline.study.settings',
+      offline_study_account: 'offline.study.account',
+    };
+    return { key: keys[error.message] ?? 'offline.study.unavailable', values: {} };
+  }
   if (error instanceof Error && error.message === 'review_delivery_pending')
     return { key: 'error.review_delivery_pending', values: {} };
   if (error instanceof Error && error.message === 'collection_note_storage')

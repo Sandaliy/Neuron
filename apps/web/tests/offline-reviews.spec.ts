@@ -189,7 +189,7 @@ test('local commit releases exit and Undo before delayed server acknowledgement;
     events.map((entry) => entry.event.payload),
   );
 });
-test('an authorized sitting continues after connectivity loss; reload retains undelivered answers and no offline plan starts', async ({
+test('an authorized sitting continues after connectivity loss; reload retains undelivered answers without restoring Undo', async ({
   page,
 }) => {
   const state = await useReviewFixture(page);
