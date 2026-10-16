@@ -180,12 +180,13 @@ test('an admitted offline sitting reopens its durable events and retries a lost 
       saved.map((entry) => entry.event),
     );
     await expect(page.getByRole('button', { name: 'Undo last answer' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
     server = serve({ fetch, hostname: '127.0.0.1', port });
     await new Promise<void>((resolve) =>
       server.listening ? resolve() : server.once('listening', resolve),
     );
-    await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Check connection', exact: true }).click();
+    // Recovery is automatic; clicking a control that disappears after a
+    // successful background check would wait for a future offline visit.
     await expect.poll(() => deliveries.length).toBe(1);
     await expect
       .poll(async () => (await events(page, accountId))[0]?.failure)

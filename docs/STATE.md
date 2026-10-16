@@ -4,15 +4,18 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-15. Phase 8.4 stabilization PR #53 merged at `5d9c680` after its
+Last updated: 2026-10-16. Phase 8.4 stabilization PR #53 merged at `5d9c680` after its
 required checks passed. The owner confirms installed production iPhone acceptance of offline access
 and the reported interaction regressions. This closes the Phase 8.4 device blocker. It is owner
 acceptance, not an instrumented native frame-rate measurement.
 
-Phase 8.5 is implemented on `work/offline-study-planning`, pending protected PR checks and its own
-physical-iPhone acceptance. A complete downloaded collection can plan and start Study locally through
-the familiar Today/setup/card interfaces. The API and downloaded planner share one deterministic
-planning pipeline over `packages/core`; a lazily created, shell-cached worker performs local cloning,
+Phase 8.5 PR #54 merged at `d69c69f` on 2026-10-15 after required CI and production migration
+checks passed. The owner confirms that offline Study works on the installed iPhone PWA. Device
+acceptance nevertheless exposed connectivity instability and a reported incomplete-history restriction;
+the stabilization on `work/connectivity-study-readiness` must pass protected delivery and renewed
+physical acceptance before Phase 8 expands. A complete downloaded collection can plan and start
+Study locally through the familiar Today/setup/card interfaces. The API and downloaded planner share
+one deterministic planning pipeline over `packages/core`; a lazily created, shell-cached worker performs local cloning,
 validation, replay and forecasting. Online planning keeps its existing transaction/read topology.
 
 New admission requires matching downloaded account settings/revision, complete usable history and
@@ -30,15 +33,44 @@ cases at 60 FPS; nine unrecorded controls also pass. Failure screenshots, origin
 4× CPU throttle, 55 FPS threshold, glass appearance and the protected gate remain. No product rendering
 regression was confirmed. See `interaction-performance.md` for evidence and platform limits.
 
-PostgreSQL/RLS parity passes thirteen cases spanning languages, directions, workloads, day boundaries,
-settings, cancellation/restart and causal pending answer/Undo/regrade. Both built-PWA Chromium/mobile
-WebKit cold-start/reopen/reconciliation journeys pass, including a lost response and remote answer.
-The full unit/PostgreSQL suite passes 1,122 tests. The full built serial interaction checkpoint passes
-608 cases with twelve opt-in skips; final conservative guards pass fifteen snapshot tests and eleven
-focused Chromium/WebKit cases, plus the two real database/PWA journeys. The Chromium-only large-data
-measurement has one explicit WebKit skip: its storage preparation did not finish, so no large-WebKit
-performance result is claimed. All 66 unchanged Windows visuals, five enforced 55 FPS cases and 31
-browser-gate contracts pass. Hosted PR checks and the Phase 8.5 installed-iPhone checklist remain open.
+PR #54's earlier implementation checkpoints are retained in the domain/performance documents.
+The stabilization passes fifteen PostgreSQL/RLS planner comparisons and twenty-two snapshot guards,
+including legacy origins, later-dated roots, Undo, Restart, deletion/purge and genuine missing history.
+The full unit/PostgreSQL suite passes 1,139 tests across 101 files. Six built-PWA Chromium/mobile
+WebKit journeys pass with real HTTP and PostgreSQL, covering connectivity plus cold Study,
+answer/Undo, reopen, lost responses and authoritative reconciliation. The browser selection/gate
+contracts pass 31 cases. The final built serial interaction gate passes 616 cases with fourteen
+explicit opt-in skips. All five enforced performance cases and 66 Windows visuals pass; eleven
+inspected Settings/readiness and dialog-background references changed intentionally. Sustained
+active swipes measure about 60 FPS in all three glass modes against the unchanged 55 FPS requirement.
+Protected CI and renewed physical-iPhone acceptance remain pending delivery.
+The Chromium-only large-data measurement retains its explicit WebKit skip: no large-WebKit
+performance result is claimed.
+
+The acceptance repair separates transport reachability, temporary server silence, usable downloaded
+content and authenticated authority. The old two-second account deadline falsely disconnected slow
+successful requests; per-navigation validation, coupled probe deadlines and canceling retries
+amplified churn. Checks now join one bounded request, reuse recent healthy transport evidence and
+retry automatically after loss. A passive check after 1.5 seconds of pending HTTP changes no presentation.
+Without successful API progress, active HTTP permits local access at three seconds and standalone
+account silence at four, without a false global Offline label. The original validation remains
+eligible until its eight-second bound.
+Only matching authenticated validation restores online writes/delivery. Mounted content and caches
+survive transitions; fixed content-free lifecycle stages retain check, silence and recovery timings.
+The read-only authenticated server planner retains its existing parallel startup prefetch and
+matching-context checks; it does not gain write authority from that request.
+An additional failing real-PWA reproduction confirms that API-wide HTTP server errors previously
+left qualified local Study unavailable. Read/planner errors now use bounded account corroboration;
+healthy account validation preserves an isolated endpoint error, while corroborated server failure
+permits local use without a false network-disconnected label.
+
+The history guard now follows the existing canonical captured origin instead of assuming zero-based
+Review counts, and retains purged Card workload attribution without admitting those Cards. Both
+defects were reproduced against complete persisted histories; a read-only content-free application
+database audit confirms the relevant legacy/purge patterns. Original schedules, Review identities,
+replay and admission policy are unchanged. A completed pull refreshes existing account metadata when
+delivery advanced the revision. Settings distinguishes a browsing download from verified Study data;
+genuine uncertainty still restricts new material/override and retains recoverable work.
 
 ## Current release
 
@@ -260,16 +292,17 @@ Today or Study.
 
 ## Next
 
-1. Deliver Phase 8.5 through the protected PR workflow after relevant database, built-PWA,
+1. Deliver the Phase 8.5 connectivity/readiness stabilization through the protected PR workflow after relevant database, built-PWA,
    interaction, visual and unchanged performance checks. Inspect hosted checks once after the final push.
-2. Obtain separate installed production iPhone acceptance of new offline Study: cold startup, setup,
-   Typing/Listening, answer/Undo/completion, exit/reopen, subsequent planning and reconnection.
+2. Obtain renewed installed production iPhone acceptance: stable mobile/home navigation, automatic
+   reconnection, one Check connection action, verified Study history, offline sittings and reconciliation.
 3. Keep Offline Practice, Note creation, Import application and Phase 9 direction unlocking outside
    this slice. Any material protocol, persistence or scheduling expansion requires owner approval.
 
 ## Open threads
 
-- Phase 8.5 physical acceptance remains pending. Phase 8.4 was accepted after PR #53; retain its
+- PR #54 offline Study works on the owner's iPhone; connectivity/readiness acceptance remains blocked
+  pending the stabilization and renewed device check. Phase 8.4 was accepted after PR #53; retain its
   earlier failure evidence and content-free lifecycle diagnostics for future native investigations.
 - Local new-card admission is a conservative decision over the last complete download and this
   device's committed events. It cannot observe other devices' subsequent offline work. Reconnection

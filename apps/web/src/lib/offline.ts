@@ -46,7 +46,11 @@ export function locallySignedOut() {
 }
 type Download = 'idle' | 'downloading' | 'ready' | 'unavailable';
 interface OfflineState {
+  /** Local access mode is separate from observable network availability. */
   offline: boolean;
+  connectivity: 'unknown' | 'reachable' | 'unreachable';
+  checking: boolean;
+  revision: number | null;
   validated: boolean;
   accountId: string | null;
   download: Download;
@@ -56,6 +60,9 @@ interface OfflineState {
 }
 let state: OfflineState = {
   offline: typeof navigator !== 'undefined' && !navigator.onLine,
+  connectivity: typeof navigator !== 'undefined' && !navigator.onLine ? 'unreachable' : 'unknown',
+  checking: false,
+  revision: null,
   validated: false,
   accountId: null,
   download: 'idle',
@@ -70,6 +77,13 @@ const confirmedReviewCards = new Map<string, Card>();
 let connection = 0;
 let validatingConnection = false;
 let probing: Promise<void> | undefined;
+let lastResponse = 0;
+let lastSuccess = 0;
+let lastValidation = 0;
+let suspectedLoss: 'transport' | 'server' | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+let reconnectAttempt = 0;
+const PROBE_FRESH_MS = 15_000;
 let controller: AbortController | undefined;
 let running: Promise<void> | undefined;
 let recovering = false;
@@ -139,6 +153,10 @@ export function revokeOffline(explicit = false) {
   cancelNoteDelivery();
   cancelReviewDelivery();
   epoch++;
+  connection++;
+  validatingConnection = false;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = undefined;
   clearTimeout(timer);
   controller?.abort();
   db?.close();
@@ -156,6 +174,8 @@ export function revokeOffline(explicit = false) {
     validated: false,
     download: 'idle',
     available: false,
+    checking: false,
+    revision: null,
     failure: null,
     signedOut: explicit || state.signedOut,
   });
@@ -175,10 +195,82 @@ export const accountEpoch = () => epoch;
 export const connectionEpoch = () => connection;
 export function beginAccountValidation() {
   validatingConnection = true;
+  emit({ checking: true });
+  lifecycle('connection-check-start');
   return ++connection;
 }
 export function endAccountValidation(startedConnection: number) {
-  if (startedConnection === connection) validatingConnection = false;
+  if (startedConnection !== connection) return;
+  validatingConnection = false;
+  emit({ checking: false });
+  lifecycle('connection-check-end');
+  if (state.offline && !state.signedOut) scheduleReconnect();
+}
+
+const healthyResponseSince = (started: number) => lastSuccess > started;
+export const retainedAccount = () => client?.getQueryData<Me>(['account']);
+
+/** Transport progress never authenticates an account or acknowledges an outbox. */
+export function serverResponded(visit: number, successful: boolean) {
+  if (visit !== epoch || state.signedOut) return;
+  lastResponse = Date.now();
+  if (successful) {
+    lastSuccess = lastResponse;
+    suspectedLoss = null;
+  }
+  emit({ connectivity: 'reachable' });
+  if (successful && state.offline && !validatingConnection) scheduleReconnect(0);
+}
+
+function scheduleReconnect(delay?: number) {
+  if (reconnectTimer !== undefined && delay !== 0) return;
+  clearTimeout(reconnectTimer);
+  const wait = delay ?? [1500, 3000, 8000, 15000, 30000][Math.min(reconnectAttempt++, 4)]!;
+  const visit = epoch;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = undefined;
+    if (visit !== epoch || state.signedOut || !state.offline) return;
+    if (document.visibilityState === 'hidden') {
+      scheduleReconnect(3000);
+      return;
+    }
+    lifecycle('connection-recheck');
+    void retryConnection();
+  }, wait);
+}
+
+/** Silence permits local access; it does not prove that the network is offline. */
+export function connectionUncertain(started: number) {
+  if (healthyResponseSince(started) || state.signedOut) return;
+  lifecycle('connection-silence');
+  enterLocalConnection('unknown');
+}
+
+export function accountValidationFailed(started: number, transportFailure: boolean) {
+  if (healthyResponseSince(started) || state.signedOut) return;
+  if (transportFailure && suspectedLoss !== 'server' && (suspectedLoss || !state.validated))
+    networkLost();
+  else if (Date.now() - started >= 4000 || !state.validated) connectionUncertain(started);
+  else if (suspectedLoss === 'server') accountServerUnavailable(started);
+}
+
+/** Corroborated server errors permit local use, without claiming network loss. */
+export function accountServerUnavailable(started: number) {
+  if (!suspectedLoss || healthyResponseSince(started) || state.signedOut) return;
+  lifecycle('connection-server-error');
+  enterLocalConnection('reachable');
+}
+
+export function requestStalled(started: number, visit: number) {
+  if (visit !== epoch || healthyResponseSince(started) || state.signedOut) return;
+  connectionUncertain(started);
+  void retryConnection();
+}
+
+/** An early joined check observes availability without changing presentation. */
+export function probeStalledRequest(started: number, visit: number) {
+  if (visit !== epoch || healthyResponseSince(started) || state.signedOut) return;
+  void confirmForeground();
 }
 
 export function offlineReadFailed(error: unknown, visit: number, accountId: string) {
@@ -220,6 +312,7 @@ async function readRememberedAccount(): Promise<Me | undefined> {
       accountId: id,
       download: meta.complete ? 'ready' : 'idle',
       available: meta.complete,
+      revision: meta.cursor,
       failure: null,
     });
     if (transition) void transitionReads(true);
@@ -273,14 +366,27 @@ export function acceptAccount(account: Me, startedEpoch: number, startedConnecti
   ) {
     revokeOffline();
   }
-  emit({ offline: false, validated: true, accountId: account.id });
+  lastValidation = Date.now();
+  lastResponse = lastValidation;
+  lastSuccess = lastValidation;
+  reconnectAttempt = 0;
+  suspectedLoss = null;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = undefined;
+  emit({ offline: false, validated: true, connectivity: 'reachable', accountId: account.id });
+  client?.setQueryData(['account'], account);
   lifecycle('account-ready');
   if (newAccount || reconnecting) void deliverReviews();
   if (reconnecting) void transitionReads(false);
   // Authentication fields are selected explicitly by meSchema; cookies/tokens never enter this store.
   // Repeated account reads/navigation join the current visit; they never queue pulls.
   if (running && !newAccount && !reconnecting) return;
-  if (newAccount || reconnecting || state.download === 'idle') {
+  if (
+    newAccount ||
+    reconnecting ||
+    state.download === 'idle' ||
+    (state.revision !== null && state.revision !== account.revision)
+  ) {
     const visit = epoch;
     if (running)
       void running.then(() => {
@@ -291,37 +397,49 @@ export function acceptAccount(account: Me, startedEpoch: number, startedConnecti
 }
 
 export function networkLost() {
+  lifecycle('connection-unreachable');
+  enterLocalConnection('unreachable');
+}
+
+function enterLocalConnection(connectivity: OfflineState['connectivity']) {
   if (!client) return;
   if (state.offline) {
-    // A fresh loss invalidates a reconnect response, but repeated loss events
-    // do not create new visits or interfere with account-scoped local reads.
-    if (validatingConnection) connection++;
-    validatingConnection = false;
+    if (connectivity === 'unreachable') emit({ connectivity });
     void restoreOfflineAccount();
+    if (!validatingConnection) scheduleReconnect();
     return;
   }
-  connection++;
-  validatingConnection = false;
   lifecycle('offline');
-  emit({ offline: true, validated: false });
+  emit({ offline: true, validated: false, connectivity });
   cancelRenameDelivery();
   cancelNoteDelivery();
   cancelReviewDelivery();
   controller?.abort();
   void restoreOfflineAccount();
   void transitionReads(true);
+  if (!validatingConnection) scheduleReconnect();
 }
 
 /** A failed collection read is confirmed through the session authority, not connectivity hints. */
-export function confirmConnection() {
-  if (state.offline || state.signedOut) return Promise.resolve();
+export function confirmConnection(
+  reason: 'navigation' | 'failure' | 'server-error' = 'navigation',
+) {
+  if (state.signedOut) return Promise.resolve();
+  if (reason === 'failure') suspectedLoss = 'transport';
+  else if (reason === 'server-error') suspectedLoss ??= 'server';
+  if (
+    reason === 'navigation' &&
+    !state.offline &&
+    Date.now() - Math.max(lastValidation, lastResponse) < PROBE_FRESH_MS
+  )
+    return Promise.resolve();
   return confirmForeground();
 }
 
 function confirmForeground() {
   if (state.signedOut) return Promise.resolve();
   if (!probing) {
-    probing = Promise.resolve(retryConnection(false))
+    probing = Promise.resolve(retryConnection())
       .catch(() => undefined)
       .finally(() => {
         probing = undefined;
@@ -338,6 +456,8 @@ async function download(account: Me) {
   const signal = controller.signal;
   let opened: IDBDatabase | undefined;
   let stage: CollectionStage = 'database';
+  let effectiveAccount = account;
+  let settingsRefreshes = 0;
   running = (async () => {
     try {
       opened = await openCollection(account.id);
@@ -380,7 +500,29 @@ async function download(account: Me) {
         const applied = await metadata(opened);
         if (signal.aborted || ownEpoch !== epoch || state.accountId !== account.id) return;
         if (!page.hasMore && applied.complete) {
-          emit({ download: 'ready', available: true, failure: null });
+          emit({ download: 'ready', available: true, revision: applied.cursor, failure: null });
+          // A Review delivery or settings write may advance the pull beyond
+          // the account response that started it. Refresh that existing record,
+          // then finish pulling if the confirmed head advanced again.
+          if (effectiveAccount.revision !== applied.cursor && settingsRefreshes++ < 2) {
+            const acceptedBefore = lastValidation;
+            await retryConnection();
+            if (ownEpoch !== epoch || signal.aborted || state.offline || !state.validated) return;
+            const fresh = retainedAccount();
+            if (
+              fresh?.id === account.id &&
+              lastValidation >= acceptedBefore &&
+              fresh.revision !== effectiveAccount.revision
+            ) {
+              const accountTx = opened.transaction('meta', 'readwrite');
+              const savedAccount = committed(accountTx);
+              accountTx.objectStore('meta').put(meSchema.parse(fresh), 'account');
+              await savedAccount;
+              void client?.invalidateQueries({ queryKey: ['downloaded-study-readiness'] });
+              effectiveAccount = fresh;
+              if (fresh.revision > applied.cursor) continue;
+            }
+          }
           break;
         }
       }
@@ -443,10 +585,15 @@ function refreshDownload() {
   void retryDownload();
 }
 
-export function retryConnection(replace = true) {
-  // Real reconnection and explicit Retry supersede a suspended validation.
-  // Focus/visibility probes join it instead of repeatedly restarting its deadline.
-  return client?.invalidateQueries({ queryKey: ['account'] }, { cancelRefetch: replace });
+export function retryConnection() {
+  if (state.signedOut) return Promise.resolve();
+  clearTimeout(reconnectTimer);
+  reconnectTimer = undefined;
+  // Every source joins the bounded account query. A tap never cancels useful progress.
+  return client?.invalidateQueries(
+    { queryKey: ['account'], exact: true },
+    { cancelRefetch: false },
+  );
 }
 
 export function initializeOffline(queryClient: QueryClient) {
@@ -455,6 +602,10 @@ export function initializeOffline(queryClient: QueryClient) {
   onReviewOutboxChange((change) => {
     if (change.accountId !== state.accountId) return;
     void client?.invalidateQueries({ queryKey: ['review-outbox', change.accountId] });
+    void client?.invalidateQueries({
+      queryKey: ['downloaded-study-readiness', change.accountId],
+      refetchType: change.entry?.state === 'rejected' ? 'active' : 'none',
+    });
     if (change.saved) {
       void client?.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
       void deliverReviews();
@@ -486,6 +637,10 @@ export function initializeOffline(queryClient: QueryClient) {
     const id = state.accountId;
     const visit = epoch;
     if (!id || change.accountId !== id) return;
+    void client?.invalidateQueries({
+      queryKey: ['downloaded-study-readiness', id],
+      refetchType: 'none',
+    });
     void client?.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
     void client?.invalidateQueries({ queryKey: ['note-outbox', id], exact: true });
     void client?.invalidateQueries({ queryKey: ['note-outbox', id, change.entityId], exact: true });
@@ -576,7 +731,7 @@ export function initializeOffline(queryClient: QueryClient) {
   });
   window.addEventListener('online', () => {
     // Remain read-only until the server has freshly accepted this account.
-    void retryConnection();
+    void confirmConnection();
   });
   window.addEventListener('storage', (event) => {
     if (event.key === SIGNED_OUT_KEY) {
@@ -586,6 +741,10 @@ export function initializeOffline(queryClient: QueryClient) {
         cancelNoteDelivery();
         cancelReviewDelivery();
         epoch++;
+        connection++;
+        validatingConnection = false;
+        clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
         controller?.abort();
         db?.close();
         db = undefined;
@@ -594,6 +753,8 @@ export function initializeOffline(queryClient: QueryClient) {
           validated: false,
           download: 'idle',
           available: false,
+          checking: false,
+          revision: null,
           failure: null,
           signedOut: true,
         });
@@ -606,6 +767,10 @@ export function initializeOffline(queryClient: QueryClient) {
       cancelNoteDelivery();
       cancelReviewDelivery();
       epoch++;
+      connection++;
+      validatingConnection = false;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = undefined;
       controller?.abort();
       db?.close();
       db = undefined;
@@ -614,6 +779,8 @@ export function initializeOffline(queryClient: QueryClient) {
         validated: false,
         download: 'idle',
         available: false,
+        checking: false,
+        revision: null,
         failure: null,
       });
       client?.clear();
@@ -625,8 +792,8 @@ export function initializeOffline(queryClient: QueryClient) {
     // A connectivity hint cannot cancel the validation another foreground event
     // just started. Real loss events revoke authority; focus only requests it.
     // Coalesce focus/pageshow/visibility into one bounded probe.
-    void confirmForeground().then(() => {
-      if (!state.validated || state.offline) return;
+    void confirmConnection().then(() => {
+      if (!state.validated || state.offline || state.checking) return;
       void deliverReviews();
       refreshDownload();
     });

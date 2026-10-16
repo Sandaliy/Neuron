@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { createSchedulerConfig, createSeededRandom, newCard, review } from '@neuron/core';
 import { dailyStudySessionSchema, uuidV7 } from '@neuron/shared';
 import type { DailyStudySessionRequest, Me, PullSyncResult } from '@neuron/shared';
 
@@ -305,6 +306,93 @@ describe.skipIf(!database)(
       expect(() => planDownloadedStudy(current, other, {}, new Date(time))).toThrow(
         'offline_study_account',
       );
+    });
+
+    it('recognizes a later-dated captured root after out-of-order answers, Undo and regrading', async () => {
+      const note = await repositories.notes.create({
+        deckId: german,
+        noteType: 'basic',
+        fields: { front: 'Out of order', back: 'Captured origin' },
+      });
+      const card = await repositories.cards.create({
+        noteId: note.id,
+        direction: 'recognition',
+        due: new Date('2026-08-01T12:00:00Z'),
+      });
+      await repositories.reviews.record({
+        id: uuidV7(),
+        cardId: card.id,
+        rating: 4,
+        now: new Date('2026-10-01T12:00:00Z'),
+        durationMs: 5000,
+      });
+      const late = await repositories.reviews.record({
+        id: uuidV7(),
+        cardId: card.id,
+        rating: 4,
+        now: new Date('2026-10-01T11:59:00Z'),
+        durationMs: 5000,
+      });
+      current = await download();
+      await compare({ targetLanguage: 'de' });
+      await repositories.reviews.undo(late.review.id, uuidV7(), new Date('2026-10-02T12:00:00Z'));
+      current = await download();
+      await compare({ targetLanguage: 'de' });
+      await repositories.reviews.record({
+        id: uuidV7(),
+        cardId: card.id,
+        rating: 4,
+        now: new Date('2026-10-01T11:59:30Z'),
+        durationMs: 5000,
+      });
+      current = await download();
+      await compare({ targetLanguage: 'de' });
+    });
+
+    it('matches complete mixed legacy history, Undo and purged/deleted workload without changing original schedules', async () => {
+      const note = await repositories.notes.create({
+        deckId: german,
+        noteType: 'basic',
+        fields: { front: 'Legacy', back: 'History' },
+      });
+      const card = await repositories.cards.create({
+        noteId: note.id,
+        direction: 'recognition',
+        due: new Date('2026-08-01T12:00:00Z'),
+      });
+      const first = review(
+        newCard(new Date('2026-08-01T12:00:00Z')),
+        4,
+        new Date('2026-09-02T12:00:00Z'),
+        createSchedulerConfig({ timezone: 'UTC', dayCutoffHour: 4 }),
+        createSeededRandom(1),
+        6000,
+      );
+      await repositories.cards.putState(card.id, first.next);
+      await repositories.reviews.append([{ cardId: card.id, log: first.log }]);
+      const modern = await repositories.reviews.record({
+        id: uuidV7(),
+        cardId: card.id,
+        rating: 4,
+        now: new Date('2026-09-01T12:00:00Z'),
+        durationMs: 7000,
+      });
+      expect(modern.card.reps).toBe(3);
+      current = await download();
+      const original = current.cards.find((row) => row.id === card.id)!.row;
+      await compare({ targetLanguage: 'de' });
+      expect(current.cards.find((row) => row.id === card.id)!.row).toEqual(original);
+      await repositories.reviews.undo(modern.review.id, uuidV7(), new Date('2026-09-03T12:00:00Z'));
+      current = await download();
+      await compare({ targetLanguage: 'de', newCards: 'override' });
+      await repositories.notes.softDelete(note.id);
+      current = await download();
+      await compare({ targetLanguage: 'de' });
+      await repositories.purge.remove('notes', note.id);
+      current = await download();
+      expect(current.cards.find((row) => row.id === card.id)?.purged).toBe(true);
+      await compare({ targetLanguage: 'de' });
+      await compare({ targetLanguage: 'en' });
     });
   },
 );

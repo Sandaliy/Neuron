@@ -126,9 +126,16 @@ async function settings(page: Page) {
 test('a suspended Review delivery detects loss without an account request or lifecycle event and retains the exact retry', async ({
   page,
 }, info) => {
+  const accountReply = page.waitForResponse(
+    (response) => response.url().endsWith('/api/account') && response.ok(),
+  );
   const state = await useReviewFixture(page);
+  const account = await (await accountReply).json();
   const attempts: Record<string, unknown>[] = [];
-  const holdAccount = () => undefined;
+  let heldAccount: Route | undefined;
+  const holdAccount = (route: Route) => {
+    heldAccount = route;
+  };
   const holdReview = (route: Route) => {
     attempts.push(route.request().postDataJSON());
   };
@@ -151,6 +158,11 @@ test('a suspended Review delivery detects loss without an account request or lif
   await page.unroute('**/api/account', holdAccount);
   await page.unroute('**/api/reviews', holdReview);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  // Removing a handler does not answer an already suspended request. Resume
+  // its matching authenticated response; reconnect must join, never cancel it.
+  expect(heldAccount).toBeDefined();
+  expect(account.id).toBe(accountId);
+  await heldAccount!.fulfill({ json: account });
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('synchronized');
   expect(state.requests[0]!.body).toEqual(attempts[0]);
   await info.attach('review-transport-handover', {

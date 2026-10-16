@@ -3,26 +3,35 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const boundary = vi.hoisted(() => ({
   offline: false,
   available: false,
+  validated: true,
   visit: 1,
   confirm: vi.fn<() => Promise<void>>(),
 }));
 vi.mock('./offline', () => ({
   accountEpoch: () => boundary.visit,
   connectionEpoch: () => 0,
-  offlineState: () => ({ offline: boundary.offline, available: boundary.available }),
+  offlineState: () => ({
+    offline: boundary.offline,
+    available: boundary.available,
+    validated: boundary.validated,
+  }),
   onOfflineChange: () => () => undefined,
   confirmConnection: boundary.confirm,
   networkLost: vi.fn(),
+  requestStalled: vi.fn(),
+  probeStalledRequest: vi.fn(),
+  serverResponded: vi.fn(),
   revokeOffline: vi.fn(),
 }));
 
-import { ApiFailure } from './api';
+import { ApiFailure, request } from './api';
 import { collectionRead } from './collection-transport';
 
 describe('collection transport authority', () => {
   beforeEach(() => {
     boundary.offline = false;
     boundary.available = false;
+    boundary.validated = true;
     boundary.visit = 1;
     boundary.confirm.mockReset().mockResolvedValue(undefined);
     vi.unstubAllGlobals();
@@ -108,23 +117,27 @@ describe('collection transport authority', () => {
     expect(boundary.confirm).toHaveBeenCalledOnce();
     expect(local).not.toHaveBeenCalled();
   });
-  it('keeps HTTP errors separate from transport loss', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            error: { code: 'service_unavailable', status: 503, correlationId: 'test' },
-          }),
-          { status: 503 },
+  it.each([400, 503])(
+    'keeps HTTP %s errors separate from confirmed transport loss',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              error: { code: 'service_unavailable', status, correlationId: 'test' },
+            }),
+            { status },
+          ),
         ),
-      ),
-    );
-    await expect(
-      collectionRead('/notes', new AbortController().signal, vi.fn()),
-    ).rejects.toBeInstanceOf(ApiFailure);
-    expect(boundary.confirm).not.toHaveBeenCalled();
-  });
+      );
+      await expect(
+        collectionRead('/notes', new AbortController().signal, vi.fn()),
+      ).rejects.toBeInstanceOf(ApiFailure);
+      if (status >= 500) expect(boundary.confirm).toHaveBeenCalledExactlyOnceWith('server-error');
+      else expect(boundary.confirm).not.toHaveBeenCalled();
+    },
+  );
   it('ignores an aborted fetch even when WebKit reports TypeError', async () => {
     const controller = new AbortController();
     vi.stubGlobal(
@@ -164,5 +177,36 @@ describe('collection transport authority', () => {
       collectionRead('/notes', new AbortController().signal, local),
     ).rejects.toMatchObject({ name: 'AbortError' });
     expect(local).not.toHaveBeenCalled();
+  });
+  it.each(['/notes', '/sync', '/reviews'])(
+    'requires matching validated authority before a protected write to %s',
+    async (path) => {
+      boundary.validated = false;
+      const fetch = vi.fn();
+      vi.stubGlobal('fetch', fetch);
+      await expect(request(path, { method: 'POST', body: {} })).rejects.toMatchObject({
+        code: 'network_unreachable',
+      });
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+  it('retains the read-only authenticated server planner startup parallelism', async () => {
+    boundary.validated = false;
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ planned: true })));
+    vi.stubGlobal('fetch', fetch);
+    expect(await request('/study/session', { method: 'POST', body: {} })).toEqual({
+      planned: true,
+    });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(boundary.validated).toBe(false);
+  });
+  it('does not send the server planner from local mode', async () => {
+    boundary.offline = true;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(request('/study/session', { method: 'POST', body: {} })).rejects.toMatchObject({
+      code: 'network_unreachable',
+    });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

@@ -207,12 +207,12 @@ test('a cold offline PWA plans new Study and reconciles committed work after reo
       now: new Date(),
       durationMs: 9000,
     });
+    await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
     server = serve({ fetch, hostname: '127.0.0.1', port });
     await new Promise<void>((resolve) =>
       server.listening ? resolve() : server.once('listening', resolve),
     );
-    await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Check connection', exact: true }).click();
+    // A healthy automatic validation resumes delivery without a manual tap.
     await expect.poll(() => deliveries.length).toBe(1);
     await expect
       .poll(async () => (await events(page, accountId))[0]?.failure)
@@ -287,6 +287,33 @@ test('a cold offline PWA plans new Study and reconciles committed work after reo
         return { reps: value.card?.['reps'], due: value.card?.['due'], count: value.count };
       })
       .toEqual({ reps: 2, due: final.due, count: 4 });
+    // Review delivery can advance the pull beyond the Me that started it.
+    // Browsing completeness alone must not leave matching settings stale.
+    await expect
+      .poll(() =>
+        page.evaluate(async (id) => {
+          const opened = indexedDB.open(`neuron.collection:${id}`);
+          const db = await new Promise<IDBDatabase>((resolve) => {
+            opened.onsuccess = () => resolve(opened.result);
+          });
+          try {
+            const meta = db.transaction('meta').objectStore('meta');
+            const get = (key: string) =>
+              new Promise<Record<string, unknown>>((resolve) => {
+                const read = meta.get(key);
+                read.onsuccess = () => resolve(read.result);
+              });
+            const [account, sync] = await Promise.all([get('account'), get('sync')]);
+            return sync['complete'] === true && account['revision'] === sync['cursor'];
+          } finally {
+            db.close();
+          }
+        }, accountId),
+      )
+      .toBe(true);
+    await expect(
+      page.getByText('Offline Study learning data is ready.', { exact: true }),
+    ).toBeVisible();
     await page.screenshot({ path: info.outputPath('offline-plan-pwa-recovery.png') });
   } finally {
     await context.close();

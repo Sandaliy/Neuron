@@ -5,7 +5,7 @@ import { useOffline } from '../lib/offline';
 export function OfflineStatus() {
   const t = useTranslate();
   const state = useOffline();
-  if (!state.offline) return null;
+  if (!state.offline || state.connectivity !== 'unreachable') return null;
   return (
     <span
       role="status"

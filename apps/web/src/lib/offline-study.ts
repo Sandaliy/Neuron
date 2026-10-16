@@ -9,7 +9,7 @@ let identity: string | undefined;
 let nextId = 0;
 const requests = new Map<
   number,
-  { resolve: (plan: OfflineStudyPlan) => void; reject: (error: Error) => void }
+  { local: boolean; resolve: (plan: OfflineStudyPlan) => void; reject: (error: Error) => void }
 >();
 function release(error = new Error('offline_study_account')) {
   worker?.terminate();
@@ -19,11 +19,7 @@ function release(error = new Error('offline_study_account')) {
   requests.clear();
 }
 onOfflineChange(() => {
-  if (
-    identity &&
-    (identity !== `${accountEpoch()}:${offlineState().accountId}` || !offlineState().offline)
-  )
-    release();
+  if (identity && identity !== `${accountEpoch()}:${offlineState().accountId}`) release();
 });
 
 /** A deliberate local plan is distinct from a provisional collection browse answer. */
@@ -32,9 +28,23 @@ export function localStudyPlan(
   signal?: AbortSignal,
   knownAccount?: Me,
 ): Promise<OfflineStudyPlan> {
+  return downloadedPlan(body, signal, knownAccount, true);
+}
+
+/** Readiness is a read-only inspection, never authority to start online Study. */
+export function checkDownloadedStudy(knownAccount: Me, signal?: AbortSignal) {
+  return downloadedPlan({}, signal, knownAccount, false);
+}
+
+function downloadedPlan(
+  body: Partial<DailyStudySessionRequest>,
+  signal: AbortSignal | undefined,
+  knownAccount: Me | undefined,
+  local: boolean,
+): Promise<OfflineStudyPlan> {
   const state = offlineState();
   const visit = accountEpoch();
-  if (!state.offline || !state.available || !state.accountId || state.signedOut)
+  if ((local && !state.offline) || !state.available || !state.accountId || state.signedOut)
     return Promise.reject(new Error('offline_study_incomplete'));
   const own = `${visit}:${state.accountId}`;
   if (identity && identity !== own) release();
@@ -47,7 +57,10 @@ export function localStudyPlan(
       const pending = requests.get(event.data.id);
       if (!pending) return;
       requests.delete(event.data.id);
-      if (identity !== `${accountEpoch()}:${offlineState().accountId}` || !offlineState().offline)
+      if (
+        identity !== `${accountEpoch()}:${offlineState().accountId}` ||
+        (pending.local && !offlineState().offline)
+      )
         pending.reject(new Error('offline_study_account'));
       else if (event.data.plan) pending.resolve(event.data.plan);
       else pending.reject(new Error(event.data.error ?? 'offline_study_unavailable'));
@@ -68,6 +81,7 @@ export function localStudyPlan(
     }
     signal?.addEventListener('abort', abort, { once: true });
     requests.set(id, {
+      local,
       resolve: (plan) => {
         signal?.removeEventListener('abort', abort);
         resolve(plan);

@@ -4,6 +4,9 @@ import type { ApiErrorCode, MessageKey, MessageValues } from '@neuron/shared';
 import {
   accountEpoch,
   confirmConnection,
+  requestStalled,
+  probeStalledRequest,
+  serverResponded,
   connectionEpoch,
   networkLost,
   offlineState,
@@ -144,7 +147,14 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const { method = 'GET', body, signal } = options;
   const visit = accountEpoch();
   const connection = connectionEpoch();
-  if (method !== 'GET' && offlineState().offline) {
+  const started = Date.now();
+  // The read-only server planner warms alongside account validation. Its
+  // result still needs matching authenticated planning context before use.
+  if (
+    method !== 'GET' &&
+    (offlineState().offline || (!offlineState().validated && path !== '/study/session')) &&
+    !path.startsWith('/auth/')
+  ) {
     throw new ApiFailure({
       code: 'network_unreachable',
       status: 0,
@@ -162,8 +172,15 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       ? undefined
       : setTimeout(() => {
           if (!signal?.aborted && visit === accountEpoch() && offlineState().validated)
-            void confirmConnection();
+            probeStalledRequest(started, visit);
         }, 1500);
+  const localDeadline =
+    path === '/account'
+      ? undefined
+      : setTimeout(() => {
+          if (!signal?.aborted && visit === accountEpoch() && offlineState().validated)
+            requestStalled(started, visit);
+        }, 3000);
 
   try {
     response = await fetch(`${API_BASE}${path}`, {
@@ -190,11 +207,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
      * answering badly. Saying so is the difference between checking the wifi
      * and waiting for someone else to fix something.
      */
-    if (
-      visit === accountEpoch() &&
-      connection === connectionEpoch() &&
-      (!navigator.onLine || path === '/account')
-    )
+    if (visit === accountEpoch() && connection === connectionEpoch() && !navigator.onLine)
       networkLost();
     throw new ApiFailure({
       code: 'network_unreachable',
@@ -203,6 +216,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     });
   } finally {
     clearTimeout(probe);
+    clearTimeout(localDeadline);
   }
 
   if (
@@ -221,9 +235,16 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     }
   }
 
+  serverResponded(visit, response.ok);
   if (response.ok) {
     return parsed as T;
   }
+  if (
+    response.status >= 500 &&
+    path !== '/account' &&
+    (method === 'GET' || path === '/study/session')
+  )
+    void confirmConnection('server-error');
 
   const envelope = apiErrorSchema.safeParse(parsed);
 

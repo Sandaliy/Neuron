@@ -53,6 +53,12 @@
           'account-start',
           'account-ready',
           'account-deadline',
+          'connection-check-start',
+          'connection-check-end',
+          'connection-silence',
+          'connection-server-error',
+          'connection-unreachable',
+          'connection-recheck',
           'offline',
           'foreground',
           'focus',
@@ -103,7 +109,16 @@
           // Preceding launches stay intact throughout this recovery.
           if (current.length > 40) {
             var failures = current.filter(function (row) {
-              return ['restore-failed', 'account-deadline', 'script-error'].indexOf(row.stage) >= 0;
+              return (
+                [
+                  'restore-failed',
+                  'account-deadline',
+                  'connection-silence',
+                  'connection-server-error',
+                  'connection-unreachable',
+                  'script-error',
+                ].indexOf(row.stage) >= 0
+              );
             });
             current = current.slice(0, 8).concat(failures.slice(-8), current.slice(-24));
             current = current.filter(function (row, index) {

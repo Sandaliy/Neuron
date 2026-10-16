@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import * as offline from '../../lib/offline';
 import { renderScreen } from '../../testing/render';
 
 import { DeletedScreen } from './deleted';
@@ -44,6 +45,10 @@ function json(body: unknown) {
 
 describe('deleted content recovery', () => {
   beforeEach(() => {
+    vi.spyOn(offline, 'offlineState').mockReturnValue({
+      ...offline.offlineState(),
+      validated: true,
+    });
     let decks = [deck];
     let notes = [note];
 

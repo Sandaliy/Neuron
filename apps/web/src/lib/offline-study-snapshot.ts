@@ -36,7 +36,20 @@ type CollectionRow = PullSyncResult['changes'][number];
 
 export type OfflineStudyLimit = 'settings' | 'history' | 'recovery' | 'content' | null;
 export type OfflineStudyPlan = DailyStudySession & {
-  offlineStudy: { limit: OfflineStudyLimit; cursor: number; sequence: number };
+  offlineStudy: {
+    limit: OfflineStudyLimit;
+    cursor: number;
+    sequence: number;
+    diagnostics: {
+      invalidReviews: number;
+      missingTargets: number;
+      inconsistentCards: number;
+      unrootedCards: number;
+      legacyOrigins: number;
+      purgedCards: number;
+      excludedCards: number;
+    };
+  };
 };
 export interface StudySnapshot {
   account: unknown;
@@ -189,12 +202,24 @@ export function planDownloadedStudy(
   const blocked = new Set<string>();
   const blockedNotes = new Set<string>();
   const cards = new Map<string, Card>();
+  const purgedCards = new Set<string>();
+  const diagnostics = {
+    invalidReviews: 0,
+    missingTargets: 0,
+    inconsistentCards: 0,
+    unrootedCards: 0,
+    legacyOrigins: 0,
+    purgedCards: 0,
+    excludedCards: 0,
+  };
   const resetAt = new Map<string, Date>();
   const liveCards = new Set<string>();
   for (const row of checkedRows(snapshot.cards, snapshot.cursor)) {
+    // Purge removes Note content, not Card/Review workload attribution. Keep
+    // these server rows in history while excluding them from every live queue.
     if (row.purged) {
-      limit = 'history';
-      continue;
+      purgedCards.add(row.id);
+      diagnostics.purgedCards++;
     }
     const card = cardSchema.parse(row.row);
     schedulingOf(card);
@@ -206,6 +231,7 @@ export function planDownloadedStudy(
     if (row.row['resetAt']) resetAt.set(card.id, instant(String(row.row['resetAt'])));
     if (
       !row.deleted &&
+      !row.purged &&
       !card.suspendedAt &&
       liveIds.has(card.deckId) &&
       notes.get(card.noteId)?.status === 'active' &&
@@ -233,6 +259,7 @@ export function planDownloadedStudy(
     const parsed = reviewHistoryRowSchema.safeParse(row.row);
     if (row.deleted || row.purged || !parsed.success || !cards.has(String(row.row['cardId']))) {
       limit = 'history';
+      diagnostics.invalidReviews++;
       restrictCard(String(row.row['cardId']));
       continue;
     }
@@ -252,6 +279,7 @@ export function planDownloadedStudy(
   for (const { cardId, event } of history.values()) {
     if (event.cancelsReviewId && history.get(event.cancelsReviewId)?.cardId !== cardId) {
       limit = 'history';
+      diagnostics.missingTargets++;
       restrictCard(cardId);
     }
   }
@@ -277,31 +305,52 @@ export function planDownloadedStudy(
       ),
     );
   // Settings may have changed since an older answer. The downloaded schedule
-  // remains authoritative; complete surviving event counts prove its history
-  // without recomputing old memory under a different timezone or retention.
+  // remains authoritative. Validate counters from the same captured origin as
+  // canonical server replay, without recomputing old memory under new settings.
   for (const card of cards.values()) {
     const events = lifeEvents(card.id);
     const cancelled = new Set(
       events.flatMap((event) => (event.cancelsReviewId ? [event.cancelsReviewId] : [])),
     );
-    let surviving: ReviewEvent[] = [];
-    for (const event of events
+    const ordered = events
       .filter((event) => !event.cancelsReviewId)
       .sort(
         (a, b) =>
           a.log.reviewedAt.getTime() - b.log.reviewedAt.getTime() ||
           (a.order ?? 0) - (b.order ?? 0) ||
           a.id.localeCompare(b.id),
-      )) {
-      if (event.resetsLearning) surviving = [];
-      else if (!cancelled.has(event.id)) surviving.push(event);
+      );
+    const initial = origin(card, events);
+    let expectedReps = initial.reps;
+    let expectedLast = initial.lastReview?.getTime();
+    // A late answer can sort before the remotely recorded root. Canonical
+    // replay selects the captured origin across all current-life events.
+    const rooted =
+      !ordered.length ||
+      ordered.some((event) => event.resetsLearning || event.log.stateBefore === 'new') ||
+      events.some((event) => event.priorState?.reps === 0);
+    if (
+      initial.reps > 0 &&
+      ordered.some((event) => event.log.stateBefore === 'new' && !event.priorState)
+    )
+      diagnostics.legacyOrigins++;
+    for (const event of ordered) {
+      if (event.resetsLearning) {
+        expectedReps = 0;
+        expectedLast = undefined;
+      } else if (!cancelled.has(event.id)) {
+        expectedReps++;
+        expectedLast = event.log.reviewedAt.getTime();
+      }
     }
     if (
-      card.reps !== surviving.length ||
-      (card.lastReview !== null &&
-        Date.parse(card.lastReview) !== surviving.at(-1)?.log.reviewedAt.getTime())
+      !rooted ||
+      card.reps !== expectedReps ||
+      (card.lastReview ? Date.parse(card.lastReview) : undefined) !== expectedLast
     ) {
       limit = 'history';
+      if (!rooted) diagnostics.unrootedCards++;
+      else diagnostics.inconsistentCards++;
       restrictCard(card.id);
     }
   }
@@ -348,6 +397,7 @@ export function planDownloadedStudy(
       entry.state !== 'pending' ||
       stoppedSessions.has(entry.sessionId) ||
       !cards.has(cardId) ||
+      purgedCards.has(cardId) ||
       blocked.has(cardId) ||
       (entry.predecessor && entryById.get(entry.predecessor)?.state === 'rejected')
     ) {
@@ -511,6 +561,17 @@ export function planDownloadedStudy(
     planningContext: { accountId, revision: snapshot.cursor },
     cards: result.cards.map((card) => cards.get(card.id)!),
     notes: [...new Set(result.cards.map((card) => card.noteId))].map((id) => notes.get(id)!),
-    offlineStudy: { limit, cursor: snapshot.cursor, sequence: snapshot.reviewSequence },
+    offlineStudy: {
+      limit,
+      cursor: snapshot.cursor,
+      sequence: snapshot.reviewSequence,
+      diagnostics: {
+        ...diagnostics,
+        excludedCards: [...cards.values()].filter(
+          (card) =>
+            liveCards.has(card.id) && (blocked.has(card.id) || blockedNotes.has(card.noteId)),
+        ).length,
+      },
+    },
   };
 }
