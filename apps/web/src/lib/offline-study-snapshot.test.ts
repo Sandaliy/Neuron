@@ -184,6 +184,38 @@ const plan = (s: StudySnapshot, body = {}, time = now) =>
   planDownloadedStudy(s, accountId, body, time);
 
 describe('downloaded Study authority and committed history', () => {
+  it('retains the canonical captured origin of mixed legacy and modern history without rewriting schedules', () => {
+    const s = snapshot();
+    serverAnswer(s, 0, 401, past);
+    s.reviews[0]!.row['priorState'] = null;
+    serverAnswer(s, 0, 402, '2026-10-02T12:00:00.000Z');
+    // Canonical server replay uses the captured modern predecessor even when
+    // older rows predate predecessor capture. Its counter is not a row count.
+    s.cards[0]!.row['reps'] = 3;
+    const before = JSON.stringify(s.cards);
+    const result = plan(s);
+    expect(result.offlineStudy.limit).toBeNull();
+    expect(result.newCount).toBe(1);
+    expect(result.offlineStudy.diagnostics.legacyOrigins).toBe(1);
+    expect(JSON.stringify(s.cards)).toBe(before);
+  });
+
+  it.each([false, true])(
+    'retains purged Card workload attribution without treating it as missing history, reviewed=%s',
+    (reviewed) => {
+      const s = snapshot();
+      if (reviewed) serverAnswer(s, 0, 401, now.toISOString());
+      s.cards[0]!.deleted = true;
+      s.cards[0]!.purged = true;
+      s.notes[0]!.deleted = true;
+      s.notes[0]!.purged = true;
+      s.notes[0]!.row['fields'] = {};
+      const result = plan(s);
+      expect(result.offlineStudy.limit).toBeNull();
+      expect(result.newCount).toBe(reviewed ? 0 : 1);
+      expect(result.cards.map((card) => card.id)).not.toContain(s.cards[0]!.id);
+    },
+  );
   it('admits one language with the existing shared daily new-card ceiling', () => {
     const s = snapshot();
     const first = plan(s, { targetLanguage: 'de' });
@@ -228,6 +260,29 @@ describe('downloaded Study authority and committed history', () => {
     expect(retry.cards[0]?.id).toBe(first.id);
     expect(retry.cards[0]?.state).toBe('learning');
     expect(retry.reviewCount).toBe(1);
+  });
+
+  it('accounts for three consecutive offline sittings across shared language and daily budgets', () => {
+    const s = snapshot();
+    const storedCards = JSON.stringify(s.cards);
+    const admitted = new Set<string>();
+    for (const [day, language] of ['de', 'de', 'en'].entries()) {
+      const time = new Date(now.getTime() + day * 86_400_000);
+      const next = plan(s, { targetLanguage: language }, time);
+      expect(next.offlineStudy.limit).toBeNull();
+      expect(next.newCount).toBe(1);
+      const card = next.cards.find((card) => card.state === 'new')!;
+      expect(admitted.has(card.id)).toBe(false);
+      admitted.add(card.id);
+      commit(s, answer(card, day + 1, 'easy', time.toISOString()));
+      expect(plan(s, { targetLanguage: 'de' }, time).newCount).toBe(0);
+      expect(plan(s, { targetLanguage: 'en' }, time).newCount).toBe(0);
+      expect(
+        plan(s, { targetLanguage: language }, time).cards.some((row) => row.id === card.id),
+      ).toBe(false);
+    }
+    expect(s.events).toHaveLength(3);
+    expect(JSON.stringify(s.cards)).toBe(storedCards);
   });
 
   it('deduplicates a lost server acknowledgement against downloaded Review identity', () => {
@@ -275,6 +330,38 @@ describe('downloaded Study authority and committed history', () => {
     expect(result.offlineStudy.limit).toBe('history');
     expect(result.newCount).toBe(0);
     expect(result.cards.map((card) => card.id)).toEqual([s.cards[1]!.id]);
+  });
+
+  it.each([0, 1])(
+    'does not mistake a missing modern history row at index %s for a legacy origin',
+    (missing) => {
+      const s = snapshot();
+      serverAnswer(s, 0, 401, past);
+      serverAnswer(s, 0, 402, '2026-10-02T12:00:00.000Z');
+      serverAnswer(s, 0, 403, '2026-10-03T12:00:00.000Z');
+      s.reviews.splice(missing, 1);
+      const result = plan(s, { newCards: 'override' });
+      expect(result.offlineStudy.limit).toBe('history');
+      expect(result.newCount).toBe(0);
+      expect(result.cards.some((card) => card.id === s.cards[0]!.id)).toBe(false);
+      expect(result.offlineStudy.diagnostics.excludedCards).toBe(1);
+    },
+  );
+
+  it('does not accept an unrooted legacy history merely because surviving counters match', () => {
+    const s = snapshot();
+    serverAnswer(s, 0, 401, past);
+    Object.assign(s.reviews[0]!.row, {
+      priorState: null,
+      stateBefore: 'review',
+      stabilityBefore: 3,
+      difficultyBefore: 5,
+    });
+    const result = plan(s, { newCards: 'override' });
+    expect(result.offlineStudy.limit).toBe('history');
+    expect(result.newCount).toBe(0);
+    expect(result.offlineStudy.diagnostics.unrootedCards).toBe(1);
+    expect(result.cards.some((card) => card.id === s.cards[0]!.id)).toBe(false);
   });
 
   it.each(['rejected', 'archived'] as const)(

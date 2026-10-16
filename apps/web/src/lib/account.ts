@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { meSchema } from '@neuron/shared';
 import type { Me } from '@neuron/shared';
 
 import { ApiFailure, request } from './api';
@@ -11,7 +12,10 @@ import {
   endAccountValidation,
   connectionEpoch,
   locallySignedOut,
-  networkLost,
+  connectionUncertain,
+  accountValidationFailed,
+  accountServerUnavailable,
+  retainedAccount,
   rememberedAccount,
 } from './offline';
 
@@ -47,11 +51,16 @@ export function accountQuery() {
         });
       const epoch = accountEpoch();
       const connection = beginAccountValidation();
+      const started = Date.now();
       const transport = new AbortController();
       lifecycle('account-start');
       const cancel = () => transport.abort();
       signal.addEventListener('abort', cancel, { once: true });
       let timeout: ReturnType<typeof setTimeout> | undefined;
+      const localDeadline = setTimeout(() => {
+        if (!signal.aborted && epoch === accountEpoch() && connection === connectionEpoch())
+          connectionUncertain(started);
+      }, 4000);
       try {
         const account = await Promise.race([
           request<Me>('/account', { signal: transport.signal }),
@@ -65,27 +74,33 @@ export function accountQuery() {
                   correlationId: 'account-deadline',
                 }),
               );
-              if (!signal.aborted && epoch === accountEpoch() && connection === connectionEpoch())
-                networkLost();
               transport.abort();
-            }, 2000);
+            }, 8000);
           }),
         ]);
-        acceptAccount(account, epoch, connection);
-        return account;
+        const parsed = meSchema.parse(account);
+        acceptAccount(parsed, epoch, connection);
+        return parsed;
       } catch (error) {
         if (
           error instanceof ApiFailure &&
-          error.code === 'network_unreachable' &&
+          (error.code === 'network_unreachable' || error.status >= 500) &&
           epoch === accountEpoch()
         ) {
-          const remembered = await rememberedAccount().catch(() => undefined);
+          if (connection === connectionEpoch()) {
+            if (error.code === 'network_unreachable')
+              accountValidationFailed(started, error.correlationId !== 'account-deadline');
+            else accountServerUnavailable(started);
+          }
+          const remembered =
+            retainedAccount() ?? (await rememberedAccount().catch(() => undefined));
           if (remembered) return remembered;
         }
         throw error;
       } finally {
         endAccountValidation(connection);
         clearTimeout(timeout);
+        clearTimeout(localDeadline);
         signal.removeEventListener('abort', cancel);
       }
     },

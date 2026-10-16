@@ -564,3 +564,39 @@ planning measurement. The WebKit benchmark is explicitly skipped; functional col
 Typing/local Listening and real PWA/database reconciliation remain verified separately. No product
 deadline or assertion was relaxed to claim a large-WebKit result. Installed-iPhone acceptance remains
 required for native startup, keyboard, voices, motion and glass behavior with the owner's collection.
+
+## Phase 8.5 connectivity acceptance repair
+
+PR #54 merged at `d69c69f`; the owner confirms installed-iPhone offline Study functionality but reports
+connectivity churn and restricted history readiness. Controlled built-app reproductions fail on main:
+a successful 3.2-second account request is demoted/aborted at two seconds, repeated recovery taps
+replace useful checks, and six healthy cached navigations add six account probes. The repaired
+Chromium/mobile WebKit cases retain mounted geometry and authority through that delay, join one
+verification and add no probes during the same healthy navigation sequence.
+
+The worker-enabled real HTTP/PostgreSQL journey also verifies six-second account latency alongside
+healthy API progress, isolated HTTP failure, corroborated API-wide server errors, silent hanging requests, automatic bounded recovery,
+server loss and repeated-check/foreground coalescing in both engines. A separate existing Review
+journey initially waited on a manual Check connection click after automatic recovery removed that
+control; its trace identified the fixture race. Both existing PWA/database journeys pass after
+observing automatic recovery, retaining their exact event, receipt and canonical scheduling assertions.
+
+Settings readiness reuses the existing account-bound planning worker. Snapshot cloning, history
+checks and forecasting remain off the main thread; ordinary online Study and unrelated navigation
+do not create it. Visual updates are confined to the inspected Settings readiness/scope copy and
+the affected dialog backgrounds. The shared motion, geometry, native-input and 55 FPS contracts
+remain unchanged. Browser evidence does not reproduce the owner's precise native event sequence;
+renewed physical-iPhone acceptance and retained content-free transition diagnostics remain necessary.
+
+The corrected release build passes 616 serial phone/desktop interactions (fourteen explicit opt-in
+skips), six real HTTP/PostgreSQL PWA journeys across Chromium/mobile WebKit, five enforced performance
+cases and all 66 Windows visuals. Active and sustained swipe pacing measures about 60 FPS in all
+three glass modes; the recorded 5,000-Note and 500-row scroll measurements also remain at 60 FPS.
+All existing thresholds, retries and assertions remain unchanged.
+
+With 5,000 Notes / 15,000 Cards and 4x CPU throttle, the phone sample reaches configured offline
+Study setup in 377 ms and enters the card in 447 ms; desktop records 464 ms and 415 ms. Both record
+zero UI-thread collection scans. The phone sample has no long tasks; desktop records one 57 ms task.
+These are bounded browser samples, not native-device guarantees or a claim of zero main-thread cost.
+The read-only authenticated default-plan prefetch retains its existing parallel startup path, while
+protected writes continue to require matching validated authority.

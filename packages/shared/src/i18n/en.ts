@@ -2,11 +2,19 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'offline.connectionUncertain':
+    'The server is taking longer to respond. Your download is available while checking continues.',
+  'offline.study.waitingDownload': 'Offline Study needs a complete download.',
+  'offline.study.checking': 'Checking offline Study readiness…',
+  'offline.study.verified': 'Offline Study learning data is ready.',
+  'offline.study.historyRecovery':
+    'Finish synchronization online. If this warning remains, rebuild the download after resolving saved work.',
+  'offline.study.excluded': '{count} Cards are withheld until their learning data is verified.',
   'offline.study.ready': 'Available from your download. Answers save on this device.',
   'offline.study.settings':
     'New cards need matching downloaded settings. Connect to update your download.',
   'offline.study.history':
-    'New cards are paused while learning history is incomplete. Connect to update your download.',
+    'New cards are paused because some Cards and their learning history do not match. Connect to finish synchronization.',
   'offline.study.recovery':
     'Unresolved answers need synchronization or recovery. Affected cards and new material are paused.',
   'offline.study.content':
@@ -130,9 +138,9 @@ export const en = {
     'A download page could not be saved. The last saved position is retained; Retry resumes from there.',
   'offline.failure.recovery':
     'The downloaded collection could not be rebuilt. Close other Neuron windows and try again.',
-  'offline.title': 'Offline · collection reading',
+  'offline.title': 'Offline',
   'offline.readOnly':
-    'Browse your download, rename collections, edit existing Notes and start Study when learning data is complete. Practice, Note creation and Import require a connection.',
+    'Browse downloads, rename collections, edit existing Notes and use Study when learning data is ready. Practice, new Notes and Import application need a connection.',
   'offline.session':
     'Offline access uses the account previously signed in on this device. The server session has not been freshly validated.',
   'offline.incomplete':

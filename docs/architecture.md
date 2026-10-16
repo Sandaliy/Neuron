@@ -622,8 +622,14 @@ handling. Handover cancels and invalidates reads while retaining cached entries 
 Deck screens. Read-only capabilities reuse hierarchy rows, breadcrumbs, search/filtering and virtual
 Note rows; Phase 8.3 mounts the familiar existing Note Editor for durable content drafts. In-session
 control slots retain geometry while server-dependent controls unmount. Missing or unreadable local
-snapshots never make stale online rows appear available offline. Connectivity generations also prevent
-late account responses from restoring online operations after another disconnect.
+snapshots never make stale online rows appear available offline. Account/validation generations prevent
+late responses from restoring an ended account visit. Reachability and temporary API silence are
+distinct from local availability and authenticated authority. Shared bounded validation survives
+repeated foreground/check actions, uses recent transport progress and recovers automatically.
+A passive joined check at 1.5 seconds of pending HTTP changes no presentation. Without successful
+API progress, active HTTP permits local use at three seconds and standalone account silence at four,
+without declaring offline; the account request remains eligible until its eight-second bound.
+Matching authentication alone restores protected operations.
 
 The versioned service worker precaches shell HTML, emitted assets and install metadata. It never
 caches authenticated APIs and waits for old windows to close before activation. Storage/schema

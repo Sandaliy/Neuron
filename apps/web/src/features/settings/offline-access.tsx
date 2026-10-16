@@ -1,8 +1,11 @@
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
+import { useAccount } from '../../lib/account';
 import { exportLifecycle } from '../../lib/lifecycle';
 import { retryConnection, retryDownload, useOffline } from '../../lib/offline';
+import { checkDownloadedStudy } from '../../lib/offline-study';
 import { useShellCache } from '../../lib/pwa';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
@@ -17,11 +20,27 @@ export function OfflineAccess() {
   const t = useTranslate();
   const state = useOffline();
   const shell = useShellCache();
+  const account = useAccount();
+  const readiness = useQuery({
+    queryKey: [
+      'downloaded-study-readiness',
+      state.accountId,
+      state.revision,
+      account.data?.revision,
+    ],
+    queryFn: ({ signal }) => checkDownloadedStudy(account.data!, signal),
+    enabled: state.available && !!account.data,
+    networkMode: 'always',
+    retry: false,
+    staleTime: 30_000,
+  });
   const [confirm, setConfirm] = useState(false);
   const busy = state.download === 'downloading';
   const failed = state.failure !== null;
+  const historyNeedsRecovery = readiness.data?.offlineStudy.limit === 'history';
   const canRebuild =
-    failed && ['database', 'transaction', 'recovery'].includes(state.failure!.stage);
+    historyNeedsRecovery ||
+    (failed && ['database', 'transaction', 'recovery'].includes(state.failure!.stage));
   return (
     <section aria-label={t('offline.access')} className="flex flex-col gap-12">
       <GroupLabel>{t('offline.access')}</GroupLabel>
@@ -38,6 +57,30 @@ export function OfflineAccess() {
                   : 'offline.pending',
           )}
         </p>
+        <p role="status" className="text-13 text-secondary">
+          {t(
+            !state.available
+              ? 'offline.study.waitingDownload'
+              : readiness.isPending || readiness.isFetching
+                ? 'offline.study.checking'
+                : readiness.error
+                  ? 'offline.study.unavailable'
+                  : readiness.data?.offlineStudy.limit
+                    ? `offline.study.${readiness.data.offlineStudy.limit}`
+                    : 'offline.study.verified',
+          )}
+        </p>
+        <p className="text-13 text-secondary">{t('offline.readOnly')}</p>
+        {historyNeedsRecovery && (
+          <p className="text-13 text-secondary">{t('offline.study.historyRecovery')}</p>
+        )}
+        {!!readiness.data?.offlineStudy.diagnostics.excludedCards && (
+          <p className="text-13 text-tertiary">
+            {t('offline.study.excluded', {
+              count: readiness.data.offlineStudy.diagnostics.excludedCards,
+            })}
+          </p>
+        )}
         {failed && (
           <p className="text-13 text-secondary">{t(`offline.failure.${state.failure!.stage}`)}</p>
         )}
@@ -54,16 +97,29 @@ export function OfflineAccess() {
         )}
         {state.offline && (
           <>
-            <p className="text-13 text-secondary">{t('offline.readOnly')}</p>
             <p className="text-13 text-tertiary">{t('offline.session')}</p>
-            <Button variant="quiet" onClick={() => void retryConnection()}>
+            {state.connectivity !== 'unreachable' && (
+              <p className="text-13 text-secondary">{t('offline.connectionUncertain')}</p>
+            )}
+            <Button
+              variant="quiet"
+              aria-label={t('offline.reconnect')}
+              busy={state.checking}
+              onClick={() => void retryConnection()}
+            >
               {t('offline.reconnect')}
             </Button>
           </>
         )}
-        {!state.offline && failed && (
+        {!state.offline && (failed || historyNeedsRecovery) && (
           <div className="flex flex-wrap gap-8">
-            <Button variant="quiet" disabled={busy} onClick={() => void retryDownload()}>
+            <Button
+              variant="quiet"
+              disabled={busy}
+              onClick={() =>
+                void retryDownload().then(() => readiness.refetch({ cancelRefetch: false }))
+              }
+            >
               {t('common.retry')}
             </Button>
             {canRebuild && (
@@ -106,7 +162,7 @@ export function OfflineAccess() {
             variant="primary"
             onClick={() => {
               setConfirm(false);
-              void retryDownload(true);
+              void retryDownload(true).then(() => readiness.refetch({ cancelRefetch: false }));
             }}
           >
             {t('offline.rebuildAction')}

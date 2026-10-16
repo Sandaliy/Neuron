@@ -17,7 +17,8 @@ A lazy worker reads account settings, sync metadata, Cards, original Notes, Deck
 and Review intents in one transaction over the existing account database. It validates row boundaries,
 history references, current-life answer counts, causal sequences and account ownership. Collection
 cloning, validation, replay and forecasting stay off the UI thread. The built shell caches the worker
-before offline use. Ordinary online planning and unrelated navigation do not create it.
+before offline use. Ordinary online planning and unrelated navigation do not create it. Settings uses
+the same worker for a read-only readiness check; its result never authorizes online Study.
 
 New material is allowed only when the remembered account revision matches the completed download
 cursor, settings are compatible, history is usable and unresolved local work does not undermine the
@@ -26,6 +27,27 @@ due work but restrict new material until the download catches up. A settings mis
 content restrict new admission, including one-off override. Affected Cards/Notes are withheld; other due
 work remains available when its state is sufficient. A missing/incomplete download or unreadable causal
 stream cannot start Study. Settings/check-connection recovery retains all original records.
+
+History validation uses the same captured origin and event ordering as canonical server replay.
+Mixed legacy rows without `priorState` and newer captured predecessors can have a nonzero origin;
+Card repetitions are not simply the number of surviving downloaded answers. The guard requires a
+usable current-life root, checks cancellations/reset boundaries and verifies repetitions and last
+Review without rewriting original schedules under today's settings. Missing first/middle history,
+missing targets and inconsistent counters still restrict new admission and affected work.
+Out-of-order delivery can place the captured zero-state or legacy new-state root later in reviewed
+time than another answer. Root recognition considers the complete current-life event set, matching
+canonical replay; a zero-state fallback alone is not proof of a legacy origin.
+Purged Cards retain scheduling/Review attribution for shared workload and daily introductions but
+never enter a live queue or accept new pending answers. Deleted/Restart/Undo semantics remain the
+server's existing rules. After a pull advances past the account metadata revision, bounded fresh
+account validation updates that existing metadata record; it never assumes settings are unchanged.
+
+Settings reports browsing download completeness separately from Study data readiness, with a
+restricted-work count and synchronization/rebuild guidance for real history gaps. Rebuild preserves
+receipts and refuses unresolved/recovery work. Available due reviews, admissible new Cards and
+excluded work are distinct: a collection of fifty Cards is not a promise of fifty Cards in one sitting.
+Language, direction, current due/retry time, sibling suppression, workload and shared daily budget
+still determine the plan.
 
 Valid pending answers and cancellations are merged with downloaded history by immutable identity.
 Already downloaded exact events are not counted twice. Canonical core replay accounts for locally
@@ -203,6 +225,18 @@ blocker; it is separate from instrumented browser frame measurements and Phase 8
 
 ## Phase 8.5 acceptance
 
+PR #54 merged at `d69c69f` on 2026-10-15 with required CI and production migration checks passing.
+The owner confirms that offline Study works on the installed iPhone. Its connectivity and learning
+readiness acceptance failed, so the following stabilization requires a separate device pass.
+
+The repair reproduces two false history restrictions: zero-based counter comparison rejects valid
+mixed legacy/captured history, and rejecting every purged Card misclassifies retained attribution as
+incomplete history. A content-free, read-only application-database audit confirms both patterns;
+synthetic real PostgreSQL/RLS tests reproduce canonical counters, Undo, deletion and purge. The
+owner's actual IndexedDB/outbox was not inspected, so the exact six-Card device queue is not claimed
+as reproduced. Complete server snapshots and planner parity do not prove that device's download has
+finished. Genuine missing history/settings/pending-work uncertainty remains conservative.
+
 PostgreSQL/RLS tests compare complete downloaded snapshots against authenticated planning across
 languages, directions, time budgets, study-day boundaries, inherited/paused scope, cancellation, restart
 and changed settings. Causal pending answer/Undo/regrade matches real server delivery. Built-PWA
@@ -211,7 +245,13 @@ exit/reopen, withhold repeated admission and reconcile a lost response plus a co
 Browser fixtures additionally exercise Typing/native Return, installed local voices, missing downloads,
 settings uncertainty, session rejection and sign-out. Physical-iPhone evidence remains separate.
 
-After protected delivery, use the installed production PWA and its existing completed download:
+The stabilization release passes fifteen real PostgreSQL/RLS planner comparisons, twenty-two pure
+snapshot guards and six worker-enabled HTTP/PostgreSQL PWA journeys across Chromium/mobile WebKit.
+The final full unit/PostgreSQL run passes 1,139 tests. Canonical schedules and exact event identities
+are compared after interrupted delivery, remote answers, Undo and regrading; completed reconciliation
+also verifies that retained account revision, download cursor and learning readiness agree.
+
+After protected stabilization delivery, use the installed production PWA and its existing download:
 
 1. Receive the update online, confirm the download and installed target-language voices, then close all
    windows. Enable airplane mode and cold-open Today. Confirm familiar setup, correct language/direction,
@@ -225,3 +265,8 @@ After protected delivery, use the installed production PWA and its existing comp
 4. Reconnect to the same account, including interruption near answer/Undo delivery. Confirm exact retries,
    no duplicate/lost answers and authoritative scheduling. Check sign-out/account switching retain work
    only in its owning account. Compare Today/Deck/Note/Settings responsiveness with accepted PR #53.
+5. On home Wi-Fi and moving mobile internet, navigate Today/Library/Deck/Note, background and resume,
+   and allow slow responses. Confirm no repeated false Offline transitions, stable geometry/setup and
+   automatic recovery. In airplane mode, confirm prompt local access. One Check connection action
+   should show checking and recover when healthy; repeated taps must not restart progress. Export
+   content-free lifecycle diagnostics if native behavior differs from the verified browser journeys.

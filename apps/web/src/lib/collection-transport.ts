@@ -56,7 +56,7 @@ export async function collectionRead<T>(
   } catch (error) {
     abort();
     if (error instanceof ApiFailure && error.code === 'network_unreachable') {
-      await confirmConnection();
+      await confirmConnection('failure');
       abort();
       if (offlineState().offline) return localRead();
     }

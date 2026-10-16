@@ -1,6 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import * as offline from '../lib/offline';
 
 import { preferencesSynced, syncPreferences } from './sync';
+
+beforeEach(() => {
+  vi.spyOn(offline, 'offlineState').mockReturnValue({ ...offline.offlineState(), validated: true });
+});
 
 /**
  * The defect these cover: two switches inside one round trip used to finish out

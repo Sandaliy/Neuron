@@ -354,7 +354,7 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
     );
     await page.getByRole('searchbox').fill('Persisted word');
     await failedAccount;
-    await expect(page.getByText('Offline · collection reading', { exact: true })).toBeVisible();
+    await expect(page.getByText('Offline', { exact: true })).toBeVisible();
     expect(await page.evaluate(() => navigator.onLine)).toBe(true);
     await expect(page.locator('[data-live-visit="retained"]')).toHaveCount(1);
     await page.getByRole('button', { name: /Persisted word Persisted meaning/ }).click();

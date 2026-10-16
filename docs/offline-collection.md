@@ -107,26 +107,38 @@ pull begins. Authentication rejection revokes local access and returns to sign-i
 cancels the previous visit's reads/pull and clears collection query entries before the next collection
 is exposed. Late account responses and pulls cannot re-enable an ended visit.
 
-Offline events and unreachable account requests enter local access. Collection GET transport
-failures also request a single shared `/account` validation attempt. An HTTP request, including a delivery or sync pull, still pending after
-1.5 seconds requests the same validation; account validation ends after two seconds without a response.
-This bounds handover even when HTTP never rejects and the browser hint stays online. These deadlines
-revoke authority, never acknowledge writes or reset storage. Local startup is independent of both deadlines.
-A reachable account endpoint leaves an isolated failed
-read in its existing retry/error flow. HTTP refusals and aborted reads never initiate this probe.
+Offline events and confirmed transport failure enter local access. Collection GET transport
+failures request a shared `/account` validation. A single failed account probe does not demote an
+already validated visit unless other transport evidence supports loss. Healthy navigation/foreground
+reuses API progress from the last fifteen seconds. Pending HTTP requests can join a passive check
+after 1.5 seconds; that check alone never changes presentation. With no successful API progress,
+active HTTP permits local access at three seconds; standalone account validation permits it at four.
+This temporary server uncertainty does not assert a disconnected network or display the global Offline label. The
+original account request remains eligible and ends at eight seconds if still suspended. A successful
+response before that bound restores matching authority automatically. Local startup is independent
+of these deadlines. Neither silence nor local identity authenticates a protected write or outbox.
+A healthy account endpoint leaves an isolated failed read in its existing retry/error flow. Server
+errors from GETs or the read-only Study planner request one bounded account verification; client
+errors and aborted reads do not. An unavailable account endpoint corroborating that server error
+permits local browsing and qualified Study under server uncertainty, while network reachability
+remains distinct. One failed endpoint alone never establishes a global disconnection.
 Interrupted response bodies follow the same transport classification as failed fetches.
 An isolated failed sync pull while the browser remains connected preserves online screens and records
 a stable download failure. An isolated failed online mutation retains its existing error/retry flow. Reconnection, window focus and Settings' Check connection
 Retry action request fresh server account validation; transport failure retains local capabilities,
 while authentication rejection revokes access.
-Account and connectivity generations guard stale deliveries. Repeated loss events retain one offline
-visit; a fresh loss during reconnection still invalidates that validation. Foreground events join a shared
-validation before scheduling further delivery or download. A stale browser hint on repeated focus or
-visibility events cannot invalidate the validation already in flight. The handover cancels pending reads and
+Account and validation generations guard stale deliveries. Sign-out, session rejection and account
+switching revoke the visit before late responses can publish. A repeated browser loss hint does not
+cancel useful authenticated validation; a matching successful server response can correct the hint.
+Foreground events and repeated Check connection taps join that request. Settings shows an understated
+busy control. Local mode retries automatically with bounded backoff (1.5, 3, 8, 15, then 30 seconds),
+pausing probes while hidden; observed server progress requests immediate validation. Ordinary healthy
+navigation adds no probe or collection scan. The handover cancels pending reads and
 invalidates active collection observers without removing cached query entries or remounting Library
 and Deck screens. Complete snapshot reads replace those entries locally. Local capabilities permit only
-existing Folder/Deck rename and durable existing-Note content editing; drag/drop, selection mutations,
-direct/swipe deletion remains unavailable and learning entry controls remain disabled.
+existing Folder/Deck rename, durable existing-Note content editing and qualified offline Study;
+drag/drop, selection mutations, direct/swipe deletion, Practice, Note creation and Import application
+remain unavailable. Browsing completeness and learning-history readiness are separate Settings states.
 Control regions show deliberate unavailable states during the current visit and on re-entry.
 Search covers stored fields and
 tags; status, Card state, source, tag and supported sort filters use saved facts. Server-only due
@@ -384,7 +396,8 @@ PR #51 merged at `b8dae4d`, but installed-iPhone offline acceptance failed. A bu
 keeps `/account` validation pending while connectivity is lost: the collection and remembered account
 remain intact, but the session gate never receives the remembered presentation. Previously restoration
 ran only after the fetch rejected. Known offline startup now reads the remembered account directly,
-and a loss event cancels obsolete validation and restores the account independently of that request.
+and a loss event restores the account independently of that request. The Phase 8.5 acceptance repair
+keeps useful validation eligible through browser loss hints, without delaying local restoration.
 Connection/account epochs prevent a late local read from replacing fresh validation or another account.
 Remembered presentation remains unvalidated; authenticated matching-account acceptance still owns
 reconnection and delivery. Focus, foreground visibility and restored-page events resume reconciliation.
@@ -412,6 +425,8 @@ additional launches; no cache clearing or reinstallation is needed. A shell reco
 points to module loading; restore-start without restore-ready points to local storage; account-start with
 account-deadline identifies stalled validation. Read-ready and gate-ready are data/render milestones,
 not a substitute for the owner timing when the collection becomes visibly usable.
+Connection-check-start/end, connection-silence, connection-server-error, connection-unreachable and connection-recheck retain
+the distinction and timing of validation, temporary uncertainty, observed loss and automatic recovery.
 
 A browser that neither reports a loss nor performs any request exposes no immediate evidence of an idle
 outage. Offline events revoke authority immediately; foreground, cached navigation and stalled HTTP work detect
