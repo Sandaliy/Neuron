@@ -10,6 +10,7 @@ import type { DeckNode, DailyStudySession, MessageKey, LanguageCode } from '@neu
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
+import { useCapabilities } from '../../lib/capabilities';
 import { flatten, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
 import { useOffline } from '../../lib/offline';
@@ -189,7 +190,8 @@ function Waiting({
   const account = useAccount();
   const client = useQueryClient();
   const connection = useOffline();
-  const local = connection.offline && connection.available;
+  const capability = useCapabilities(serverAuthority);
+  const local = connection.offline && capability.localStudy;
   const savedReviews = useQuery({
     queryKey: ['review-outbox', account.data?.id],
     queryFn: () => reviewEvents(account.data!.id),
@@ -199,7 +201,16 @@ function Waiting({
   const reviewsReady =
     !!savedReviews.data &&
     savedReviews.data.every((entry) => ['synchronized', 'archived'].includes(entry.state));
-  const authoritative = local || (!connection.offline && serverAuthority && reviewsReady);
+  const authoritative = local || (capability.server && reviewsReady);
+  /*
+   * A plan cannot be worked out from schedules the server has not seen yet, so
+   * this wait is real. Calling it "Updating plan" was not: the learner saw the
+   * same four words whether the answer was a round trip away or stuck. Saying
+   * which of the two it is costs nothing and is the difference between waiting
+   * and wondering.
+   */
+  const delivering = (savedReviews.data ?? []).some((entry) => entry.state === 'pending');
+  const waitingLabel = t(delivering ? 'today.sendingAnswers' : 'today.updatingPlan');
   const { draft, change } = useStudyDraft();
   const present = useRef(true);
   useEffect(() => {
@@ -349,8 +360,11 @@ function Waiting({
       : [];
   const singleUnsupported =
     selected.length === 1 && unsupported.length === 1 && result?.cards.length === 0;
+  // Connectivity may change the planning authority, not the already rendered summary.
+  // A different setup or committed Review still requires its existing reconciliation state.
+  const replacingPlan = reconciling && (!wrongAuthority || result?.reviewProjection === true);
   const caughtUp =
-    result?.availableCount === 0 && selected.length > 0 && !reconciling && !singleUnsupported;
+    result?.availableCount === 0 && selected.length > 0 && !replacingPlan && !singleUnsupported;
   const expanded = setupOpen || unsupported.length > 0 || listeningNeedsSetup;
   const setup = live.length > 0 && (
     <Disclosure
@@ -477,7 +491,7 @@ function Waiting({
         {languages.length > 1 && result && (
           <p className="border-t border-subtle pt-12 text-13 text-secondary">
             {updating
-              ? t('today.updatingPlan')
+              ? waitingLabel
               : t('study.aggregateReady', {
                   count: result.aggregateReady,
                   languages: languages.length,
@@ -521,9 +535,9 @@ function Waiting({
             <Skeleton className="h-20 w-[40%]" />
             <Skeleton className="h-48 w-full" />
           </div>
-        ) : reconciling ? (
+        ) : replacingPlan ? (
           <div role="status" className="flex min-h-112 items-center text-17 text-secondary">
-            {t('today.updatingPlan')}
+            {waitingLabel}
           </div>
         ) : singleUnsupported ? (
           <>
@@ -536,7 +550,7 @@ function Waiting({
               <span className="text-12 text-secondary">{t('today.nextReview')}</span>
               <span className="text-17 text-primary">
                 {updating ? (
-                  t('today.updatingPlan')
+                  waitingLabel
                 ) : result.nextDue ? (
                   <ReviewTime due={result.nextDue} />
                 ) : (
@@ -559,7 +573,7 @@ function Waiting({
               </div>
               <span className="pb-4 text-13 text-secondary">
                 {updating
-                  ? t('today.updatingPlan')
+                  ? waitingLabel
                   : t('today.estimate', {
                       minutes: Math.max(1, Math.round(result.estimatedMinutes)),
                     })}
@@ -581,22 +595,19 @@ function Waiting({
             </div>
           </>
         )}
-        {result?.offlineStudy && (
+        {result?.offlineStudy?.limit && (
           <p role="status" className="text-13 text-secondary">
-            {t(
-              result.offlineStudy.limit
-                ? `offline.study.${result.offlineStudy.limit}`
-                : 'offline.study.ready',
-            )}
+            {t(`offline.study.${result.offlineStudy.limit}`)}
           </p>
         )}
         {setup}
-        {selected.length > 0 && result && !reconciling && !singleUnsupported && !caughtUp && (
+        {selected.length > 0 && result && !replacingPlan && !singleUnsupported && !caughtUp && (
           <Button
             variant="primary"
             full
             disabled={
               !authoritative ||
+              reconciling ||
               !result.cards.length ||
               (direction === 'listening' &&
                 listening.some((item) => !item.language || (connection.offline && !item.voice))) ||
@@ -660,7 +671,7 @@ function Waiting({
                 onClick={() => void navigate({ to: '/notes', search: { deckId: deck.id } })}
                 subtitle={
                   reconciling ? (
-                    t('today.updatingPlan')
+                    waitingLabel
                   ) : deck.due === 0 && deck.fresh === 0 && deck.nextDue ? (
                     <ReviewTime due={deck.nextDue} />
                   ) : (

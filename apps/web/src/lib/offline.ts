@@ -602,23 +602,26 @@ export function initializeOffline(queryClient: QueryClient) {
   onReviewOutboxChange((change) => {
     if (change.accountId !== state.accountId) return;
     void client?.invalidateQueries({ queryKey: ['review-outbox', change.accountId] });
+    const settled = change.entries ?? (change.entry ? [change.entry] : []);
     void client?.invalidateQueries({
       queryKey: ['downloaded-study-readiness', change.accountId],
-      refetchType: change.entry?.state === 'rejected' ? 'active' : 'none',
+      refetchType: settled.some((entry) => entry.state === 'rejected') ? 'active' : 'none',
     });
+    const confirmed = settled.filter(
+      (entry) => ['synchronized', 'archived'].includes(entry.state) && entry.acknowledgement,
+    );
     if (change.saved) {
       void client?.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
       void deliverReviews();
-    } else if (
-      change.entry &&
-      ['synchronized', 'archived'].includes(change.entry.state) &&
-      change.entry.acknowledgement &&
-      client
-    ) {
-      const after = change.entry.acknowledgement.card;
-      const before = confirmedReviewCards.get(after.id) ?? change.entry.before;
-      projectConfirmedReview(client, before, after, new Date());
-      confirmedReviewCards.set(after.id, after);
+    } else if (confirmed.length && client) {
+      // A batch settles as one change. Each answer still projects its own card,
+      // in the order the server applied them, so the last one wins per card.
+      for (const entry of confirmed) {
+        const after = entry.acknowledgement!.card;
+        const before = confirmedReviewCards.get(after.id) ?? entry.before;
+        projectConfirmedReview(client, before, after, new Date());
+        confirmedReviewCards.set(after.id, after);
+      }
       void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
       void client.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
       void client.invalidateQueries({ queryKey: ['notes'], refetchType: 'none' });

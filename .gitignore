@@ -57,6 +57,9 @@ Design systems/
 
 # OS and local files
 .local-tools/
+# Screenshots and notes kept beside the repository while chasing a defect.
+.local-*
+.tmp/
 .DS_Store
 Thumbs.db
 *.local

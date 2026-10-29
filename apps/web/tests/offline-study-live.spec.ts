@@ -166,7 +166,7 @@ test('a cold offline PWA plans new Study and reconciles committed work after reo
     await page.goto('/');
     await expect(
       page.getByText('Available from your download. Answers save on this device.'),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
     const coldEntryMs = Date.now() - coldStarted;
     expect(coldEntryMs).toBeLessThan(5000);
@@ -207,6 +207,7 @@ test('a cold offline PWA plans new Study and reconciles committed work after reo
       now: new Date(),
       durationMs: 9000,
     });
+    await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
     server = serve({ fetch, hostname: '127.0.0.1', port });
     await new Promise<void>((resolve) =>

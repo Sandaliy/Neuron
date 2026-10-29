@@ -4,16 +4,61 @@ Where the project stands right now. This file replaces reading `neuron-plan.md` 
 Update this document at the end of a substantial implementation session when the current state has
 materially changed.
 
-Last updated: 2026-10-16. Phase 8.4 stabilization PR #53 merged at `5d9c680` after its
+Last updated: 2026-10-29. Phase 8.5 connectivity stabilization PR #55 merged at `d3b871b`.
+The owner confirms substantially improved offline Study and reconnection. Occasional installed-iPhone
+connectivity transitions still change the interface too aggressively. Phase 8.6 on
+`work/stable-local-capabilities` keeps screens, collection controls and Study setup mounted, separates
+capabilities from presentation, and compacts Offline & Sync. Protected delivery and renewed physical
+iPhone acceptance remain required. There is no persistence, protocol, authentication or learning-policy
+expansion.
+
+Phase 8.6 also repairs the reported thirty-to-forty-second reconnection. Review delivery sent one
+request per immutable event, so the wait was the round trip multiplied by the number of answers; a
+sitting with learning steps and Undo legitimately holds seventeen events after a handful of cards.
+The leading run of consecutive answers now travels as one `POST /reviews/batch`, up to fifty per
+request, and settles in one local transaction. That endpoint, its single server transaction, its
+replay order and its per-event `skipped` reporting already existed and are unchanged: only the
+client stopped sending them one at a time. An Undo still ends a run and travels alone, a refused
+batch is retried entry by entry, and payloads, identities, ordering, retry exactness and recovery
+are untouched. Measured at a 120 ms round trip, twelve answers went from twelve requests and
+1,935 ms to two requests and about 400 ms.
+
+Settings presents that work as one piece: waiting events are a count, refused ones are grouped by
+the server's reason, and Retry, Keep session for recovery and Copy recovery record appear once each
+over the whole group. Retry always retried the entire queue, so a button per row was the same button
+sixteen times and the one refused answer was lost among the fifteen waiting. The summary now counts
+work needing the owner separately from work merely queued. The Offline & sync card measures 450 px
+with eight waiting and 530 px with a refusal, against roughly 2,200 px before. No event, receipt,
+original version or archive is discarded. Today says which wait it is in, sending saved answers or
+updating the plan, instead of four words for both.
+
+The Study saving notice no longer flashes on every answer. The card still waits for a durable
+commit; the notice waits 400 ms, so a normal commit says nothing and a blocked one still explains
+itself. Four answers produced four title replacements before and none after. The progressive Recent
+activity reveal was measured and acquitted at 60 FPS with a 251-event history under 4x CPU throttle;
+the reported jerkiness was the list changing underneath it as events settled one at a time.
+
+Two verification defects were repaired rather than worked around. The root `vitest.config.ts` swept
+`apps/api/src/db/release/**` into the api project although those checks have their own config and
+their own CI step; one of them moves `packages/shared/dist` aside to prove the journal script works
+on a fresh install, which races the web project resolving `@neuron/shared` through that directory
+and, on a lost Windows rename, left the build output renamed on disk and cascaded into twenty-five
+file-level failures. They are now excluded from the root run and still run in their own CI step.
+`eslint.base.js` and `.prettierignore` now ignore local acceptance output and downloaded CI
+artifacts, which had produced 37,593 parse errors locally against a clean CI run.
+
+Package typechecks, source lint, formatting, core isolation and design-token checks pass. Remaining
+PostgreSQL failures in a parallel run are remote Neon connection terminations, not assertions.
+
+Phase 8.4 stabilization PR #53 merged at `5d9c680` after its
 required checks passed. The owner confirms installed production iPhone acceptance of offline access
 and the reported interaction regressions. This closes the Phase 8.4 device blocker. It is owner
 acceptance, not an instrumented native frame-rate measurement.
 
 Phase 8.5 PR #54 merged at `d69c69f` on 2026-10-15 after required CI and production migration
 checks passed. The owner confirms that offline Study works on the installed iPhone PWA. Device
-acceptance nevertheless exposed connectivity instability and a reported incomplete-history restriction;
-the stabilization on `work/connectivity-study-readiness` must pass protected delivery and renewed
-physical acceptance before Phase 8 expands. A complete downloaded collection can plan and start
+acceptance exposed connectivity instability and a reported incomplete-history restriction, repaired
+through merged PR #55. A complete downloaded collection can plan and start
 Study locally through the familiar Today/setup/card interfaces. The API and downloaded planner share
 one deterministic planning pipeline over `packages/core`; a lazily created, shell-cached worker performs local cloning,
 validation, replay and forecasting. Online planning keeps its existing transaction/read topology.
@@ -43,7 +88,8 @@ contracts pass 31 cases. The final built serial interaction gate passes 616 case
 explicit opt-in skips. All five enforced performance cases and 66 Windows visuals pass; eleven
 inspected Settings/readiness and dialog-background references changed intentionally. Sustained
 active swipes measure about 60 FPS in all three glass modes against the unchanged 55 FPS requirement.
-Protected CI and renewed physical-iPhone acceptance remain pending delivery.
+Those Phase 8.5 stabilization checks preceded merged PR #55. Phase 8.6 verification and renewed
+physical-iPhone acceptance are tracked separately.
 The Chromium-only large-data measurement retains its explicit WebKit skip: no large-WebKit
 performance result is claimed.
 
@@ -292,18 +338,19 @@ Today or Study.
 
 ## Next
 
-1. Deliver the Phase 8.5 connectivity/readiness stabilization through the protected PR workflow after relevant database, built-PWA,
+1. Deliver Phase 8.6 stable capabilities through the protected PR workflow after relevant database, built-PWA,
    interaction, visual and unchanged performance checks. Inspect hosted checks once after the final push.
-2. Obtain renewed installed production iPhone acceptance: stable mobile/home navigation, automatic
-   reconnection, one Check connection action, verified Study history, offline sittings and reconciliation.
+2. Obtain renewed installed production iPhone acceptance: stable Library/Deck/Settings and Study setup,
+   retained menus/search/selection/dialogs during network changes, automatic reconnection, durable
+   offline sittings and authoritative reconciliation.
 3. Keep Offline Practice, Note creation, Import application and Phase 9 direction unlocking outside
    this slice. Any material protocol, persistence or scheduling expansion requires owner approval.
 
 ## Open threads
 
-- PR #54 offline Study works on the owner's iPhone; connectivity/readiness acceptance remains blocked
-  pending the stabilization and renewed device check. Phase 8.4 was accepted after PR #53; retain its
-  earlier failure evidence and content-free lifecycle diagnostics for future native investigations.
+- PR #55 substantially improves offline Study and reconnection on the owner's iPhone. Phase 8.6
+  requires renewed device acceptance of stable composition and contextual capability restrictions.
+  Phase 8.4 was accepted after PR #53; retain its earlier failure evidence and content-free lifecycle diagnostics for future native investigations.
 - Local new-card admission is a conservative decision over the last complete download and this
   device's committed events. It cannot observe other devices' subsequent offline work. Reconnection
   retains server authority and never silently acknowledges rejected events.

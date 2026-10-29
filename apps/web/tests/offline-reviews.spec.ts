@@ -244,6 +244,7 @@ test('a lost answer response followed by Undo retries the exact answer before ca
   await expect.poll(async () => (await stored(page)).length).toBe(2);
   await settings(page);
   await page.reload();
+  await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
   state.offline = false;
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
@@ -379,9 +380,10 @@ test('explicit recovery archives a rejected causal session without deleting or a
   expect((await stored(page)).map((entry) => entry.event)).toEqual(
     saved.map((entry) => entry.event),
   );
+  // Both events are archived above; the group says so once rather than per row.
   await expect(
     page.getByText('Kept for recovery. These events were not synchronized.'),
-  ).toHaveCount(2);
+  ).toHaveCount(1);
   state.reject = false;
   await page.getByRole('link', { name: 'Today', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();

@@ -95,12 +95,15 @@ export function Menu({
 export function MenuItem({
   onSelect,
   disabled = false,
+  unavailable = false,
   tone = 'neutral',
   icon,
   children,
 }: {
   readonly onSelect: () => void;
   readonly disabled?: boolean;
+  /** Announce a contextual restriction while permitting its explanation on selection. */
+  readonly unavailable?: boolean;
   readonly tone?: 'neutral' | 'danger';
   readonly icon?: ReactNode;
   readonly children: ReactNode;
@@ -109,6 +112,7 @@ export function MenuItem({
   return (
     <RadixMenu.Item
       disabled={disabled}
+      aria-disabled={disabled || unavailable || undefined}
       onSelect={() => {
         close();
         onSelect();

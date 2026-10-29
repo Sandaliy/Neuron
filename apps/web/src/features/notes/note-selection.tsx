@@ -28,12 +28,14 @@ import { CollectionPicker } from '../library/collection-picker';
  */
 export function NoteSelectionBar({
   ids,
+  available = true,
   notes,
   deckId,
   onSelectAll,
   onClear,
   onDone,
 }: {
+  readonly available?: boolean;
   readonly ids: readonly string[];
   readonly notes: readonly Note[];
   /** Which deck the list is showing, so moving offers somewhere else first. */
@@ -64,6 +66,10 @@ export function NoteSelectionBar({
     message: MessageKey | 'notes.moved' = 'notes.bulkDone',
   ) {
     if (running.current || ids.length === 0) return;
+    if (!available) {
+      toast.show(t('offline.serverRequired'));
+      return;
+    }
     running.current = true;
     setWorking(true);
     setDialog('none');

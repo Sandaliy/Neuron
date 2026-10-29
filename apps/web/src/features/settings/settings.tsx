@@ -9,6 +9,7 @@ import { useTranslate } from '../../i18n/locale';
 import { ACCOUNT_KEY, useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { authClient, changePassword, describeAuthError, signOut } from '../../lib/auth-client';
+import { hasServerAuthority, useCapabilities } from '../../lib/capabilities';
 import { revokeOffline } from '../../lib/offline';
 import { GLASS_LEVELS, GLASS_SCOPES, useGlass } from '../../preferences/glass';
 import { useMotion } from '../../preferences/motion';
@@ -18,6 +19,7 @@ import { Card, GroupLabel, RowGroup } from '../../ui/card';
 import { DIALOG_FORM, Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 import { Row, RowChevron } from '../../ui/row';
 import { Segmented } from '../../ui/segmented';
+import { ServerControls } from '../../ui/server-controls';
 import { SkeletonRows } from '../../ui/states';
 import { Switch } from '../../ui/switch';
 import { useToast } from '../../ui/toast';
@@ -195,6 +197,7 @@ function Appearance() {
 }
 
 function Security() {
+  const capability = useCapabilities();
   const t = useTranslate();
   const toast = useToast();
   const queries = useQueryClient();
@@ -243,33 +246,35 @@ function Security() {
         its own was in a list of four security controls and said nothing about
         which of them it turned off.
       */}
-      <RowGroup>
-        <Row
-          standalone={false}
-          title={t('settings.changePasswordAction')}
-          trailing={<RowChevron />}
-          onClick={() => setPanel('password')}
-        />
-        <Row
-          standalone={false}
-          title={t('settings.regenerateAction')}
-          trailing={<RowChevron />}
-          onClick={() => setPanel('codes')}
-        />
-        {/*
+      <ServerControls available={capability.server}>
+        <RowGroup>
+          <Row
+            standalone={false}
+            title={t('settings.changePasswordAction')}
+            trailing={<RowChevron />}
+            onClick={() => setPanel('password')}
+          />
+          <Row
+            standalone={false}
+            title={t('settings.regenerateAction')}
+            trailing={<RowChevron />}
+            onClick={() => setPanel('codes')}
+          />
+          {/*
           One row, named for the thing and not for the verb, with the state
           underneath. It was two rows, "Set up two-factor authentication" and a
           red "Turn off 2FA", which made a setting read as an action and put the
           answer to "is it on?" in the label rather than in the state.
         */}
-        <Row
-          standalone={false}
-          title={t('auth.twoFactor.title')}
-          subtitle={twoFactorOn ? t('auth.twoFactor.on') : t('auth.twoFactor.off')}
-          trailing={<RowChevron />}
-          onClick={() => setPanel(twoFactorOn ? 'totp-off' : 'totp-on')}
-        />
-      </RowGroup>
+          <Row
+            standalone={false}
+            title={t('auth.twoFactor.title')}
+            subtitle={twoFactorOn ? t('auth.twoFactor.on') : t('auth.twoFactor.off')}
+            trailing={<RowChevron />}
+            onClick={() => setPanel(twoFactorOn ? 'totp-off' : 'totp-on')}
+          />
+        </RowGroup>
+      </ServerControls>
 
       <Dialog
         open={panel === 'password'}
@@ -369,6 +374,10 @@ function ChangePassword({ onDone }: { readonly onDone: () => void }) {
   }>();
 
   const submit = async () => {
+    if (!hasServerAuthority()) {
+      setError({ key: 'offline.serverRequired', values: {} });
+      return;
+    }
     setError(undefined);
     setBusy(true);
 
@@ -449,6 +458,10 @@ function RegenerateCodes({ onIssued }: { readonly onIssued: (codes: readonly str
   }>();
 
   const submit = async () => {
+    if (!hasServerAuthority()) {
+      setError({ key: 'offline.serverRequired', values: {} });
+      return;
+    }
     setError(undefined);
     setBusy(true);
 
@@ -581,6 +594,10 @@ function DeleteAccount({ twoFactorOn }: { readonly twoFactorOn: boolean }) {
   const ready = password.length > 0 && (!twoFactorOn || code.length === 6);
 
   const submit = async () => {
+    if (!hasServerAuthority()) {
+      setError({ key: 'offline.serverRequired', values: {} });
+      return;
+    }
     setError(undefined);
     setBusy(true);
 

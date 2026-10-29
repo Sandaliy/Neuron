@@ -38,6 +38,12 @@ export function SyncSummary({ children }: { readonly children?: ReactNode }) {
       !['synchronized', 'resolved'].includes(entry.state) &&
       !(entry.state === 'archived' && 'acknowledgement' in entry && entry.acknowledgement),
   );
+  /*
+   * Work that is merely queued is not work that needs the owner. Counting the
+   * whole queue as needing attention told someone with one refused answer and
+   * fifteen waiting ones that sixteen things were wrong.
+   */
+  const blocked = unresolved.filter((entry) => entry.state !== 'pending');
   if (children)
     return entries.some(workIsSettled) ? (
       <Disclosure
@@ -56,12 +62,16 @@ export function SyncSummary({ children }: { readonly children?: ReactNode }) {
           ? 'offline.changesUnavailable'
           : names.isPending || notes.isPending || reviews.isPending
             ? 'offline.checkingWork'
-            : unresolved.some((entry) => !['pending'].includes(entry.state))
-              ? 'offline.workAttention'
+            : blocked.length
+              ? blocked.length === 1
+                ? 'offline.workAttentionOne'
+                : 'offline.workAttention'
               : unresolved.length
-                ? 'offline.workPending'
+                ? unresolved.length === 1
+                  ? 'offline.workPendingOne'
+                  : 'offline.workPending'
                 : 'offline.workSaved',
-        { count: unresolved.length },
+        { count: blocked.length || unresolved.length },
       )}
     </p>
   );

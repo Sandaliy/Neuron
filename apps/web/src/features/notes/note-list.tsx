@@ -9,6 +9,7 @@ import type { MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
+import { useCapabilities } from '../../lib/capabilities';
 import { findDeck, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
 import { noteListQuery, useNoteActions } from '../../lib/notes';
@@ -21,6 +22,7 @@ import { Input } from '../../ui/input';
 import { ReadOnlySlot } from '../../ui/read-only-slot';
 import { DenseRow } from '../../ui/row';
 import { Select } from '../../ui/select';
+import { ServerControls } from '../../ui/server-controls';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { SwipeDelete } from '../../ui/swipe-delete';
 import { useToast } from '../../ui/toast';
@@ -56,7 +58,6 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const rememberScroll = useReturnScroll(practicing);
   const t = useTranslate();
   const offline = useOffline();
-  const unavailable = offline.offline && !offline.available;
   const toast = useToast();
   const { mutateAsync: deleteNote } = useNoteActions().remove;
   const deleting = useRef(new Set<string>());
@@ -117,13 +118,14 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
     ...noteListQuery(query),
     placeholderData: keepPreviousData,
   });
-  const serverReady =
-    offline.validated &&
-    !offline.offline &&
+  const capability = useCapabilities(
     !decks.local &&
-    notes.data !== undefined &&
-    !notes.isPlaceholderData &&
-    !notes.data.pages.some((page) => page.local);
+      notes.data !== undefined &&
+      !notes.isPlaceholderData &&
+      !notes.data.pages.some((page) => page.local),
+  );
+  const serverReady = capability.server;
+  const unavailable = offline.offline && !offline.available;
   const readOnly = !serverReady;
 
   /** Which deck the screens next to this one should open with. */
@@ -173,7 +175,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         title={deck?.name ?? t('notes.title')}
         actions={
           <>
-            <fieldset disabled={!serverReady} className="contents">
+            <ServerControls available={serverReady}>
               {deck && <RestartLearning deck={deck} />}
               <Button
                 variant="quiet"
@@ -190,17 +192,17 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
                 <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
                 {t('notes.newNote')}
               </Button>
-            </fieldset>
+            </ServerControls>
           </>
         }
       >
         <div className="flex min-h-44 flex-wrap items-center justify-between gap-8">
           <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
           {deck && (
-            <ReadOnlySlot readOnly={offline.offline} inline>
-              <fieldset disabled={!serverReady} className="contents">
+            <ReadOnlySlot readOnly={false} inline>
+              <ServerControls available={serverReady}>
                 <RestartLearning deck={deck} skillsOnly />
-              </fieldset>
+              </ServerControls>
             </ReadOnlySlot>
           )}
         </div>
@@ -218,7 +220,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         />
       )}
 
-      {!unavailable && (rows.length > 0 || filtered || typed !== '') && (!selecting || readOnly) ? (
+      {!unavailable && (rows.length > 0 || filtered || typed !== '') && !selecting ? (
         <div className="flex flex-col gap-12">
           <div className="relative">
             <Search
@@ -260,9 +262,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
               {filtered ? ' ·' : ''}
             </Button>
             {rows.length > 0 && (
-              <ReadOnlySlot readOnly={offline.offline} inline>
+              <ReadOnlySlot readOnly={false} inline>
                 <Button
-                  disabled={!serverReady}
                   variant="quiet"
                   onClick={() => {
                     setSelecting(true);
@@ -397,8 +398,9 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         )
       ) : undefined}
 
-      {selecting && !readOnly ? (
+      {selecting ? (
         <NoteSelectionBar
+          available={serverReady}
           ids={[...selected]}
           notes={rows.filter((note) => selected.has(note.id))}
           {...(deckId === undefined ? {} : { deckId })}
@@ -412,10 +414,10 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       ) : undefined}
       {rows.length > 0 ? (
         <VirtualNotes
-          key={`${deckId ?? 'all'}:${selecting && !readOnly}`}
+          key={deckId ?? 'all'}
           rows={rows}
           onRemove={removeNote}
-          selecting={selecting && !readOnly}
+          selecting={selecting}
           readOnly={readOnly}
           layoutKey={`${selecting}:${filtersOpen}:${filtered}`}
           selected={selected}
@@ -464,7 +466,13 @@ function VirtualNotes({
   readonly onNeedMore: () => void;
 }) {
   const list = useRef<HTMLDivElement>(null);
-  const [revealed, setRevealed] = useState<string | null>(null);
+  const [swipe, setSwipe] = useState<{ selecting: boolean; id: string | null }>({
+    selecting,
+    id: null,
+  });
+  if (swipe.selecting !== selecting) setSwipe({ selecting, id: null });
+  const revealed = swipe.selecting === selecting ? swipe.id : null;
+  const setRevealed = useCallback((id: string | null) => setSwipe({ selecting, id }), [selecting]);
   const [offset, setOffset] = useState(0);
 
   // Where the list starts down the page. The window virtualiser needs it to
@@ -559,6 +567,7 @@ const NoteRow = memo(function NoteRow({
   readonly onReveal: (id: string | null) => void;
 }) {
   const t = useTranslate();
+  const toast = useToast();
   const meaning =
     typeof note.fields['translation'] === 'string'
       ? note.fields['translation']
@@ -588,7 +597,7 @@ const NoteRow = memo(function NoteRow({
             {note.status !== 'active' ? (
               <Chip tone="new">{t(`note.status.${note.status}`)}</Chip>
             ) : (
-              !readOnly && <NoteProgressSummary counts={note.cardStates} />
+              <NoteProgressSummary counts={note.cardStates} />
             )}
             {selecting && (
               <span
@@ -603,16 +612,20 @@ const NoteRow = memo(function NoteRow({
           </>
         }
       />
-      {!selecting && readOnly && <span aria-hidden="true" className="size-44 shrink-0" />}
-      {!selecting && !readOnly && (
+      {!selecting && (
         <button
           type="button"
           aria-label={t('note.delete')}
           data-direct-delete=""
+          aria-disabled={readOnly || undefined}
           style={{ visibility: revealed ? 'hidden' : undefined }}
           title={t('note.delete')}
           className="flex size-44 shrink-0 items-center justify-center self-center rounded-12 text-tertiary hover:text-error active:bg-fill-error-quiet active:scale-95"
           onClick={() => {
+            if (readOnly) {
+              toast.show(t('offline.serverRequired'));
+              return;
+            }
             onReveal(null);
             onRemove(note.id);
           }}

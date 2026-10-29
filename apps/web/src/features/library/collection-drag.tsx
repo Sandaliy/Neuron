@@ -204,10 +204,17 @@ function isDropTarget(value: unknown): value is DropTarget {
   );
 }
 
-export function CollectionHandle({ deck }: { readonly deck: DeckNode }) {
+export function CollectionHandle({
+  deck,
+  disabled = false,
+}: {
+  readonly deck: DeckNode;
+  readonly disabled?: boolean;
+}) {
   const t = useTranslate();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
     id: deck.id,
+    disabled,
   });
   return (
     <span
@@ -215,6 +222,7 @@ export function CollectionHandle({ deck }: { readonly deck: DeckNode }) {
       ref={(node) => setNodeRef(node?.closest<HTMLElement>('[data-collection-row]') ?? null)}
     >
       <button
+        disabled={disabled}
         ref={setActivatorNodeRef}
         type="button"
         {...attributes}

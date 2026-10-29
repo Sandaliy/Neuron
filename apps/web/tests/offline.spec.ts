@@ -500,9 +500,7 @@ test('foreground stalled HTTP hands a mounted Deck to local reads without a pend
     document.dispatchEvent(new Event('visibilitychange'));
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
   });
-  await expect(
-    page.getByRole('button', { name: 'Practice requires a connection.', exact: true }),
-  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeDisabled();
   await expect(
     page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }),
   ).toBeVisible();
@@ -642,6 +640,7 @@ test('startup diagnostics retain a failed launch after recovery without content 
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
   await page.getByRole('button', { name: 'Save startup diagnostics', exact: true }).click();
   const artifact = await download;
   const stream = (await artifact.createReadStream())!;
@@ -2258,6 +2257,7 @@ test('connectivity-acceptance: repeated Check connection taps join one useful va
   const reads = control.accountReads;
   await context.setOffline(false);
   await expect.poll(() => control.accountReads).toBe(reads + 1);
+  await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
   const check = page.getByRole('button', { name: 'Check connection', exact: true });
   for (let i = 0; i < 6; i++) await check.evaluate((el) => (el as HTMLButtonElement).click());
   release();
@@ -2313,7 +2313,8 @@ test('in-session Library keeps its header, nested expansion and row geometry whe
   await expect(page.locator('[data-visit="same-library"]')).toHaveCount(1);
   expect(await row.boundingBox()).toEqual(before);
   expect(await geometry(page)).toEqual(header);
-  await expect(page.getByRole('button', { name: /Drag/i })).toHaveCount(0);
+  for (const handle of await page.getByRole('button', { name: /Drag/i }).all())
+    await expect(handle).toBeDisabled();
   for (const button of await page.getByRole('button', { name: /New deck|New folder/i }).all())
     await expect(button).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Hide what is inside', exact: true })).toHaveCount(
@@ -2382,8 +2383,13 @@ for (const width of [undefined, 320]) {
     );
     expect(control.collectionReads).toBe(requests);
     await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
-    for (const name of ['New note', 'Import', 'Select notes', 'Practice requires a connection.'])
+    for (const name of ['New note', 'Import'])
       await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
+    // aria-disabled describes the unavailable capability; a deliberate press explains it.
+    await page.getByRole('button', { name: 'Start practice', exact: true }).click({ force: true });
+    await expect(
+      page.getByText('This action needs a verified connection. Try again after reconnecting.'),
+    ).toBeVisible();
     control.lost = false;
     control.updated = true;
     let release!: () => void;
@@ -2532,4 +2538,106 @@ test('a held account response cannot restore access after explicit cross-tab sig
   await expect(page).toHaveURL(/sign-in/);
   await expect(page.getByRole('button', { name: 'New deck', exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('neuron.offline.signedOut'))).toBe('true');
+});
+
+test('stable capabilities retain the open Library menu and block unsupported writes', async ({
+  page,
+  context,
+}) => {
+  await installContinuityFixtures(page, context);
+  await download(page);
+  await page.getByRole('button', { name: 'Show what is inside', exact: true }).click();
+  await page.getByRole('button', { name: 'Show what is inside', exact: true }).click();
+  const row = page.locator(`[data-collection-id="${deckId}"]`);
+  await row.getByRole('button', { name: `Actions for Downloaded Deck`, exact: true }).click();
+  const menu = page.getByRole('menu');
+  await expect(menu).toBeVisible();
+  await menu.evaluate((element) => element.setAttribute('data-stable-menu', 'true'));
+  const labels = await menu.getByRole('menuitem').allTextContents();
+  let writes = 0;
+  page.on('request', (request) => {
+    if (
+      ['POST', 'PATCH', 'DELETE'].includes(request.method()) &&
+      /\/api\/decks/.test(request.url())
+    )
+      writes++;
+  });
+  await offline(page, context);
+  await expect(page.locator('[data-stable-menu="true"]')).toBeVisible();
+  expect(await menu.getByRole('menuitem').allTextContents()).toEqual(labels);
+  // The unavailable item stays keyboard-discoverable and explains its restriction.
+  await menu.getByRole('menuitem', { name: 'Delete', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByText('This action needs a verified connection. Try again after reconnecting.'),
+  ).toBeVisible();
+  expect(writes).toBe(0);
+});
+
+test('stable capabilities keep Deck selection and Settings mounted through repeated network events', async ({
+  page,
+  context,
+}) => {
+  await installContinuityFixtures(page, context);
+  await download(page);
+  await page.goto(`/notes?deckId=${deckId}`);
+  await page.getByRole('button', { name: 'Select notes', exact: true }).click();
+  await page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }).click();
+  await page
+    .locator('[data-rows]')
+    .evaluate((element) => element.setAttribute('data-stable-rows', 'true'));
+  const before = await geometry(page);
+  for (let index = 0; index < 3; index++) {
+    await offline(page, context);
+    await expect(page.locator('[data-stable-rows="true"]')).toBeVisible();
+    await expect(page.locator('[data-selected]')).toHaveCount(1);
+    expect(await geometry(page)).toEqual(before);
+    await context.setOffline(false);
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('online'));
+      window.dispatchEvent(new Event('focus'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-stable-rows="true"]')).toBeVisible();
+    await expect(page.locator('[data-selected]')).toHaveCount(1);
+  }
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page
+    .getByRole('heading', { name: 'Settings', exact: true })
+    .evaluate((element) => element.setAttribute('data-stable-settings', 'true'));
+  await offline(page, context);
+  await expect(page.locator('[data-stable-settings="true"]')).toBeVisible();
+  await expect(page.getByText('Appearance', { exact: true })).toBeVisible();
+});
+
+test('direct offline Practice explains unavailable server data without admitting a local pool', async ({
+  page,
+  context,
+}) => {
+  await installContinuityFixtures(page, context);
+  await download(page);
+  await offline(page, context);
+  let writes = 0;
+  page.on('request', (request) => {
+    if (request.method() !== 'GET') writes++;
+  });
+  await page.evaluate((deckId) => {
+    history.pushState(
+      { ...history.state, __TSR_index: (history.state?.__TSR_index ?? 0) + 1 },
+      '',
+      `/notes?deckId=${deckId}&learning=practice`,
+    );
+    dispatchEvent(new PopStateEvent('popstate', { state: history.state }));
+  }, deckId);
+  await expect(page.getByRole('heading', { name: 'Practice', exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole('status')
+      .getByText('This action needs a verified connection. Try again after reconnecting.'),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toHaveCount(0);
+  expect(writes).toBe(0);
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
+  await expect(page.getByRole('searchbox')).toBeVisible();
 });

@@ -549,3 +549,42 @@ test('Practice keeps setup accessible, resumes exactly, and confirms a changed r
   await expect(page.getByRole('button', { name: 'Show answer' })).toBeVisible();
   expect(writes.every((path) => path.endsWith('/practice'))).toBe(true);
 });
+
+test('an active Practice view stays mounted while offline classification requires server authority', async ({
+  page,
+  context,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [deck], notes });
+  let run: PracticeRun | null = null;
+  let version = 0;
+  await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+    if (route.request().method() === 'POST') {
+      run = advancePractice(run, route.request().postDataJSON(), notes);
+      version++;
+    }
+    return route.fulfill({ json: { run, version } });
+  });
+  await page.goto(`/notes?deckId=${deck.id}`);
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+  await waitForPracticeSave(page);
+  await page
+    .locator('[data-learning-screen]')
+    .evaluate((element) => element.setAttribute('data-retained-practice', 'true'));
+  const acknowledged = version;
+  await context.setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event('offline')));
+  await expect(page.locator('[data-retained-practice="true"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+  await page.getByRole('button', { name: 'Known', exact: true }).click();
+  await expect(
+    page.getByText('This action needs a verified connection. Try again after reconnecting.'),
+  ).toBeVisible();
+  await expect(page.locator('[data-retained-practice="true"]')).toBeVisible();
+  expect(version).toBe(acknowledged);
+  await expect(page.getByRole('progressbar', { name: 'Known Notes', exact: true })).toHaveAttribute(
+    'aria-valuenow',
+    '0',
+  );
+});

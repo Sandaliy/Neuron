@@ -218,7 +218,8 @@ async function fixture(page: Page, count = 4) {
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
   await expect(
     page.getByText('Available from your download. Answers save on this device.'),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
   return { data, state };
 }
 async function setup(page: Page) {

@@ -143,7 +143,7 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
     const searched = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/notes');
     await page.getByRole('searchbox').fill('Connection');
     await page.clock.runFor(500);
-    await searched;
+    await (await searched).finished();
     await page.clock.runFor(3000);
     await expect(practice).toBeEnabled();
     await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
@@ -162,19 +162,21 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
     const rejected = page.waitForResponse((r) => r.status() === 503);
     await page.getByRole('searchbox').fill('isolated');
     await page.clock.runFor(500);
-    await rejected;
-    // This failed search has no authoritative result pool, so content actions
-    // may be unavailable; the network-dependent label must stay online.
-    await expect(practice).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Practice requires a connection.', exact: true }),
-    ).toHaveCount(0);
+    await (await rejected).finished();
+    // This failed search has no authoritative result pool. Keep the ordinary
+    // label and screen, while refusing Practice until its required data is confirmed.
+    await expect(practice).toHaveText('Start practice');
+    await expect(practice).toBeDisabled();
     await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
     // One bounded verification can confirm that this endpoint failure is
     // isolated. It must not replace the screen or declare offline.
     await expect.poll(() => accountReads).toBe(reads + 2);
+    // Finish the failed read's React commit before the next simulated input.
+    // A paused WebKit clock can otherwise let that commit overwrite the driver's fill.
+    await expect(page.getByRole('searchbox')).not.toHaveAttribute('aria-busy', 'true');
     failNotes = false;
     await page.getByRole('searchbox').fill('Connection');
+    await expect(page.getByRole('searchbox')).toHaveValue('Connection');
     await page.clock.runFor(500);
     await expect(practice).toBeEnabled();
 
@@ -188,9 +190,7 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect.poll(() => accountReads).toBe(reads + 1);
     await page.clock.runFor(4100);
-    await expect(
-      page.getByRole('button', { name: 'Practice requires a connection.', exact: true }),
-    ).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeDisabled();
     await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
     await expect(page.locator('[data-connection-visit="retained"]')).toHaveCount(1);
     expect(await geometry()).toEqual(before);
@@ -209,9 +209,7 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect.poll(() => accountReads).toBe(reads + 1);
     await page.clock.runFor(8100);
-    await expect(
-      page.getByRole('button', { name: 'Practice requires a connection.', exact: true }),
-    ).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeDisabled();
     releaseAPI();
     heldAPI = undefined;
     await page.clock.runFor(1600);
@@ -228,9 +226,7 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
     await page.clock.runFor(500);
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect.poll(() => accountReads).toBeGreaterThan(reads);
-    await expect(
-      page.getByRole('button', { name: 'Practice requires a connection.', exact: true }),
-    ).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeDisabled();
     await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
     await page.getByRole('link', { name: 'Today', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
@@ -261,6 +257,7 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
       server.listening ? resolve() : server.once('listening', resolve),
     );
     reads = accountReads;
+    await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
     const check = page.getByRole('button', { name: 'Check connection', exact: true });
     await check.evaluate((el) => (el as HTMLButtonElement).click());
     await expect.poll(() => accountReads).toBe(reads + 1);
@@ -274,7 +271,8 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
     releaseAccount();
     heldAccount = undefined;
     await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
-    await expect(check).toHaveCount(0);
+    await expect(check).toBeEnabled();
+    await expect(check).toHaveAttribute('aria-busy', 'false');
     await page.getByRole('link', { name: 'Library', exact: true }).click();
     await expect(page.getByRole('button', { name: 'New deck', exact: true })).toBeEnabled();
     expect(accountReads).toBe(reads + 1);

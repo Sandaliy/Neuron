@@ -92,13 +92,18 @@ export const ru = {
     'Отправка не завершена. Изменение сохранено; попробуй после подключения.',
   'offline.rebuildBlocked':
     'Пересоздание заблокировано: сохранённые изменения ещё не синхронизированы или не разрешены. Сначала восстанови их.',
+  'offline.serverRequired':
+    'Для этого действия нужно подтверждённое соединение. Повтори после подключения.',
+  'offline.details': 'Загрузка и возможности',
   'offline.recentActivity': 'Недавние изменения',
   'offline.moreActivity': 'Показать ещё',
   'offline.currentVersion': 'Текущая версия',
   'offline.originalName': 'Исходное название: {name}',
   'offline.workSaved': 'Все сохранённые изменения синхронизированы.',
   'offline.workPending': '{count} сохранённых изменений ожидают синхронизации.',
+  'offline.workPendingOne': 'Одно сохранённое изменение ожидает синхронизации.',
   'offline.workAttention': '{count} сохранённых изменений требуют внимания.',
+  'offline.workAttentionOne': 'Одно сохранённое изменение требует внимания.',
   'offline.checkingWork': 'Проверяем сохранённые изменения…',
   'offline.reviews': 'Ответы в обучении',
   'offline.reviewArchived': 'Сохранено для восстановления. Эти события не синхронизированы.',
@@ -108,6 +113,8 @@ export const ru = {
     'Сохрани недоставленные ответы и отмены этой сессии на устройстве без повторной отправки. Они не изменят историю на сервере. Новая сессия обучения использует текущие серверные расписания.',
   'offline.reviewAnswer': 'Ответ в обучении',
   'offline.reviewPending': 'Сохранено на устройстве. Ожидает синхронизации.',
+  'offline.reviewsWaiting': '{count} сохранено на устройстве, ожидают синхронизации.',
+  'offline.reviewsAttention': 'Требуют внимания: {count}.',
   'offline.reviewRejected':
     'Этот ответ требует восстановления. Последующие ответы сохранены на устройстве.',
   'offline.reviewIdReused':
@@ -232,6 +239,7 @@ export const ru = {
   'study.fewerVoices': 'Меньше голосов',
   'study.previewVoice': 'Прослушать',
   'today.updatingPlan': 'Обновляем план…',
+  'today.sendingAnswers': 'Отправляем сохранённые ответы…',
   'study.extraLetter': '1 лишняя буква',
   'study.missingLetter': '1 пропущенная буква',
   'study.changedLetter': '1 другая буква',
