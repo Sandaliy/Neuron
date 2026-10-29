@@ -174,7 +174,10 @@ export function SwipeDelete({
       >
         <Trash2 size={20} aria-hidden="true" />
       </button>
-      <div ref={surface} className="flex h-52 bg-base transition-transform dur-reveal">
+      <div
+        ref={surface}
+        className="flex h-52 bg-base transition-transform dur-reveal hover:bg-raised"
+      >
         {children}
       </div>
     </div>

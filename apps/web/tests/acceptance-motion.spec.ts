@@ -101,10 +101,10 @@ test('Grammar reveals complete text, preserves mounted controls and aligns Germa
   const grammar = page.getByRole('button', { name: 'Grammar', exact: true });
   const frames = await grammar.evaluate(async (button) => {
     const content = document.getElementById(button.getAttribute('aria-controls')!)!;
-    const inner = content.firstElementChild!;
+    const fade = content.querySelector('.neu-disclosure-content')!;
     const frames: Array<{
       height: number;
-      visible: boolean;
+      opacity: number;
       complete: boolean;
       clippedUnits: number;
     }> = [];
@@ -113,32 +113,20 @@ test('Grammar reveals complete text, preserves mounted controls and aligns Germa
     await new Promise<void>((resolve) => {
       const sample = () => {
         const height = content.getBoundingClientRect().height;
-        const style = getComputedStyle(inner);
         const boundary = content.getBoundingClientRect().bottom;
         const clippedUnits = Array.from(
-          inner.querySelectorAll('label, input, textarea, select, button, p, summary'),
+          fade.querySelectorAll('label, input, textarea, select, button, p'),
         ).filter((unit) => {
-          // Closed native details can retain layout boxes without painting their body.
-          const closed = unit.closest('details:not([open])');
-          if (closed && !closed.querySelector(':scope > summary')?.contains(unit)) return false;
+          // A closed section nested inside keeps layout boxes it does not paint.
+          if (unit.closest('[data-disclosure-open="false"]')) return false;
           const bounds = unit.getBoundingClientRect();
-          return (
-            getComputedStyle(unit).visibility !== 'hidden' &&
-            bounds.height > 0 &&
-            bounds.top < boundary - 1 &&
-            bounds.bottom > boundary + 1
-          );
+          return bounds.height > 0 && bounds.top < boundary - 1 && bounds.bottom > boundary + 1;
         }).length;
         frames.push({
           clippedUnits,
           height,
-          visible:
-            Array.from(inner.querySelectorAll('label, input, textarea, select, button, p')).some(
-              (unit) => getComputedStyle(unit).visibility !== 'hidden',
-            ) &&
-            style.visibility !== 'hidden' &&
-            Number(style.opacity) > 0.01,
-          complete: height >= inner.getBoundingClientRect().height - 1,
+          opacity: Number(getComputedStyle(fade).opacity),
+          complete: height >= fade.getBoundingClientRect().height - 1,
         });
         if (performance.now() - start < 500) requestAnimationFrame(sample);
         else resolve();
@@ -151,9 +139,12 @@ test('Grammar reveals complete text, preserves mounted controls and aligns Germa
     body: JSON.stringify(frames),
     contentType: 'application/json',
   });
+  // The body grows over several frames rather than appearing.
   expect(frames.filter((frame) => frame.height > 1 && !frame.complete).length).toBeGreaterThan(3);
-  expect(frames.some((frame) => frame.visible && !frame.complete)).toBe(true);
-  expect(frames.every((frame) => frame.clippedUnits === 0)).toBe(true);
+  // Its content fades in while it grows, and a line cut by the edge is never at full strength.
+  expect(frames.some((frame) => frame.opacity > 0.05 && frame.opacity < 0.95)).toBe(true);
+  expect(frames.every((frame) => frame.clippedUnits === 0 || frame.opacity < 0.99)).toBe(true);
+  expect(frames.at(-1)).toMatchObject({ complete: true, opacity: 1 });
   const past = page.getByLabel('Präteritum', { exact: true });
   await past.fill('ging');
   await past.evaluate((element) => {

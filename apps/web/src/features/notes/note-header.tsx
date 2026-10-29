@@ -18,12 +18,12 @@ export function NoteHeader({
   readonly readOnly?: boolean;
 }) {
   return (
-    <>
+    <div className="flex min-w-0 flex-col gap-4">
+      <CollectionPath tree={decks} id={deckId} trail within />
       <header className={`flex items-center justify-between gap-12 ${readOnly ? 'min-h-44' : ''}`}>
         <h1 className="font-display text-24 tracking-tight text-primary">{title}</h1>
         {actions}
       </header>
-      <CollectionPath tree={decks} id={deckId} />
-    </>
+    </div>
   );
 }

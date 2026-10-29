@@ -325,7 +325,13 @@ function Choices() {
       <Checkbox checked={ticked} onChange={setTicked}>
         I have saved the codes somewhere I can reach without this phone.
       </Checkbox>
-      <State>checkbox · the whole row is the target</State>
+      <Checkbox checked="indeterminate" onChange={() => {}}>
+        German: some Decks chosen
+      </Checkbox>
+      <Checkbox checked={false} onChange={() => {}} disabled>
+        Unavailable choice
+      </Checkbox>
+      <State>choice row · live · partial · disabled · the whole row is the target</State>
 
       <Segmented
         label="Density"

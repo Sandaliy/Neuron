@@ -1,5 +1,4 @@
-import { useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, ChevronRight, Folder } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 import { termOf } from '@neuron/shared';
@@ -11,31 +10,28 @@ import { useDeckActions } from '../../lib/decks';
 import { useNoteActions } from '../../lib/notes';
 import { useDeletedDecks, useDeletedNotes } from '../../lib/recovery';
 import { Button } from '../../ui/button';
+import { CollectionIcon, collectionSurface } from '../../ui/collection';
 import { Row, TreeChildren } from '../../ui/row';
 import { Segmented } from '../../ui/segmented';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 
+import { CollectionPath } from './collection-path';
 import { PurgeAction } from './purge-action';
 type Kind = 'decks' | 'notes';
 
 /** A separate recovery surface: live library and browse never request tombstones. */
 export function DeletedScreen() {
   const t = useTranslate();
-  const navigate = useNavigate();
   const [kind, setKind] = useState<Kind>('decks');
 
   return (
     <section data-screen="" className="flex flex-col gap-20">
-      <header className="flex items-center gap-8">
-        <Button
-          variant="text"
-          aria-label={t('common.back')}
-          onClick={() => void navigate({ to: '/library' })}
-        >
-          <ArrowLeft size={18} strokeWidth={1.5} aria-hidden="true" />
-        </Button>
-        <h1 className="font-display text-24 tracking-tight text-primary">{t('deleted.title')}</h1>
+      <header className="flex min-w-0 flex-col gap-4">
+        <CollectionPath tree={[]} id="" trail />
+        <h1 className="flex min-h-44 items-center font-display text-24 tracking-tight text-primary">
+          {t('deleted.title')}
+        </h1>
       </header>
 
       <Segmented
@@ -101,14 +97,30 @@ function DeletedDeckList() {
       <div key={deck.id} className="flex flex-col gap-8">
         <div className={deck.context ? 'opacity-60' : ''}>
           <Row
-            title={deck.name}
-            subtitle={t(deck.context ? 'deleted.liveContext' : 'deleted.originalLocation')}
+            standalone={false}
+            className={`${collectionSurface(deck.kind)} min-h-72 ${deck.kind === 'folder' ? 'py-12' : 'py-8'} gap-4 px-8`}
+            title={
+              <span
+                className={
+                  deck.kind === 'folder'
+                    ? 'block whitespace-normal text-17 font-semibold leading-snug'
+                    : 'block whitespace-normal text-17 leading-snug'
+                }
+              >
+                {deck.name}
+              </span>
+            }
+            subtitle={
+              <span className="block whitespace-normal text-13 leading-read text-secondary">
+                {t(deck.context ? 'deleted.liveContext' : 'deleted.originalLocation')}
+              </span>
+            }
             leading={
               <>
-                {children.length > 0 && (
+                {children.length > 0 ? (
                   <button
                     type="button"
-                    className="flex size-44 shrink-0 items-center justify-center"
+                    className="flex min-h-44 w-56 shrink-0 items-center justify-center gap-4 rounded-12 text-secondary hover:bg-fill-neutral"
                     aria-expanded={expanded}
                     aria-label={t(expanded ? 'library.collapse' : 'library.expand')}
                     onClick={() =>
@@ -120,14 +132,16 @@ function DeletedDeckList() {
                     }
                   >
                     <ChevronRight
-                      size={16}
-                      className={expanded ? 'rotate-90' : ''}
+                      size={12}
+                      className={`shrink-0 transition-transform dur-control ${expanded ? 'rotate-90' : ''}`}
                       aria-hidden="true"
                     />
+                    <CollectionIcon kind={deck.kind} />
                   </button>
-                )}
-                {deck.kind === 'folder' && (
-                  <Folder size={18} className="shrink-0 text-tertiary" aria-hidden="true" />
+                ) : (
+                  <span className="flex size-44 shrink-0 items-center justify-center">
+                    <CollectionIcon kind={deck.kind} />
+                  </span>
                 )}
               </>
             }

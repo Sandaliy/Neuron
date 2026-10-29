@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { accountQuery } from './lib/account';
 import { ApiFailure } from './lib/api';
 import { deckTreeQuery } from './lib/decks';
-import { trackPresses } from './lib/interactions';
+import { trackModality, trackPresses } from './lib/interactions';
 import { lifecycle } from './lib/lifecycle';
 import { noteListQuery, noteQuery } from './lib/notes';
 import { confirmConnection, initializeOffline, offlineState } from './lib/offline';
@@ -138,6 +138,7 @@ router.subscribe('onBeforeLoad', ({ toLocation }) => {
 // knows where the keyboard is.
 void trackViewport();
 trackPresses();
+trackModality();
 
 /*
  * Watching the frames during a scroll, so a phone that cannot afford the glass

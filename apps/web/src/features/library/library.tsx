@@ -5,7 +5,6 @@ import {
   FolderInput,
   Folder,
   ChevronRight,
-  ArrowLeft,
   Pencil,
   Plus,
   Settings2,
@@ -25,6 +24,7 @@ import { Button } from '../../ui/button';
 import { CollectionIcon, collectionSurface } from '../../ui/collection';
 import { CollectionHeader } from '../../ui/collection-header';
 import { Dialog, DialogFooter } from '../../ui/dialog';
+import { Fold } from '../../ui/disclosure';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
 import { TreeChildren, Row } from '../../ui/row';
 import { ServerControls } from '../../ui/server-controls';
@@ -113,22 +113,9 @@ export function LibraryScreen() {
         <CollectionHeader
           readOnly={offline.offline}
           title={folder?.name ?? t('library.title')}
+          path={folder && <CollectionPath tree={tree} id={folder.id} trail />}
           actions={
             <>
-              {folder && (
-                <Button
-                  variant="text"
-                  aria-label={t('common.back')}
-                  onClick={() =>
-                    void navigate({
-                      to: '/library',
-                      search: folder.parentId ? { folderId: folder.parentId } : {},
-                    })
-                  }
-                >
-                  <ArrowLeft size={18} />
-                </Button>
-              )}
               <ServerControls available={!readOnly}>
                 <Button
                   variant="quiet"
@@ -169,9 +156,7 @@ export function LibraryScreen() {
               </ServerControls>
             </>
           }
-        >
-          <CollectionPath tree={tree} id={folderId ?? ''} />
-        </CollectionHeader>
+        />
 
         {unavailable && (
           <p role="status" className="text-14 text-secondary">
@@ -549,25 +534,27 @@ function Deck({
           position="after"
         />
       )}
-      {hasChildren && expanded ? (
-        <TreeChildren>
-          {deck.children.map((child) => (
-            <Deck
-              key={child.id}
-              deck={child}
-              readOnly={readOnly}
-              localEdits={localEdits}
-              offline={offline}
-              siblings={deck.children}
-              tree={tree}
-              actions={actions}
-              open={open}
-              onToggle={onToggle}
-              onOpen={onOpen}
-              onAct={onAct}
-            />
-          ))}
-        </TreeChildren>
+      {hasChildren ? (
+        <Fold open={expanded}>
+          <TreeChildren reveal={false}>
+            {deck.children.map((child) => (
+              <Deck
+                key={child.id}
+                deck={child}
+                readOnly={readOnly}
+                localEdits={localEdits}
+                offline={offline}
+                siblings={deck.children}
+                tree={tree}
+                actions={actions}
+                open={open}
+                onToggle={onToggle}
+                onOpen={onOpen}
+                onAct={onAct}
+              />
+            ))}
+          </TreeChildren>
+        </Fold>
       ) : undefined}
     </div>
   );

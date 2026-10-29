@@ -155,7 +155,10 @@ a `Progress` passed to `FormField` as `after`.
 **Choice** (`ui/segmented.tsx`, `ui/switch.tsx`, `ui/checkbox.tsx`). Segmented replaces radios
 everywhere and is for two or three options; it is native radio inputs, so the arrow keys are the
 browser's own, and the thumb travels on `transform`. A switch is a capsule and a white disc. A
-checkbox's mark is the accent fill framed by an inset ring, not a tick glyph.
+checkbox is a whole row whose state is that same switch at its end: checkbox semantics, including the
+partial state a Folder needs, drawn with the control Settings already uses for yes and no. Partial
+stops the knob half way on the filled track. There is no separate checkbox mark: a fill framed by a
+white ring read as a radio bullet at twenty pixels, and a tick read as a form.
 
 **Row** (`ui/row.tsx`). `Row` is a deck row, a settings row, or anything with a title, a subtitle and
 something at the far end. `TreeRow` and `TreeChildren` are the deck tree: indentation and a hairline,
@@ -301,22 +304,39 @@ library scroll fell from 60 frames a second to 8.7 with nothing on screen lookin
 fill `forwards`, because something on its way out has to stay where it ended until it is unmounted.
 `src/styles/motion.test.ts` fails the build on `both`.
 
-- Screens and routes do not animate globally. Motion belongs to the control or content changing state.
-- Dialogs appear in place with opacity and scale 0.99 to 1 over `--dur-3` on the in/out curve,
-  preserving visible intermediate frames. Portal/focus setup pauses the entrance until its first ready
-  frame, so mounting cannot consume the visible fade. Closing reverses those endpoints over `--dur-1`.
-  The scrim retains its existing `--dur-2` fade.
+- Screens arrive in the direction the person moved. Deeper in the hierarchy (Library to a Deck to a
+  Note) the screen comes in 14px from the right; Back brings it in from the left; a tab change, a
+  sideways step between siblings, rises 6px. `--dur-3` on the arrival curve, `--dur-2` for a tab.
+  Entrance only: a cached screen is readable at once and never waits for the old one to leave. The
+  shell sets `data-arrival` once per screen from the history index; nothing inside the screen animates
+  for it. A Library folder is a query parameter, not a screen, and keeps its mounted tree.
+- Inside a Study or Practice sitting the next card's reading area comes in 20px from the right and
+  Undo brings the previous one back from the left; the card surface stays put, so a sitting reads as
+  one card being turned. The learning screen itself does not move: its keyboard composition measures
+  it before Safari opens the keyboard.
+- Dialogs grow from 8px below at scale 0.96 over `--dur-3` on the arrival curve and leave to 0.97 over
+  `--dur-2`, with the scrim fading over `--dur-2` both ways. Portal/focus setup pauses the entrance
+  until its first ready frame, so mounting cannot consume it. The earlier 0.99 and 90ms were below
+  what an eye notices, so dialogs read as appearing and vanishing.
 - The app background stays stationary at every width. The scrim, glass surface and shadow provide
   depth without transforming the root or changing the containing block of fixed navigation.
-- Menus use a 2px approach and scale 0.99 from Radix's collision-aware trigger origin. Opening takes
-  `--dur-2`, closing reverses the same endpoints over `--dur-1`, without overshoot.
-- Toasts travel 4px with opacity, opening over `--dur-2` and closing over `--dur-1`. They remain mounted
-  through their exit. On phones they sit 8px above the tab bar, with safe area counted once; with the
-  keyboard open they sit 8px above it. Desktop feedback uses the bottom safe area plus 16px.
+- Menus open out of their trigger: a 4px approach and scale 0.96 from Radix's collision-aware origin,
+  `--dur-2` to open, the same endpoints reversed over `--dur-1` to close, without overshoot.
+- Toasts rise 12px at scale 0.96 over `--dur-3` and leave 8px down over `--dur-2`. They stay for their
+  reading time: 1.5s plus 65ms a character, between 3.5 and 7 seconds, failures between 5 and 10,
+  paused while hovered or focused. On phones they sit 8px above the tab bar, with safe area counted
+  once; with the keyboard open they sit 8px above it. Desktop feedback uses the bottom safe area plus
+  16px.
+- Every inline disclosure is `ui/disclosure.tsx`; native `<details>` is not used. The body grows on
+  `grid-template-rows` from `0fr` to `1fr` over `--dur-3`, and its content fades in a `--dur-1` beat
+  behind the growth and leaves faster than the space closes. This is the one layout transition in the
+  system, bounded to a section of a card, and nothing in script reads the layout while it moves.
 - The learning card keeps a stable reading surface. Before reveal its prompt is vertically centered.
   Reveal moves the prompt upward using a measured transform over `--dur-learning`, draws a divider with
-  scaleX/opacity, and introduces the answer below it. Long content scrolls inside the card.
-- A pushed screen brings its content a beat behind itself: four rows, 26ms apart, then it stops.
+  scaleX/opacity, and introduces the answer below it. Prompts and answers step down in size past 40
+  and past 100 characters, so a sentence fits the card instead of scrolling inside it.
+- A Folder or Deck being dragged is drawn as the same Library row, lifted to scale 1.02 with a floating
+  shadow over `--dur-2`; the row it came from dims to 40%.
 - The focus ring is instant. The halo behind it fades over `--dur-1`.
 - What hangs under an open deck arrives with the reveal. The disclosure has already turned by then, so
   the movement is the answer to it.
@@ -330,6 +350,14 @@ fill `forwards`, because something on its way out has to stay where it ended unt
   teleported; the platform's own controls take about this long, and the spring is what makes the
   arrival read as a settle rather than a stop.
 - The tab bar leaves downward when the keyboard arrives, and comes back the same way.
+- A switch moves as one thing: track colour and knob both take `--dur-3`, the knob on the spring.
+  Turning Animations off lets that switch finish before every duration collapses.
+- A checkbox moves exactly as a switch does, because it is drawn as one.
+- A Library Folder opens and closes as a disclosure does (`Fold` in `ui/disclosure.tsx`): its children
+  grow into place and the rows below slide; closed, the children unmount.
+- On a touch screen a pressed button also gives 0.97 under the finger as it dims to 0.7; rows dim.
+  The press is the attribute `src/lib/interactions.ts` sets and a scroll clears, so a scroll that
+  starts on a control never makes it flinch.
 - Errors shake once, 320ms, 4px. That is the only expressive motion in the system.
 - No loops except the spinner and the skeleton sheen, and both stop when content arrives.
 - `prefers-reduced-motion` collapses every duration to 1ms. States still change, nothing travels. The

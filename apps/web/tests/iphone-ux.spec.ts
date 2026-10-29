@@ -200,8 +200,10 @@ for (const storedLocale of ['en', 'ru'] as const) {
       })
       .click();
     await page
-      .locator('summary')
-      .filter({ hasText: locale === 'en' ? 'Cards from' : 'Карточки первой' })
+      .getByRole('button', {
+        name: locale === 'en' ? /^Cards from/ : /^Карточки первой/,
+        expanded: false,
+      })
       .click();
     await expect(page.getByText('Ich [...] Deutsch.', { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -269,8 +271,10 @@ test('Restart learning retries one reset, preserves the draft and returns to Stu
   const field = page.getByRole('textbox', { name: 'Translation', exact: true });
   await field.fill('retained during restart');
   await page.getByRole('button', { name: 'Mark as known', exact: true }).click();
-  await page.locator('summary').filter({ hasText: 'Restart learning' }).click();
-  const again = page.getByRole('button', { name: 'Restart learning', exact: true });
+  await page.getByRole('button', { name: 'Restart learning', expanded: false }).click();
+  const again = page
+    .getByRole('button', { name: 'Restart learning', exact: true })
+    .and(page.locator(':not([aria-expanded])'));
   await expect(again).toBeEnabled();
   await again.click();
   await expect(page.getByRole('alert')).toBeVisible();

@@ -162,10 +162,17 @@ export function TreeRow({
 }
 
 /** What hangs under an open deck: one indent, one hairline, per level. */
-export function TreeChildren({ children }: { readonly children: ReactNode }) {
+export function TreeChildren({
+  children,
+  reveal = true,
+}: {
+  readonly children: ReactNode;
+  /** Off when the children already arrive inside a Fold, which fades them itself. */
+  readonly reveal?: boolean;
+}) {
   return (
     <div
-      data-reveal=""
+      data-reveal={reveal ? '' : undefined}
       className="ml-12 flex flex-col gap-8 border-l border-subtle pl-8 sm:ml-20 sm:pl-16"
     >
       {children}
@@ -203,7 +210,7 @@ export function DenseRow({
   );
 
   if (!onClick) {
-    return <div className="flex h-52 w-full items-center gap-12 px-16">{content}</div>;
+    return <div className="flex h-52 w-full min-w-0 items-center gap-12 px-16">{content}</div>;
   }
 
   return (
@@ -212,7 +219,9 @@ export function DenseRow({
       data-row=""
       aria-pressed={selected}
       onClick={onClick}
-      className="flex h-52 w-full items-center gap-12 px-16 hover:bg-raised"
+      // min-w-0: a row beside other controls must be able to shrink, or a long
+      // meaning pushes its status and the delete button past the edge.
+      className="flex h-52 w-full min-w-0 items-center gap-12 px-16 hover:bg-raised"
     >
       {content}
     </button>

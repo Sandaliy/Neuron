@@ -132,6 +132,9 @@
   --dur-3: 240ms; /* a screen change, a scrim */
   --type-learning-prompt: clamp(36px, 7vw, 56px);
   --type-learning-answer: clamp(36px, 7vw, 56px);
+  /* Longer prompts and answers step down so a sentence fits the card instead of scrolling in it. */
+  --type-learning-long: clamp(26px, 6vw, 40px);
+  --type-learning-longer: clamp(20px, 4.8vw, 30px);
   --dur-learning: 340ms;
   --dur-completion: 340ms;
   --dur-4: 340ms; /* a sheet rising */

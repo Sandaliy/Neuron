@@ -1,7 +1,7 @@
 import { keepPreviousData, useIsMutating, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { ChevronDown, SlidersHorizontal } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { DEFAULT_ANSWER_SECONDS, dayIndexOf } from '@neuron/core';
 import { dailyStudySessionSchema, studyDecks } from '@neuron/shared';
@@ -20,6 +20,7 @@ import { requireDeliveredReviews, reviewEvents } from '../../lib/review-outbox';
 import { awaitInitialPlan, confirmedInitialPlan } from '../../lib/study-plan';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
+import { Checkbox } from '../../ui/checkbox';
 import { Chip } from '../../ui/chip';
 import { Dialog, DialogBody } from '../../ui/dialog';
 import { Disclosure } from '../../ui/disclosure';
@@ -38,6 +39,7 @@ import { StudyScope } from './study-scope';
 
 import type { CardDisplay } from './card-display';
 import type { StudyPlanProjection } from '../../lib/note-projection';
+import type { QueryClient } from '@tanstack/react-query';
 
 /**
  * How long the cards waiting are likely to take.
@@ -159,6 +161,26 @@ export function TodayScreen() {
       )}
     </section>
   );
+}
+/**
+ * The newest plan cached for the same setup, from before the account moved on.
+ *
+ * The plan is keyed by the account revision, which every delivered answer
+ * advances, so Today mounting after a sitting found no data for its key and
+ * collapsed to a skeleton, deck list and all, until the server answered. The
+ * previous plan stands in as placeholder data: it is shown as updating and
+ * cannot be started, exactly like a plan kept across a setup change.
+ */
+function recentPlan(client: QueryClient, key: readonly unknown[]) {
+  const setup = JSON.stringify(key.slice(0, -2));
+  let newest: { data: StudyPlanProjection; at: number } | undefined;
+  for (const query of client.getQueryCache().findAll({ queryKey: ['study-plan'] })) {
+    const data = query.state.data as StudyPlanProjection | undefined;
+    if (!data || JSON.stringify(query.queryKey.slice(0, -2)) !== setup) continue;
+    if (!newest || query.state.dataUpdatedAt > newest.at)
+      newest = { data, at: query.state.dataUpdatedAt };
+  }
+  return newest?.data;
 }
 interface StudyChoices {
   readonly scope?: string[] | undefined;
@@ -286,10 +308,20 @@ function Waiting({
     !local && authoritative && defaultRequest
       ? confirmedInitialPlan(client, account.data, language)
       : undefined;
-  const startGeneration = useRef(0);
-  useLayoutEffect(() => {
-    startGeneration.current++;
-  }, [planIdentity, authoritative]);
+  /*
+   * A tap on Study that needs a fresh plan is remembered until the plan is
+   * ready, then starts it. It used to start only if nothing about readiness
+   * had moved while the plan was fetched, and otherwise did nothing, so the
+   * learner tapped again into an "Updating plan" they had no reason to expect.
+   * Changing the setup cancels the request, because that is a different plan.
+   */
+  const [startingFor, setStartingFor] = useState<string | null>(null);
+  const startRequested = startingFor === planIdentity;
+  const whenReady = useRef<((ready: StudyPlanProjection) => void) | null>(null);
+  const latestIdentity = useRef(planIdentity);
+  useEffect(() => {
+    latestIdentity.current = planIdentity;
+  });
   const plan = useQuery<StudyPlanProjection>({
     queryKey: planKey,
     ...(initial ? { initialData: initial.data, initialDataUpdatedAt: initial.updatedAt } : {}),
@@ -341,7 +373,7 @@ function Waiting({
         ),
       );
     },
-    placeholderData: keepPreviousData,
+    placeholderData: (previous) => keepPreviousData(previous) ?? recentPlan(client, planKey),
     ...(local ? { networkMode: 'always' as const, retry: false as const } : {}),
     enabled: authoritative && mutations === 0 && !!account.data,
   });
@@ -470,15 +502,15 @@ function Waiting({
           </div>
         )}
         {(result?.newCards.overrideAvailable || override) && (
-          <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
-            <input
-              type="checkbox"
+          <div className="-mx-12">
+            <Checkbox
               checked={override}
               disabled={!!result?.offlineStudy?.limit}
-              onChange={(event) => setOverride(event.target.checked)}
-            />
-            {t('study.moreNew')}
-          </label>
+              onChange={setOverride}
+            >
+              {t('study.moreNew')}
+            </Checkbox>
+          </div>
         )}
         {direction === 'listening' && (
           <ListeningSetup key={language ?? 'unspecified'} decks={decks} selected={selectedDecks} />
@@ -501,6 +533,25 @@ function Waiting({
       </div>
     </Disclosure>
   );
+  const startReady =
+    !!result &&
+    authoritative &&
+    !reconciling &&
+    result.cards.length > 0 &&
+    !plan.isFetching &&
+    mutations === 0 &&
+    !plan.error &&
+    result.localProjection !== true &&
+    !(
+      direction === 'listening' &&
+      listening.some((item) => !item.language || (connection.offline && !item.voice))
+    );
+  useEffect(() => {
+    const resume = whenReady.current;
+    if (!resume || !startReady || !result || !present.current) return;
+    whenReady.current = null;
+    resume(result);
+  });
   const waiting = (result?.deckSummaries ?? [])
     .filter((summary) => selected.includes(summary.deckId))
     .flatMap((summary) => {
@@ -605,6 +656,7 @@ function Waiting({
           <Button
             variant="primary"
             full
+            busy={startRequested}
             disabled={
               !authoritative ||
               reconciling ||
@@ -618,7 +670,6 @@ function Waiting({
               result.localProjection === true
             }
             onClick={() => {
-              const generation = startGeneration.current;
               const boundary = {
                 timezone: account.data?.timezone ?? 'UTC',
                 dayCutoffHour: account.data?.dayCutoffHour ?? 4,
@@ -635,18 +686,15 @@ function Waiting({
                 now.getTime() - plan.dataUpdatedAt < 15_000
               )
                 onStart(result);
-              else
-                void plan.refetch().then((fresh) => {
-                  if (
-                    present.current &&
-                    generation === startGeneration.current &&
-                    fresh.isSuccess &&
-                    fresh.data &&
-                    !fresh.data.localProjection &&
-                    !fresh.data.reviewProjection
-                  )
-                    onStart(fresh.data);
-                });
+              else {
+                const requested = planIdentity;
+                setStartingFor(requested);
+                whenReady.current = (ready) => {
+                  setStartingFor(null);
+                  if (requested === latestIdentity.current) onStart(ready);
+                };
+                void plan.refetch();
+              }
             }}
           >
             {t('today.study')}

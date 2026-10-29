@@ -8,6 +8,7 @@ import { request } from '../../lib/api';
 import { applySavedNote, retryNoteEdits, keepServerNote, noteEdits } from '../../lib/note-outbox';
 import { useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
+import { Disclosure } from '../../ui/disclosure';
 import { NoteField } from '../notes/note-field';
 
 import { SavedWork, workIsSettled } from './saved-work';
@@ -207,9 +208,8 @@ function SavedVersion({
       : {}),
   });
   return (
-    <details className="text-13 text-secondary">
-      <summary className="flex min-h-44 cursor-pointer items-center">{title}</summary>
-      <div className="flex flex-col gap-12 py-12">
+    <Disclosure quiet title={title}>
+      <div className="flex flex-col gap-12 text-13 text-secondary">
         {sections
           .flatMap((section) => section.fields)
           .filter((field) => readField(fields, field.path) !== undefined)
@@ -230,6 +230,6 @@ function SavedVersion({
           {t('note.tags')}: {tags.join(', ')}
         </p>
       </div>
-    </details>
+    </Disclosure>
   );
 }
