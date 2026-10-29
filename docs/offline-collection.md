@@ -62,14 +62,21 @@ authority; qualified offline Study uses the dedicated planning path. These reque
 Note list. Existing optimistic data is not replaced by a
 local seed, and authoritative responses still reconcile it through the existing query.
 
-Provenance, connectivity and session authority are separate. While online, provisional Deck content
-uses the normal header, toolbar, search/filter rows and Practice card. Server-dependent controls keep
-their positions and remain disabled until the account and required data are authoritative. A local
-seed never enables an editor, a destructive action, Study planning or a Practice pool. The normal
-Deck layout contains no offline explanation; actual offline status stays beside navigation, with
-readiness and recovery details in Settings. In-session offline handover retains recognizable disabled
-controls and permits durable existing Folder/Deck renames. Practice retains its mounted entry with a
-concise connection requirement. No measured empty slot replaces it, and its action cannot admit a session.
+Provenance, connectivity and session authority are separate. Phase 8.6 keeps the normal Shell route,
+Library menus/handles, Deck selection/search/filter controls and Settings mounted across connectivity
+changes. `lib/capabilities.ts` derives completed local access and validated server authority from the
+existing account state; entity provenance remains an additional server-operation gate. Its local
+Study capability only permits asking the existing planner, which still owns history/settings admission.
+Remembered identity or local query data never grants server write or delivery authority.
+
+Unavailable server controls retain their layout and discoverability. A deliberate action explains the
+connection requirement; controls announce restrictions accessibly. Open dialogs retain their drafts,
+with authority checked again before submission. Selection itself is local presentation, while its bulk
+mutations remain server-only. Practice retains its ordinary action label and confirmed presentation;
+classification, restart and Undo cannot create optimistic commands without current server authority.
+The normal Deck layout contains no persistent offline explanation. Connection status stays beside
+navigation, with readiness and recovery in Settings. Explicit rejection, sign-out and account switching
+still revoke access through the existing account boundary.
 
 Provisional query publication uses a zero freshness timestamp. If navigation cancels the original
 request, returning retries server authority instead of treating local content as a fresh online answer.
@@ -141,8 +148,8 @@ drag/drop, selection mutations, direct/swipe deletion, Practice, Note creation a
 remain unavailable. Browsing completeness and learning-history readiness are separate Settings states.
 Control regions show deliberate unavailable states during the current visit and on re-entry.
 Search covers stored fields and
-tags; status, Card state, source, tag and supported sort filters use saved facts. Server-only due
-counts and Study readiness are hidden. Previously loaded Practice progress remains descriptive beside
+tags; status, Card state, source, tag and supported sort filters use saved facts. Unavailable server-only due
+counts use an unknown value; local Study readiness comes only from the qualified planner. Previously loaded Practice progress remains descriptive beside
 its disabled entry; it cannot authorize another run. Unreadable local snapshots revoke cache
 availability rather than presenting stale online rows as completed offline data.
 
@@ -189,13 +196,14 @@ exception messages enter diagnostics. A failed Rebuild is handled as recovery fa
 
 ## Durable rename delivery
 
-An offline rename saves an immutable command `{ accountId, operationId, baseRev, name }`, target identity
+A rename of a downloaded existing Folder/Deck saves an immutable command `{ accountId, operationId, baseRev, name }`, target identity
 and full originally observed server row in the account's outbox. The command record is also the local
 name overlay: intent and visible local state commit atomically with an outbox-version advance. A dialog
 retains its original observed revision even if a background pull updates the device while it is open.
 Failed quota/transaction commits roll back the optimistic name; a second pending rename for the same
-entity is refused until delivery/recovery. Existing online rename uses its existing PATCH contract and
-optimistic projection, including the confirmed revision, and cannot overwrite a known pending rename.
+entity is refused until delivery/recovery. A complete download uses this same durable path during online visits, including its observed server
+revision, exact delivery and conflict recovery. Without a completed download, validated online rename
+retains its existing PATCH contract and cannot overwrite a known pending rename.
 
 Delivery requires freshly validated, matching-account authorization. Sign-out/account change cancels
 delivery and removes UI access, retaining records in their originating database. Expired sessions,
@@ -432,3 +440,19 @@ A browser that neither reports a loss nor performs any request exposes no immedi
 outage. Offline events revoke authority immediately; foreground, cached navigation and stalled HTTP work detect
 stale online hints. Native installed-iPhone event ordering, storage scheduling and compositor behavior remain owner
 acceptance boundaries.
+
+## Phase 8.6 installed-iPhone acceptance
+
+Browser evidence remains separate from installed-device acceptance. With a completed download and
+existing pending work retained:
+
+1. Expand Folders and leave a menu or rename dialog open. Repeat short outages, slow successful
+   reconnection and background/foreground events. Check the same row/header positions, expansion,
+   draft, focus and scroll without disappearing controls or an unrelated replacement screen.
+2. Keep a Deck search/filter or selection active through those events. Try an unavailable create,
+   delete, move or Practice action; check the contextual explanation and absence of a completed write.
+3. Cold-reopen offline into the normal Library, Note, Today and Settings interfaces. Verify compact
+   synchronization/readiness, discoverable details and visible unresolved work. Check qualified local
+   Study, local answer/Undo saving and later authoritative reconciliation.
+4. Reject the session or switch accounts and verify immediate access revocation, retained recovery
+   records and no delivery through remembered identity. Restore matching authentication to recover.

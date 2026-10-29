@@ -131,8 +131,9 @@ Typing tolerance, grammar drills and richer speech remain deferred as described 
 **Purpose**
 
 Make mobile study dependable without a connection and reconcile work across devices when connectivity
-returns. Phase 7 is accepted and Phase 8.0 server sync integrity is released. Phase 8.1 implements
-durable collection reads and shell caching; offline writes and learning remain later slices.
+returns. Phase 7 is accepted. Phase 8.0–8.5 provide server sync integrity, durable collection reads,
+existing name/Note edits, Review/Undo delivery and conservative local Study. Phase 8.6 stabilizes the
+shared interface across connectivity changes and makes capability restrictions contextual.
 
 **Core deliverables**
 
@@ -141,6 +142,7 @@ durable collection reads and shell caching; offline writes and learning remain l
 - Queue local creations, edits, deletes, and reviews with stable IDs.
 - Pull and push revisioned changes in bounded batches, preserving transaction boundaries.
 - Replay merged review logs deterministically and surface resync when server and client projections differ.
+- Keep one stable interface across connectivity changes, with contextual capability restrictions.
 - Show clear online, offline, pending, retrying, conflict, and authentication-expired states.
 - Recover conflicting edits using retained losing versions, preserve queued work through session expiry,
   and explain recovery from storage loss or interrupted synchronization.

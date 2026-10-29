@@ -6,6 +6,7 @@ import { uuidV7 } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
+import { hasServerAuthority } from '../../lib/capabilities';
 import { DECK_TREE_KEY, useDeckActions, useDeckTree } from '../../lib/decks';
 import { NOTE_KEY } from '../../lib/notes';
 import { Button } from '../../ui/button';
@@ -31,6 +32,11 @@ export function RestartLearning({
   const actions = useDeckActions();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const participation = actions.update;
+  function canAct() {
+    if (hasServerAuthority() && !tree.local) return true;
+    toast.show(t('offline.serverRequired'));
+    return false;
+  }
   const restart = useMutation({
     mutationFn: (id: string) =>
       request(`/decks/${deckId}/restart-learning`, { method: 'POST', body: { id } }),
@@ -61,6 +67,7 @@ export function RestartLearning({
         decks={tree.data ?? []}
         busy={actions.update.isPending}
         onSave={(settings) => {
+          if (!canAct()) return;
           void actions.update
             .mutateAsync({ id: deck.id, settings })
             .then(() => setSettingsOpen(false))
@@ -72,6 +79,7 @@ export function RestartLearning({
           <MenuItem
             disabled={participation.isPending}
             onSelect={() =>
+              canAct() &&
               participation.mutate({
                 id: deck.id,
                 settings: {
@@ -115,7 +123,7 @@ export function RestartLearning({
             variant="primary"
             busy={restart.isPending}
             onClick={() => {
-              if (operation) restart.mutate(operation);
+              if (operation && canAct()) restart.mutate(operation);
             }}
           >
             {t('learning.restart')}

@@ -433,6 +433,10 @@ the tracker sets and then measures where things actually are.
 - No screen is mostly empty. If content is thin, the screen carries the next action and the reason for
   it. None of the three states is a centred icon in a void.
 - Numbers are mono and tabular. Counts and dates never shift the layout as they change.
+- Repeated identical operations are one group with a count, not one row each. If the action on every
+  row does the same thing, it is one action on the group. Draw a row of its own only for an item that
+  needs a decision the others do not, and say in the group how many are simply waiting. A queue that
+  drains should change its numbers, not its height.
 - Frequent actions live in the bottom third. Minimum touch target 44. Safe area insets are respected,
   and so is the on-screen keyboard.
 

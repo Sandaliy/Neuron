@@ -98,7 +98,8 @@ test('a failed deck create cannot leave an error in a later successful rename', 
   page,
 }) => {
   await usePreferences(page, { theme: 'dark', locale: 'en' });
-  await useFixtures(page);
+  // Exercise the validated server rename path without a completed local collection.
+  await useFixtures(page, { collectionDownload: false });
   await page.route('/api/decks', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({

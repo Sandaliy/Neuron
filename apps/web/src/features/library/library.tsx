@@ -17,6 +17,7 @@ import type { DeckNode, DeckSettings } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
+import { useCapabilities } from '../../lib/capabilities';
 import { findDeck, useDeckActions, useDeckTree } from '../../lib/decks';
 import { useOffline } from '../../lib/offline';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
@@ -26,6 +27,7 @@ import { CollectionHeader } from '../../ui/collection-header';
 import { Dialog, DialogFooter } from '../../ui/dialog';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
 import { TreeChildren, Row } from '../../ui/row';
+import { ServerControls } from '../../ui/server-controls';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
@@ -54,7 +56,8 @@ export function LibraryScreen() {
   const navigate = useNavigate();
   const decks = useDeckTree();
   const offline = useOffline();
-  const readOnly = offline.offline || !offline.validated || decks.local;
+  const capability = useCapabilities(!decks.local);
+  const readOnly = !capability.server;
   const unavailable = offline.offline && !offline.available;
   const actions = useDeckActions();
   const [open, setOpen] = useState<ReadonlySet<string>>(() => readOpen());
@@ -90,7 +93,14 @@ export function LibraryScreen() {
    *
    * Recovery returns the same rows and only descendants attributed to this deletion.
    */
+  function requireServer() {
+    if (capability.server) return true;
+    toast.show(t('offline.serverRequired'));
+    return false;
+  }
+
   async function remove(deck: DeckNode) {
+    if (!requireServer()) return;
     await actions.remove.mutateAsync(deck.id);
 
     setDialog({ kind: 'none' });
@@ -119,7 +129,7 @@ export function LibraryScreen() {
                   <ArrowLeft size={18} />
                 </Button>
               )}
-              <fieldset disabled={readOnly} className="contents">
+              <ServerControls available={!readOnly}>
                 <Button
                   variant="quiet"
                   className="size-44 px-12"
@@ -156,7 +166,7 @@ export function LibraryScreen() {
                   <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
                   <span className="sr-only min-[420px]:not-sr-only">{t('library.newDeck')}</span>
                 </Button>
-              </fieldset>
+              </ServerControls>
             </>
           }
         >
@@ -203,6 +213,7 @@ export function LibraryScreen() {
                 key={deck.id}
                 deck={deck}
                 readOnly={readOnly}
+                localEdits={capability.localEdits}
                 offline={offline.offline}
                 siblings={visible}
                 tree={tree}
@@ -216,44 +227,48 @@ export function LibraryScreen() {
           </div>
         ) : undefined}
 
-        {(!readOnly || (offline.offline && dialog.kind === 'rename')) && (
-          <DeckDialogs
-            state={dialog}
-            decks={tree}
-            onClose={() => setDialog({ kind: 'none' })}
-            onCreate={async (parentId, name, kind) => {
-              await actions.create.mutateAsync({ name, parentId, kind });
+        {/* Mounted at every connectivity state. An open dialog that unmounts
+            because the network dropped loses what was typed into it; each
+            action checks authority when it runs instead. */}
+        <DeckDialogs
+          state={dialog}
+          decks={tree}
+          onClose={() => setDialog({ kind: 'none' })}
+          onCreate={async (parentId, name, kind) => {
+            if (!requireServer()) return;
+            await actions.create.mutateAsync({ name, parentId, kind });
 
-              setDialog({ kind: 'none' });
-              toast.show(t('library.created', { name }));
-            }}
-            onRename={async (deck, name) => {
-              await actions.rename.mutateAsync({ id: deck.id, name, observed: deck });
-              setDialog({ kind: 'none' });
-              if (offline.offline) toast.show(t('offline.renameSaved'));
-            }}
-            onMove={async (deck, parentId) => {
-              await actions.move.mutateAsync({ id: deck.id, parentId });
+            setDialog({ kind: 'none' });
+            toast.show(t('library.created', { name }));
+          }}
+          onRename={async (deck, name) => {
+            const saved = await actions.rename.mutateAsync({ id: deck.id, name, observed: deck });
+            setDialog({ kind: 'none' });
+            if ('operationId' in saved) toast.show(t('offline.renameSaved'));
+          }}
+          onMove={async (deck, parentId) => {
+            if (!requireServer()) return;
+            await actions.move.mutateAsync({ id: deck.id, parentId });
 
-              setDialog({ kind: 'none' });
-              toast.show(t('library.moved', { name: deck.name }));
-            }}
-            onSaveSettings={async (deck, settings) => {
-              await actions.update.mutateAsync({ id: deck.id, settings });
-              setDialog({ kind: 'none' });
-            }}
-            onDelete={remove}
-            busy={
-              actions.create.isPending ||
-              actions.rename.isPending ||
-              actions.move.isPending ||
-              actions.update.isPending ||
-              actions.remove.isPending
-            }
-            createError={actions.create.error}
-            renameError={actions.rename.error}
-          />
-        )}
+            setDialog({ kind: 'none' });
+            toast.show(t('library.moved', { name: deck.name }));
+          }}
+          onSaveSettings={async (deck, settings) => {
+            if (!requireServer()) return;
+            await actions.update.mutateAsync({ id: deck.id, settings });
+            setDialog({ kind: 'none' });
+          }}
+          onDelete={remove}
+          busy={
+            actions.create.isPending ||
+            actions.rename.isPending ||
+            actions.move.isPending ||
+            actions.update.isPending ||
+            actions.remove.isPending
+          }
+          createError={actions.create.error}
+          renameError={actions.rename.error}
+        />
       </section>
     </CollectionDrag>
   );
@@ -279,6 +294,7 @@ type DialogState =
 function Deck({
   deck,
   readOnly,
+  localEdits,
   offline,
   siblings,
   tree,
@@ -290,6 +306,7 @@ function Deck({
 }: {
   readonly deck: DeckNode;
   readonly readOnly: boolean;
+  readonly localEdits: boolean;
   readonly offline: boolean;
   /** The decks at this level, for moving one up or down among them. */
   readonly siblings: readonly DeckNode[];
@@ -304,12 +321,20 @@ function Deck({
 }) {
   const t = useTranslate();
   const toast = useToast();
+  const act = (state: DialogState) => {
+    if ((state.kind === 'rename' && localEdits) || !readOnly) onAct(state);
+    else toast.show(t('offline.serverRequired'));
+  };
 
   const hasChildren = deck.kind === 'folder' && deck.children.length > 0;
   const expanded = open.has(deck.id);
   const index = siblings.findIndex((entry) => entry.id === deck.id);
 
   function reorder(offset: number) {
+    if (readOnly) {
+      toast.show(t('offline.serverRequired'));
+      return;
+    }
     const order = siblings.map((entry) => entry.id);
     const target = index + offset;
     const moving = order[index];
@@ -378,11 +403,7 @@ function Deck({
           }
           leading={
             <>
-              {readOnly ? (
-                <span aria-hidden="true" className="-mx-8 block size-44 shrink-0" />
-              ) : (
-                <CollectionHandle deck={deck} />
-              )}
+              <CollectionHandle deck={deck} disabled={readOnly} />
               {deck.kind === 'folder' ? (
                 hasChildren ? (
                   <button
@@ -415,108 +436,98 @@ function Deck({
           onClick={() => onOpen(deck.id)}
           interactiveTrailing
           trailing={
-            offline ? (
-              <Menu label={t('library.deckActions', { name: deck.name })}>
-                <MenuItem
-                  icon={<Pencil size={16} strokeWidth={1.5} />}
-                  onSelect={() => onAct({ kind: 'rename', deck })}
-                >
-                  {t('library.rename')}
-                </MenuItem>
-              </Menu>
-            ) : (
-              <>
-                <Menu label={t('library.deckActions', { name: deck.name })}>
-                  {!readOnly && (
-                    <div className="px-12 py-8 text-13 text-secondary">
-                      {t('library.cardCounts', { due: deck.due, fresh: deck.fresh })}
-                    </div>
-                  )}
-                  {!readOnly && <MenuSeparator />}
+            <Menu label={t('library.deckActions', { name: deck.name })}>
+              <div className="px-12 py-8 text-13 text-secondary">
+                {t('library.cardCounts', {
+                  due: readOnly ? '—' : deck.due,
+                  fresh: readOnly ? '—' : deck.fresh,
+                })}
+              </div>
+              <MenuSeparator />
+              <MenuItem
+                unavailable={readOnly && !localEdits}
+                icon={<Pencil size={16} strokeWidth={1.5} />}
+                onSelect={() => act({ kind: 'rename', deck })}
+              >
+                {t('library.rename')}
+              </MenuItem>
+              <MenuItem
+                unavailable={readOnly}
+                icon={<FolderInput size={16} strokeWidth={1.5} />}
+                onSelect={() => act({ kind: 'move', deck })}
+              >
+                {t('library.move')}
+              </MenuItem>
+              {deck.kind === 'folder' && (
+                <>
                   <MenuItem
-                    disabled={readOnly}
-                    icon={<Pencil size={16} strokeWidth={1.5} />}
-                    onSelect={() => onAct({ kind: 'rename', deck })}
+                    unavailable={readOnly}
+                    icon={<Folder size={16} />}
+                    onSelect={() =>
+                      act({
+                        kind: 'create',
+                        collectionKind: 'folder',
+                        parentId: deck.id,
+                        parentName: deck.name,
+                      })
+                    }
                   >
-                    {t('library.rename')}
+                    {t('library.newFolder')}
                   </MenuItem>
                   <MenuItem
-                    disabled={readOnly}
-                    icon={<FolderInput size={16} strokeWidth={1.5} />}
-                    onSelect={() => onAct({ kind: 'move', deck })}
+                    unavailable={readOnly}
+                    icon={<Plus size={16} />}
+                    onSelect={() =>
+                      act({
+                        kind: 'create',
+                        collectionKind: 'deck',
+                        parentId: deck.id,
+                        parentName: deck.name,
+                      })
+                    }
                   >
-                    {t('library.move')}
+                    {t('library.newDeck')}
                   </MenuItem>
-                  {deck.kind === 'folder' && (
-                    <>
-                      <MenuItem
-                        disabled={readOnly}
-                        icon={<Folder size={16} />}
-                        onSelect={() =>
-                          onAct({
-                            kind: 'create',
-                            collectionKind: 'folder',
-                            parentId: deck.id,
-                            parentName: deck.name,
-                          })
-                        }
-                      >
-                        {t('library.newFolder')}
-                      </MenuItem>
-                      <MenuItem
-                        disabled={readOnly}
-                        icon={<Plus size={16} />}
-                        onSelect={() =>
-                          onAct({
-                            kind: 'create',
-                            collectionKind: 'deck',
-                            parentId: deck.id,
-                            parentName: deck.name,
-                          })
-                        }
-                      >
-                        {t('library.newDeck')}
-                      </MenuItem>
-                    </>
-                  )}
-                  <MenuItem
-                    disabled={readOnly}
-                    icon={<Settings2 size={16} strokeWidth={1.5} />}
-                    onSelect={() => onAct({ kind: 'settings', deck })}
-                  >
-                    {t('library.settings')}
-                  </MenuItem>
+                </>
+              )}
+              <MenuItem
+                unavailable={readOnly}
+                icon={<Settings2 size={16} strokeWidth={1.5} />}
+                onSelect={() => act({ kind: 'settings', deck })}
+              >
+                {t('library.settings')}
+              </MenuItem>
 
-                  <MenuSeparator />
+              <MenuSeparator />
 
-                  <MenuItem
-                    icon={<ArrowUp size={16} strokeWidth={1.5} />}
-                    disabled={readOnly || index <= 0}
-                    onSelect={() => reorder(-1)}
-                  >
-                    {t('library.moveUp')}
-                  </MenuItem>
-                  <MenuItem
-                    icon={<ArrowDown size={16} strokeWidth={1.5} />}
-                    disabled={readOnly || index < 0 || index >= siblings.length - 1}
-                    onSelect={() => reorder(1)}
-                  >
-                    {t('library.moveDown')}
-                  </MenuItem>
+              <MenuItem
+                unavailable={readOnly}
+                icon={<ArrowUp size={16} strokeWidth={1.5} />}
+                disabled={index <= 0}
+                onSelect={() => reorder(-1)}
+              >
+                {t('library.moveUp')}
+              </MenuItem>
+              <MenuItem
+                unavailable={readOnly}
+                icon={<ArrowDown size={16} strokeWidth={1.5} />}
+                disabled={index < 0 || index >= siblings.length - 1}
+                onSelect={() => reorder(1)}
+              >
+                {t('library.moveDown')}
+              </MenuItem>
 
-                  <MenuSeparator />
+              <MenuSeparator />
 
-                  <MenuItem
-                    disabled={readOnly}
-                    tone="danger"
-                    icon={<Trash2 size={16} strokeWidth={1.5} />}
-                    onSelect={() => onAct({ kind: 'delete', deck })}
-                  >
-                    {t('library.delete')}
-                  </MenuItem>
-                </Menu>
-              </>
-            )
+              <MenuItem
+                unavailable={readOnly}
+                tone="danger"
+                icon={<Trash2 size={16} strokeWidth={1.5} />}
+                onSelect={() => act({ kind: 'delete', deck })}
+              >
+                {t('library.delete')}
+              </MenuItem>
+            </Menu>
           }
         />
         {!readOnly && deck.kind === 'folder' && (
@@ -545,6 +556,7 @@ function Deck({
               key={child.id}
               deck={child}
               readOnly={readOnly}
+              localEdits={localEdits}
               offline={offline}
               siblings={deck.children}
               tree={tree}

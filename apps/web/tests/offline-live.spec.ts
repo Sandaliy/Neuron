@@ -427,6 +427,7 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
       server.listening ? resolve() : server.once('listening', resolve),
     );
     await page.getByRole('link', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
     await page.getByRole('button', { name: 'Check connection', exact: true }).click();
     await expect.poll(() => noteDeliveries.length).toBe(2);
     await page

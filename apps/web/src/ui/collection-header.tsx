@@ -1,5 +1,3 @@
-import { ReadOnlySlot } from './read-only-slot';
-
 import type { ReactNode } from 'react';
 
 /** One title and one compact action group, with a path immediately below. */
@@ -7,7 +5,6 @@ export function CollectionHeader({
   title,
   actions,
   children,
-  readOnly = false,
 }: {
   readonly title: ReactNode;
   readonly actions: ReactNode;
@@ -20,14 +17,9 @@ export function CollectionHeader({
         <h1 className="min-w-0 flex-1 basis-[160px] break-words font-display text-24 tracking-tight text-primary">
           {title}
         </h1>
-        <ReadOnlySlot
-          readOnly={readOnly}
-          inline
-          fallback={actions}
-          className="ml-auto flex shrink-0 items-center gap-4 [&>button]:px-8 [&>button]:py-8 [&>fieldset>button]:px-8 [&>fieldset>button]:py-8"
-        >
+        <div className="ml-auto flex shrink-0 items-center gap-4 [&>button]:px-8 [&>button]:py-8 [&>fieldset>button]:px-8 [&>fieldset>button]:py-8">
           {actions}
-        </ReadOnlySlot>
+        </div>
       </div>
       {children}
     </header>

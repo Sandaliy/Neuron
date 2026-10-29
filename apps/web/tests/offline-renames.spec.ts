@@ -589,3 +589,46 @@ for (const pending of [false, true])
     expect(await stored(page)).toEqual(saved);
     expect(state.deliveries).toHaveLength(0);
   });
+
+test('a validated downloaded collection saves names durably before server acknowledgement', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  state.transport = true;
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await rename(page, 'Local first name');
+  await expect.poll(async () => (await stored(page))[0]?.state).toBe('pending');
+  const saved = (await stored(page))[0]!;
+  expect(saved.payload.name).toBe('Local first name');
+  expect(saved.base.row.name).toBe('Original deck');
+  await expect(page.getByRole('button', { name: /^Local first name/ })).toBeVisible();
+  await expect(
+    page.getByText('Name saved on this device. It will sync after sign-in is confirmed.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect.poll(() => state.deliveries.length).toBeGreaterThan(0);
+  expect(state.deliveries[0]).toEqual(saved.payload);
+});
+
+test('an open rename keeps its draft and focus through loss and matching validation', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: 'Actions for Original deck', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
+  const input = page.getByRole('dialog').getByRole('textbox');
+  await input.fill('Retained name draft');
+  await input.evaluate((element) => element.setAttribute('data-retained-name', 'true'));
+  state.offline = true;
+  await page.evaluate(() => window.dispatchEvent(new Event('offline')));
+  await expect(input).toHaveValue('Retained name draft');
+  await expect(input).toBeFocused();
+  await reconnect(page, state);
+  await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-retained-name="true"]')).toBeFocused();
+  await expect(input).toHaveValue('Retained name draft');
+  await page.getByRole('button', { name: 'Save the name', exact: true }).click();
+  await expect.poll(async () => (await stored(page))[0]?.payload.name).toBe('Retained name draft');
+});

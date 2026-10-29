@@ -97,6 +97,15 @@ type Transport =
   | { kind: 'undo'; entry: SessionAnswer; id: string; reviewedAt: string };
 const RATINGS = ['again', 'hard', 'good', 'easy'] as const;
 
+/**
+ * How long a local save may take before the learner is told about it.
+ *
+ * Longer than the slowest motion in the system, so a normal commit finishes
+ * inside one card transition and says nothing, while a stalled one still
+ * explains why the buttons are refusing.
+ */
+const SAVE_NOTICE_DELAY = 400;
+
 export function StudyScreen({
   onFinish,
   minutes,
@@ -132,6 +141,7 @@ export function StudyScreen({
   const [error, setError] = useState<unknown>();
   const [transportError, setTransportError] = useState<unknown>();
   const [pending, setPending] = useState(0);
+  const [slowSave, setSlowSave] = useState(false);
   const [savingAnswer, setSavingAnswer] = useState(false);
   const [undoQueued, setUndoQueued] = useState(false);
   const [answered, setAnswered] = useState(0);
@@ -262,6 +272,13 @@ export function StudyScreen({
     uncommitted.current = task;
     locked.current = true;
     setPending(1);
+    /*
+     * The card does not advance until the answer is durable, but a commit that
+     * takes a few milliseconds has nothing to report. Announcing it anyway
+     * replaced the mode title on every single answer, which read as the next
+     * card being interrupted. The notice waits for a save that is actually slow.
+     */
+    const notice = setTimeout(() => setSlowSave(true), SAVE_NOTICE_DELAY);
     setSavingAnswer(task.kind === 'answer');
     setUndoQueued(!!deferredUndo.current);
     setTransportError(undefined);
@@ -291,8 +308,10 @@ export function StudyScreen({
     } catch (cause) {
       setTransportError(cause);
     } finally {
+      clearTimeout(notice);
       commitBusy.current = false;
       setPending(0);
+      setSlowSave(false);
       setSavingAnswer(false);
       setUndoQueued(false);
     }
@@ -464,7 +483,7 @@ export function StudyScreen({
         title={t('today.study')}
         exitLabel={t('study.stop')}
         onExit={onFinish}
-        savingLabel={pending > 0 ? t('study.savingLocally') : undefined}
+        savingLabel={slowSave ? t('study.savingLocally') : undefined}
         disabled={pending > 0 || !!transportError}
         value={completed}
         max={total}

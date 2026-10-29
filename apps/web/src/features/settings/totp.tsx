@@ -6,6 +6,7 @@ import type { MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { authClient, describeAuthError, twoFactor } from '../../lib/auth-client';
+import { hasServerAuthority } from '../../lib/capabilities';
 import { Button } from '../../ui/button';
 import { DIALOG_FORM, DialogBody, DialogFooter } from '../../ui/dialog';
 import { useToast } from '../../ui/toast';
@@ -61,6 +62,10 @@ export function TotpEnrollment({
   }>();
 
   const start = async () => {
+    if (!hasServerAuthority()) {
+      setError({ key: 'offline.serverRequired', values: {} });
+      return;
+    }
     setError(undefined);
     setBusy(true);
 
@@ -90,6 +95,10 @@ export function TotpEnrollment({
   };
 
   const confirm = async (value: string) => {
+    if (!hasServerAuthority()) {
+      setError({ key: 'offline.serverRequired', values: {} });
+      return;
+    }
     setError(undefined);
     setBusy(true);
 
@@ -326,6 +335,10 @@ export function TotpRemoval({ onDone }: { readonly onDone: () => void }) {
   }>();
 
   const submit = async () => {
+    if (!hasServerAuthority()) {
+      setError({ key: 'offline.serverRequired', values: {} });
+      return;
+    }
     setError(undefined);
     setBusy(true);
 

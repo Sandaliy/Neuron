@@ -253,7 +253,7 @@ the api anywhere in browser code would cost the session cookie.
 | `settings/settings.tsx`                         | Theme, language, password, codes, the second factor, and leaving                                |
 | `settings/pending-renames.tsx`                  | Account-bound saved names, delivery status, original versions and explicit conflict recovery    |
 | `settings/pending-notes.tsx`                    | Saved Note versions, delivery states and explicit conflict recovery                             |
-| `settings/pending-reviews.tsx`                  | Durable Study delivery status, exact retry and retained rejected-session recovery               |
+| `settings/pending-reviews.tsx`                  | Grouped Study delivery status, one retry/recovery action and retained rejected-session recovery |
 | `settings/saved-work.tsx`, `sync-summary.tsx`   | Bounded optional receipt disclosures and concise account synchronization status                 |
 | `settings/totp.tsx`                             | Enrollment in three steps that cannot be skipped, and removal                                   |
 | `library/library.tsx`                           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
@@ -278,67 +278,69 @@ Radix primitives styled with the tokens. No prebuilt kit: they carry a look, and
 one that somebody recognises. `docs/design-system.md` is the reference and `/dev/components` draws
 every one of these in every state.
 
-| File                                      | Holds                                                                                        |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form       |
-| `collection-header.tsx`                   | Compact collection title/actions row with navigation directly below                          |
-| `read-only-slot.tsx`                      | Unmounts server controls while retaining occupied dimensions during an in-session transition |
-| `collection.tsx`                          | Shared opaque hierarchy surfaces and Folder/Deck identities for Library and pickers          |
-| `disclosure.tsx`                          | Controlled, state-preserving inline disclosure with reduced-motion and inert closed content  |
-| `input.tsx`, `textarea.tsx`, `select.tsx` | The fields. Sixteen pixels of text, or iOS zooms the page on focus                           |
-| `form-field.tsx`                          | The label, the hint, the error, and the wiring between them                                  |
-| `range.tsx`                               | A rail, a filled portion, one white disc. The fill is handed to css as `--track`             |
-| `segmented.tsx`                           | Native radios with a thumb that slides. Replaces radios everywhere                           |
-| `switch.tsx`, `checkbox.tsx`              | A capsule and a white disc; a fill framed by an inset ring                                   |
-| `card.tsx`                                | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                     |
-| `row.tsx`                                 | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                          |
-| `swipe-delete.tsx`                        | Continuous note-row reveal and committed release-to-delete gesture                           |
-| `chip.tsx`, `progress.tsx`                | Four chip tones and no others; a line that fills on `transform`                              |
-| `dialog.tsx`                              | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip      |
-| `toast.tsx`                               | Short confirmations, above the bottom bar and above the home indicator                       |
-| `sheen.tsx`                               | The specular streak that travels on a glass layer as content scrolls under it                |
-| `states.tsx`                              | Skeleton, empty and error. A list never renders as a blank area                              |
-| `spinner.tsx`                             | For a control that is waiting. A screen gets a skeleton instead                              |
+| File                                      | Holds                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form      |
+| `collection-header.tsx`                   | Compact collection title/actions row with navigation directly below                         |
+| `read-only-slot.tsx`                      | Recognizable unavailable control regions without measured empty slots                       |
+| `server-controls.tsx`                     | Stable server-action regions with accessible restrictions and contextual feedback           |
+| `collection.tsx`                          | Shared opaque hierarchy surfaces and Folder/Deck identities for Library and pickers         |
+| `disclosure.tsx`                          | Controlled, state-preserving inline disclosure with reduced-motion and inert closed content |
+| `input.tsx`, `textarea.tsx`, `select.tsx` | The fields. Sixteen pixels of text, or iOS zooms the page on focus                          |
+| `form-field.tsx`                          | The label, the hint, the error, and the wiring between them                                 |
+| `range.tsx`                               | A rail, a filled portion, one white disc. The fill is handed to css as `--track`            |
+| `segmented.tsx`                           | Native radios with a thumb that slides. Replaces radios everywhere                          |
+| `switch.tsx`, `checkbox.tsx`              | A capsule and a white disc; a fill framed by an inset ring                                  |
+| `card.tsx`                                | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                    |
+| `row.tsx`                                 | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                         |
+| `swipe-delete.tsx`                        | Continuous note-row reveal and committed release-to-delete gesture                          |
+| `chip.tsx`, `progress.tsx`                | Four chip tones and no others; a line that fills on `transform`                             |
+| `dialog.tsx`                              | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip     |
+| `toast.tsx`                               | Short confirmations, above the bottom bar and above the home indicator                      |
+| `sheen.tsx`                               | The specular streak that travels on a glass layer as content scrolls under it               |
+| `states.tsx`                              | Skeleton, empty and error. A list never renders as a blank area                             |
+| `spinner.tsx`                             | For a control that is waiting. A screen gets a skeleton instead                             |
 
 ### The wiring (`src/lib/`, `src/i18n/`, `src/theme/`)
 
-| File                                              | Holds                                                                                              |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `lib/api.ts`                                      | One request, the error envelope unpacked, and the code turned into a message key                   |
-| `lib/auth-client.ts`                              | Better Auth over the same origin, and its own codes mapped onto the shared ones                    |
-| `lib/account.ts`                                  | Who is signed in. One query, and the session check for the whole app                               |
-| `lib/decks.ts`                                    | The tree in one request, and adding up the roots                                                   |
-| `lib/notes.ts`                                    | Note queries, writes, bulk actions and batched duplicate lookup                                    |
-| `lib/study-plan.ts`                               | Early authoritative default plan and account/revision/time compatibility for reuse                 |
-| `lib/prompt.ts`                                   | Build-time import of `docs/card-generation-prompt.md`                                              |
-| `lib/dialog-state.ts`                             | Resets dialog-local state whenever the dialog opens                                                |
-| `lib/deployment-api-origin.ts`                    | Maps a web deployment to the matching api environment and fails closed for previews                |
-| `lib/storage.ts`                                  | Local storage that cannot throw, because Safari's private mode does                                |
-| `lib/collection-db.ts`                            | Versioned account-scoped IndexedDB stores, atomic pull pages/cursors and cache recovery            |
-| `lib/collection-read.ts`                          | Shared-schema offline collection projections for existing React Query reads                        |
-| `lib/collection-outbox.ts`                        | Atomic rename intents, exact retry/acknowledgement and retained conflict recovery                  |
-| `lib/note-outbox.ts`                              | Durable raw/valid Note drafts, frozen deliveries, acknowledged successors and explicit recovery    |
-| `lib/review-outbox.ts`                            | Durable immutable answer/cancellation intents, causal exact delivery and retained session recovery |
-| `lib/review-intent.ts`                            | Pure validation of existing immutable Review/Undo intents, shared with local planning              |
-| `lib/offline-study.ts`, `offline-study-worker.ts` | Account/visit-bound local planning worker and atomic reads of the existing stores                  |
-| `lib/offline-study-snapshot.ts`                   | Download authority, pending event replay, conservative admission and shared planner inputs         |
-| `lib/collection-transport.ts`                     | Collection GET fallback, confirmed transport loss and cancellation/account guards                  |
-| `lib/offline.ts`                                  | Remembered-account boundaries, pull coordination, connectivity and local sign-out                  |
-| `lib/collection-failure.ts`                       | Sanitized hydration-stage diagnostics without account identities or collection contents            |
-| `lib/lifecycle.ts`                                | Retained content-free startup and foreground diagnostics, with an explicit local export            |
-| `lib/pwa.ts`, `scripts/service-worker.mjs`        | Versioned shell registration, asset allowlist and non-disruptive worker lifecycle                  |
-| `lib/viewport.ts`                                 | Where the on-screen keyboard is, as CSS variables a sheet is positioned against                    |
-| `preferences/device.ts`                           | A preference that belongs to the device: read at import, applied before React                      |
-| `preferences/sync.ts`                             | Tells the account row, one request at a time, and discards the answer                              |
-| `preferences/glass.ts`                            | The three glass levels, and the ceiling the device puts on the chosen one                          |
-| `preferences/motion.ts`                           | Whether movement is off, by the system's request or by hand                                        |
-| `preferences/frame-rate.ts`                       | Samples the frames during a scroll and lowers the glass when they are bad                          |
-| `i18n/locale.ts`                                  | Which language is on. The catalogue itself is in `packages/shared`                                 |
-| `theme/theme.ts`                                  | Which theme is on, and the copy of that rule `index.html` runs first                               |
-| `theme/use-theme.ts`                              | The theme as a device preference, and the hook that reads it                                       |
-| `styles/global.css`                               | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft                |
-| `vercel.ts`                                       | Same-origin api rewrites for production, preview branches, and local Vercel builds                 |
-| `scripts/icons.mjs`                               | Draws the icons in `public/` from the same tokens                                                  |
+| File                                              | Holds                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `lib/api.ts`                                      | One request, the error envelope unpacked, and the code turned into a message key                  |
+| `lib/auth-client.ts`                              | Better Auth over the same origin, and its own codes mapped onto the shared ones                   |
+| `lib/account.ts`                                  | Who is signed in. One query, and the session check for the whole app                              |
+| `lib/decks.ts`                                    | The tree in one request, and adding up the roots                                                  |
+| `lib/notes.ts`                                    | Note queries, writes, bulk actions and batched duplicate lookup                                   |
+| `lib/study-plan.ts`                               | Early authoritative default plan and account/revision/time compatibility for reuse                |
+| `lib/prompt.ts`                                   | Build-time import of `docs/card-generation-prompt.md`                                             |
+| `lib/dialog-state.ts`                             | Resets dialog-local state whenever the dialog opens                                               |
+| `lib/deployment-api-origin.ts`                    | Maps a web deployment to the matching api environment and fails closed for previews               |
+| `lib/storage.ts`                                  | Local storage that cannot throw, because Safari's private mode does                               |
+| `lib/collection-db.ts`                            | Versioned account-scoped IndexedDB stores, atomic pull pages/cursors and cache recovery           |
+| `lib/collection-read.ts`                          | Shared-schema offline collection projections for existing React Query reads                       |
+| `lib/collection-outbox.ts`                        | Atomic rename intents, exact retry/acknowledgement and retained conflict recovery                 |
+| `lib/note-outbox.ts`                              | Durable raw/valid Note drafts, frozen deliveries, acknowledged successors and explicit recovery   |
+| `lib/review-outbox.ts`                            | Durable immutable answer/cancellation intents, batched causal exact delivery and session recovery |
+| `lib/review-intent.ts`                            | Pure validation of existing immutable Review/Undo intents, shared with local planning             |
+| `lib/offline-study.ts`, `offline-study-worker.ts` | Account/visit-bound local planning worker and atomic reads of the existing stores                 |
+| `lib/offline-study-snapshot.ts`                   | Download authority, pending event replay, conservative admission and shared planner inputs        |
+| `lib/collection-transport.ts`                     | Collection GET fallback, confirmed transport loss and cancellation/account guards                 |
+| `lib/capabilities.ts`                             | Shared local-access and validated server capability contract; operation-time authority checks     |
+| `lib/offline.ts`                                  | Remembered-account boundaries, pull coordination, connectivity and local sign-out                 |
+| `lib/collection-failure.ts`                       | Sanitized hydration-stage diagnostics without account identities or collection contents           |
+| `lib/lifecycle.ts`                                | Retained content-free startup and foreground diagnostics, with an explicit local export           |
+| `lib/pwa.ts`, `scripts/service-worker.mjs`        | Versioned shell registration, asset allowlist and non-disruptive worker lifecycle                 |
+| `lib/viewport.ts`                                 | Where the on-screen keyboard is, as CSS variables a sheet is positioned against                   |
+| `preferences/device.ts`                           | A preference that belongs to the device: read at import, applied before React                     |
+| `preferences/sync.ts`                             | Tells the account row, one request at a time, and discards the answer                             |
+| `preferences/glass.ts`                            | The three glass levels, and the ceiling the device puts on the chosen one                         |
+| `preferences/motion.ts`                           | Whether movement is off, by the system's request or by hand                                       |
+| `preferences/frame-rate.ts`                       | Samples the frames during a scroll and lowers the glass when they are bad                         |
+| `i18n/locale.ts`                                  | Which language is on. The catalogue itself is in `packages/shared`                                |
+| `theme/theme.ts`                                  | Which theme is on, and the copy of that rule `index.html` runs first                              |
+| `theme/use-theme.ts`                              | The theme as a device preference, and the hook that reads it                                      |
+| `styles/global.css`                               | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft               |
+| `vercel.ts`                                       | Same-origin api rewrites for production, preview branches, and local Vercel builds                |
+| `scripts/icons.mjs`                               | Draws the icons in `public/` from the same tokens                                                 |
 
 ### The gallery and the browser tests
 

@@ -42,7 +42,15 @@ never enter a live queue or accept new pending answers. Deleted/Restart/Undo sem
 server's existing rules. After a pull advances past the account metadata revision, bounded fresh
 account validation updates that existing metadata record; it never assumes settings are unchanged.
 
-Settings reports browsing download completeness separately from Study data readiness, with a
+Phase 8.6 retains the rendered setup and its choices while authority/planning reconciles. Start remains
+unavailable until the new matching plan is ready; an admitted sitting keeps its existing durable
+answer/Undo path. Healthy setup omits the persistent downloaded-source paragraph. Actual limitations,
+missing voices, local saving, storage failures and pending delivery retain contextual feedback.
+
+Settings reports synchronization and verified Study readiness compactly. Download completeness,
+capability details, connection checks and diagnostic export are available under Download and capabilities.
+Pending/rejected/conflicting work, storage failures and incomplete history remain outside optional
+Recent activity. Browsing download completeness stays separate from Study data readiness, with a
 restricted-work count and synchronization/rebuild guidance for real history gaps. Rebuild preserves
 receipts and refuses unresolved/recovery work. Available due reviews, admissible new Cards and
 excluded work are distinct: a collection of fifty Cards is not a promise of fifty Cards in one sitting.
@@ -111,6 +119,21 @@ A 15-second transport timeout releases the worker, never the local transaction g
 revalidation, authenticated reopening, focus, newly saved work and Settings Retry wake delivery.
 No timestamp-based overwrite is used for Review events.
 
+Phase 8.6 sends the leading run of consecutive answers as one `POST /reviews/batch`, up to fifty per
+request, and settles that run in one local transaction. The endpoint, its single server transaction,
+its `reviewedAt` replay order and its per-event `skipped` reporting already existed; only the client
+stopped sending one request per answer. A run extends only while the stored predecessor chain is
+unbroken and every entry is a pending answer, so an Undo ends the run and travels on its own. An
+answer saved with a working connection still goes immediately rather than waiting for a batch.
+
+Each batched entry keeps its own acknowledgement, checked against its submitted Review and Card
+identities exactly as a single delivery is. A `skipped` entry becomes rejected with the reported
+reason and stops the pass; entries the server did apply keep their genuine acknowledgements. A
+refused batch is retried one entry at a time, so the answer the server objected to is the one that
+stops rather than the whole sitting. Payloads, event identities, ordering, retry exactness and
+recovery are unchanged: the number of requests is what changed. Twelve answers at a 120 ms round trip
+cost twelve requests and 1,935 ms before, and two requests and about 400 ms after.
+
 An answer acknowledgement validates the submitted Review and Card identities. Undo acknowledges
 its submitted ID, target and the authoritative cancellation ID. If another device already canceled
 the target, the existing cancellation identity is returned explicitly. An immutable receipt in the
@@ -136,6 +159,14 @@ Explicit rejections stop subsequent delivery. Later events remain local and visi
 Copy recovery record. Invalid/mismatched acknowledgements remain pending. Storage/read errors are
 visible; collection Rebuild refuses unresolved Reviews, recovery archives or unreadable records.
 No command, receipt, original version or archive is deleted to simplify Settings.
+
+Settings presents this work as one piece rather than one row per event. Waiting events are a count,
+refused ones are grouped by the reason the server gave, and Retry, Keep session for recovery and
+Copy recovery record each appear once; the recovery copy carries every unsettled event. Retry always
+retried the whole queue, so a button per row was the same button sixteen times, and the one answer
+the server actually refused was indistinguishable from the fifteen waiting their turn. The summary
+counts work that needs the owner separately from work that is merely queued, so one refused answer
+among fifteen waiting reads as one. Every event keeps its record and its receipt.
 
 For a permanently rejected ended sitting, Keep session for recovery requires confirmation. One local
 transaction archives all its undelivered answers/cancellations and closes that sitting to further

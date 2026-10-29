@@ -600,3 +600,74 @@ zero UI-thread collection scans. The phone sample has no long tasks; desktop rec
 These are bounded browser samples, not native-device guarantees or a claim of zero main-thread cost.
 The read-only authenticated default-plan prefetch retains its existing parallel startup path, while
 protected writes continue to require matching validated authority.
+
+## Phase 8.6 stable capability presentation
+
+The PR #55 implementation replaced Shell routes outside the collection during local access, replaced
+Library menus/handles, unmounted collection dialogs, and changed Deck selection identity when server
+authority changed. Phase 8.6 keeps these structures mounted. Capability restrictions are announced
+and explained on deliberate actions, with server operations checked before mutations. Today retains
+its rendered summary while switching planning authority; an actual setup change or committed Review
+still uses the established reconciliation state. Start cannot use an obsolete plan.
+
+The retained-list regression exposed a stale swipe click-suppression latch after selection. Disabling
+swipes now clears that transient gesture state; the original keyboard-delete assertion remains. A
+separate regression checks active Practice retention while refusing offline classification without a
+command, progress change or server write. Rename dialogs retain the same input, value and focus
+through disconnection and matching validation. Downloaded online names commit through the existing
+rename outbox before acknowledgement.
+
+The focused transition cases assert identical row/header geometry, DOM identity, retained Folder
+expansion, search, selection and open menu items across repeated loss/recovery and foreground events.
+Existing cold-start, storage/recovery, account rejection/switching and durable Review/Undo cases retain
+their original integrity assertions. A rejected or missing account never inherits capabilities from
+cached content.
+
+The existing revision-keyed collection projections and planning worker are retained. No eager
+prefetching, additional collection scans or cache infrastructure was added. Recorded 5,000-Note local
+Study samples reach setup in 356–494 ms and enter Study in 378–498 ms with zero UI-thread entity scans.
+These bounded Windows Chromium samples include one 52 ms long task in one run. They do not establish
+a native-device speedup. The earlier PR #55 controlled phone sample was 377/447 ms for setup/entry;
+the accepted PR #53 installed-iPhone experience remains the qualitative reference, not a new benchmark.
+
+Protected release, final browser/performance results and physical acceptance are recorded in STATE.md.
+The original glass/motion settings and 55 FPS contract remain unchanged. Installed-iPhone foreground,
+storage and compositor behavior still require owner acceptance.
+
+## Phase 8.6 Review delivery cost
+
+The reported forty-second reconnection was measured rather than guessed. `sync-delivery.spec.ts`
+holds a sitting's deliveries, answers twelve cards, releases them at a fixed 120 ms round trip and
+records what delivery costs.
+
+| Measure                                 | Before   | After  |
+| --------------------------------------- | -------- | ------ |
+| Requests for twelve answers             | 12       | 2      |
+| Wall clock from release to synchronized | 1,935 ms | 401 ms |
+| Page heights observed while draining    | 12       | 4      |
+| Saving notices flashed over four cards  | 4        | 0      |
+
+Delivery was one request per immutable event, so the wait was the round trip multiplied by the number
+of answers. A sitting with learning steps and Undo legitimately holds that many events: seventeen
+pending records after "a handful of cards" is real immutable history, not duplication or retries. At a
+phone's round trip plus a cold serverless function, seventeen of them in a row is the reported
+thirty to forty seconds. Batching the leading run of answers removes the multiplication; the
+remaining two requests are the first answer, already in flight when the hold began, and the batch.
+
+The page-height count is the Settings complaint stated as a number: with one row per event settling
+one at a time, everything below the list moved twelve times while the backlog drained. One settle per
+request and a grouped count move it four.
+
+The saving notice is a separate defect. The card does not advance until the answer is durable, which
+is correct, but the mode title was replaced on every answer to say so. A commit that takes a few
+milliseconds has nothing to report, so the notice now waits 400 ms, longer than the slowest motion in
+the system. A genuinely blocked transaction still explains itself: the existing open-transaction case
+is unchanged.
+
+The progressive Recent activity reveal was measured and acquitted. With a 251-event history at 4x CPU
+throttle it runs at 60 FPS, worst frame 16.8 ms, across fifteen distinct height steps. The reported
+jerkiness was the content changing underneath the animation as events settled individually, not the
+reveal itself.
+
+These are bounded Windows Chromium samples against routed fixtures at a fixed simulated latency. They
+establish the number of requests and the shape of the wait, not an installed-iPhone duration.

@@ -211,7 +211,7 @@ export function useDeckActions() {
     mutationFn: (input: { id: string; name: string; observed?: Deck }) =>
       writeEntities(client, [input.id], async () => {
         const state = offlineState();
-        if (state.offline) {
+        if (state.available || state.offline) {
           try {
             return await saveRename(input.id, input.name, undefined, input.observed);
           } catch (error) {

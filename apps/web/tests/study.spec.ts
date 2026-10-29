@@ -84,7 +84,26 @@ test('study previews, durably advances before acknowledgement, retries the same 
   const barrier = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const answers: { id: string; cardId: string }[] = [];
+  const answers: { id: string; cardId: string; reviewedAt: string }[] = [];
+  const settled = (answer: { id: string; cardId: string; reviewedAt: string }) => {
+    const card = cards.find((item) => item.id === answer.cardId)!;
+    return {
+      id: answer.id,
+      cardId: answer.cardId,
+      applied: true,
+      resync: false,
+      clamped: false,
+      card: {
+        ...card,
+        state: 'review',
+        stability: 3,
+        difficulty: 5,
+        lastReview: answer.reviewedAt,
+        due: '2027-01-01T00:00:00.000Z',
+        reps: 1,
+      },
+    };
+  };
   await page.route('**/api/reviews', async (route) => {
     const answer = route.request().postDataJSON();
     answers.push(answer);
@@ -93,21 +112,13 @@ test('study previews, durably advances before acknowledgement, retries the same 
       await route.fulfill({ status: 500, json: { error: { code: 'internal_error' } } });
       return;
     }
-    const card = cards.find((item) => item.id === answer.cardId)!;
-    await route.fulfill({
-      json: {
-        ...reviewAcknowledgement(route),
-        card: {
-          ...card,
-          state: 'review',
-          stability: 3,
-          difficulty: 5,
-          lastReview: answer.reviewedAt,
-          due: '2027-01-01T00:00:00.000Z',
-          reps: 1,
-        },
-      },
-    });
+    await route.fulfill({ json: { ...reviewAcknowledgement(route), ...settled(answer) } });
+  });
+  // A sitting that queued up behind the failed answer is delivered as one run.
+  await page.route('**/api/reviews/batch', async (route) => {
+    const batch = route.request().postDataJSON().reviews as typeof answers;
+    answers.push(...batch);
+    await route.fulfill({ json: { results: batch.map(settled), skipped: [], revision: 1 } });
   });
   await page.clock.install();
   await page.goto('/');
@@ -161,8 +172,10 @@ test('study previews, durably advances before acknowledgement, retries the same 
     .getByRole('button', { name: 'Try again', exact: true })
     .first();
   if (await retry.isVisible()) await retry.click();
-  await expect.poll(() => answers.length).toBe(4);
-  expect(answers[0]?.id).toBe(answers[1]?.id);
+  await expect.poll(() => new Set(answers.map((answer) => answer.id)).size).toBe(3);
+  // The answer the server lost went again under its original identity, not a
+  // new one. How many requests carried the three is the transport's business.
+  expect(answers.filter((answer) => answer.id === answers[0]?.id)).toHaveLength(2);
 });
 
 test('Study rewinds the full local session while answers and compensations serialize', async ({
@@ -239,6 +252,25 @@ test('Study rewinds the full local session while answers and compensations seria
       });
     }
   });
+  const acknowledge = (body: { id: string; cardId: string; reviewedAt: string }) => {
+    const original = cards.find((card) => card.id === body.cardId)!;
+    return {
+      id: body.id,
+      cardId: body.cardId,
+      applied: true,
+      resync: false,
+      clamped: false,
+      card: {
+        ...original,
+        state: 'review',
+        stability: 8,
+        difficulty: 5,
+        due: '2027-01-01T00:00:00Z',
+        lastReview: body.reviewedAt,
+        reps: 1,
+      },
+    };
+  };
   await page.route('**/api/reviews', async (route) => {
     const body = route.request().postDataJSON() as {
       id: string;
@@ -247,21 +279,18 @@ test('Study rewinds the full local session while answers and compensations seria
     };
     events.push({ kind: 'answer', ...body });
     if (events.length === 1) await held;
-    const original = cards.find((card) => card.id === body.cardId)!;
-    await route.fulfill({
-      json: {
-        ...reviewAcknowledgement(route),
-        card: {
-          ...original,
-          state: 'review',
-          stability: 8,
-          difficulty: 5,
-          due: '2027-01-01T00:00:00Z',
-          lastReview: body.reviewedAt,
-          reps: 1,
-        },
-      },
-    });
+    await route.fulfill({ json: { ...reviewAcknowledgement(route), ...acknowledge(body) } });
+  });
+  // Answers that queued behind a held or failed event travel as one run. Each
+  // still records itself, so the causal order below is the order on the wire.
+  await page.route('**/api/reviews/batch', async (route) => {
+    const batch = route.request().postDataJSON().reviews as {
+      id: string;
+      cardId: string;
+      reviewedAt: string;
+    }[];
+    for (const body of batch) events.push({ kind: 'answer', ...body });
+    await route.fulfill({ json: { results: batch.map(acknowledge), skipped: [], revision: 1 } });
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Study', exact: true }).click();

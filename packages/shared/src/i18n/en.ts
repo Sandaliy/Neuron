@@ -86,13 +86,18 @@ export const en = {
     'Delivery could not finish. Your saved change is retained; try again after reconnecting.',
   'offline.rebuildBlocked':
     'Rebuild is blocked because saved changes have not synchronized or been resolved. Recover them first.',
+  'offline.serverRequired':
+    'This action needs a verified connection. Try again after reconnecting.',
+  'offline.details': 'Download and capabilities',
   'offline.recentActivity': 'Recent activity',
   'offline.moreActivity': 'Show more',
   'offline.currentVersion': 'Current version',
   'offline.originalName': 'Original name: {name}',
   'offline.workSaved': 'All saved work is synchronized.',
   'offline.workPending': '{count} saved changes waiting to synchronize.',
+  'offline.workPendingOne': 'One saved change is waiting to synchronize.',
   'offline.workAttention': '{count} saved changes need your attention.',
+  'offline.workAttentionOne': 'One saved change needs your attention.',
   'offline.checkingWork': 'Checking saved work…',
   'offline.reviews': 'Study answers',
   'offline.reviewArchived': 'Kept for recovery. These events were not synchronized.',
@@ -102,6 +107,8 @@ export const en = {
     'Keep this session’s undelivered answers and Undo events on this device without retrying them. They will not change server history. A new Study session will use the server’s current schedules.',
   'offline.reviewAnswer': 'Study answer',
   'offline.reviewPending': 'Saved on this device. Waiting to synchronize.',
+  'offline.reviewsWaiting': '{count} saved on this device, waiting to synchronize.',
+  'offline.reviewsAttention': '{count} need your attention.',
   'offline.reviewRejected':
     'This answer needs recovery. Later answers are kept safely on this device.',
   'offline.reviewIdReused':
@@ -185,6 +192,7 @@ export const en = {
   'study.fewerVoices': 'Fewer voices',
   'study.previewVoice': 'Preview',
   'today.updatingPlan': 'Updating plan…',
+  'today.sendingAnswers': 'Sending saved answers…',
   'study.extraLetter': '1 extra letter',
   'study.missingLetter': '1 missing letter',
   'study.changedLetter': '1 different letter',

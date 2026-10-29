@@ -31,6 +31,7 @@ import type {
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { ApiFailure, describe } from '../../lib/api';
+import { hasServerAuthority } from '../../lib/capabilities';
 import { flatten, findDeck, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
 import { noteEditFor, saveNoteEdit } from '../../lib/note-outbox';
 import { useNote, useNoteActions } from '../../lib/notes';
@@ -93,7 +94,7 @@ export function NoteEditorScreen({
     enabled: noteId !== undefined && offline.accountId !== null,
     networkMode: 'always',
   });
-  if (offline.offline && !offline.available)
+  if (noteId !== undefined && offline.offline && !offline.available)
     return (
       <section data-screen="" className="flex flex-col gap-20">
         <NoteHeader
@@ -150,13 +151,6 @@ export function NoteEditorScreen({
       </section>
     );
   }
-
-  if (noteId === undefined && offline.offline)
-    return (
-      <section data-screen="">
-        <p role="status">{t('offline.incomplete')}</p>
-      </section>
-    );
 
   const effectiveEdit =
     savedEdit.data?.state === 'synchronized' &&
@@ -514,6 +508,10 @@ function Editor({
   }
 
   async function create() {
+    if (!hasServerAuthority()) {
+      toast.show(t('offline.serverRequired'));
+      return;
+    }
     if (deck === '') {
       return;
     }
@@ -543,6 +541,10 @@ function Editor({
 
   /** Changing the type, once whatever it costs has been agreed to. */
   async function applyType(discard: boolean) {
+    if (!serverActions || !hasServerAuthority()) {
+      toast.show(t('offline.serverRequired'));
+      return;
+    }
     if (!note || !conversion || !validFields.success || save === 'saving') {
       return;
     }
@@ -1096,6 +1098,10 @@ function Editor({
               full
               busy={actions.remove.isPending}
               onClick={async () => {
+                if (!serverActions || !hasServerAuthority()) {
+                  toast.show(t('offline.serverRequired'));
+                  return;
+                }
                 await actions.remove.mutateAsync(note.id);
 
                 toast.show(t('note.deleted'));

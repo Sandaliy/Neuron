@@ -17,3 +17,12 @@ phase-1.md
 phase-2.md
 phase-2.5.md
 card-generation-prompt.md
+
+# Local acceptance runs and downloaded CI artifacts. CI formats a clean
+# checkout, so without these a local check and a CI check disagree over files
+# that are not ours.
+.tmp
+.local-tools
+*.local
+playwright-report
+test-results

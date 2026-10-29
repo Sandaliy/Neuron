@@ -46,6 +46,16 @@ export default defineConfig({
           root: 'apps/api',
           environment: 'node',
           include: ['src/**/*.test.ts'],
+          /*
+           * The release checks run from `vitest.release.config.ts`, as its own
+           * CI step, because they own their throwaway databases and one of them
+           * moves `packages/shared/dist` aside to prove the journal script works
+           * on a fresh install. Swept in here they run a second time alongside
+           * the web project, which resolves `@neuron/shared` through that same
+           * directory: the web files then fail to import it, and a Windows
+           * rename that loses the race leaves the build output renamed on disk.
+           */
+          exclude: ['src/db/release/**'],
           // Some of these talk to a real Postgres in another country, so a
           // round trip is tens of milliseconds and a test that makes a few
           // hundred of them needs more than the default five seconds.

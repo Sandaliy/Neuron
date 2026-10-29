@@ -39,6 +39,17 @@ const ignores = [
   // What `vercel build` leaves behind. Running that build is part of the push
   // checks, so without this the next lint reads its bundled output.
   '**/.vercel/**',
+  // Playwright writes its report viewer as bundled JavaScript next to the
+  // traces. A local acceptance run therefore leaves thousands of files that
+  // parse as source and belong to no tsconfig.
+  '**/playwright-report/**',
+  '**/test-results/**',
+  // Scratch roots for local acceptance runs and downloaded CI artifacts. CI
+  // lints a clean checkout, so without these a local lint and a CI lint
+  // disagree for reasons that have nothing to do with the code.
+  '**/.tmp/**',
+  '**/.local-tools/**',
+  '**/*.local/**',
   '**/*.d.ts',
 ];
 

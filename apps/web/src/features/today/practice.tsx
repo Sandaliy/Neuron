@@ -23,6 +23,7 @@ import type {
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
+import { hasServerAuthority, useCapabilities } from '../../lib/capabilities';
 import { findDeck, settingsFor, useDeckTree } from '../../lib/decks';
 import { NOTE_KEY, noteQueryString } from '../../lib/notes';
 import { practiceQuery, practiceStore } from '../../lib/practice';
@@ -35,6 +36,7 @@ import { captureLearningReveal, LearningCard } from '../../ui/learning-card';
 import { ModeHeader } from '../../ui/mode-header';
 import { Select } from '../../ui/select';
 import { ErrorState, SkeletonRows } from '../../ui/states';
+import { useToast } from '../../ui/toast';
 import { TypedResponse } from '../../ui/typed-response';
 
 import { ListeningPrompt, Speaker } from './listening-prompt';
@@ -115,6 +117,7 @@ export function DeckPractice({
 }) {
   const t = useTranslate();
   const account = useAccount();
+  const capability = useCapabilities();
   const summary = useQuery(practiceQuery(deckId));
   const client = useQueryClient();
   const listKey = [NOTE_KEY, 'list', noteQueryString({ deckId, sort: 'created' })];
@@ -161,7 +164,12 @@ export function DeckPractice({
     );
   return (
     <section className="flex flex-col gap-16">
-      {pool.error || summary.error ? (
+      <ModeHeader title={t('practice.title')} exitLabel={t('practice.exit')} onExit={onFinish} />
+      {!capability.server ? (
+        <p role="status" className="text-14 text-secondary">
+          {t('offline.serverRequired')}
+        </p>
+      ) : (pool.error && !pool.data) || (summary.error && !summary.data) ? (
         <ErrorState
           message={t(describe(pool.error ?? summary.error).key)}
           retryLabel={t('common.retry')}
@@ -173,7 +181,6 @@ export function DeckPractice({
       ) : (
         <SkeletonRows rows={3} />
       )}
-      <Button onClick={onFinish}>{t('common.back')}</Button>
     </section>
   );
 }
@@ -283,6 +290,12 @@ function PersistentPractice({
     (run.response ?? 'reveal') === response &&
     JSON.stringify(practiceFields(run.front)) === JSON.stringify(practiceFields(front)) &&
     JSON.stringify(practiceFields(run.back)) === JSON.stringify(practiceFields(back));
+  const toast = useToast();
+  function canAct() {
+    if (hasServerAuthority()) return true;
+    toast.show(t('offline.serverRequired'));
+    return false;
+  }
   const sideLabel = (side: PracticeSide) =>
     practiceFields(side)
       .map((field) => t(practiceFieldLabel(field)))
@@ -306,6 +319,7 @@ function PersistentPractice({
     setConfiguring(true);
   }
   function startRun() {
+    if (!canAct()) return;
     setHistory([]);
     resetEncounter();
     store.act({ kind: 'start', front, back, response });
@@ -350,6 +364,7 @@ function PersistentPractice({
                 title={t('study.undo')}
                 disabled={!history.length || !!state.error || history.at(-1)?.id !== run.id}
                 onClick={() => {
+                  if (!canAct()) return;
                   const previous = history.at(-1);
                   if (!previous) return;
                   resetEncounter();
@@ -651,6 +666,7 @@ function PersistentPractice({
                       variant={value ? 'primary' : 'quiet'}
                       disabled={!!state.error}
                       onClick={() => {
+                        if (!canAct()) return;
                         setHistory([...history, run]);
                         resetEncounter();
                         store.act({ kind: 'answer', noteId: current.id, known: value });
@@ -695,7 +711,9 @@ function PersistentPractice({
                 <Button
                   variant="primary"
                   disabled={!!state.error}
-                  onClick={() => store.act({ kind: 'round' })}
+                  onClick={() => {
+                    if (canAct()) store.act({ kind: 'round' });
+                  }}
                 >
                   {t('practice.repeat')}
                 </Button>
@@ -704,6 +722,7 @@ function PersistentPractice({
                   variant="quiet"
                   disabled={!!state.error}
                   onClick={() => {
+                    if (!canAct()) return;
                     setHistory([]);
                     store.act({
                       kind: 'start',

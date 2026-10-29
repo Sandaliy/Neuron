@@ -10,6 +10,7 @@ import { useShellCache } from '../../lib/pwa';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
+import { Disclosure } from '../../ui/disclosure';
 
 import { PendingNotes } from './pending-notes';
 import { PendingRenames } from './pending-renames';
@@ -34,6 +35,7 @@ export function OfflineAccess() {
     retry: false,
     staleTime: 30_000,
   });
+  const [details, setDetails] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const busy = state.download === 'downloading';
   const failed = state.failure !== null;
@@ -48,20 +50,9 @@ export function OfflineAccess() {
         <SyncSummary />
         <p role="status" className="text-13 text-secondary">
           {t(
-            state.available
-              ? 'offline.ready'
-              : busy
-                ? 'offline.downloading'
-                : failed
-                  ? 'offline.unavailable'
-                  : 'offline.pending',
-          )}
-        </p>
-        <p role="status" className="text-13 text-secondary">
-          {t(
             !state.available
               ? 'offline.study.waitingDownload'
-              : readiness.isPending || readiness.isFetching
+              : readiness.isPending || (readiness.isFetching && !readiness.data)
                 ? 'offline.study.checking'
                 : readiness.error
                   ? 'offline.study.unavailable'
@@ -70,7 +61,6 @@ export function OfflineAccess() {
                     : 'offline.study.verified',
           )}
         </p>
-        <p className="text-13 text-secondary">{t('offline.readOnly')}</p>
         {historyNeedsRecovery && (
           <p className="text-13 text-secondary">{t('offline.study.historyRecovery')}</p>
         )}
@@ -94,22 +84,6 @@ export function OfflineAccess() {
                 : 'offline.onlineAvailable',
             )}
           </p>
-        )}
-        {state.offline && (
-          <>
-            <p className="text-13 text-tertiary">{t('offline.session')}</p>
-            {state.connectivity !== 'unreachable' && (
-              <p className="text-13 text-secondary">{t('offline.connectionUncertain')}</p>
-            )}
-            <Button
-              variant="quiet"
-              aria-label={t('offline.reconnect')}
-              busy={state.checking}
-              onClick={() => void retryConnection()}
-            >
-              {t('offline.reconnect')}
-            </Button>
-          </>
         )}
         {!state.offline && (failed || historyNeedsRecovery) && (
           <div className="flex flex-wrap gap-8">
@@ -136,15 +110,53 @@ export function OfflineAccess() {
         <PendingRenames />
         <PendingNotes />
         <PendingReviews />
+        <Disclosure
+          title={t('offline.details')}
+          open={details}
+          onOpenChange={setDetails}
+          reveal="progressive"
+        >
+          <div className="flex flex-col gap-12">
+            <p role="status" className="text-13 text-secondary">
+              {t(
+                state.available
+                  ? 'offline.ready'
+                  : busy
+                    ? 'offline.downloading'
+                    : failed
+                      ? 'offline.unavailable'
+                      : 'offline.pending',
+              )}
+            </p>
+            {state.offline && (
+              <p className="text-13 text-secondary">
+                {t(
+                  state.connectivity === 'unreachable'
+                    ? 'offline.session'
+                    : 'offline.connectionUncertain',
+                )}
+              </p>
+            )}
+            <Button
+              variant="quiet"
+              aria-label={t('offline.reconnect')}
+              busy={state.checking}
+              onClick={() => void retryConnection()}
+            >
+              {t('offline.reconnect')}
+            </Button>
+            <p className="text-13 text-secondary">{t('offline.readOnly')}</p>
+            <Button variant="text" className="self-start" onClick={exportLifecycle}>
+              {t('offline.diagnostics')}
+            </Button>
+          </div>
+        </Disclosure>
         <SyncSummary>
           <PendingRenames history />
           <PendingNotes history />
           <PendingReviews history />
         </SyncSummary>
       </Card>
-      <Button variant="text" className="self-start" onClick={exportLifecycle}>
-        <span className="font-normal text-12 text-tertiary">{t('offline.diagnostics')}</span>
-      </Button>
       {state.failure?.code === 'collection_pending_work' && (
         <p role="alert" className="text-13 text-secondary">
           {t('offline.rebuildBlocked')}

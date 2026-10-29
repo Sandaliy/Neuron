@@ -8,6 +8,7 @@ import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
 import { Progress } from '../../ui/progress';
 import { ErrorState } from '../../ui/states';
+import { useToast } from '../../ui/toast';
 
 export function PracticeEntry({
   deckId,
@@ -23,12 +24,19 @@ export function PracticeEntry({
   readonly offline?: boolean;
 }) {
   const t = useTranslate();
+  const toast = useToast();
+  const open = (entry: 'resume' | 'setup') => {
+    if (!ready || !enabled) {
+      toast.show(t('offline.serverRequired'));
+      return;
+    }
+    onOpen(entry);
+  };
   const summary = useQuery({ ...practiceQuery(deckId), enabled });
   const run = summary.data?.run;
   const statuses = Object.values(run?.statuses ?? {});
   const classified = statuses.filter((status) => status !== 'unseen').length;
   const onlineLabel = t(run ? 'practice.resume' : 'practice.start');
-  const offlineLabel = t('offline.practiceUnavailable');
   return (
     <Card className="flex flex-col gap-16">
       <div className="flex w-full flex-wrap items-center justify-between gap-8">
@@ -54,23 +62,18 @@ export function PracticeEntry({
           <Button
             full
             variant="primary"
-            disabled={!ready || !enabled || summary.isPending || !!summary.error}
-            onClick={() => onOpen('resume')}
+            aria-disabled={!ready || !enabled || undefined}
+            disabled={ready && enabled && (summary.isPending || !!summary.error)}
+            onClick={() => open('resume')}
           >
-            {/* Both labels determine natural height, including wrapped translations.
-                Changing authority must not move the collection below this action. */}
-            <span className="inline-grid">
-              <span className="[grid-area:1/1] invisible" aria-hidden="true">
-                {offline ? onlineLabel : offlineLabel}
-              </span>
-              <span className="[grid-area:1/1]">{offline ? offlineLabel : onlineLabel}</span>
-            </span>
+            {onlineLabel}
           </Button>
           <Button
             variant="quiet"
             className="text-13"
-            disabled={!ready || !enabled || summary.isPending || !!summary.error}
-            onClick={() => onOpen('setup')}
+            aria-disabled={!ready || !enabled || undefined}
+            disabled={ready && enabled && (summary.isPending || !!summary.error)}
+            onClick={() => open('setup')}
           >
             <SlidersHorizontal size={16} aria-hidden="true" />
             {t('practice.settings')}

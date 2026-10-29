@@ -49,7 +49,10 @@ export function SwipeDelete({
       if (element.dataset[key] !== String(value)) element.dataset[key] = String(value);
   };
   useLayoutEffect(() => {
-    if (disabled) gesture.current = null;
+    if (disabled) {
+      gesture.current = null;
+      suppress.current = false;
+    }
     if (!gesture.current) paint(disabled ? 0 : open ? -64 : 0);
   }, [open, disabled]);
   return (
