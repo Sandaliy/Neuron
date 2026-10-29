@@ -270,7 +270,7 @@ users and technical reviewers.
   lifecycle.
 - Finish conflict recovery UX and operational cleanup scheduling.
 - Resolve relevant dependency alerts and add measured code splitting where it improves startup.
-- Review API/database region placement and preview-database automation from observed needs.
+- Automate preview databases from observed needs. The api already runs in the database region.
 - Refresh public README material, screenshots, architecture/algorithm explanations, and operator guidance.
 - Validate production health and recovery procedures.
 

@@ -395,9 +395,9 @@ Today or Study.
   individually. Note restoration retains `deleted_with_note` attribution for Cards. Permanent
   deletion prevents restoration through repositories and sync without rewriting Reviews.
 - `stash@{0}` remains a historical backup of earlier Phase 6 local work.
-- Public production routing markers include `iad1`, while the production database is in Frankfurt
-  (`aws-eu-central-1`). Confirm deployment region and authenticated timing before proposing region
-  alignment or compute wake-up changes; database relocation is not established as necessary.
+- The api functions ran in `iad1` against the Frankfurt database, one transatlantic round trip per
+  query. `apps/api/vercel.json` now pins them to `fra1`; see "The api runs next to the database" in
+  `architecture.md`. Confirm the `x-vercel-id` header after the merge deploys.
 - Windows WebKit/desktop full-glass motion profiles have sampled long frames despite passing geometry checks.
   Final iPhone acceptance closes the native-device findings; those platform-specific measurements and the
   hosted glass benchmark anomaly remain diagnostic limitations, not evidence of a resolved compositor issue.
