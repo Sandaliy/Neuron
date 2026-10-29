@@ -16,7 +16,7 @@ import { useLearningNavigation } from '../../lib/learning-navigation';
 import { useOffline } from '../../lib/offline';
 import { localStudyPlan } from '../../lib/offline-study';
 import { useReturnScroll } from '../../lib/return-scroll';
-import { requireDeliveredReviews, reviewEvents } from '../../lib/review-outbox';
+import { requireDeliveredReviews, retryReviews, reviewEvents } from '../../lib/review-outbox';
 import { awaitInitialPlan, confirmedInitialPlan } from '../../lib/study-plan';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
@@ -26,6 +26,7 @@ import { Disclosure } from '../../ui/disclosure';
 import { ReviewTime } from '../../ui/review-time';
 import { Row } from '../../ui/row';
 import { Select } from '../../ui/select';
+import { Spinner } from '../../ui/spinner';
 import { ErrorState, Skeleton } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { DeckSettingsDialog } from '../library/deck-dialogs';
@@ -38,6 +39,7 @@ import { StudyScope } from './study-scope';
 
 import type { CardDisplay } from './card-display';
 import type { StudyPlanProjection } from '../../lib/note-projection';
+import type { PendingReview } from '../../lib/review-outbox';
 
 /**
  * How long the cards waiting are likely to take.
@@ -158,6 +160,64 @@ export function TodayScreen() {
         />
       )}
     </section>
+  );
+}
+/**
+ * Why a new plan is waiting on answers saved earlier, in the learner's terms.
+ *
+ * The server plans from schedules it has seen, so answers it has not received
+ * yet have to arrive first. That wait is real, but it is three different
+ * situations: the answers are on their way, they could not be sent yet and
+ * delivery keeps trying by itself, or the server refused one and a person has
+ * to decide. Only the last needs Settings.
+ */
+function DeliveryStatus({ entries }: { readonly entries: readonly PendingReview[] }) {
+  const t = useTranslate();
+  const navigate = useNavigate();
+  const [sending, setSending] = useState(false);
+  const open = entries.filter((entry) => !['synchronized', 'archived'].includes(entry.state));
+  const answers = (state: PendingReview['state']) =>
+    open.filter((entry) => entry.state === state && entry.event.type === 'answer').length ||
+    open.filter((entry) => entry.state === state).length;
+  const refused = answers('rejected');
+  const stalled = open.some((entry) => entry.state === 'pending' && entry.failure !== undefined);
+  if (refused > 0)
+    return (
+      <div className="flex flex-col gap-12" role="status">
+        <h2 className="text-20 text-primary">{t('today.delivery.refusedTitle')}</h2>
+        <p className="text-14 text-secondary">
+          {t('today.delivery.refusedBody', { count: refused })}
+        </p>
+        <Button variant="quiet" onClick={() => void navigate({ to: '/settings', hash: 'sync' })}>
+          {t('today.delivery.open')}
+        </Button>
+      </div>
+    );
+  if (stalled)
+    return (
+      <div className="flex flex-col gap-12" role="status">
+        <h2 className="text-20 text-primary">{t('today.delivery.waitingTitle')}</h2>
+        <p className="text-14 text-secondary">
+          {t('today.delivery.waitingBody', { count: answers('pending') })}
+        </p>
+        <Button
+          variant="quiet"
+          disabled={sending}
+          onClick={() => {
+            setSending(true);
+            void retryReviews().finally(() => setSending(false));
+          }}
+        >
+          {sending ? <Spinner /> : null}
+          {t('today.delivery.sendNow')}
+        </Button>
+      </div>
+    );
+  return (
+    <div role="status" className="flex min-h-96 items-center gap-12 text-17 text-secondary">
+      <Spinner />
+      {t('today.delivery.sending', { count: answers('pending') })}
+    </div>
   );
 }
 interface StudyChoices {
@@ -520,9 +580,13 @@ function Waiting({
             {t('offline.study.incomplete')}
           </p>
         ) : !local && !reviewsReady && !savedReviews.isPending ? (
-          <p role="status" className="text-14 text-secondary">
-            {t(savedReviews.error ? 'offline.changesUnavailable' : 'error.review_delivery_pending')}
-          </p>
+          savedReviews.error ? (
+            <p role="status" className="text-14 text-secondary">
+              {t('offline.changesUnavailable')}
+            </p>
+          ) : (
+            <DeliveryStatus entries={savedReviews.data ?? []} />
+          )
         ) : plan.error && !result ? (
           <ErrorState
             message={t(describe(plan.error).key)}
@@ -536,7 +600,7 @@ function Waiting({
             <Skeleton className="h-48 w-full" />
           </div>
         ) : replacingPlan ? (
-          <div role="status" className="flex min-h-112 items-center text-17 text-secondary">
+          <div role="status" className="flex min-h-96 items-center text-17 text-secondary">
             {waitingLabel}
           </div>
         ) : singleUnsupported ? (
@@ -653,7 +717,8 @@ function Waiting({
           </Button>
         )}
       </Card>
-      {plan.error && result && (
+      {/* While saved answers are still on their way, the status above already says so. */}
+      {plan.error && result && (local || reviewsReady) && (
         <ErrorState
           message={t(describe(plan.error).key)}
           retryLabel={t('common.retry')}
