@@ -184,18 +184,20 @@ test('offline rename survives reload; lost acknowledgement retries the exact ope
   await expect.poll(() => state.deliveries.length).toBe(1);
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('pending');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  // Waiting changes are sent again from the section's status.
+  await page
+    .getByRole('region', { name: 'Offline & sync' })
+    .getByRole('button', { name: /^(Send now|Try again)$/ })
+    .first()
+    .click();
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('synchronized');
   expect(state.deliveries).toEqual([saved.payload, saved.payload]);
   expect(state.deck.rev).toBe(2);
   await page.reload();
-  await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
-  await page
-    .getByRole('region', { name: 'Saved name changes' })
-    .getByRole('button', { name: 'Saved offline name', exact: true })
-    .click();
-  await expect(page.getByText('Synchronized with the server', { exact: true })).toBeVisible();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  // A delivered rename needs nothing more and is not listed.
+  await expect(page.getByRole('region', { name: 'Saved name changes' })).toHaveCount(0);
+  expect((await stored(page))[0]?.state).toBe('synchronized');
   expect(state.deliveries).toHaveLength(2);
 });
 
@@ -249,11 +251,12 @@ test('invalid acknowledgement and failed acknowledgement persistence keep the ex
   // Let the local save notification finish before asking for an explicit retry.
   // A local commit must not queue the online-write follow-up while this invalid
   // acknowledgement leaves the original command pending.
+  // A toast stays for its reading time, about six seconds for this sentence.
   await expect(
     page.getByText('Name saved on this device. It will sync after sign-in is confirmed.', {
       exact: true,
     }),
-  ).toBeHidden();
+  ).toBeHidden({ timeout: 10_000 });
   expect(state.deliveries).toEqual([saved.payload]);
   state.badAck = false;
   await page.evaluate(() => {
@@ -265,7 +268,12 @@ test('invalid acknowledgement and failed acknowledgement persistence keep the ex
     };
   });
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  // Waiting changes are sent again from the section's status.
+  await page
+    .getByRole('region', { name: 'Offline & sync' })
+    .getByRole('button', { name: /^(Send now|Try again)$/ })
+    .first()
+    .click();
   await expect.poll(() => state.deliveries.length).toBe(2);
   expect((await stored(page))[0]?.state).toBe('pending');
   await page.reload();
@@ -422,7 +430,7 @@ test('future database versions block recovery and retain the immutable outbox', 
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(
     page
-      .getByRole('region', { name: 'Saved name changes' })
+      .getByRole('region', { name: 'Offline & sync' })
       .getByText(
         'Saved changes could not be read. Rebuild is blocked until they can be checked safely.',
       ),

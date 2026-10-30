@@ -22,6 +22,25 @@ interface ToastValue {
 
 const ToastContext = createContext<ToastValue | undefined>(undefined);
 
+/*
+ * How long a message stays, from its length.
+ *
+ * Every toast used to leave after 2.2 seconds whatever it said, which is
+ * enough for "Saved" and not for a sentence explaining a failure: people
+ * reported messages that disappeared before they could read them. Reading
+ * speed is roughly fifteen characters a second on a phone, plus the moment it
+ * takes to notice something arrived. A failure gets longer, because it is the
+ * one that may need acting on. Radix pauses the timer while the toast is
+ * hovered or focused, and a downward swipe still dismisses it early.
+ */
+function readingTime(text: string, tone: Tone): number {
+  const time = 1500 + text.length * 65;
+  return Math.min(
+    tone === 'danger' ? 10_000 : 7000,
+    Math.max(tone === 'danger' ? 5000 : 3500, time),
+  );
+}
+
 interface Message {
   readonly id: number;
   readonly text: string;
@@ -40,7 +59,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
 
   return (
     <ToastContext.Provider value={value}>
-      <RadixToast.Provider swipeDirection="down" duration={2200}>
+      <RadixToast.Provider swipeDirection="down">
         {children}
 
         {messages.map((message) => (
@@ -48,6 +67,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
             key={message.id}
             data-g="toast"
             open={message.open}
+            duration={readingTime(message.text, message.tone)}
             onAnimationEnd={(event) => {
               if (event.target === event.currentTarget && !message.open) {
                 setMessages((current) => current.filter((item) => item.id !== message.id));

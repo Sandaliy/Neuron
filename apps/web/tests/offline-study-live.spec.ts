@@ -207,7 +207,7 @@ test('a cold offline PWA plans new Study and reconciles committed work after reo
       now: new Date(),
       durationMs: 9000,
     });
-    await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
+    await page.getByRole('button', { name: 'What works offline', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
     server = serve({ fetch, hostname: '127.0.0.1', port });
     await new Promise<void>((resolve) =>
@@ -313,7 +313,7 @@ test('a cold offline PWA plans new Study and reconciles committed work after reo
       )
       .toBe(true);
     await expect(
-      page.getByText('Offline Study learning data is ready.', { exact: true }),
+      page.getByText('Study works offline on this device.', { exact: true }),
     ).toBeVisible();
     await page.screenshot({ path: info.outputPath('offline-plan-pwa-recovery.png') });
   } finally {

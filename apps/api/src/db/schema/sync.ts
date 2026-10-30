@@ -15,6 +15,7 @@ export interface SyncReceiptOutcome {
   rename?: { digest: string; result: RenameDeckResult };
   noteEdit?: { digest: string; result: EditOfflineNoteResult };
   reviewUndo?: { targetId: string; submittedAt: string | null; cancellationId: string };
+  practice?: { deckId: string; digest: string };
 }
 
 /** Exact entity deliveries, without retaining collection content after purge. */

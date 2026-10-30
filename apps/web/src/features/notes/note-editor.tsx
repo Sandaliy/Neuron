@@ -732,11 +732,8 @@ function Editor({
               {t('note.markKnown')}
             </Button>
           </div>
-          <details className="text-13 text-secondary">
-            <summary className="flex min-h-44 cursor-pointer items-center">
-              {t('learning.restart')}
-            </summary>
-            <p>{t('note.restartHint')}</p>
+          <Disclosure quiet title={t('learning.restart')}>
+            <p className="text-13 text-secondary">{t('note.restartHint')}</p>
             <Button
               variant="text"
               disabled={
@@ -754,51 +751,52 @@ function Editor({
             >
               {t('learning.restart')}
             </Button>
-          </details>
+          </Disclosure>
         </div>
       )}
 
       {note?.noteType === 'vocab' && !conversion && (
-        <details className="rounded-12 border border-subtle p-12">
-          <summary className="min-h-44 text-14 text-secondary">{t('study.moreDirections')}</summary>
-          <p className="text-13 text-secondary">{t('study.directionHint')}</p>
-          <div className="flex flex-wrap gap-8">
-            {(['production', 'listening'] as const).map((direction) => (
-              <Button
-                key={direction}
-                disabled={
-                  cards.some((card) => card.direction === direction) ||
-                  actions.enableDirection.isPending ||
-                  !serverActions
-                }
-                onClick={() => {
-                  setStatusError(undefined);
-                  void actions.enableDirection
-                    .mutateAsync({ noteId: note.id, direction })
-                    .catch(setStatusError);
+        <Disclosure quiet title={t('study.moreDirections')}>
+          <div className="flex flex-col gap-12">
+            <p className="text-13 text-secondary">{t('study.directionHint')}</p>
+            <div className="flex flex-wrap gap-8">
+              {(['production', 'listening'] as const).map((direction) => (
+                <Button
+                  key={direction}
+                  disabled={
+                    cards.some((card) => card.direction === direction) ||
+                    actions.enableDirection.isPending ||
+                    !serverActions
+                  }
+                  onClick={() => {
+                    setStatusError(undefined);
+                    void actions.enableDirection
+                      .mutateAsync({ noteId: note.id, direction })
+                      .catch(setStatusError);
+                  }}
+                >
+                  {t(`study.direction.${direction}`)}
+                </Button>
+              ))}
+            </div>
+            <label className="flex flex-col gap-8 text-14 text-secondary">
+              {t('study.acceptedAnswers')}
+              <TextArea
+                value={acceptedAnswers}
+                onChange={(event) => {
+                  setAcceptedAnswers(event.target.value);
+                  edit({
+                    ...fields,
+                    acceptedAnswers: event.target.value
+                      .split('\n')
+                      .map((value) => value.trim())
+                      .filter(Boolean),
+                  });
                 }}
-              >
-                {t(`study.direction.${direction}`)}
-              </Button>
-            ))}
+              />
+            </label>
           </div>
-          <label className="flex flex-col gap-8 text-14 text-secondary">
-            {t('study.acceptedAnswers')}
-            <TextArea
-              value={acceptedAnswers}
-              onChange={(event) => {
-                setAcceptedAnswers(event.target.value);
-                edit({
-                  ...fields,
-                  acceptedAnswers: event.target.value
-                    .split('\n')
-                    .map((value) => value.trim())
-                    .filter(Boolean),
-                });
-              }}
-            />
-          </label>
-        </details>
+        </Disclosure>
       )}
 
       {conversion && (
@@ -828,10 +826,7 @@ function Editor({
 
         {!note &&
           (deckId ? (
-            <details>
-              <summary className="min-h-44 cursor-pointer text-14 text-secondary">
-                {t('collection.changeDestination')}
-              </summary>{' '}
+            <Disclosure quiet title={t('collection.changeDestination')}>
               <FormField
                 label={t('note.deck')}
                 {...(deck === '' ? { error: t('note.missingDeck') } : {})}
@@ -840,7 +835,7 @@ function Editor({
                   <CollectionPicker {...props} tree={decks} value={deck} onChange={setDeck} />
                 )}
               </FormField>
-            </details>
+            </Disclosure>
           ) : (
             <>
               {' '}

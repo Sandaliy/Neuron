@@ -93,6 +93,10 @@ export function deckRoutes(): Hono<RequestBindings> {
     });
   });
 
+  routes.get('/practice', async (context) =>
+    context.json(await repositoriesOf(context).practice.list()),
+  );
+
   routes.get('/:id', async (context) => {
     const { id } = readParams(context, idParamSchema);
     const deck = await repositoriesOf(context).decks.byId(id);

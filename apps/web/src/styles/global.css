@@ -277,6 +277,24 @@
   }
 
   /*
+   * A control reached by a finger or a mouse keeps its focus without the ring.
+   * Safari decides `:focus-visible` by element type, so a tapped select kept a
+   * ring and a halo after its picker closed. `src/lib/interactions.ts` records
+   * how focus last arrived; any key press brings every ring back. Text fields
+   * keep theirs, because where typing will land is worth showing however the
+   * field was reached.
+   */
+  [data-modality='pointer']
+    :focus-visible:not(
+      input:not([type='checkbox'], [type='radio'], [type='range']),
+      textarea,
+      [contenteditable]
+    ) {
+    outline: none;
+    box-shadow: none;
+  }
+
+  /*
    * Anything that takes typing is at least sixteen pixels.
    *
    * Below that, iOS Safari zooms the page when the field is focused and does
@@ -377,6 +395,18 @@
   [data-g='panel'] {
     background: var(--surface-sheet);
     box-shadow: var(--elev-4), var(--glass-rim), var(--glass-depth);
+  }
+
+  /*
+   * A dialog blurs what is under it without boosting its colour. The boost
+   * that gives a bar its life turned the primary button behind a dialog into
+   * a blue glow across the dialog's rows.
+   */
+  @supports ((-webkit-backdrop-filter: blur(2px)) or (backdrop-filter: blur(2px))) {
+    [data-g='panel'] {
+      -webkit-backdrop-filter: blur(var(--g-blur));
+      backdrop-filter: blur(var(--g-blur));
+    }
   }
 
   /*
@@ -592,21 +622,44 @@
       0 0 0 5px var(--focus-halo);
   }
 
-  /*
-   * A switch knob: white, with a real shadow, travelling on transform. The
-   * spring curve is used here and nowhere else.
-   */
-  [data-slot='switch-knob'] {
+  [data-modality='pointer'] input[type='range']:focus-visible::-webkit-slider-thumb {
     box-shadow: var(--knob-shadow);
-    transition: transform var(--dur-2) var(--ease-inout);
   }
 
   /*
-   * A checked box is the accent fill framed by an inset ring, not a tick glyph.
-   * The ring is three pixels, which is craft rather than a step on the scale.
+   * A switch: the track and the knob are one movement. The track used to
+   * change colour in ninety milliseconds while the knob was still a third of
+   * the way across, which read as two things happening. Both now take the
+   * screen duration; the knob lands on the spring curve, the one place it is
+   * used, and the colour follows on the plain curve underneath it.
    */
-  [data-slot='checkbox'][data-state='checked'] {
-    box-shadow: inset 0 0 0 3px var(--text-on-accent);
+  [data-slot='switch'] {
+    transition:
+      background-color var(--dur-3) var(--ease-inout),
+      opacity var(--dur-2) var(--ease-inout);
+  }
+
+  [data-slot='switch-knob'] {
+    box-shadow: var(--knob-shadow);
+    transition: transform var(--dur-3) var(--ease-spring);
+  }
+
+  /*
+   * A checkbox is drawn as the switch: the same track, the same knob and the
+   * same movement. Checked carries the knob across; partial, a Folder with
+   * some of its Decks chosen, stops it half way on the unfilled track, so it
+   * cannot be mistaken for on.
+   */
+  [data-slot='checkbox'] [data-slot='switch-track'] {
+    transition: background-color var(--dur-3) var(--ease-inout);
+  }
+
+  [data-slot='checkbox'][data-state='checked'] [data-slot='switch-knob'] {
+    transform: translate3d(var(--u-6), 0, 0);
+  }
+
+  [data-slot='checkbox'][data-state='indeterminate'] [data-slot='switch-knob'] {
+    transform: translate3d(var(--u-3), 0, 0);
   }
 
   /*
@@ -883,16 +936,27 @@
   }
 
   @media (hover: none) {
-    button:active,
-    [data-row]:active,
-    [data-tab]:active,
-    [data-cell]:active {
+    button:active:not([data-pressed]),
+    [data-row]:active:not([data-pressed]),
+    [data-tab]:active:not([data-pressed]),
+    [data-cell]:active:not([data-pressed]) {
       transform: none !important;
       opacity: 1 !important;
     }
     [data-pressed] {
       opacity: 0.7;
       transition: none;
+    }
+    button[data-pressed]:not(
+        [data-tone='text'],
+        [data-tab],
+        [data-cell],
+        [role='switch'],
+        [role='checkbox'],
+        :disabled,
+        [aria-disabled='true']
+      ) {
+      transform: scale(0.97);
     }
   }
 
@@ -966,7 +1030,7 @@
 @keyframes neu-panel-in {
   from {
     opacity: 0;
-    transform: scale(0.99);
+    transform: translate3d(0, 8px, 0) scale(0.96);
   }
   to {
     opacity: 1;
@@ -981,7 +1045,7 @@
   }
   to {
     opacity: 0;
-    transform: scale(0.99);
+    transform: scale(0.97);
   }
 }
 
@@ -1010,7 +1074,7 @@
 @keyframes neu-toast-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 4px, 0) scale(0.97);
+    transform: translate3d(0, 12px, 0) scale(0.96);
   }
   to {
     opacity: 1;
@@ -1025,7 +1089,7 @@
   }
   to {
     opacity: 0;
-    transform: translate3d(0, 4px, 0);
+    transform: translate3d(0, 8px, 0);
   }
 }
 
@@ -1126,8 +1190,13 @@
   animation: neu-fade var(--dur-2) var(--ease-inout) backwards;
 }
 
+/*
+ * A dialog grows into place from slightly below and smaller, on the arrival
+ * curve, and leaves in the reveal duration. At 0.99 and 90 ms the old pair
+ * was below what an eye notices, so dialogs read as appearing and vanishing.
+ */
 @utility neu-panel-in {
-  animation: neu-panel-in var(--dur-3) var(--ease-inout) backwards;
+  animation: neu-panel-in var(--dur-3) var(--ease-enter) backwards;
 }
 .neu-dialog[data-state='open']:not([data-entrance-ready='true']) {
   opacity: 0;
@@ -1135,7 +1204,7 @@
 }
 
 @utility neu-panel-out {
-  animation: neu-panel-out var(--dur-1) var(--ease-exit) forwards;
+  animation: neu-panel-out var(--dur-2) var(--ease-exit) forwards;
 }
 
 @utility neu-reveal {
@@ -1143,11 +1212,11 @@
 }
 
 @utility neu-toast-in {
-  animation: neu-toast-in var(--dur-2) var(--ease-enter) backwards;
+  animation: neu-toast-in var(--dur-3) var(--ease-enter) backwards;
 }
 
 @utility neu-toast-out {
-  animation: neu-toast-out var(--dur-1) var(--ease-exit) forwards;
+  animation: neu-toast-out var(--dur-2) var(--ease-exit) forwards;
 }
 
 @utility neu-tick {
@@ -1226,6 +1295,27 @@
   }
 
   /*
+   * A screen arrives in the direction the person moved. Deeper in a hierarchy,
+   * Library to a Deck to a Note, it comes in from the right; Back brings the
+   * previous one in from the left; a tab change, which is a sideways step
+   * between siblings, only rises into place. The shell decides which, from
+   * the history index, and nothing else on the screen animates for it.
+   * Entrance only, so a cached screen is legible at once and never waits on
+   * the old one leaving.
+   */
+  [data-arrival='forward'] > * {
+    animation: neu-in-forward var(--dur-3) var(--ease-enter) backwards;
+  }
+
+  [data-arrival='back'] > * {
+    animation: neu-in-back var(--dur-3) var(--ease-enter) backwards;
+  }
+
+  [data-arrival='tab'] > * {
+    animation: neu-screen-in var(--dur-2) var(--ease-enter) backwards;
+  }
+
+  /*
    * What hangs under an open deck arrives rather than appearing. The disclosure
    * has already turned by then, so this is the answer to it.
    */
@@ -1265,13 +1355,13 @@
 }
 
 @utility neu-scrim-out {
-  animation: neu-fade var(--dur-1) var(--ease-exit) reverse forwards;
+  animation: neu-fade var(--dur-2) var(--ease-exit) reverse forwards;
 }
 
 @keyframes neu-menu-in {
   from {
     opacity: 0;
-    transform: translate3d(0, var(--menu-offset, -2px), 0) scale(0.99);
+    transform: translate3d(0, var(--menu-offset, -4px), 0) scale(0.96);
   }
   to {
     opacity: 1;
@@ -1292,7 +1382,7 @@
     transform-origin: var(--radix-dropdown-menu-content-transform-origin);
   }
   [data-menu-surface][data-side='top'] {
-    --menu-offset: 2px;
+    --menu-offset: 4px;
   }
 }
 
@@ -1383,12 +1473,56 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
 .neu-learning-answer {
   font-size: var(--type-learning-answer);
 }
+.neu-learning-prompt[data-length='long'],
+.neu-learning-answer[data-length='long'] {
+  font-size: var(--type-learning-long);
+}
+.neu-learning-prompt[data-length='longer'],
+.neu-learning-answer[data-length='longer'] {
+  font-size: var(--type-learning-longer);
+  line-height: var(--lh-body);
+  letter-spacing: var(--tr-snug);
+}
+/*
+ * An inline disclosure grows on its grid track rather than on a measured
+ * height, so nothing in script reads the layout while it moves. It is the one
+ * layout transition in the system, and it is bounded: a section of a card, not
+ * a screen. The content fades in a beat behind the growth and leaves faster
+ * than the space closes, which is what keeps half a line from being read while
+ * it is clipped.
+ */
 .neu-disclosure {
+  display: grid;
+  /* A grid column grows to its content's narrowest width unless told not to,
+     and a long Folder row then widened the page on a 320px phone. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-3) var(--ease-inout);
+}
+.neu-disclosure[data-disclosure-open='true'] {
+  grid-template-rows: 1fr;
+}
+.neu-disclosure-clip {
+  min-height: 0;
+  min-width: 0;
   overflow: hidden;
+}
+.neu-disclosure[data-disclosure-open='true'][data-moving='false'] > .neu-disclosure-clip {
+  overflow: visible;
+}
+.neu-disclosure-content {
   opacity: 0;
+  transform: translate3d(0, -4px, 0);
   transition:
-    height var(--dur-3) var(--ease-inout),
-    opacity var(--dur-3) var(--ease-inout);
+    opacity var(--dur-1) var(--ease-exit),
+    transform var(--dur-1) var(--ease-exit);
+}
+.neu-disclosure[data-disclosure-open='true'] > .neu-disclosure-clip > .neu-disclosure-content {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-3) var(--ease-enter) var(--dur-1),
+    transform var(--dur-3) var(--ease-enter) var(--dur-1);
 }
 .neu-swipe > [data-swipe-action] {
   visibility: hidden;
@@ -1408,21 +1542,32 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
 .neu-swipe[data-swipe-armed='true'] > [data-swipe-action] svg {
   transform: scale(1.25);
 }
-.neu-disclosure[data-disclosure-open='true'] {
-  opacity: 1;
-}
-.neu-disclosure[data-disclosure-open='true']:not([data-moving='true']) {
-  overflow: visible;
-}
-.neu-disclosure-content {
-  transition: opacity var(--dur-2) var(--ease-inout);
-}
 .neu-note-toggle-control {
   /* Match a native field's line, vertical padding and border without moving its label. */
   min-height: calc(1lh + var(--u-3) * 2 + 2px);
 }
 
 /* Collection objects share a surface; Folder identity carries the hierarchy. */
+/*
+ * A Folder or Deck being dragged is the same row, lifted: a step larger and a
+ * floating shadow, arriving on the press curve. Nothing about its colour or
+ * contents changes, so picking it up reads as moving it, not replacing it.
+ */
+[data-collection-preview] {
+  transform: scale(1.02);
+  animation: neu-lift var(--dur-2) var(--ease-enter) backwards;
+}
+[data-collection-preview] > * {
+  box-shadow: var(--elev-3);
+}
+@keyframes neu-lift {
+  from {
+    transform: none;
+  }
+  to {
+    transform: scale(1.02);
+  }
+}
 .neu-collection-surface {
   box-shadow: inset 0 0 0 1px var(--border-subtle);
 }
@@ -1496,21 +1641,6 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
   to {
     opacity: 1;
   }
-}
-.neu-details > summary {
-  list-style: none;
-}
-.neu-details > summary::-webkit-details-marker {
-  display: none;
-}
-.neu-details > summary svg {
-  transition: transform var(--dur-2) var(--ease-inout);
-}
-.neu-details[open] > summary svg {
-  transform: rotate(180deg);
-}
-.neu-details[open] > :not(summary) {
-  animation: neu-reveal var(--dur-2) var(--ease-enter) backwards;
 }
 .neu-spelling {
   white-space: pre-wrap;

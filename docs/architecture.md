@@ -711,16 +711,24 @@ plus within-Deck offset, preventing a large import from monopolizing admission w
 
 `practice_runs` holds one versioned run per account and Deck: chosen fields, unseen/learning/known
 Note statuses, queue, and round. The shared reducer is independent of FSRS. GET reconciles live
-membership and persists removals/admissions; POST commands use operation IDs and expected versions
-under the account lock. A repeated last operation returns its result; conflicting changes return 409.
-The client serializes optimistic commands and retains unacknowledged IDs for retry across reloads.
+membership on the way out and writes nothing, so the version counts commands only and a Note changed
+elsewhere never invalidates commands a device saved while away. `GET /decks/practice` returns every
+live Deck's stored run for a downloaded collection. POST commands use operation IDs and expected
+versions under the account lock. Each applied command writes an immutable `sync_receipts` row
+(`practice:<id>`, deck and command digest, no content); an exact retry is answered with the present
+state even after later commands, and a reused ID with another body is refused. A different expected
+version, or a step the reducer refuses, returns 409. An answer, or its Undo, for a Note that has left
+the pool is applied as a no-op, so deletions and edits elsewhere do not stop delivery. `replace` keeps
+one device's whole run after the learner chose it; the run it replaces is written to `sync_conflicts`
+first (entity `practiceRuns`). Device storage, delivery and conflict handling are described in
+`offline-collection.md`.
 Active Practice keeps a local LIFO stack of pre-answer states for this visit only. The versioned `undo`
 command validates a single classification inverse, including the subsequent round boundary, and
-reconciles it against live membership. It uses the same serialized transport and retry IDs as answers.
-Completion permits Undo; leaving the visit, replacing the run, or reconciling a conflicting external
-state ends its local history. The history is not an account-wide or persisted Undo catalogue.
+reconciles it against live membership. It uses the same durable delivery and retry IDs as answers.
+Completion permits Undo; leaving the visit, replacing the run, or adopting another device's run ends
+its local history. The history is not an account-wide or persisted Undo catalogue.
 Completion remains saved until explicit restart. Field changes explicitly restart the run. Practice
-never writes Reviews or card schedules; this narrow retry mechanism is not Phase 8 offline sync.
+never writes Reviews or card schedules.
 
 `POST /decks/:id/restart-learning` records an immutable operation receipt in `learning_restarts`, even
 when no cards participate. Each participating live unsuspended card on an active Note receives an

@@ -38,6 +38,7 @@ import {
   undoReviewResultSchema,
   practiceCommandSchema,
   practiceResultSchema,
+  practiceRunsResultSchema,
   restartLearningSchema,
   unlockDirectionSchema,
   updateDeckSchema,
@@ -93,6 +94,7 @@ const registry: Record<string, z.ZodType> = {
   SubmitReview: submitReviewSchema,
   PracticeCommand: practiceCommandSchema,
   PracticeResult: practiceResultSchema,
+  PracticeRuns: practiceRunsResultSchema,
   RestartLearning: restartLearningSchema,
   UndoReview: undoReviewSchema,
   UndoReviewResult: undoReviewResultSchema,
@@ -249,6 +251,12 @@ export function openApiDocument(baseUrl: string) {
         delete: {
           summary: 'Soft delete a deck and everything under it',
           responses: { 200: answer('How many rows were marked'), ...commonErrors },
+        },
+      },
+      '/decks/practice': {
+        get: {
+          summary: 'Every live Deck Practice run, for a downloaded collection',
+          responses: { 200: answer('Stored runs', 'PracticeRuns'), ...commonErrors },
         },
       },
       '/decks/{id}/practice': {

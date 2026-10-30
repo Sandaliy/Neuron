@@ -129,7 +129,7 @@ export function Button({
         starts waiting does not change width and move everything under it.
       */}
       <span
-        className={`inline-flex min-w-0 items-center ${contentAlign === 'spread' ? 'w-full justify-between' : 'justify-center'} ${layout === 'stacked' ? 'flex-col gap-4' : 'gap-8'} ${busy ? 'invisible' : ''}`}
+        className={`inline-flex min-w-0 items-center ${contentAlign === 'spread' ? 'w-full justify-between' : 'justify-center'} ${layout === 'stacked' ? 'flex-col gap-4' : 'gap-8'} ${busy ? 'opacity-0' : ''}`}
       >
         {children}
       </span>

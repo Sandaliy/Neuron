@@ -7,9 +7,9 @@ import * as RadixSwitch from '@radix-ui/react-switch';
  * that is what a switch knob is on every platform, and the only thing that
  * changes is the track behind it.
  *
- * The knob travels on `transform`, so the movement costs no layout. The spring
- * curve is the one place in the system it is used, and it is applied in the
- * stylesheet next to the disc's shadow.
+ * The knob travels on `transform`, so the movement costs no layout. The track
+ * and the knob share one duration, and the timing lives in the stylesheet next
+ * to the disc's shadow, so a utility here cannot split them apart again.
  */
 export function Switch({
   checked,
@@ -31,8 +31,9 @@ export function Switch({
       disabled={disabled}
       onCheckedChange={onChange}
       aria-label={label}
+      data-slot="switch"
       className={[
-        'relative h-32 w-56 shrink-0 rounded-full transition-colors',
+        'relative h-32 w-56 shrink-0 rounded-full',
         'data-[state=checked]:bg-fill-accent data-[state=unchecked]:bg-switch-off',
         'disabled:cursor-not-allowed disabled:opacity-50',
       ].join(' ')}

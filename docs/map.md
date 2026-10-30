@@ -254,7 +254,8 @@ the api anywhere in browser code would cost the session cookie.
 | `settings/pending-renames.tsx`                  | Account-bound saved names, delivery status, original versions and explicit conflict recovery    |
 | `settings/pending-notes.tsx`                    | Saved Note versions, delivery states and explicit conflict recovery                             |
 | `settings/pending-reviews.tsx`                  | Grouped Study delivery status, one retry/recovery action and retained rejected-session recovery |
-| `settings/saved-work.tsx`, `sync-summary.tsx`   | Bounded optional receipt disclosures and concise account synchronization status                 |
+| `settings/pending-practice.tsx`                 | Practice kept on two devices or for a missing Deck: leads to the choice or discards on request  |
+| `settings/offline-access.tsx`, `saved-work.tsx` | Offline & sync: one status, decisions only, what works offline; when work counts as settled     |
 | `settings/totp.tsx`                             | Enrollment in three steps that cannot be skipped, and removal                                   |
 | `library/library.tsx`                           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
 | `library/deck-dialogs.tsx`                      | Deck naming, safe move picker and inherited language/level settings                             |
@@ -278,28 +279,28 @@ Radix primitives styled with the tokens. No prebuilt kit: they carry a look, and
 one that somebody recognises. `docs/design-system.md` is the reference and `/dev/components` draws
 every one of these in every state.
 
-| File                                      | Holds                                                                                       |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form      |
-| `collection-header.tsx`                   | Compact collection title/actions row with navigation directly below                         |
-| `read-only-slot.tsx`                      | Recognizable unavailable control regions without measured empty slots                       |
-| `server-controls.tsx`                     | Stable server-action regions with accessible restrictions and contextual feedback           |
-| `collection.tsx`                          | Shared opaque hierarchy surfaces and Folder/Deck identities for Library and pickers         |
-| `disclosure.tsx`                          | Controlled, state-preserving inline disclosure with reduced-motion and inert closed content |
-| `input.tsx`, `textarea.tsx`, `select.tsx` | The fields. Sixteen pixels of text, or iOS zooms the page on focus                          |
-| `form-field.tsx`                          | The label, the hint, the error, and the wiring between them                                 |
-| `range.tsx`                               | A rail, a filled portion, one white disc. The fill is handed to css as `--track`            |
-| `segmented.tsx`                           | Native radios with a thumb that slides. Replaces radios everywhere                          |
-| `switch.tsx`, `checkbox.tsx`              | A capsule and a white disc; a fill framed by an inset ring                                  |
-| `card.tsx`                                | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                    |
-| `row.tsx`                                 | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                         |
-| `swipe-delete.tsx`                        | Continuous note-row reveal and committed release-to-delete gesture                          |
-| `chip.tsx`, `progress.tsx`                | Four chip tones and no others; a line that fills on `transform`                             |
-| `dialog.tsx`                              | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip     |
-| `toast.tsx`                               | Short confirmations, above the bottom bar and above the home indicator                      |
-| `sheen.tsx`                               | The specular streak that travels on a glass layer as content scrolls under it               |
-| `states.tsx`                              | Skeleton, empty and error. A list never renders as a blank area                             |
-| `spinner.tsx`                             | For a control that is waiting. A screen gets a skeleton instead                             |
+| File                                      | Holds                                                                                   |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form  |
+| `collection-header.tsx`                   | Collection head: Back and path with the actions, then the full-width title              |
+| `read-only-slot.tsx`                      | Recognizable unavailable control regions without measured empty slots                   |
+| `server-controls.tsx`                     | Stable server-action regions with accessible restrictions and contextual feedback       |
+| `collection.tsx`                          | Shared opaque hierarchy surfaces and Folder/Deck identities for Library and pickers     |
+| `disclosure.tsx`                          | The one inline disclosure and `Fold`, both growing on a grid track with a content fade  |
+| `input.tsx`, `textarea.tsx`, `select.tsx` | The fields. Sixteen pixels of text, or iOS zooms the page on focus                      |
+| `form-field.tsx`                          | The label, the hint, the error, and the wiring between them                             |
+| `range.tsx`                               | A rail, a filled portion, one white disc. The fill is handed to css as `--track`        |
+| `segmented.tsx`                           | Native radios with a thumb that slides. Replaces radios everywhere                      |
+| `switch.tsx`, `checkbox.tsx`              | A capsule and a white disc; a choice row drawn with that switch, partial half way       |
+| `card.tsx`                                | `Card`, `Panel`, `RowGroup`, `GroupLabel`. The depth ladder made visible                |
+| `row.tsx`                                 | `Row`, `TreeRow`, `TreeChildren`, `DenseRow`. One shape, three uses                     |
+| `swipe-delete.tsx`                        | Continuous note-row reveal and committed release-to-delete gesture                      |
+| `chip.tsx`, `progress.tsx`                | Four chip tones and no others; a line that fills on `transform`                         |
+| `dialog.tsx`                              | Takes `dismissable`. `false` is what makes the recovery codes screen impossible to skip |
+| `toast.tsx`                               | Short confirmations, above the bottom bar and above the home indicator                  |
+| `sheen.tsx`                               | The specular streak that travels on a glass layer as content scrolls under it           |
+| `states.tsx`                              | Skeleton, empty and error. A list never renders as a blank area                         |
+| `spinner.tsx`                             | For a control that is waiting. A screen gets a skeleton instead                         |
 
 ### The wiring (`src/lib/`, `src/i18n/`, `src/theme/`)
 
@@ -321,6 +322,7 @@ every one of these in every state.
 | `lib/note-outbox.ts`                              | Durable raw/valid Note drafts, frozen deliveries, acknowledged successors and explicit recovery   |
 | `lib/review-outbox.ts`                            | Durable immutable answer/cancellation intents, batched causal exact delivery and session recovery |
 | `lib/review-intent.ts`                            | Pure validation of existing immutable Review/Undo intents, shared with local planning             |
+| `lib/practice-outbox.ts`                          | Per-Deck Practice records in `meta`, exact delivery, refusal settling and the learner's choice    |
 | `lib/offline-study.ts`, `offline-study-worker.ts` | Account/visit-bound local planning worker and atomic reads of the existing stores                 |
 | `lib/offline-study-snapshot.ts`                   | Download authority, pending event replay, conservative admission and shared planner inputs        |
 | `lib/collection-transport.ts`                     | Collection GET fallback, confirmed transport loss and cancellation/account guards                 |
@@ -383,7 +385,8 @@ hierarchies and note dependencies, and `purge-action.tsx` owns irreversible conf
 - `apps/api/src/db/repositories/practice.ts`: account-isolated persistent Practice with version conflicts.
 - `apps/api/src/db/repositories/reviews.ts`: restart events and canonical card projection.
 - `apps/api/src/routes/study.ts`: shared workload planning, target-language sessions and per-Deck summaries.
-- `apps/web/src/lib/practice.ts`: optimistic serialized Practice commands and pending retry IDs.
+- `apps/web/src/lib/practice.ts`: per-Deck Practice store over the device record, local/server pool.
+- `apps/api/src/db/repositories/practice.test.ts`: exact retries, offline sequences, conflicts, RLS.
 - `apps/web/src/lib/learning-navigation.ts`: route-owned learning history and entry-context exits.
 - `apps/web/src/features/today/study-draft.tsx`: account-visit Study setup draft and sitting boundaries.
 - `apps/web/src/features/today/study-scope.tsx`: temporary leaf Deck selection through Folder ancestry.

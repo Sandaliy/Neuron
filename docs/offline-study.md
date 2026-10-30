@@ -2,8 +2,8 @@
 
 Phase 8.4 continues an already-started Study sitting after connectivity loss. Phase 8.5 also starts
 new sittings from a complete usable download, using the existing Today, setup, learning card, Typing,
-Listening, progress, Undo and completion interfaces. Offline Practice, Note creation and Import
-application remain outside this release.
+Listening, progress, Undo and completion interfaces. Offline Practice is described in
+`offline-collection.md`; Note creation and Import application remain outside this release.
 
 ## Downloaded planning and conservative admission
 
@@ -47,10 +47,11 @@ unavailable until the new matching plan is ready; an admitted sitting keeps its 
 answer/Undo path. Healthy setup omits the persistent downloaded-source paragraph. Actual limitations,
 missing voices, local saving, storage failures and pending delivery retain contextual feedback.
 
-Settings reports synchronization and verified Study readiness compactly. Download completeness,
-capability details, connection checks and diagnostic export are available under Download and capabilities.
-Pending/rejected/conflicting work, storage failures and incomplete history remain outside optional
-Recent activity. Browsing download completeness stays separate from Study data readiness, with a
+Settings > Offline & sync is one status: everything saved, saving (with Send now), waiting for a
+connection, needs your attention, or a broken offline copy. Only work that needs a decision is listed,
+each item with its own actions; waiting work is a count, and synchronized work is not listed at all
+(its records stay on the device). What works offline, Check connection and diagnostic export sit under
+What works offline. Browsing download completeness stays separate from Study data readiness, with a
 restricted-work count and synchronization/rebuild guidance for real history gaps. Rebuild preserves
 receipts and refuses unresolved/recovery work. Available due reviews, admissible new Cards and
 excluded work are distinct: a collection of fifty Cards is not a promise of fifty Cards in one sitting.
@@ -117,7 +118,16 @@ answer and each preceding event must be acknowledged first. Network interruption
 process suspension, a lost response or failed acknowledgement storage retain exact retry payloads.
 A 15-second transport timeout releases the worker, never the local transaction guard. Connectivity
 revalidation, authenticated reopening, focus, newly saved work and Settings Retry wake delivery.
-No timestamp-based overwrite is used for Review events.
+A delivery that ends without an answer from the server (network error, timeout, 5xx) also tries
+again by itself after 2, 5, 15, 30 and then every 60 seconds while the account stays validated. Before
+this, one dropped request on reconnection stalled delivery until the app returned to the foreground,
+and Today asked the learner to press Retry in Settings. A refusal (400, 403, 404, 409, 422) is never
+retried automatically. No timestamp-based overwrite is used for Review events.
+
+Today names the wait instead of pointing at Settings. Answers in flight read "Sending saved answers".
+Answers whose last attempt failed read "Saved answers are waiting to be sent" with a Send now action.
+Only a refusal, which needs a decision, links to Offline & sync. The restriction itself is unchanged:
+a new online plan still waits until every saved answer is synchronized or archived.
 
 Phase 8.6 sends the leading run of consecutive answers as one `POST /reviews/batch`, up to fifty per
 request, and settles that run in one local transaction. The endpoint, its single server transaction,
@@ -160,8 +170,8 @@ Copy recovery record. Invalid/mismatched acknowledgements remain pending. Storag
 visible; collection Rebuild refuses unresolved Reviews, recovery archives or unreadable records.
 No command, receipt, original version or archive is deleted to simplify Settings.
 
-Settings presents this work as one piece rather than one row per event. Waiting events are a count,
-refused ones are grouped by the reason the server gave, and Retry, Keep session for recovery and
+Settings presents this work as one piece rather than one row per event. Waiting events are a count in
+the section's status, refused ones are grouped by the reason the server gave, and Retry, Keep session for recovery and
 Copy recovery record each appear once; the recovery copy carries every unsettled event. Retry always
 retried the whole queue, so a button per row was the same button sixteen times, and the one answer
 the server actually refused was indistinguishable from the fifteen waiting their turn. The summary
@@ -173,9 +183,10 @@ transaction archives all its undelivered answers/cancellations and closes that s
 writes. It preserves every original event and reports that they were not synchronized. Automatic
 retry excludes this archive; a fresh server-authorized sitting can proceed from server schedules.
 Archiving alone never fabricates a Review or server acknowledgement. Recovery-copy access stays
-available. Synchronized history stays in optional, bounded Recent activity; recovery stays visible.
-If a validated acknowledgement was already in flight during concurrent recovery closure, it is stored
-inside the retained archive and shown explicitly as server-confirmed in optional Recent activity.
+available. Synchronized history is kept on the device and not listed; while an archive holds events the
+server never confirmed, the status says they were kept and not synchronized. If a validated
+acknowledgement was already in flight during concurrent recovery closure, it is stored inside the
+retained archive, which then counts as settled.
 Its authoritative Card is reconciled; the closed sitting is never reopened for delivery.
 
 Expiry/sign-out/account switching revoke delivery and local access before late results can publish.

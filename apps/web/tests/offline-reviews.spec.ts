@@ -244,7 +244,7 @@ test('a lost answer response followed by Undo retries the exact answer before ca
   await expect.poll(async () => (await stored(page)).length).toBe(2);
   await settings(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
+  await page.getByRole('button', { name: 'What works offline', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
   state.offline = false;
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
@@ -326,8 +326,9 @@ for (const failure of ['rejected', 'malformed', 'expiry'] as const)
     state.bad = false;
     if (failure !== 'expiry')
       await page
-        .getByRole('region', { name: 'Study answers' })
-        .getByRole('button', { name: 'Try again', exact: true })
+        .getByRole('region', { name: 'Offline & sync' })
+        .getByRole('button', { name: /^(Send now|Try again)$/ })
+        .first()
         .click();
     await expect.poll(async () => (await stored(page))[0]?.state).toBe('synchronized');
     expect((await stored(page))[0]!.event).toEqual(before);
@@ -416,8 +417,9 @@ test('failed acknowledgement storage retains an exact pending intent for retry',
     (window as unknown as { restoreAckStorage: () => void }).restoreAckStorage(),
   );
   await page
-    .getByRole('region', { name: 'Study answers' })
-    .getByRole('button', { name: 'Try again', exact: true })
+    .getByRole('region', { name: 'Offline & sync' })
+    .getByRole('button', { name: /^(Send now|Try again)$/ })
+    .first()
     .click();
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('synchronized');
   expect(state.requests[0]!.body).toEqual(state.requests[1]!.body);
@@ -487,7 +489,7 @@ test('explicit offline sign-out retains Reviews and cannot resume delivery from 
   expect(await stored(page)).toEqual(saved);
 });
 
-test('a large synchronized history mounts only bounded optional activity and preserves every receipt', async ({
+test('a large synchronized history stays on the device without being listed in Settings', async ({
   page,
 }, info) => {
   await useReviewFixture(page);
@@ -520,21 +522,13 @@ test('a large synchronized history mounts only bounded optional activity and pre
     { id: accountId, original },
   );
   await page.reload();
-  const region = page.getByRole('region', { name: 'Study answers' });
-  await expect(region.getByRole('button', { name: 'Copy recovery record' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Recent activity', exact: true })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  );
-  await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
-  await expect(region.getByRole('button', { name: 'Study answer', exact: true })).toHaveCount(10);
-  await region.getByRole('button', { name: 'Study answer', exact: true }).first().click();
-  await expect(region.getByRole('button', { name: 'Copy recovery record' })).toHaveCount(1);
-  await expect(region.locator('[data-moving="true"]')).toHaveCount(0);
-  await region.getByRole('button', { name: 'Copy recovery record' }).scrollIntoViewIfNeeded();
-  await expect(region.getByRole('button', { name: 'Copy recovery record' })).toBeInViewport();
+  // Delivered answers need nothing from anyone: the section says so and lists none.
+  const section = page.getByRole('region', { name: 'Offline & sync' });
+  await expect(section.getByText('All changes saved', { exact: true })).toBeVisible();
+  await expect(section.getByRole('button', { name: 'Study answer', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Recent activity' })).toHaveCount(0);
   expect(await stored(page)).toHaveLength(251);
-  await page.screenshot({ path: info.outputPath('compact-review-history.png') });
+  await page.screenshot({ path: info.outputPath('settled-review-history.png') });
 });
 
 for (const requestUndo of [false, true])
@@ -696,17 +690,12 @@ test('a late acknowledgement after concurrent archive retains the receipt and re
   expect(recovered.state).toBe('archived');
   expect(recovered.event).toEqual(original.event);
   expect(recovered.acknowledgement?.card.reps).toBe(1);
-  await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
-  const history = page.getByRole('region', { name: 'Study answers' });
-  await expect(page.getByRole('button', { name: 'Recent activity', exact: true })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  );
-  await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
-  await history.getByRole('button', { name: 'Study answer', exact: true }).click();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  // Confirmed by the server after all, so it no longer reads as kept unsynchronized.
   await expect(
-    page.getByText('Kept for recovery. The server confirmed this event.', { exact: true }),
-  ).toBeVisible();
+    page.getByText('Kept for recovery. These events were not synchronized.', { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Study answers' })).toHaveCount(0);
   await page.reload();
   expect((await stored(page))[0]).toEqual(recovered);
   expect(state.requests).toHaveLength(1);

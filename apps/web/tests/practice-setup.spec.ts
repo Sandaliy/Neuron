@@ -550,7 +550,7 @@ test('Practice keeps setup accessible, resumes exactly, and confirms a changed r
   expect(writes.every((path) => path.endsWith('/practice'))).toBe(true);
 });
 
-test('an active Practice view stays mounted while offline classification requires server authority', async ({
+test('an active Practice view stays mounted while an offline step is saved and later delivered', async ({
   page,
   context,
 }) => {
@@ -578,13 +578,14 @@ test('an active Practice view stays mounted while offline classification require
   await expect(page.locator('[data-retained-practice="true"]')).toBeVisible();
   await page.getByRole('button', { name: 'Show answer', exact: true }).click();
   await page.getByRole('button', { name: 'Known', exact: true }).click();
-  await expect(
-    page.getByText('This action needs a verified connection. Try again after reconnecting.'),
-  ).toBeVisible();
+  const progress = page.getByRole('progressbar', { name: 'Known Notes', exact: true });
+  await expect(progress).not.toHaveAttribute('aria-valuenow', '0');
   await expect(page.locator('[data-retained-practice="true"]')).toBeVisible();
   expect(version).toBe(acknowledged);
-  await expect(page.getByRole('progressbar', { name: 'Known Notes', exact: true })).toHaveAttribute(
-    'aria-valuenow',
-    '0',
-  );
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await waitForPracticeSave(page);
+  expect(version).toBe(acknowledged + 1);
+  await expect(page.locator('[data-retained-practice="true"]')).toBeVisible();
+  await expect(progress).not.toHaveAttribute('aria-valuenow', '0');
 });

@@ -9,6 +9,10 @@ import type { ReactNode } from 'react';
 
 type ReadingLayout = { top: number; height: number };
 const layouts = new WeakMap<Element, ReadingLayout>();
+const trails = new WeakMap<
+  Element,
+  { previous?: string | undefined; current?: string | undefined }
+>();
 /** Capture the displayed question before blur or the reveal commit changes its layout. */
 export function captureLearningReveal(source: HTMLElement) {
   const card =
@@ -41,6 +45,52 @@ export function LearningCard({
   const revealed = Boolean(answer);
   const promptRef = useRef<HTMLDivElement>(null);
   const readingRef = useRef<HTMLDivElement>(null);
+  /*
+   * The reading size follows the length of what is being read. One display
+   * size for everything put a two-sentence answer at 36 pixels on a phone, and
+   * it scrolled inside the card. Declared before the reveal effect, so the
+   * question is measured at the size it is shown at.
+   */
+  useLayoutEffect(() => {
+    const blocks = readingRef.current?.querySelectorAll<HTMLElement>(
+      '.neu-learning-prompt, .neu-learning-answer',
+    );
+    for (const block of blocks ?? []) {
+      const length = block.textContent?.trim().length ?? 0;
+      const size = length > 100 ? 'longer' : length > 40 ? 'long' : 'short';
+      if (block.dataset['length'] !== size) block.dataset['length'] = size;
+    }
+  });
+  /*
+   * The next card arrives from the right; Undo brings the previous one back
+   * from the left. Only the reading area moves, inside a surface that stays
+   * put, so a sitting reads as one card being turned rather than a page being
+   * redrawn. Each card mounts its own LearningCard, so what was shown before
+   * is remembered on the learning screen, which lives for the whole sitting.
+   * Undo is recognised as a return to the card shown just before.
+   */
+  useLayoutEffect(() => {
+    const reading = readingRef.current;
+    const screen = reading?.closest('[data-learning-screen]');
+    if (!reading || !screen) return;
+    const seen = trails.get(screen);
+    if (seen?.current === identity) return;
+    trails.set(screen, { previous: seen?.current, current: identity });
+    if (!seen || motionIsReduced()) return;
+    const back = identity !== undefined && identity === seen.previous;
+    const styles = getComputedStyle(document.documentElement);
+    reading.animate(
+      [
+        { opacity: 0, transform: `translate3d(${back ? -20 : 20}px, 0, 0)` },
+        { opacity: 1, transform: 'none' },
+      ],
+      {
+        duration: cssDuration(styles.getPropertyValue('--dur-3'), 240),
+        easing: styles.getPropertyValue('--ease-enter').trim() || 'ease-out',
+        fill: 'backwards',
+      },
+    );
+  }, [identity]);
   useLayoutEffect(() => {
     const element = promptRef.current;
     const reading = readingRef.current;

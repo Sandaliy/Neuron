@@ -128,6 +128,8 @@ async function useSitting(page: Page, cards = ANSWERS) {
   const state = {
     /** Held until the test releases it, so a whole sitting accumulates first. */
     hold: undefined as Promise<void> | undefined,
+    /** Requests answered with a server error before delivery succeeds. */
+    failures: 0,
     deliveries: [] as Delivery[],
     cards: plan(cards),
     /** Which card each delivered answer belongs to, so an Undo can name it. */
@@ -150,6 +152,13 @@ async function useSitting(page: Page, cards = ANSWERS) {
     const path = url.endsWith('/undo') ? 'undo' : url.endsWith('/batch') ? 'batch' : 'answer';
     if (state.hold) await state.hold;
     await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));
+    if (state.failures > 0) {
+      state.failures -= 1;
+      return route.fulfill({
+        status: 503,
+        json: { error: { code: 'internal', correlationId: 'test' } },
+      });
+    }
     state.deliveries.push({
       path,
       count: path === 'batch' ? body.reviews.length : 1,
@@ -245,6 +254,39 @@ test('a held sitting delivers its answers in batched requests rather than one ro
   expect(elapsed).toBeLessThan(ANSWERS * LATENCY_MS);
 });
 
+/*
+ * A request that fails without an answer used to stop delivery until the app
+ * returned to the foreground or the learner pressed Retry in Settings, while
+ * Today told them to go there. Delivery now tries again by itself, and Today
+ * says what it is waiting for without sending anyone to Settings.
+ */
+test('a failed delivery retries by itself while Today explains the wait', async ({ page }) => {
+  test.setTimeout(60_000);
+  let release!: () => void;
+  const state = await useSitting(page, 3);
+  state.hold = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  for (let index = 0; index < 3; index++) await answer(page);
+  await expect.poll(async () => (await stored(page)).length).toBe(3);
+  state.failures = 2;
+  release();
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(
+    page.getByText('Saved answers are waiting to be sent', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/in Settings/)).toHaveCount(0);
+  // One explanation, not a second error card repeating it.
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect
+    .poll(async () => (await stored(page)).every((entry) => entry.state === 'synchronized'), {
+      timeout: 30_000,
+    })
+    .toBe(true);
+  expect(state.failures).toBe(0);
+  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
+});
+
 test('advancing a card while delivery runs in the background shows one clean transition', async ({
   page,
 }) => {
@@ -305,7 +347,9 @@ test('a draining backlog settles the Settings list without rearranging the scree
   await expect.poll(async () => (await stored(page)).length).toBe(ANSWERS);
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Study answers' })).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Offline & sync' }).getByText(/^Saving changes \(\d+\)…$/),
+  ).toBeVisible();
   /*
    * Everything below the list is what the owner watches jump about. Sampling
    * the position of the next section says how many times the screen moved
