@@ -1,7 +1,7 @@
 import { keepPreviousData, useIsMutating, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { ChevronDown, SlidersHorizontal } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { DEFAULT_ANSWER_SECONDS, dayIndexOf } from '@neuron/core';
 import { dailyStudySessionSchema, studyDecks } from '@neuron/shared';
@@ -16,16 +16,18 @@ import { useLearningNavigation } from '../../lib/learning-navigation';
 import { useOffline } from '../../lib/offline';
 import { localStudyPlan } from '../../lib/offline-study';
 import { useReturnScroll } from '../../lib/return-scroll';
-import { requireDeliveredReviews, reviewEvents } from '../../lib/review-outbox';
+import { requireDeliveredReviews, retryReviews, reviewEvents } from '../../lib/review-outbox';
 import { awaitInitialPlan, confirmedInitialPlan } from '../../lib/study-plan';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
+import { Checkbox } from '../../ui/checkbox';
 import { Chip } from '../../ui/chip';
 import { Dialog, DialogBody } from '../../ui/dialog';
 import { Disclosure } from '../../ui/disclosure';
 import { ReviewTime } from '../../ui/review-time';
 import { Row } from '../../ui/row';
 import { Select } from '../../ui/select';
+import { Spinner } from '../../ui/spinner';
 import { ErrorState, Skeleton } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { DeckSettingsDialog } from '../library/deck-dialogs';
@@ -38,6 +40,8 @@ import { StudyScope } from './study-scope';
 
 import type { CardDisplay } from './card-display';
 import type { StudyPlanProjection } from '../../lib/note-projection';
+import type { PendingReview } from '../../lib/review-outbox';
+import type { QueryClient } from '@tanstack/react-query';
 
 /**
  * How long the cards waiting are likely to take.
@@ -158,6 +162,85 @@ export function TodayScreen() {
         />
       )}
     </section>
+  );
+}
+/**
+ * The newest plan cached for the same setup, from before the account moved on.
+ *
+ * The plan is keyed by the account revision, which every delivered answer
+ * advances, so Today mounting after a sitting found no data for its key and
+ * collapsed to a skeleton, deck list and all, until the server answered. The
+ * previous plan stands in as placeholder data: it is shown as updating and
+ * cannot be started, exactly like a plan kept across a setup change.
+ */
+function recentPlan(client: QueryClient, key: readonly unknown[]) {
+  const setup = JSON.stringify(key.slice(0, -2));
+  let newest: { data: StudyPlanProjection; at: number } | undefined;
+  for (const query of client.getQueryCache().findAll({ queryKey: ['study-plan'] })) {
+    const data = query.state.data as StudyPlanProjection | undefined;
+    if (!data || JSON.stringify(query.queryKey.slice(0, -2)) !== setup) continue;
+    if (!newest || query.state.dataUpdatedAt > newest.at)
+      newest = { data, at: query.state.dataUpdatedAt };
+  }
+  return newest?.data;
+}
+
+/**
+ * Why a new plan is waiting on answers saved earlier, in the learner's terms.
+ *
+ * The server plans from schedules it has seen, so answers it has not received
+ * yet have to arrive first. That wait is real, but it is three different
+ * situations: the answers are on their way, they could not be sent yet and
+ * delivery keeps trying by itself, or the server refused one and a person has
+ * to decide. Only the last needs Settings.
+ */
+function DeliveryStatus({ entries }: { readonly entries: readonly PendingReview[] }) {
+  const t = useTranslate();
+  const navigate = useNavigate();
+  const [sending, setSending] = useState(false);
+  const open = entries.filter((entry) => !['synchronized', 'archived'].includes(entry.state));
+  const answers = (state: PendingReview['state']) =>
+    open.filter((entry) => entry.state === state && entry.event.type === 'answer').length ||
+    open.filter((entry) => entry.state === state).length;
+  const refused = answers('rejected');
+  const stalled = open.some((entry) => entry.state === 'pending' && entry.failure !== undefined);
+  if (refused > 0)
+    return (
+      <div className="flex flex-col gap-12" role="status">
+        <h2 className="text-20 text-primary">{t('today.delivery.refusedTitle')}</h2>
+        <p className="text-14 text-secondary">
+          {t('today.delivery.refusedBody', { count: refused })}
+        </p>
+        <Button variant="quiet" onClick={() => void navigate({ to: '/settings', hash: 'sync' })}>
+          {t('today.delivery.open')}
+        </Button>
+      </div>
+    );
+  if (stalled)
+    return (
+      <div className="flex flex-col gap-12" role="status">
+        <h2 className="text-20 text-primary">{t('today.delivery.waitingTitle')}</h2>
+        <p className="text-14 text-secondary">
+          {t('today.delivery.waitingBody', { count: answers('pending') })}
+        </p>
+        <Button
+          variant="quiet"
+          disabled={sending}
+          onClick={() => {
+            setSending(true);
+            void retryReviews().finally(() => setSending(false));
+          }}
+        >
+          {sending ? <Spinner /> : null}
+          {t('today.delivery.sendNow')}
+        </Button>
+      </div>
+    );
+  return (
+    <div role="status" className="flex min-h-96 items-center gap-12 text-17 text-secondary">
+      <Spinner />
+      {t('today.delivery.sending', { count: answers('pending') })}
+    </div>
   );
 }
 interface StudyChoices {
@@ -286,10 +369,20 @@ function Waiting({
     !local && authoritative && defaultRequest
       ? confirmedInitialPlan(client, account.data, language)
       : undefined;
-  const startGeneration = useRef(0);
-  useLayoutEffect(() => {
-    startGeneration.current++;
-  }, [planIdentity, authoritative]);
+  /*
+   * A tap on Study that needs a fresh plan is remembered until the plan is
+   * ready, then starts it. It used to start only if nothing about readiness
+   * had moved while the plan was fetched, and otherwise did nothing, so the
+   * learner tapped again into an "Updating plan" they had no reason to expect.
+   * Changing the setup cancels the request, because that is a different plan.
+   */
+  const [startingFor, setStartingFor] = useState<string | null>(null);
+  const startRequested = startingFor === planIdentity;
+  const whenReady = useRef<((ready: StudyPlanProjection) => void) | null>(null);
+  const latestIdentity = useRef(planIdentity);
+  useEffect(() => {
+    latestIdentity.current = planIdentity;
+  });
   const plan = useQuery<StudyPlanProjection>({
     queryKey: planKey,
     ...(initial ? { initialData: initial.data, initialDataUpdatedAt: initial.updatedAt } : {}),
@@ -341,7 +434,7 @@ function Waiting({
         ),
       );
     },
-    placeholderData: keepPreviousData,
+    placeholderData: (previous) => keepPreviousData(previous) ?? recentPlan(client, planKey),
     ...(local ? { networkMode: 'always' as const, retry: false as const } : {}),
     enabled: authoritative && mutations === 0 && !!account.data,
   });
@@ -470,15 +563,15 @@ function Waiting({
           </div>
         )}
         {(result?.newCards.overrideAvailable || override) && (
-          <label className="flex min-h-44 items-center gap-8 text-14 text-secondary">
-            <input
-              type="checkbox"
+          <div className="-mx-12">
+            <Checkbox
               checked={override}
               disabled={!!result?.offlineStudy?.limit}
-              onChange={(event) => setOverride(event.target.checked)}
-            />
-            {t('study.moreNew')}
-          </label>
+              onChange={setOverride}
+            >
+              {t('study.moreNew')}
+            </Checkbox>
+          </div>
         )}
         {direction === 'listening' && (
           <ListeningSetup key={language ?? 'unspecified'} decks={decks} selected={selectedDecks} />
@@ -501,6 +594,25 @@ function Waiting({
       </div>
     </Disclosure>
   );
+  const startReady =
+    !!result &&
+    authoritative &&
+    !reconciling &&
+    result.cards.length > 0 &&
+    !plan.isFetching &&
+    mutations === 0 &&
+    !plan.error &&
+    result.localProjection !== true &&
+    !(
+      direction === 'listening' &&
+      listening.some((item) => !item.language || (connection.offline && !item.voice))
+    );
+  useEffect(() => {
+    const resume = whenReady.current;
+    if (!resume || !startReady || !result || !present.current) return;
+    whenReady.current = null;
+    resume(result);
+  });
   const waiting = (result?.deckSummaries ?? [])
     .filter((summary) => selected.includes(summary.deckId))
     .flatMap((summary) => {
@@ -520,9 +632,13 @@ function Waiting({
             {t('offline.study.incomplete')}
           </p>
         ) : !local && !reviewsReady && !savedReviews.isPending ? (
-          <p role="status" className="text-14 text-secondary">
-            {t(savedReviews.error ? 'offline.changesUnavailable' : 'error.review_delivery_pending')}
-          </p>
+          savedReviews.error ? (
+            <p role="status" className="text-14 text-secondary">
+              {t('offline.changesUnavailable')}
+            </p>
+          ) : (
+            <DeliveryStatus entries={savedReviews.data ?? []} />
+          )
         ) : plan.error && !result ? (
           <ErrorState
             message={t(describe(plan.error).key)}
@@ -536,7 +652,7 @@ function Waiting({
             <Skeleton className="h-48 w-full" />
           </div>
         ) : replacingPlan ? (
-          <div role="status" className="flex min-h-112 items-center text-17 text-secondary">
+          <div role="status" className="flex min-h-96 items-center text-17 text-secondary">
             {waitingLabel}
           </div>
         ) : singleUnsupported ? (
@@ -605,6 +721,7 @@ function Waiting({
           <Button
             variant="primary"
             full
+            busy={startRequested}
             disabled={
               !authoritative ||
               reconciling ||
@@ -618,7 +735,6 @@ function Waiting({
               result.localProjection === true
             }
             onClick={() => {
-              const generation = startGeneration.current;
               const boundary = {
                 timezone: account.data?.timezone ?? 'UTC',
                 dayCutoffHour: account.data?.dayCutoffHour ?? 4,
@@ -635,25 +751,23 @@ function Waiting({
                 now.getTime() - plan.dataUpdatedAt < 15_000
               )
                 onStart(result);
-              else
-                void plan.refetch().then((fresh) => {
-                  if (
-                    present.current &&
-                    generation === startGeneration.current &&
-                    fresh.isSuccess &&
-                    fresh.data &&
-                    !fresh.data.localProjection &&
-                    !fresh.data.reviewProjection
-                  )
-                    onStart(fresh.data);
-                });
+              else {
+                const requested = planIdentity;
+                setStartingFor(requested);
+                whenReady.current = (ready) => {
+                  setStartingFor(null);
+                  if (requested === latestIdentity.current) onStart(ready);
+                };
+                void plan.refetch();
+              }
             }}
           >
             {t('today.study')}
           </Button>
         )}
       </Card>
-      {plan.error && result && (
+      {/* While saved answers are still on their way, the status above already says so. */}
+      {plan.error && result && (local || reviewsReady) && (
         <ErrorState
           message={t(describe(plan.error).key)}
           retryLabel={t('common.retry')}

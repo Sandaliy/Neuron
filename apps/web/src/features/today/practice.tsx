@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useRouterState } from '@tanstack/react-router';
-import { SlidersHorizontal, Undo2, ChevronDown } from 'lucide-react';
+import { SlidersHorizontal, Undo2 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
 
@@ -32,6 +32,7 @@ import { Card } from '../../ui/card';
 import { Checkbox } from '../../ui/checkbox';
 import { CompletionProgress } from '../../ui/completion-progress';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
+import { Disclosure } from '../../ui/disclosure';
 import { captureLearningReveal, LearningCard } from '../../ui/learning-card';
 import { ModeHeader } from '../../ui/mode-header';
 import { Select } from '../../ui/select';
@@ -422,12 +423,8 @@ function PersistentPractice({
             </Button>
           </div>
           <p className="text-14 text-secondary">{t(`practice.mode.${run.response ?? 'reveal'}`)}</p>
-          <details className="neu-details text-13 text-secondary">
-            <summary className="flex min-h-44 cursor-pointer items-center justify-between gap-12">
-              {t('practice.fields')}
-              <ChevronDown size={16} aria-hidden="true" />
-            </summary>
-            <div className="grid grid-cols-2 gap-12 py-12 text-13 text-secondary">
+          <Disclosure quiet title={t('practice.fields')}>
+            <div className="grid grid-cols-2 gap-12 text-13 text-secondary">
               <div>
                 <span className="block">{t('practice.front')}</span>
                 <strong className="text-15 font-medium text-primary">{sideLabel(run.front)}</strong>
@@ -437,7 +434,7 @@ function PersistentPractice({
                 <strong className="text-15 font-medium text-primary">{sideLabel(run.back)}</strong>
               </div>
             </div>
-          </details>
+          </Disclosure>
           <p className="text-13 text-secondary">
             {t('practice.pool', { count: statuses.length, total: notes.length })}
           </p>

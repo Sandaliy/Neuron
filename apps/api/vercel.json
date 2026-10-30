@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "pnpm --workspace-root turbo run build --filter=@neuron/api^... && pnpm db:verify-vercel",
-  "framework": "hono"
+  "framework": "hono",
+  "regions": ["fra1"]
 }

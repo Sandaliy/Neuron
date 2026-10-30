@@ -189,7 +189,9 @@ test('offline rename survives reload; lost acknowledgement retries the exact ope
   expect(state.deliveries).toEqual([saved.payload, saved.payload]);
   expect(state.deck.rev).toBe(2);
   await page.reload();
-  await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Everything is saved to your account.', { exact: true }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
   await page
     .getByRole('region', { name: 'Saved name changes' })
@@ -249,11 +251,12 @@ test('invalid acknowledgement and failed acknowledgement persistence keep the ex
   // Let the local save notification finish before asking for an explicit retry.
   // A local commit must not queue the online-write follow-up while this invalid
   // acknowledgement leaves the original command pending.
+  // A toast stays for its reading time, about six seconds for this sentence.
   await expect(
     page.getByText('Name saved on this device. It will sync after sign-in is confirmed.', {
       exact: true,
     }),
-  ).toBeHidden();
+  ).toBeHidden({ timeout: 10_000 });
   expect(state.deliveries).toEqual([saved.payload]);
   state.badAck = false;
   await page.evaluate(() => {

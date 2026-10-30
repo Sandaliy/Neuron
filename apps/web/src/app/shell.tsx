@@ -1,5 +1,5 @@
 import { Outlet, useLinkProps, useRouterState } from '@tanstack/react-router';
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 
 import type { MessageKey } from '@neuron/shared';
 
@@ -25,25 +25,46 @@ export function Shell() {
   // screens outside /library. A pending address must not remount the old screen.
   const match = useRouterState({ select: (state) => state.matches.at(-1) });
   const current = TABS.findIndex((tab) => tab.to === match?.staticData.navTab);
+  const index = useRouterState({
+    select: (state) => (state.location.state as { __TSR_index?: number }).__TSR_index ?? 0,
+  });
+  /*
+   * Which way the person moved, decided once per screen. A tab change is a
+   * step between siblings; within a tab, a lower history index is Back. The
+   * value is held for the life of the mounted screen, because the router state
+   * changes under it and an attribute that changed mid-arrival would cancel it.
+   * The index is read only when the screen changes: the router updates the
+   * location a render before the matched screen, so tracking it in between
+   * recorded the destination as the origin and made Back look like forward.
+   */
+  const [arrival, setArrival] = useState({
+    path: match?.pathname,
+    kind: undefined as 'tab' | 'back' | 'forward' | undefined,
+    index,
+    tab: current,
+  });
+  if (arrival.path !== match?.pathname)
+    setArrival({
+      path: match?.pathname,
+      kind: current !== arrival.tab ? 'tab' : index < arrival.index ? 'back' : 'forward',
+      index,
+      tab: current,
+    });
 
   return (
     <div className="flex min-h-dvh flex-col">
       <div aria-hidden="true" data-collection-backdrop="" />
       <div aria-hidden="true" data-safe-area-cover="" />
       {/*
-        Routes mount their own screen, so a tab change replays the arrival
-        without remounting this layout. The tabs are siblings, nothing travels
-        sideways, and what says a screen changed is that it arrives.
-
-        The arrival is the blocks inside rising, and nothing on this element.
-        Fading the whole screen in as well meant every block fading twice over,
-        one fade multiplied by the other, so the content was still half
-        transparent a third of a second after the tap. A tab change that is
-        already cached should read as instant, and it did not.
+        Routes mount their own screen, keyed by path, so this layout stays put
+        and each screen arrives once. The data-arrival attribute says from
+        where; the stylesheet moves the screen and nothing inside it. Entrance only: a
+        cached screen is readable at once instead of waiting for the old one.
       */}
       <main
         key={match?.pathname}
         data-shell-content=""
+        data-arrival={arrival.kind}
         className="relative z-10 mx-auto w-full max-w-[720px] grow px-20 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+var(--bar-height)+40px+var(--keyboard-inset))] sm:pt-[calc(var(--safe-top)+24px)]"
       >
         <Suspense

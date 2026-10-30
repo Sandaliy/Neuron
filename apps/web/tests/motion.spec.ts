@@ -111,7 +111,8 @@ test.describe('reduced motion', () => {
         const property = getComputedStyle(element).transitionProperty;
 
         for (const name of property.split(',').map((value) => value.trim())) {
-          if (name === 'height' && element.classList.contains('neu-disclosure')) continue;
+          if (name === 'grid-template-rows' && element.classList.contains('neu-disclosure'))
+            continue;
           if (forbidden.some((bad) => name === bad || name.startsWith(`${bad}-`))) {
             found.push(name);
           }

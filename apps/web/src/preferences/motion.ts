@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
+import { cssDuration } from '../lib/css-duration';
 import { STORAGE_KEYS } from '../lib/storage';
 
 import { createDevicePreference } from './device';
@@ -30,18 +31,33 @@ export function systemPrefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+let pending: ReturnType<typeof setTimeout> | undefined;
+let started = false;
+
 function apply(mode: MotionMode): void {
   if (typeof document === 'undefined') {
     return;
   }
 
   const root = document.documentElement;
+  clearTimeout(pending);
 
   if (mode === 'reduce') {
-    root.dataset['motion'] = 'reduce';
+    /*
+     * Turned off by hand, the switch that did it finishes its own travel
+     * first. Applied in the same frame, every duration collapsed under the
+     * knob mid-flight and the Animations switch was the one control in the
+     * app that jumped. At startup there is nothing moving, so it applies now.
+     */
+    const delay = started
+      ? cssDuration(getComputedStyle(root).getPropertyValue('--dur-3'), 240)
+      : 0;
+    if (delay === 0) root.dataset['motion'] = 'reduce';
+    else pending = setTimeout(() => (root.dataset['motion'] = 'reduce'), delay);
   } else {
     delete root.dataset['motion'];
   }
+  started = true;
 }
 
 const preference = createDevicePreference<MotionMode>({

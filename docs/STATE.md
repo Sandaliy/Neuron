@@ -8,7 +8,7 @@ Last updated: 2026-10-30.
 
 ## Release
 
-Phases 0 to 8.6 are on protected `main` (latest: PR #56, `5248a2d`). The product has:
+Phases 0 to 8.6 and the 2026-10-30 quality pass are on protected `main`. The product has:
 
 - Daily Study with deterministic time-based planning, explainable new-card admission, current-session
   Undo and durable answers that survive offline sittings, reload and lost responses.
@@ -23,23 +23,22 @@ Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
 Owner acceptance on the installed iPhone is the gate for interaction work. The last full acceptance was
 Phase 8.4 (PR #53) and offline Study (PR #54/#55). PR #56 was not accepted: the app still felt slow,
-inconsistent and cumbersome.
+inconsistent and cumbersome, which started the quality pass below. The pass itself still needs iPhone
+acceptance.
 
-## In review
+## Quality pass, merged 2026-10-30
 
-The 2026-10-30 quality pass, as separate pull requests. None is merged; each needs owner approval.
-
-| PR                      | What it changes                                                                                                                                                                                                                                                       |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| #57                     | api functions run in `fra1` next to the Frankfurt database instead of `iad1`. Every query used to cross the Atlantic: Study planning made about 21 sequential queries, 2.4 s. Deploy-only change.                                                                     |
-| #58                     | A Review delivery that fails without a server answer retries by itself (2, 5, 15, 30, 60 s). Today says "sending", "waiting" or "not accepted" instead of sending the learner to Settings.                                                                            |
-| interaction foundations | One motion system (screens arrive by direction, dialogs, menus, toasts, card advance and Undo, disclosures and Library folders), no focus ring after a tap, switch-style choice rows, a faithful drag preview, Deleted and headers matching Library, readable toasts. |
-| development workflow    | This file, the browser test index, the CI-equivalent local command.                                                                                                                                                                                                   |
+| PR  | What it changed                                                                                                                                                                                                                                                                                                                                       |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #57 | api functions run in `fra1` next to the Frankfurt database instead of `iad1`. Every query used to cross the Atlantic: Study planning made about 21 sequential queries, 2.4 s. Production reads `fra1::fra1`, `/health` and `/db-check` answer 200.                                                                                                    |
+| #58 | A Review delivery that fails without a server answer retries by itself (2, 5, 15, 30, 60 s). Today says "sending", "waiting" or "not accepted" instead of sending the learner to Settings.                                                                                                                                                            |
+| #60 | One motion system (screens arrive by direction, dialogs, menus, toasts, card advance and Undo, disclosures and Library folders), no focus ring after a tap, choices drawn as switch rows, a faithful drag preview, Deleted and headers matching Library, readable toasts, dialog glass without the colour boost, a Study tap that waits for its plan. |
+| #59 | This file, the browser test index, `test:screens:ci`.                                                                                                                                                                                                                                                                                                 |
 
 ## Next
 
-1. Owner reviews the open pull requests on the iPhone and decides what merges. After #57 merges, confirm
-   `x-vercel-id` on the api reads `<edge>::fra1::<id>` and that `/health` and `/db-check` answer 200.
+1. Owner acceptance of the quality pass on the installed iPhone: screen and card motion, folders and
+   disclosures, choice rows, Study start after a setup change, and reconnecting after an offline sitting.
 2. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
 3. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
@@ -49,7 +48,7 @@ The 2026-10-30 quality pass, as separate pull requests. None is merged; each nee
 
 - "Card unavailable" can end a sitting on its first card when a Card's direction/slot no longer exists
   in its Note's possible cards (seen with seeded cloze data; could follow a Note edit that retains a
-  Card). Study should skip such a card or planning should exclude it. Not yet fixed.
+  Card). A fix is in progress in its own pull request.
 - Local new-card admission offline is conservative over the last complete download and this device's
   events; it cannot see other devices' offline work. Reconnection keeps server authority.
 - Hosted CI has shown one unreproduced desktop navigation scroll assertion and occasional Chromium

@@ -623,7 +623,10 @@ test('definitions, examples, tags and accepted answers save through the familiar
     .getByRole('textbox', { name: 'Example, translated', exact: true })
     .fill('A translated example.');
   await page.getByRole('combobox', { name: 'Part of speech', exact: true }).selectOption('noun');
-  await page.locator('summary').filter({ hasText: 'Study directions' }).click();
+  await page.getByRole('button', { name: 'Study directions', expanded: false }).click();
+  // A person types once the section has opened; a field still clipped to the
+  // first frames of the opening cannot be tapped.
+  await expect(page.locator('.neu-disclosure[data-moving="true"]')).toHaveCount(0);
   const answers = page.getByRole('textbox', {
     name: 'Accepted production answers, one per line',
     exact: true,
@@ -646,7 +649,7 @@ test('definitions, examples, tags and accepted answers save through the familiar
   await expect(page.getByRole('textbox', { name: 'Definition', exact: true })).toHaveValue(
     'A local definition',
   );
-  await page.locator('summary').filter({ hasText: 'Study directions' }).click();
+  await page.getByRole('button', { name: 'Study directions', expanded: false }).click();
   await expect(answers).toHaveValue('First answer\nSecond answer');
   expect(state.deliveries).toEqual([]);
 });
@@ -887,7 +890,9 @@ test('small and large saved Note histories stay compact by default and disclose 
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('synchronized');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   const region = page.getByRole('region', { name: 'Saved Note edits' });
-  await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Everything is saved to your account.', { exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Recent activity', exact: true })).toHaveAttribute(
     'aria-expanded',
     'false',
@@ -931,52 +936,58 @@ test('small and large saved Note histories stay compact by default and disclose 
   );
   await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
   await expect(region.getByRole('button', { name: /Saved receipt/ })).toHaveCount(10);
+  // Recent activity must have finished opening, and resizing to the receipts
+  // that load after it opens, before the nested section is measured.
+  await expect
+    .poll(() =>
+      page.getByRole('button', { name: 'Recent activity', exact: true }).evaluate((button) => {
+        const body = document.getElementById(button.getAttribute('aria-controls')!)!;
+        return (
+          body.dataset['disclosureOpen'] === 'true' &&
+          body.dataset['moving'] === 'false' &&
+          body.getAnimations({ subtree: true }).length === 0
+        );
+      }),
+    )
+    .toBe(true);
   const frames = await region
     .getByRole('button', { name: /Saved receipt/ })
     .first()
     .evaluate(async (button) => {
       const content = document.getElementById(button.getAttribute('aria-controls')!)!;
-      const inner = content.firstElementChild!;
+      const fade = content.querySelector('.neu-disclosure-content')!;
       const parent = content.parentElement!.closest('.neu-disclosure') as HTMLElement;
+      const parentContent = parent.querySelector('.neu-disclosure-content')!;
       const frames: Array<{
-        visible: boolean;
+        opacity: number;
         complete: boolean;
-        parentAuto: boolean;
+        parentFollows: boolean;
         clippedUnits: number;
       }> = [];
       (button as HTMLButtonElement).click();
       const start = performance.now();
       await new Promise<void>((resolve) => {
         const sample = () => {
-          const style = getComputedStyle(inner);
           const boundary = content.getBoundingClientRect().bottom;
-          const clippedNodes = Array.from(
-            inner.querySelectorAll('label, input, textarea, select, button, p, summary'),
+          const clippedUnits = Array.from(
+            fade.querySelectorAll('label, input, textarea, select, button, p'),
           ).filter((unit) => {
-            // Closed native details can retain layout boxes without painting their body.
-            const closed = unit.closest('details:not([open])');
-            if (closed && !closed.querySelector(':scope > summary')?.contains(unit)) return false;
+            // A closed section nested inside keeps layout boxes it does not paint.
+            if (unit.closest('[data-disclosure-open="false"]')) return false;
             const bounds = unit.getBoundingClientRect();
-            return (
-              getComputedStyle(unit).visibility !== 'hidden' &&
-              bounds.height > 0 &&
-              bounds.top < boundary - 1 &&
-              bounds.bottom > boundary + 1
-            );
-          });
+            return bounds.height > 0 && bounds.top < boundary - 1 && bounds.bottom > boundary + 1;
+          }).length;
           frames.push({
-            clippedUnits: clippedNodes.length,
-            visible:
-              Array.from(inner.querySelectorAll('label, input, textarea, select, button, p')).some(
-                (unit) => getComputedStyle(unit).visibility !== 'hidden',
-              ) &&
-              style.visibility !== 'hidden' &&
-              Number(style.opacity) > 0.01,
+            clippedUnits,
+            opacity: Number(getComputedStyle(fade).opacity),
             complete:
-              content.getBoundingClientRect().height >= inner.getBoundingClientRect().height - 1,
-            parentAuto: parent.style.height === 'auto',
+              content.getBoundingClientRect().height >= fade.getBoundingClientRect().height - 1,
+            // The open parent grows with the nested body instead of cutting it off.
+            parentFollows:
+              parent.getBoundingClientRect().height >=
+              parentContent.getBoundingClientRect().height - 1,
           });
-          if (performance.now() - start < 500) requestAnimationFrame(sample);
+          if (performance.now() - start < 800) requestAnimationFrame(sample);
           else resolve();
         };
         requestAnimationFrame(sample);
@@ -987,9 +998,10 @@ test('small and large saved Note histories stay compact by default and disclose 
     body: JSON.stringify(frames),
     contentType: 'application/json',
   });
-  expect(frames.some((frame) => frame.visible && !frame.complete)).toBe(true);
-  expect(frames.every((frame) => frame.clippedUnits === 0)).toBe(true);
-  expect(frames.every((frame) => frame.parentAuto)).toBe(true);
+  expect(frames.some((frame) => frame.opacity > 0.05 && !frame.complete)).toBe(true);
+  expect(frames.every((frame) => frame.clippedUnits === 0 || frame.opacity < 0.99)).toBe(true);
+  expect(frames.every((frame) => frame.parentFollows)).toBe(true);
+  expect(frames.at(-1)).toMatchObject({ complete: true, opacity: 1 });
   await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
     1,
   );

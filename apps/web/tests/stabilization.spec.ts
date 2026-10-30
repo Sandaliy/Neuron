@@ -706,6 +706,12 @@ test('handle drag places a child at the exact root insertion point in one reques
   await page.goto('/library');
   await page.getByRole('button', { name: 'Show what is inside', exact: true }).click();
   const handle = page.getByRole('button', { name: 'Drag Practice deck', exact: true });
+  // The Folder opens over a few frames; a handle is grabbed once it is still.
+  await page
+    .locator('[data-library-view]')
+    .evaluate((view) =>
+      Promise.all(view.getAnimations({ subtree: true }).map((motion) => motion.finished)),
+    );
   const box = (await handle.boundingBox())!;
   await page.mouse.move(box.x + 22, box.y + 22);
   await page.mouse.down();
@@ -766,6 +772,12 @@ async function setupNestedDragTree(page: Page) {
   });
   await page.goto('/library');
   await page.getByRole('button', { name: 'Show what is inside', exact: true }).click();
+  // The Folder opens over a few frames; a handle is grabbed once it is still.
+  await page
+    .locator('[data-library-view]')
+    .evaluate((view) =>
+      Promise.all(view.getAnimations({ subtree: true }).map((motion) => motion.finished)),
+    );
 
   return { first, second, folderAId, folderBId, moves, treeReads: () => treeReads };
 }

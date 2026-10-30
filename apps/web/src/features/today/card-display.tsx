@@ -94,7 +94,7 @@ export function CardDisplaySetup({
           </Select>
         </label>
       )}
-      <div className="grid grid-cols-1 min-[360px]:grid-cols-2">
+      <div className="-mx-12 grid grid-cols-1 min-[360px]:grid-cols-2">
         {available.map((field) => (
           <Checkbox
             key={field}

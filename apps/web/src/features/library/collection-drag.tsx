@@ -9,7 +9,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { GripVertical, Folder, Layers } from 'lucide-react';
+import { ChevronRight, GripVertical, MoreHorizontal } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import type { DeckNode } from '@neuron/shared';
@@ -17,6 +17,7 @@ import type { DeckNode } from '@neuron/shared';
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
 import { findDeck, moveProblem } from '../../lib/decks';
+import { CollectionIcon, collectionSurface } from '../../ui/collection';
 import { Row } from '../../ui/row';
 import { useToast } from '../../ui/toast';
 
@@ -144,28 +145,8 @@ export function CollectionDrag({
     >
       {children}
       <DragOverlay dropAnimation={null} className="pointer-events-none">
-        {active && !readOnly && (
-          <div className="pointer-events-none w-full opacity-90 shadow-2">
-            <Row
-              title={findDeck(tree, active)?.name ?? ''}
-              leading={
-                findDeck(tree, active)?.kind === 'folder' ? (
-                  <Folder size={20} />
-                ) : (
-                  <Layers size={20} />
-                )
-              }
-              subtitle={
-                findDeck(tree, active)?.kind === 'deck'
-                  ? t('today.deckCounts', {
-                      due: findDeck(tree, active)?.due ?? 0,
-                      fresh: findDeck(tree, active)?.fresh ?? 0,
-                    })
-                  : undefined
-              }
-              trailing={<GripVertical size={12} />}
-            />
-          </div>
+        {active && !readOnly && findDeck(tree, active) && (
+          <CollectionPreview deck={findDeck(tree, active)!} />
         )}
       </DragOverlay>
     </DndContext>
@@ -278,6 +259,86 @@ export function CollectionDrop({
           className={`h-4 w-full rounded-full bg-fill-accent-quiet ring-1 ring-inset ring-accent transition-opacity dur-control ${isOver ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
+    </div>
+  );
+}
+
+function deckCount(folder: DeckNode): number {
+  return folder.children.reduce(
+    (total, child) => total + (child.kind === 'deck' ? 1 : deckCount(child)),
+    0,
+  );
+}
+
+/**
+ * What travels under the finger: the row itself, lifted.
+ *
+ * It used to be a generic list row with a different surface, a review count
+ * where the Library shows a note count, and its own grip, so picking a Folder
+ * up visibly turned it into something else. This draws the Library row's
+ * surface, type and furniture, with nothing interactive in it, and lets the
+ * stylesheet lift it.
+ */
+function CollectionPreview({ deck }: { readonly deck: DeckNode }) {
+  const t = useTranslate();
+  const folder = deck.kind === 'folder';
+  return (
+    <div data-collection-preview="" className="pointer-events-none w-full">
+      <Row
+        standalone={false}
+        className={`${collectionSurface(deck.kind)} ${folder ? 'min-h-96 py-12' : 'min-h-72 py-8'} gap-4 px-8`}
+        title={
+          <span
+            className={
+              folder
+                ? 'block whitespace-normal text-17 font-semibold leading-snug'
+                : 'block whitespace-normal text-17 leading-snug'
+            }
+          >
+            {deck.name}
+          </span>
+        }
+        subtitle={
+          <span className="block whitespace-normal text-13 leading-read text-secondary">
+            {[
+              folder
+                ? t(deckCount(deck) === 1 ? 'library.oneDeck' : 'library.deckCount', {
+                    count: deckCount(deck),
+                  })
+                : '',
+              deck.noteCount === undefined
+                ? ''
+                : t(deck.noteCount === 1 ? 'library.oneNote' : 'library.noteCount', {
+                    count: deck.noteCount,
+                  }),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+        }
+        leading={
+          <>
+            <span className="-mx-8 flex size-44 shrink-0 items-center justify-center text-tertiary">
+              <GripVertical size={12} strokeWidth={1.5} aria-hidden="true" />
+            </span>
+            {folder && deck.children.length > 0 ? (
+              <span className="flex min-h-44 w-56 shrink-0 items-center justify-center gap-4 text-secondary">
+                <ChevronRight size={12} aria-hidden="true" />
+                <CollectionIcon kind="folder" />
+              </span>
+            ) : (
+              <span className="flex size-44 shrink-0 items-center justify-center">
+                <CollectionIcon kind={deck.kind} />
+              </span>
+            )}
+          </>
+        }
+        trailing={
+          <span className="flex size-44 shrink-0 items-center justify-center text-secondary">
+            <MoreHorizontal size={20} strokeWidth={1.5} aria-hidden="true" />
+          </span>
+        }
+      />
     </div>
   );
 }

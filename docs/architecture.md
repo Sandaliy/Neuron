@@ -410,6 +410,23 @@ The migration runner is ours rather than `drizzle-kit migrate`, which reports a 
 and nothing else. It runs the same files in the same order through the same journal, and prints what went
 wrong. The test setup calls the same function.
 
+### The api runs next to the database
+
+The database is Neon in Frankfurt (`aws-eu-central-1`), so `apps/api/vercel.json` pins the functions to
+`fra1`. Vercel's default is `iad1`, and production ran there until 2026-10-30: the `x-vercel-id` header
+read `fra1::iad1`, meaning the request entered in Frankfurt, crossed to Washington, and every query then
+crossed back. A query costs one round trip, and the routes are written as sequences of awaited queries
+(transactions, RLS context, reads, writes), so the round trip multiplies.
+
+Measured against the same Frankfurt endpoint at a 78 ms round trip, which is close to Washington to
+Frankfurt: `POST /study/session` issues about 21 queries and took 2.4 s, `POST /reviews` 14 queries and
+1.4 s, `GET /sync` 14 to 21 queries and 1.0 to 1.4 s, and a three-answer `POST /reviews/batch` 3.0 s. Inside
+one region the round trip is a millisecond or two, so the same work is bounded by compute instead.
+
+Check the header after a deploy: `curl -sI <api>/health | grep -i x-vercel-id` reads
+`<edge>::fra1::<id>`, the middle part being where the function ran. If the database ever moves, this
+setting moves with it.
+
 ### Production release ordering
 
 Vercel's Git integration builds every pull request and automatically deploys `main`. A successful build
