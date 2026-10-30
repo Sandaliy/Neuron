@@ -6,7 +6,7 @@ export const en = {
     'The server is taking longer to respond. Your download is available while checking continues.',
   'offline.study.waitingDownload': 'Offline Study needs a complete download.',
   'offline.study.checking': 'Checking offline Study readiness…',
-  'offline.study.verified': 'Offline Study learning data is ready.',
+  'offline.study.verified': 'Study works offline on this device.',
   'offline.study.historyRecovery':
     'Finish synchronization online. If this warning remains, rebuild the download after resolving saved work.',
   'offline.study.excluded': '{count} Cards are withheld until their learning data is verified.',
@@ -88,12 +88,12 @@ export const en = {
     'Rebuild is blocked because saved changes have not synchronized or been resolved. Recover them first.',
   'offline.serverRequired':
     'This action needs a verified connection. Try again after reconnecting.',
-  'offline.details': 'Download and capabilities',
+  'offline.details': 'Offline details',
   'offline.recentActivity': 'Recent activity',
   'offline.moreActivity': 'Show more',
   'offline.currentVersion': 'Current version',
   'offline.originalName': 'Original name: {name}',
-  'offline.workSaved': 'All saved work is synchronized.',
+  'offline.workSaved': 'Everything is saved to your account.',
   'offline.workPending': '{count} saved changes waiting to synchronize.',
   'offline.workPendingOne': 'One saved change is waiting to synchronize.',
   'offline.workAttention': '{count} saved changes need your attention.',
@@ -119,7 +119,7 @@ export const en = {
     'Delivery was interrupted or could not be confirmed. Retry keeps the same answer.',
   'offline.copyRecovery': 'Copy recovery record',
   'error.review_delivery_pending':
-    'Synchronize saved Study answers in Settings before starting another session.',
+    'Saved answers are still being sent. Study can start as soon as they arrive.',
   'offline.access': 'Offline & sync',
   'offline.diagnostics': 'Save startup diagnostics',
   'offline.practiceUnavailable': 'Practice requires a connection.',
@@ -193,6 +193,15 @@ export const en = {
   'study.previewVoice': 'Preview',
   'today.updatingPlan': 'Updating plan…',
   'today.sendingAnswers': 'Sending saved answers…',
+  'today.delivery.sending': 'Sending saved answers ({count})…',
+  'today.delivery.waitingTitle': 'Saved answers are waiting to be sent',
+  'today.delivery.waitingBody':
+    'Waiting: {count}. They are safe on this device. Neuron keeps trying, and Study resumes once they arrive.',
+  'today.delivery.sendNow': 'Send now',
+  'today.delivery.refusedTitle': 'Some answers were not accepted',
+  'today.delivery.refusedBody':
+    'Not accepted: {count}. Study is paused so your learning history stays consistent. Retry them or keep them for recovery in Offline & sync.',
+  'today.delivery.open': 'Open Offline & sync',
   'study.extraLetter': '1 extra letter',
   'study.missingLetter': '1 missing letter',
   'study.changedLetter': '1 different letter',

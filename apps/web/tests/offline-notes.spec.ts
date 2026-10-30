@@ -887,7 +887,9 @@ test('small and large saved Note histories stay compact by default and disclose 
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('synchronized');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   const region = page.getByRole('region', { name: 'Saved Note edits' });
-  await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Everything is saved to your account.', { exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Recent activity', exact: true })).toHaveAttribute(
     'aria-expanded',
     'false',

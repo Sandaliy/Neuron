@@ -108,7 +108,7 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
       page.getByText('Collection downloaded for offline reading.', { exact: true }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(
-      page.getByText('Offline Study learning data is ready.', { exact: true }),
+      page.getByText('Study works offline on this device.', { exact: true }),
     ).toBeVisible();
     await page.evaluate(async () => {
       await navigator.serviceWorker.ready;
@@ -247,7 +247,7 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
     await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
     await page.getByRole('link', { name: 'Settings', exact: true }).click();
     await expect(
-      page.getByText('Offline Study learning data is ready.', { exact: true }),
+      page.getByText('Study works offline on this device.', { exact: true }),
     ).toBeVisible();
     heldAccount = new Promise<void>((resolve) => {
       releaseAccount = resolve;
@@ -257,7 +257,7 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
       server.listening ? resolve() : server.once('listening', resolve),
     );
     reads = accountReads;
-    await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
+    await page.getByRole('button', { name: 'Offline details', exact: true }).click();
     const check = page.getByRole('button', { name: 'Check connection', exact: true });
     await check.evaluate((el) => (el as HTMLButtonElement).click());
     await expect.poll(() => accountReads).toBe(reads + 1);

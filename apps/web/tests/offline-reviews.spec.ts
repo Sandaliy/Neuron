@@ -244,7 +244,7 @@ test('a lost answer response followed by Undo retries the exact answer before ca
   await expect.poll(async () => (await stored(page)).length).toBe(2);
   await settings(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
+  await page.getByRole('button', { name: 'Offline details', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
   state.offline = false;
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
@@ -696,7 +696,9 @@ test('a late acknowledgement after concurrent archive retains the receipt and re
   expect(recovered.state).toBe('archived');
   expect(recovered.event).toEqual(original.event);
   expect(recovered.acknowledgement?.card.reps).toBe(1);
-  await expect(page.getByText('All saved work is synchronized.', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Everything is saved to your account.', { exact: true }),
+  ).toBeVisible();
   const history = page.getByRole('region', { name: 'Study answers' });
   await expect(page.getByRole('button', { name: 'Recent activity', exact: true })).toHaveAttribute(
     'aria-expanded',

@@ -48,7 +48,7 @@ answer/Undo path. Healthy setup omits the persistent downloaded-source paragraph
 missing voices, local saving, storage failures and pending delivery retain contextual feedback.
 
 Settings reports synchronization and verified Study readiness compactly. Download completeness,
-capability details, connection checks and diagnostic export are available under Download and capabilities.
+capability details, connection checks and diagnostic export are available under Offline details.
 Pending/rejected/conflicting work, storage failures and incomplete history remain outside optional
 Recent activity. Browsing download completeness stays separate from Study data readiness, with a
 restricted-work count and synchronization/rebuild guidance for real history gaps. Rebuild preserves
@@ -117,7 +117,16 @@ answer and each preceding event must be acknowledged first. Network interruption
 process suspension, a lost response or failed acknowledgement storage retain exact retry payloads.
 A 15-second transport timeout releases the worker, never the local transaction guard. Connectivity
 revalidation, authenticated reopening, focus, newly saved work and Settings Retry wake delivery.
-No timestamp-based overwrite is used for Review events.
+A delivery that ends without an answer from the server (network error, timeout, 5xx) also tries
+again by itself after 2, 5, 15, 30 and then every 60 seconds while the account stays validated. Before
+this, one dropped request on reconnection stalled delivery until the app returned to the foreground,
+and Today asked the learner to press Retry in Settings. A refusal (400, 403, 404, 409, 422) is never
+retried automatically. No timestamp-based overwrite is used for Review events.
+
+Today names the wait instead of pointing at Settings. Answers in flight read "Sending saved answers".
+Answers whose last attempt failed read "Saved answers are waiting to be sent" with a Send now action.
+Only a refusal, which needs a decision, links to Offline & sync. The restriction itself is unchanged:
+a new online plan still waits until every saved answer is synchronized or archived.
 
 Phase 8.6 sends the leading run of consecutive answers as one `POST /reviews/batch`, up to fifty per
 request, and settles that run in one local transaction. The endpoint, its single server transaction,

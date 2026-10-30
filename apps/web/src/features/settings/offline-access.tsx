@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
@@ -36,6 +36,11 @@ export function OfflineAccess() {
     staleTime: 30_000,
   });
   const [details, setDetails] = useState(false);
+  const section = useRef<HTMLElement>(null);
+  // Today links here when saved answers need a decision.
+  useEffect(() => {
+    if (window.location.hash === '#sync') section.current?.scrollIntoView({ block: 'start' });
+  }, []);
   const [confirm, setConfirm] = useState(false);
   const busy = state.download === 'downloading';
   const failed = state.failure !== null;
@@ -44,7 +49,12 @@ export function OfflineAccess() {
     historyNeedsRecovery ||
     (failed && ['database', 'transaction', 'recovery'].includes(state.failure!.stage));
   return (
-    <section aria-label={t('offline.access')} className="flex flex-col gap-12">
+    <section
+      id="sync"
+      ref={section}
+      aria-label={t('offline.access')}
+      className="flex scroll-mt-24 flex-col gap-12"
+    >
       <GroupLabel>{t('offline.access')}</GroupLabel>
       <Card className="flex flex-col gap-12">
         <SyncSummary />

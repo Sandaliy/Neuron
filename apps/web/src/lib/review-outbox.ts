@@ -159,8 +159,33 @@ const isAnswer = (entry: PendingReview): entry is AnswerReview => entry.event.ty
 let delivery: Promise<void> | undefined;
 let controller: AbortController | undefined;
 let wake = false;
+
+/*
+ * A delivery that ended without an answer from the server is tried again by
+ * itself. It used to wait for the app to come back to the foreground or for
+ * Retry in Settings, and Today told the learner to go and press it, so a
+ * single dropped request on reconnection held new Study until they did. The
+ * retry sends the same frozen payloads with the same identities, which is
+ * exactly what Retry does. A refusal is not retried: that needs a decision.
+ */
+const RETRY_DELAYS = [2_000, 5_000, 15_000, 30_000, 60_000];
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+let retryAttempt = 0;
+function scheduleRetry() {
+  clearTimeout(retryTimer);
+  const delay = RETRY_DELAYS[Math.min(retryAttempt, RETRY_DELAYS.length - 1)]!;
+  retryAttempt += 1;
+  retryTimer = setTimeout(() => {
+    retryTimer = undefined;
+    void deliverReviews();
+  }, delay);
+}
+
 export function cancelReviewDelivery() {
   controller?.abort();
+  clearTimeout(retryTimer);
+  retryTimer = undefined;
+  retryAttempt = 0;
 }
 /**
  * What a stored entry becomes once a delivery has an answer for it.
@@ -373,6 +398,7 @@ export function deliverReviews(): Promise<void> {
         }
         if (!active()) return;
         await settleAll(accountId, patches, active);
+        retryAttempt = 0;
         // A server that refused part of the run leaves that entry recoverable
         // rather than quietly delivering what causally followed it.
         if ([...patches.values()].some((patch) => patch.state === 'rejected')) return;
@@ -403,6 +429,7 @@ export function deliverReviews(): Promise<void> {
           solo = true;
           continue;
         }
+        if (!rejected) scheduleRetry();
         return;
       } finally {
         clearTimeout(timeout);

@@ -640,7 +640,7 @@ test('startup diagnostics retain a failed launch after recovery without content 
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
+  await page.getByRole('button', { name: 'Offline details', exact: true }).click();
   await page.getByRole('button', { name: 'Save startup diagnostics', exact: true }).click();
   const artifact = await download;
   const stream = (await artifact.createReadStream())!;
@@ -2257,7 +2257,7 @@ test('connectivity-acceptance: repeated Check connection taps join one useful va
   const reads = control.accountReads;
   await context.setOffline(false);
   await expect.poll(() => control.accountReads).toBe(reads + 1);
-  await page.getByRole('button', { name: 'Download and capabilities', exact: true }).click();
+  await page.getByRole('button', { name: 'Offline details', exact: true }).click();
   const check = page.getByRole('button', { name: 'Check connection', exact: true });
   for (let i = 0; i < 6; i++) await check.evaluate((el) => (el as HTMLButtonElement).click());
   release();
