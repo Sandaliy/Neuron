@@ -130,8 +130,8 @@ export const en = {
   'offline.status.attentionDetail': 'They stay on this device until you choose what to keep.',
   'offline.works': 'What works offline',
   'offline.works.available':
-    'Without a connection you can browse your Library and Notes, rename Folders and Decks, edit existing Notes, study and prepare Import drafts.',
-  'offline.works.needsConnection': 'Practice, new Notes and applying an Import need a connection.',
+    'Without a connection you can browse your Library and Notes, rename Folders and Decks, edit existing Notes, study, practice and prepare Import drafts.',
+  'offline.works.needsConnection': 'New Notes and applying an Import need a connection.',
   'offline.diagnostics': 'Save startup diagnostics',
   'offline.practiceUnavailable': 'Practice requires a connection.',
   'offline.ready': 'Collection downloaded for offline reading.',

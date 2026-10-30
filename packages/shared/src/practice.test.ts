@@ -6,6 +6,7 @@ import {
   practiceRunSchema,
   practiceValue,
   hasPracticeSide,
+  isPracticeRunConsistent,
 } from './practice.js';
 
 import { uuidV7 } from './index.js';
@@ -193,5 +194,64 @@ describe('durable Practice rounds', () => {
       notes,
     );
     expect(Object.values(changed.statuses)).toEqual(['unseen', 'unseen', 'unseen']);
+  });
+});
+
+describe('Practice delivered after time away', () => {
+  const answer = (run: ReturnType<typeof advancePractice>, noteId: string, known = true) => ({
+    kind: 'answer' as const,
+    id: uuidV7(),
+    runId: run.id,
+    expectedVersion: 1,
+    noteId,
+    known,
+  });
+  it('skips a classification, and its Undo, for a Note that left the pool elsewhere', () => {
+    const run = advancePractice(null, start, notes);
+    const survivors = notes.slice(1);
+    const skipped = advancePractice(run, answer(run, notes[0]!.id), survivors);
+    expect(skipped).toEqual(reconcilePractice(run, survivors));
+    const next = advancePractice(skipped, answer(skipped, notes[1]!.id, false), survivors);
+    expect(next.statuses[notes[1]!.id]).toBe('learning');
+    const undo = {
+      kind: 'undo' as const,
+      id: uuidV7(),
+      runId: run.id,
+      expectedVersion: 2,
+      previous: run,
+    };
+    expect(advancePractice(next, undo, survivors)).toEqual(next);
+  });
+  it('still refuses a classification out of order for a Note that remains', () => {
+    const run = advancePractice(null, start, notes);
+    expect(() => advancePractice(run, answer(run, notes[1]!.id), notes)).toThrow(
+      'Practice position changed',
+    );
+  });
+  it('replaces a run only with a consistent one, reconciled to the live pool', () => {
+    const run = advancePractice(null, start, notes);
+    const progressed = advancePractice(run, answer(run, notes[0]!.id), notes);
+    const replace = {
+      kind: 'replace' as const,
+      id: uuidV7(),
+      runId: progressed.id,
+      expectedVersion: 4,
+      run: progressed,
+    };
+    expect(advancePractice(null, replace, notes)).toEqual(progressed);
+    expect(advancePractice(run, replace, notes.slice(1))).toEqual(
+      reconcilePractice(progressed, notes.slice(1)),
+    );
+    expect(isPracticeRunConsistent(progressed)).toBe(true);
+    for (const broken of [
+      { ...progressed, queue: [...progressed.queue, progressed.queue[0]!] },
+      { ...progressed, queue: [notes[0]!.id, ...progressed.queue] },
+      { ...progressed, queue: [uuidV7()] },
+      { ...progressed, back: progressed.front },
+    ]) {
+      expect(isPracticeRunConsistent(broken)).toBe(false);
+      expect(() => advancePractice(run, { ...replace, run: broken }, notes)).toThrow();
+    }
+    expect(() => advancePractice(run, { ...replace, runId: uuidV7() }, notes)).toThrow();
   });
 });

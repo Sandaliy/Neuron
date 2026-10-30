@@ -18,7 +18,7 @@ Phases 0 to 8.6 and the 2026-10-30 quality pass are on protected `main`. The pro
   locally. Answers, renames and Note edits travel through account-bound outboxes with exact retries and
   retained conflicts. Settings > Offline & sync shows saved work and recovery.
 
-Not built: offline Note creation, offline Practice sync, offline Import, Phase 9 progressive directions,
+Not built: offline Note creation, offline Import, Phase 9 progressive directions,
 Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
 Owner acceptance on the installed iPhone is the gate for interaction work. The last full acceptance was
@@ -35,13 +35,26 @@ acceptance.
 | #60 | One motion system (screens arrive by direction, dialogs, menus, toasts, card advance and Undo, disclosures and Library folders), no focus ring after a tap, choices drawn as switch rows, a faithful drag preview, Deleted and headers matching Library, readable toasts, dialog glass without the colour boost, a Study tap that waits for its plan. |
 | #59 | This file, the browser test index, `test:screens:ci`.                                                                                                                                                                                                                                                                                                 |
 
+## In review: offline Practice (`work/offline-practice`)
+
+Practice starts, continues, undoes and completes from a downloaded collection. Each step is saved on
+the device before the card moves on and is delivered in order with its own identity on reconnection.
+The server answers exact retries from `sync_receipts`, no longer changes the run version on read,
+skips steps for Notes that left the pool, and has `GET /decks/practice` and a `replace` command. Two
+devices that practiced the same Deck apart are asked once which run to continue; nothing is merged.
+No migration and no IndexedDB version change. Details in `offline-collection.md`. The pull request is
+left open for owner acceptance on the installed iPhone; offline Import is a separate pull request by
+another agent and touches the same i18n "what works offline" strings.
+
 ## Next
 
-1. Owner acceptance of the quality pass on the installed iPhone: screen and card motion, folders and
+1. Owner acceptance of offline Practice on the installed iPhone: start and finish offline, close and
+   reopen the app, reconnect, and practice one Deck on two devices apart.
+2. Owner acceptance of the quality pass on the installed iPhone: screen and card motion, folders and
    disclosures, choice rows, Study start after a setup change, and reconnecting after an offline sitting.
-2. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
+3. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
-3. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
+4. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
    learning-semantics decision for the owner.
 
 ## Open threads

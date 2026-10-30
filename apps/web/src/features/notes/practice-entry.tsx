@@ -1,42 +1,77 @@
 import { useQuery } from '@tanstack/react-query';
 import { SlidersHorizontal } from 'lucide-react';
+import { useEffect } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
+import { useCapabilities } from '../../lib/capabilities';
+import { useOffline } from '../../lib/offline';
 import { practiceQuery } from '../../lib/practice';
+import { adoptPractice, practiceRecordKey, readPractice } from '../../lib/practice-outbox';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
 import { Progress } from '../../ui/progress';
 import { ErrorState } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 
+/**
+ * The Deck's Practice as this device knows it. The server's reconciled answer is shown while
+ * nothing on the device is newer; otherwise, and whenever the server is away, the device's own.
+ */
+function usePracticeSummary(deckId: string) {
+  const offline = useOffline();
+  const capability = useCapabilities();
+  const accountId = offline.accountId;
+  const server = useQuery({ ...practiceQuery(deckId), enabled: capability.server });
+  const local = useQuery({
+    queryKey: practiceRecordKey(accountId, deckId),
+    queryFn: async () => (await readPractice(accountId!, deckId)) ?? null,
+    enabled: accountId !== null && !offline.signedOut,
+    networkMode: 'always',
+    retry: false,
+  });
+  useEffect(() => {
+    if (server.data && accountId)
+      void adoptPractice(accountId, deckId, server.data).catch(() => undefined);
+  }, [server.data, accountId, deckId]);
+  const record = local.data ?? undefined;
+  const deviceAhead =
+    !!record &&
+    (record.pending.length > 0 ||
+      !!record.conflict ||
+      !server.data ||
+      record.confirmed.version > server.data.version);
+  return {
+    run: deviceAhead ? (record.device ?? record.confirmed.run) : (server.data?.run ?? null),
+    pending: !record && capability.server && server.isPending,
+    error: record ? undefined : server.error,
+    retry: () => void server.refetch(),
+  };
+}
+
 export function PracticeEntry({
   deckId,
   onOpen,
-  enabled = true,
-  ready = true,
-  offline = false,
 }: {
   readonly deckId: string;
   readonly onOpen: (entry: 'resume' | 'setup') => void;
-  readonly enabled?: boolean;
-  readonly ready?: boolean;
-  readonly offline?: boolean;
 }) {
   const t = useTranslate();
   const toast = useToast();
+  const capability = useCapabilities();
+  // Practice runs from the downloaded collection just as well as from the server.
+  const available = capability.server || capability.localCollection;
   const open = (entry: 'resume' | 'setup') => {
-    if (!ready || !enabled) {
+    if (!available) {
       toast.show(t('offline.serverRequired'));
       return;
     }
     onOpen(entry);
   };
-  const summary = useQuery({ ...practiceQuery(deckId), enabled });
-  const run = summary.data?.run;
+  const summary = usePracticeSummary(deckId);
+  const run = summary.run;
   const statuses = Object.values(run?.statuses ?? {});
   const classified = statuses.filter((status) => status !== 'unseen').length;
-  const onlineLabel = t(run ? 'practice.resume' : 'practice.start');
   return (
     <Card className="flex flex-col gap-16">
       <div className="flex w-full flex-wrap items-center justify-between gap-8">
@@ -47,11 +82,11 @@ export function PracticeEntry({
           </span>
         )}
       </div>
-      {!offline && summary.error ? (
+      {summary.error ? (
         <ErrorState
           message={t(describe(summary.error).key)}
           retryLabel={t('common.retry')}
-          onRetry={() => void summary.refetch()}
+          onRetry={summary.retry}
         />
       ) : undefined}
       <>
@@ -62,17 +97,17 @@ export function PracticeEntry({
           <Button
             full
             variant="primary"
-            aria-disabled={!ready || !enabled || undefined}
-            disabled={ready && enabled && (summary.isPending || !!summary.error)}
+            aria-disabled={!available || undefined}
+            disabled={available && (summary.pending || !!summary.error)}
             onClick={() => open('resume')}
           >
-            {onlineLabel}
+            {t(run ? 'practice.resume' : 'practice.start')}
           </Button>
           <Button
             variant="quiet"
             className="text-13"
-            aria-disabled={!ready || !enabled || undefined}
-            disabled={ready && enabled && (summary.isPending || !!summary.error)}
+            aria-disabled={!available || undefined}
+            disabled={available && (summary.pending || !!summary.error)}
             onClick={() => open('setup')}
           >
             <SlidersHorizontal size={16} aria-hidden="true" />

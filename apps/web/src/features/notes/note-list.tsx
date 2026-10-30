@@ -211,9 +211,6 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       {deckId && (
         <PracticeEntry
           deckId={deckId}
-          enabled={offline.validated && !offline.offline}
-          ready={serverReady}
-          offline={offline.offline}
           onOpen={(entry) => {
             rememberScroll();
             void learning.open(entry);

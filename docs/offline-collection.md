@@ -143,9 +143,9 @@ pausing probes while hidden; observed server progress requests immediate validat
 navigation adds no probe or collection scan. The handover cancels pending reads and
 invalidates active collection observers without removing cached query entries or remounting Library
 and Deck screens. Complete snapshot reads replace those entries locally. Local capabilities permit only
-existing Folder/Deck rename, durable existing-Note content editing, qualified offline Study and Import
+existing Folder/Deck rename, durable existing-Note content editing, qualified offline Study, Practice and Import
 preparation with local drafts;
-drag/drop, selection mutations, direct/swipe deletion, Practice, Note creation and Import application
+drag/drop, selection mutations, direct/swipe deletion, Note creation and Import application
 remain unavailable. Browsing completeness and learning-history readiness are separate Settings states.
 Control regions show deliberate unavailable states during the current visit and on re-entry.
 Search covers stored fields and
