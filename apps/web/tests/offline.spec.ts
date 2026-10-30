@@ -2393,7 +2393,9 @@ for (const width of [undefined, 320]) {
     // aria-disabled describes the unavailable capability; a deliberate press explains it.
     await page.getByRole('button', { name: 'Start practice', exact: true }).click({ force: true });
     await expect(
-      page.getByText('This action needs a verified connection. Try again after reconnecting.'),
+      page.getByText('This action needs a verified connection. Try again after reconnecting.', {
+        exact: true,
+      }),
     ).toBeVisible();
     control.lost = false;
     control.updated = true;
@@ -2574,7 +2576,9 @@ test('stable capabilities retain the open Library menu and block unsupported wri
   await menu.getByRole('menuitem', { name: 'Delete', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(
-    page.getByText('This action needs a verified connection. Try again after reconnecting.'),
+    page.getByText('This action needs a verified connection. Try again after reconnecting.', {
+      exact: true,
+    }),
   ).toBeVisible();
   expect(writes).toBe(0);
 });
@@ -2639,7 +2643,9 @@ test('direct offline Practice explains unavailable server data without admitting
   await expect(
     page
       .getByRole('status')
-      .getByText('This action needs a verified connection. Try again after reconnecting.'),
+      .getByText('This action needs a verified connection. Try again after reconnecting.', {
+        exact: true,
+      }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toHaveCount(0);
   expect(writes).toBe(0);
