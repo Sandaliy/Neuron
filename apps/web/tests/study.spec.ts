@@ -478,3 +478,114 @@ test('Study rewinds a repeated learning card and keeps future planned work order
   expect(answers[0]!.cardId).toBe(answers[2]!.cardId);
   expect(answers[3]!.id).not.toBe(answers[0]!.id);
 });
+
+test('Study passes over a Card its Note no longer produces without answering it', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page);
+  // Cloze gaps are numbered from one. A cloze Card still at slot 0, as seeded
+  // Cards are, names no gap of its Note, so there is nothing of it to draw.
+  const orphan = { ...cards[0]!, id: id(41), noteId: id(51), direction: 'cloze', slot: 0 };
+  const gap = { ...orphan, id: id(42), slot: 1 };
+  const planned = [orphan, gap, cards[1]!];
+  const notes = [
+    {
+      id: orphan.noteId,
+      noteType: 'cloze',
+      fields: { text: 'Fisher equation: {{i}} = {{r}} + π' },
+    },
+    { id: cards[1]!.noteId, noteType: 'basic', fields: { front: 'Question 2', back: 'Answer 2' } },
+  ].map((note) => ({
+    ...note,
+    deckId: orphan.deckId,
+    tags: [],
+    status: 'active',
+    source: null,
+    rank: null,
+    importBatchId: null,
+    createdAt: orphan.updatedAt,
+    updatedAt: orphan.updatedAt,
+    rev: 1,
+  }));
+  await page.route('**/api/study/session', (route) =>
+    route.fulfill({
+      json: {
+        cards: planned,
+        notes,
+        scopeDeckIds: [orphan.deckId],
+        deckSummaries: [],
+        nextDue: null,
+        availableCount: 3,
+        estimatedMinutes: 1,
+        budgetMinutes: 20,
+        reviewCount: 0,
+        newCount: 3,
+        backlog: { active: false, overdueCount: 0, overdueMinutes: 0, budgetMinutes: 20 },
+        newCards: {
+          mode: 'automatic',
+          admitted: 3,
+          allowed: 3,
+          headroomMinutes: 20,
+          marginalCost: 1,
+          reason: 'withinBudget',
+          overrideAvailable: false,
+          limitedBy: null,
+        },
+      },
+    }),
+  );
+  const answered: string[] = [];
+  await page.route('**/api/reviews', (route) => {
+    const answer = route.request().postDataJSON();
+    answered.push(answer.cardId);
+    return route.fulfill({
+      json: {
+        ...reviewAcknowledgement(route),
+        card: planned.find((card) => card.id === answer.cardId),
+      },
+    });
+  });
+  await page.route('**/api/reviews/batch', (route) => {
+    const batch = route.request().postDataJSON().reviews as { id: string; cardId: string }[];
+    answered.push(...batch.map((answer) => answer.cardId));
+    return route.fulfill({
+      json: {
+        results: batch.map((answer) => ({
+          id: answer.id,
+          cardId: answer.cardId,
+          applied: true,
+          resync: false,
+          clamped: false,
+          card: planned.find((card) => card.id === answer.cardId),
+        })),
+        skipped: [],
+        revision: 1,
+      },
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Study', exact: true }).click();
+  await expect(page.getByText('Fisher equation: [...] = r + π', { exact: true })).toBeVisible();
+  await expect(page.getByText('Card unavailable')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  await page.getByRole('button', { name: /^Easy / }).click();
+  await expect(page.getByText('Question 2', { exact: true })).toBeVisible();
+  // Progress counts what the sitting can show, so it still reaches its end.
+  await expect(page.getByRole('progressbar', { name: 'Study' })).toHaveAttribute(
+    'aria-valuenow',
+    '50',
+  );
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  await page.getByRole('button', { name: /^Easy / }).click();
+  await expect(page.getByText('Session complete', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Finish', exact: true })).toBeEnabled();
+  await expect
+    .poll(async () =>
+      (await storedStudyEvents(page))
+        .filter((entry) => entry.event.type === 'answer')
+        .map((entry) => (entry.event.payload as { cardId: string }).cardId),
+    )
+    .toEqual([gap.id, cards[1]!.id]);
+  await expect.poll(() => answered).toEqual([gap.id, cards[1]!.id]);
+});
