@@ -18,7 +18,9 @@ import type {
   Card as StudyCard,
   DailyStudySession,
   DailyStudySessionRequest,
+  Note,
   NoteFields,
+  PlannedCard,
 } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
@@ -34,7 +36,7 @@ import { Card } from '../../ui/card';
 import { captureLearningReveal, LearningCard } from '../../ui/learning-card';
 import { ModeHeader } from '../../ui/mode-header';
 import { ReviewTime } from '../../ui/review-time';
-import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
+import { ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { TypedResponse } from '../../ui/typed-response';
 
@@ -77,6 +79,20 @@ export function workloadCard(card: StudyCard): WorkloadCard {
             lastReview: new Date(card.lastReview!),
           },
   };
+}
+
+/**
+ * Which of its Note's possible cards a Card asks, or undefined when there is none.
+ *
+ * Direction and slot name the card. A Card the Note no longer produces, such as
+ * a cloze Card still at slot 0 where gaps are numbered from one, has no face.
+ */
+function scheduledFaceOf(note: Note | undefined, card: StudyCard): PlannedCard | undefined {
+  return note
+    ? possibleCards(note.noteType, note.fields as NoteFields).find(
+        (face) => face.direction === card.direction && face.slot === card.slot,
+      )
+    : undefined;
 }
 
 type Answer = {
@@ -229,10 +245,15 @@ export function StudyScreen({
                 body: { ...requestChoices, ...(minutes ? { minutes: Number(minutes) } : {}) },
               }),
             ));
-      const supported = result.cards;
+      // A Card with nothing to show leaves this sitting unanswered: no Review is
+      // written, so it stays scheduled exactly as the planner left it.
+      const notes = new Map(result.notes.map((note) => [note.id, note]));
+      const supported = result.cards.filter((card) =>
+        scheduledFaceOf(notes.get(card.noteId), card),
+      );
       cards.current = new Map(supported.map((card) => [card.id, card]));
       queue.current = { planned: supported.map(workloadCard), retries: [], retryMayRun: false };
-      setPlan(result);
+      setPlan({ ...result, cards: supported });
       setNextDue(result.nextDue);
       budget.current = result.budgetMinutes;
       started.current = Date.now();
@@ -451,12 +472,7 @@ export function StudyScreen({
   const intervals = current
     ? preview(workloadCard(current).scheduling, new Date(), config)
     : undefined;
-  const scheduledFace =
-    note && current
-      ? possibleCards(note.noteType, note.fields as NoteFields).find(
-          (card) => card.direction === current.direction && card.slot === current.slot,
-        )
-      : undefined;
+  const scheduledFace = current ? scheduledFaceOf(note, current) : undefined;
   const face = note && scheduledFace ? displayedFace(note, scheduledFace, display) : undefined;
 
   const language = note
@@ -519,73 +535,69 @@ export function StudyScreen({
         />
       )}
       {loading && <SkeletonRows rows={3} />}
-      {current && (
+      {current && face && (
         <>
-          {face ? (
-            <LearningCard
-              key={`${current.id}:${interaction}`}
-              identity={current.id}
-              answerFocused={current.direction === 'listening'}
-              context={t(`study.direction.${current.direction}`)}
-              prompt={
-                current.direction === 'listening' ? (
-                  <ListeningPrompt
-                    key={current.id}
-                    text={String(note?.fields['term'] ?? '')}
-                    language={language}
-                  />
-                ) : (
-                  face.front.map((line) => (
-                    <p key={line.field}>
-                      {line.value}
-                      {line.field === 'term' && (
-                        <Speaker
-                          key={`${current.id}:${revealed}`}
-                          text={line.value}
-                          language={language}
-                        />
-                      )}
-                    </p>
-                  ))
-                )
-              }
-              response={
-                typedAnswer ? (
-                  <TypedResponse
-                    key={current.id}
-                    value={typed}
-                    onChange={setTyped}
-                    answer={typedAnswer}
-                    language={language}
-                    alternatives={
-                      Array.isArray(note?.fields['acceptedAnswers'])
-                        ? note.fields['acceptedAnswers'].filter(
-                            (value): value is string => typeof value === 'string',
-                          )
-                        : []
-                    }
-                    revealed={revealed}
-                    onReveal={() => setRevealed(true)}
-                    ready={typingReady}
-                    onReadyChange={setTypingReady}
-                  />
-                ) : undefined
-              }
-              answer={
-                revealed && note && scheduledFace ? (
-                  <RevealedStudyContent
-                    note={note}
-                    face={scheduledFace}
-                    display={display}
-                    language={language}
-                    identity={`${current.id}:${interaction}`}
-                  />
-                ) : undefined
-              }
-            />
-          ) : (
-            <EmptyState title={t('study.unavailable')} description={t('study.unavailableBody')} />
-          )}
+          <LearningCard
+            key={`${current.id}:${interaction}`}
+            identity={current.id}
+            answerFocused={current.direction === 'listening'}
+            context={t(`study.direction.${current.direction}`)}
+            prompt={
+              current.direction === 'listening' ? (
+                <ListeningPrompt
+                  key={current.id}
+                  text={String(note?.fields['term'] ?? '')}
+                  language={language}
+                />
+              ) : (
+                face.front.map((line) => (
+                  <p key={line.field}>
+                    {line.value}
+                    {line.field === 'term' && (
+                      <Speaker
+                        key={`${current.id}:${revealed}`}
+                        text={line.value}
+                        language={language}
+                      />
+                    )}
+                  </p>
+                ))
+              )
+            }
+            response={
+              typedAnswer ? (
+                <TypedResponse
+                  key={current.id}
+                  value={typed}
+                  onChange={setTyped}
+                  answer={typedAnswer}
+                  language={language}
+                  alternatives={
+                    Array.isArray(note?.fields['acceptedAnswers'])
+                      ? note.fields['acceptedAnswers'].filter(
+                          (value): value is string => typeof value === 'string',
+                        )
+                      : []
+                  }
+                  revealed={revealed}
+                  onReveal={() => setRevealed(true)}
+                  ready={typingReady}
+                  onReadyChange={setTypingReady}
+                />
+              ) : undefined
+            }
+            answer={
+              revealed && note && scheduledFace ? (
+                <RevealedStudyContent
+                  note={note}
+                  face={scheduledFace}
+                  display={display}
+                  language={language}
+                  identity={`${current.id}:${interaction}`}
+                />
+              ) : undefined
+            }
+          />
           <div className="neu-learning-actions mt-auto flex min-h-[72px] flex-col justify-end gap-8">
             {revealed && intervals ? (
               <div className="neu-reveal grid grid-cols-4 gap-8">
@@ -618,7 +630,7 @@ export function StudyScreen({
               <Button
                 full
                 variant={typedAnswer ? 'quiet' : 'primary'}
-                disabled={!face || !!transportError}
+                disabled={!!transportError}
                 onClick={(event) => {
                   captureLearningReveal(event.currentTarget);
                   setTypingReady(false);
