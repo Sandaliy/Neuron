@@ -270,6 +270,7 @@ the api anywhere in browser code would cost the session cookie.
 | `notes/note-selection.tsx`                      | Bulk known, move, tag and delete actions                                                        |
 | `notes/card-preview.tsx`                        | The cards a note will keep, add or remove                                                       |
 | `import/import-screen.tsx`                      | Parse, map, preview, deduplicate, chunk, resume, finish and undo an import                      |
+| `import/import-drafts.ts`                       | Local drafts/checkpoints; `use-import-draft.ts` owns autosave and navigation                    |
 | `import/prompt-dialog.tsx`                      | Prompt variant, substituted deck context, example and clipboard action                          |
 
 ### The design system (`src/ui/`)

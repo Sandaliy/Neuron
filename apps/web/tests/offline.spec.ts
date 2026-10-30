@@ -2388,8 +2388,8 @@ for (const width of [undefined, 320]) {
     );
     expect(control.collectionReads).toBe(requests);
     await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
-    for (const name of ['New note', 'Import'])
-      await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Import', exact: true })).toBeEnabled();
     // aria-disabled describes the unavailable capability; a deliberate press explains it.
     await page.getByRole('button', { name: 'Start practice', exact: true }).click({ force: true });
     await expect(

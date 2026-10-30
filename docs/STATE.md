@@ -46,6 +46,11 @@ acceptance.
 
 ## Open threads
 
+- Offline Import preparation is implemented on `work/offline-import-drafts`, pending protected PR
+  review/checks and installed-iPhone acceptance. The existing Import screen parses/previews offline and
+  saves account-local drafts plus resumable delivery checkpoints. Application stays online-only.
+  Drafts use existing metadata keys without an IndexedDB schema change or Offline Practice dependency;
+  see `offline-collection.md`. This branch is not merged or enabled in production.
 - "Card unavailable" can end a sitting on its first card when a Card's direction/slot no longer exists
   in its Note's possible cards (seen with seeded cloze data; could follow a Note edit that retains a
   Card). A fix is in progress in its own pull request.
