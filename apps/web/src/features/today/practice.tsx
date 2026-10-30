@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useRouterState } from '@tanstack/react-router';
 import { SlidersHorizontal, Undo2 } from 'lucide-react';
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
 
 import {
@@ -22,11 +22,12 @@ import type {
 
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
-import { describe, request } from '../../lib/api';
-import { hasServerAuthority, useCapabilities } from '../../lib/capabilities';
+import { describe } from '../../lib/api';
+import { useCapabilities } from '../../lib/capabilities';
 import { findDeck, settingsFor, useDeckTree } from '../../lib/decks';
 import { NOTE_KEY, noteQueryString } from '../../lib/notes';
-import { practiceQuery, practiceStore } from '../../lib/practice';
+import { useOffline } from '../../lib/offline';
+import { practicePool, practiceQuery, practiceStore } from '../../lib/practice';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
 import { Checkbox } from '../../ui/checkbox';
@@ -118,8 +119,11 @@ export function DeckPractice({
 }) {
   const t = useTranslate();
   const account = useAccount();
+  const offline = useOffline();
   const capability = useCapabilities();
-  const summary = useQuery(practiceQuery(deckId));
+  // The server's state is adopted when it answers; it never holds the screen back once the
+  // device has its own record to show.
+  const summary = useQuery({ ...practiceQuery(deckId), enabled: capability.server });
   const client = useQueryClient();
   const listKey = [NOTE_KEY, 'list', noteQueryString({ deckId, sort: 'created' })];
   const listState = client.getQueryState<{
@@ -135,49 +139,39 @@ export function DeckPractice({
   const pool = useQuery({
     queryKey: ['practice-notes', deckId],
     staleTime: 15_000,
+    // The downloaded collection answers while the browser reports no connection.
+    networkMode: 'always',
     ...(complete && listState
       ? { initialData: complete, initialDataUpdatedAt: listState.dataUpdatedAt }
       : {}),
-    queryFn: async ({ signal }) => {
-      const notes: Note[] = [];
-      let cursor: string | undefined;
-      do {
-        const page = await request<{ items: Note[]; nextCursor?: string }>(
-          `/notes?deckId=${deckId}&limit=1000${cursor ? `&cursor=${cursor}` : ''}`,
-          { signal },
-        );
-        notes.push(...page.items);
-        cursor = page.nextCursor;
-      } while (cursor);
-      return notes;
-    },
+    queryFn: ({ signal }) => practicePool(deckId, signal),
   });
-  if (pool.data && account.data && summary.data && !summary.isPlaceholderData)
+  const accountId = account.data?.id ?? offline.accountId;
+  if (pool.data && accountId)
     return (
       <PersistentPractice
         entry={entry}
-        accountId={account.data.id}
+        accountId={accountId}
         deckId={deckId}
         notes={pool.data}
-        initial={summary.data}
+        latest={summary.data}
+        serverError={summary.error}
+        onRetryServer={() => void summary.refetch()}
         onFinish={onFinish}
       />
     );
   return (
     <section className="flex flex-col gap-16">
       <ModeHeader title={t('practice.title')} exitLabel={t('practice.exit')} onExit={onFinish} />
-      {!capability.server ? (
+      {!capability.server && !capability.localCollection ? (
         <p role="status" className="text-14 text-secondary">
           {t('offline.serverRequired')}
         </p>
-      ) : (pool.error && !pool.data) || (summary.error && !summary.data) ? (
+      ) : pool.error && !pool.data ? (
         <ErrorState
-          message={t(describe(pool.error ?? summary.error).key)}
+          message={t(describe(pool.error).key)}
           retryLabel={t('common.retry')}
-          onRetry={() => {
-            void pool.refetch();
-            void summary.refetch();
-          }}
+          onRetry={() => void pool.refetch()}
         />
       ) : (
         <SkeletonRows rows={3} />
@@ -191,9 +185,13 @@ function PersistentPractice({
   notes,
   onFinish,
   entry,
-  initial,
+  latest,
+  serverError,
+  onRetryServer,
 }: {
-  readonly initial: { run: PracticeRun | null; version: number };
+  readonly latest: { run: PracticeRun | null; version: number } | undefined;
+  readonly serverError: unknown;
+  readonly onRetryServer: () => void;
   readonly entry?: 'resume' | 'setup' | undefined;
   readonly accountId: string;
   readonly deckId: string;
@@ -203,17 +201,12 @@ function PersistentPractice({
   const t = useTranslate();
   const issueId = useId();
   const listeningId = useId();
-  const client = useQueryClient();
-  const store = useMemo(
-    () =>
-      practiceStore(accountId, deckId, notes, initial, (value) =>
-        client.setQueryData(practiceQuery(deckId).queryKey, value),
-      ),
-    [accountId, deckId, notes, initial, client],
-  );
+  // One store per account and Deck outlives this screen, so reconnecting, a new pool or a server
+  // answer never remounts the session or resets its progress. Later values arrive by refresh.
+  const [store] = useState(() => practiceStore(accountId, deckId, notes, latest));
   useEffect(() => {
-    store.refresh(notes, initial);
-  }, [store, notes, initial]);
+    store.refresh(notes, latest);
+  }, [store, notes, latest]);
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const fields = PRACTICE_FIELDS.filter((key) =>
     notes.some((note) => practiceValue(note.fields, key) !== undefined),
@@ -239,6 +232,7 @@ function PersistentPractice({
   const language =
     settingsFor(decks.data ?? [], deckId).targetLanguage ?? account.data?.settings.targetLanguage;
   const run = state.run;
+  const failure = state.error ?? (state.awaitingServer ? serverError : undefined);
   const [setupEntered, setSetupEntered] = useState(false);
   if (entry === 'setup' && !state.loading && !setupEntered) {
     setSetupEntered(true);
@@ -292,10 +286,10 @@ function PersistentPractice({
     JSON.stringify(practiceFields(run.front)) === JSON.stringify(practiceFields(front)) &&
     JSON.stringify(practiceFields(run.back)) === JSON.stringify(practiceFields(back));
   const toast = useToast();
-  function canAct() {
-    if (hasServerAuthority()) return true;
-    toast.show(t('offline.serverRequired'));
-    return false;
+  // Every step is saved on this device before the screen moves on; `onCommit` runs in the same
+  // task as the new card, so nothing in between is painted.
+  function act(action: Parameters<typeof store.act>[0], onCommit?: () => void) {
+    if (store.act(action, onCommit) === 'storage') toast.show(t('practice.storageOffline'));
   }
   const sideLabel = (side: PracticeSide) =>
     practiceFields(side)
@@ -320,16 +314,13 @@ function PersistentPractice({
     setConfiguring(true);
   }
   function startRun() {
-    if (!canAct()) return;
-    setHistory([]);
-    resetEncounter();
-    store.act({ kind: 'start', front, back, response });
-    setTyped('');
-    setTypingReady(false);
-    setConfiguring(false);
-    setConfirmNew(false);
-    setRevealed(false);
-    setActive(true);
+    act({ kind: 'start', front, back, response }, () => {
+      setHistory([]);
+      setConfiguring(false);
+      setConfirmNew(false);
+      setActive(true);
+      resetEncounter();
+    });
   }
   function applySettings() {
     if (run && !sameRecipe) {
@@ -341,10 +332,12 @@ function PersistentPractice({
       startRun();
     }
   }
+  // A run waiting for the learner's choice is not a sitting: no progress, counts or Undo for it.
+  const sitting = !!run && active && !configuring && !state.conflict;
   return (
     <section
       data-screen=""
-      data-learning-screen={run && active && !configuring ? '' : undefined}
+      data-learning-screen={sitting ? '' : undefined}
       data-typing-ready={typingReady || undefined}
       className="neu-session flex flex-col gap-16"
     >
@@ -352,12 +345,12 @@ function PersistentPractice({
         title={t('practice.title')}
         exitLabel={t('practice.exit')}
         onExit={onFinish}
-        {...(run && active && !configuring
+        {...(sitting
           ? { value: known, max: statuses.length, progressLabel: t('practice.knownProgress') }
           : {})}
         action={
           <div className="flex items-center gap-4">
-            {run && active && !configuring && (
+            {sitting && (
               <Button
                 variant="text"
                 className="w-44 text-secondary"
@@ -365,12 +358,12 @@ function PersistentPractice({
                 title={t('study.undo')}
                 disabled={!history.length || !!state.error || history.at(-1)?.id !== run.id}
                 onClick={() => {
-                  if (!canAct()) return;
                   const previous = history.at(-1);
                   if (!previous) return;
-                  resetEncounter();
-                  store.act({ kind: 'undo', previous });
-                  setHistory(history.slice(0, -1));
+                  act({ kind: 'undo', previous }, () => {
+                    setHistory(history.slice(0, -1));
+                    resetEncounter();
+                  });
                 }}
               >
                 <Undo2 size={20} strokeWidth={1.5} aria-hidden="true" />
@@ -379,7 +372,7 @@ function PersistentPractice({
           </div>
         }
       />
-      {active && !configuring && run && (
+      {sitting && (
         <div
           className="neu-practice-progress grid shrink-0 grid-cols-2 gap-16 text-12 text-secondary"
           aria-label={t('practice.progressLabel')}
@@ -404,14 +397,22 @@ function PersistentPractice({
           </div>
         </div>
       )}
-      {state.error ? (
+      {failure ? (
         <ErrorState
-          message={t(describe(state.error).key)}
+          message={t(describe(failure).key)}
           retryLabel={t('common.retry')}
-          onRetry={store.retry}
+          onRetry={state.error ? store.retry : onRetryServer}
         />
       ) : null}
-      {state.loading ? (
+      {state.conflict ? (
+        <PracticeConflict
+          device={state.conflict.device}
+          other={state.conflict.other}
+          busy={state.committing}
+          sideLabel={sideLabel}
+          onKeep={store.resolve}
+        />
+      ) : state.loading ? (
         <SkeletonRows rows={3} />
       ) : run && !active && !configuring ? (
         <Card className="flex flex-col gap-16">
@@ -662,12 +663,12 @@ function PersistentPractice({
                       key={String(value)}
                       variant={value ? 'primary' : 'quiet'}
                       disabled={!!state.error}
-                      onClick={() => {
-                        if (!canAct()) return;
-                        setHistory([...history, run]);
-                        resetEncounter();
-                        store.act({ kind: 'answer', noteId: current.id, known: value });
-                      }}
+                      onClick={() =>
+                        act({ kind: 'answer', noteId: current.id, known: value }, () => {
+                          setHistory([...history, run]);
+                          resetEncounter();
+                        })
+                      }
                     >
                       {t(value ? 'practice.know' : 'practice.learning')}
                     </Button>
@@ -708,9 +709,7 @@ function PersistentPractice({
                 <Button
                   variant="primary"
                   disabled={!!state.error}
-                  onClick={() => {
-                    if (canAct()) store.act({ kind: 'round' });
-                  }}
+                  onClick={() => act({ kind: 'round' })}
                 >
                   {t('practice.repeat')}
                 </Button>
@@ -718,16 +717,17 @@ function PersistentPractice({
                 <Button
                   variant="quiet"
                   disabled={!!state.error}
-                  onClick={() => {
-                    if (!canAct()) return;
-                    setHistory([]);
-                    store.act({
-                      kind: 'start',
-                      front: run.front,
-                      back: run.back,
-                      ...(run.response ? { response: run.response } : {}),
-                    });
-                  }}
+                  onClick={() =>
+                    act(
+                      {
+                        kind: 'start',
+                        front: run.front,
+                        back: run.back,
+                        ...(run.response ? { response: run.response } : {}),
+                      },
+                      () => setHistory([]),
+                    )
+                  }
                 >
                   {t('practice.restart')}
                 </Button>
@@ -755,6 +755,68 @@ function PersistentPractice({
         </DialogFooter>
       </Dialog>
     </section>
+  );
+}
+
+/** Two runs of one Deck that cannot both continue. The learner keeps one; nothing merges them. */
+function PracticeConflict({
+  device,
+  other,
+  busy,
+  sideLabel,
+  onKeep,
+}: {
+  readonly device: PracticeRun | null;
+  readonly other: PracticeRun | null;
+  readonly busy: boolean;
+  readonly sideLabel: (side: PracticeSide) => string;
+  readonly onKeep: (keep: 'device' | 'other') => void;
+}) {
+  const t = useTranslate();
+  const describeRun = (run: PracticeRun | null) => {
+    if (!run) return t('practice.conflict.none');
+    const statuses = Object.values(run.statuses);
+    return t('practice.conflict.summary', {
+      round: run.round,
+      known: statuses.filter((status) => status === 'known').length,
+      total: statuses.length,
+    });
+  };
+  return (
+    <Card className="flex flex-col gap-16">
+      <div className="flex flex-col gap-8">
+        <h2 className="text-20 text-primary">{t('practice.conflict.title')}</h2>
+        <p className="text-14 text-secondary">{t('practice.conflict.body')}</p>
+      </div>
+      {(
+        [
+          ['device', device],
+          ['other', other],
+        ] as const
+      ).map(([side, run]) => (
+        <div key={side} className="flex flex-col gap-4 border-t border-subtle pt-12">
+          <p className="text-13 text-secondary">{t(`practice.conflict.${side}`)}</p>
+          <p className="text-15 text-primary">{describeRun(run)}</p>
+          {run && (
+            <p className="text-13 text-secondary">
+              {t('practice.recipe', {
+                mode: t(`practice.mode.${run.response ?? 'reveal'}`),
+                front: sideLabel(run.front),
+                back: sideLabel(run.back),
+              })}
+            </p>
+          )}
+        </div>
+      ))}
+      <div className="flex flex-col gap-8">
+        <Button full variant="primary" disabled={busy || !device} onClick={() => onKeep('device')}>
+          {t('practice.conflict.keepDevice')}
+        </Button>
+        <Button variant="quiet" disabled={busy} onClick={() => onKeep('other')}>
+          {t('practice.conflict.keepOther')}
+        </Button>
+      </div>
+    </Card>
   );
 }
 

@@ -44,3 +44,16 @@ export function write(key: string, value: string): void {
     // Nothing here is worth interrupting somebody over.
   }
 }
+
+/**
+ * Forgets a value, and shrugs when it cannot.
+ *
+ * @param key what to forget
+ */
+export function remove(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // An unreadable value is already forgotten.
+  }
+}

@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 
+import type { PracticeRecord } from '../src/lib/practice-outbox';
 import type { PendingReview } from '../src/lib/review-outbox';
 import type { Page, Route } from '@playwright/test';
 
@@ -27,17 +28,38 @@ export function storedStudyEvents(page: Page, accountId = 'user_1') {
   }, accountId);
 }
 
+/** Every Deck's Practice record on this device, read independently of the screen. */
+export function storedPractice(page: Page, accountId = 'user_1') {
+  return page.evaluate(async (accountId) => {
+    const opened = indexedDB.open(`neuron.collection:${accountId}`);
+    opened.onupgradeneeded = () => opened.transaction?.abort();
+    const db = await new Promise<IDBDatabase | undefined>((resolve) => {
+      opened.onsuccess = () => resolve(opened.result);
+      opened.onerror = () => resolve(undefined);
+    });
+    if (!db) return [];
+    try {
+      const read = db
+        .transaction('meta')
+        .objectStore('meta')
+        .getAll(IDBKeyRange.bound('practice:', 'practice:￿'));
+      return await new Promise<PracticeRecord[]>((resolve, reject) => {
+        read.onsuccess = () => resolve(read.result as PracticeRecord[]);
+        read.onerror = () => reject(read.error);
+      });
+    } finally {
+      db.close();
+    }
+  }, accountId);
+}
+
 /** Wait for acknowledged Practice transport before navigating or reloading. */
-export async function waitForPracticeSave(page: Page) {
+export async function waitForPracticeSave(page: Page, accountId = 'user_1') {
   await expect
-    .poll(() =>
-      page.evaluate(() =>
-        Object.keys(localStorage)
-          .filter((key) => key.startsWith('neuron.practice.pending:'))
-          .reduce(
-            (sum, key) => sum + (JSON.parse(localStorage.getItem(key) ?? '[]') as unknown[]).length,
-            0,
-          ),
+    .poll(async () =>
+      (await storedPractice(page, accountId)).reduce(
+        (sum, record) => sum + record.pending.length,
+        0,
       ),
     )
     .toBe(0);

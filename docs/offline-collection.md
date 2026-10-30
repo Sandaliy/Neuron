@@ -6,8 +6,8 @@ reuse Library hierarchy rows, inline nested expansion, Deck headers/breadcrumbs,
 and virtualized Note rows. Phase 8.2 displays completed local content while authoritative reads continue,
 and permits renaming existing Folders/Decks offline. Phase 8.3 uses the familiar Note Editor for existing
 Notes online and offline, with durable content drafts and safe authenticated delivery. Phase 8.5 adds
-qualified local Study planning as described in `offline-study.md`. Practice,
-Note creation, type conversion, moves, deletion/restoration, explicit direction changes and Import application remain online-only. Remote Note media is not
+qualified local Study planning as described in `offline-study.md`. Phase 8.7 runs Practice from the
+download with durable delivery (see Offline Practice below). Note creation, type conversion, moves, deletion/restoration, explicit direction changes and Import application remain online-only. Remote Note media is not
 downloaded; its stored reference remains readable.
 
 ## Storage and initial download
@@ -22,7 +22,7 @@ retain each full sync envelope, including tombstones and `purged`, and its origi
 `decks`, `notes`, `cards`, `studyPresets`, `importBatches`, and `reviews`. Cards retain server schedules,
 reset boundaries and placed due dates; Review events retain their immutable history fields. Entity stores
 keep server rows; local Study schedule projections remain read-only. Committed Review/Undo intents use
-the separate `review-outbox`, with no local Card creation or Practice synchronization. The `outbox` store retains rename and Note-edit commands and
+the separate `review-outbox`, with no local Card creation. Practice keeps one record per Deck in `meta`. The `outbox` store retains rename and Note-edit commands and
 their original server rows, delivery outcomes and explicit resolution archives. Revision indexes are present on each
 entity store, with Deck indexes for Notes/Cards and Note/Card indexes for Cards/Reviews.
 
@@ -72,8 +72,8 @@ Remembered identity or local query data never grants server write or delivery au
 Unavailable server controls retain their layout and discoverability. A deliberate action explains the
 connection requirement; controls announce restrictions accessibly. Open dialogs retain their drafts,
 with authority checked again before submission. Selection itself is local presentation, while its bulk
-mutations remain server-only. Practice retains its ordinary action label and confirmed presentation;
-classification, restart and Undo cannot create optimistic commands without current server authority.
+mutations remain server-only. Practice keeps its ordinary labels and presentation; classification,
+restart and Undo save on the device and are delivered later.
 The normal Deck layout contains no persistent offline explanation. Connection status stays beside
 navigation, with readiness and recovery in Settings. Explicit rejection, sign-out and account switching
 still revoke access through the existing account boundary.
@@ -143,14 +143,14 @@ pausing probes while hidden; observed server progress requests immediate validat
 navigation adds no probe or collection scan. The handover cancels pending reads and
 invalidates active collection observers without removing cached query entries or remounting Library
 and Deck screens. Complete snapshot reads replace those entries locally. Local capabilities permit only
-existing Folder/Deck rename, durable existing-Note content editing and qualified offline Study;
-drag/drop, selection mutations, direct/swipe deletion, Practice, Note creation and Import application
+existing Folder/Deck rename, durable existing-Note content editing, qualified offline Study and
+Practice; drag/drop, selection mutations, direct/swipe deletion, Note creation and Import application
 remain unavailable. Browsing completeness and learning-history readiness are separate Settings states.
 Control regions show deliberate unavailable states during the current visit and on re-entry.
 Search covers stored fields and
 tags; status, Card state, source, tag and supported sort filters use saved facts. Unavailable server-only due
-counts use an unknown value; local Study readiness comes only from the qualified planner. Previously loaded Practice progress remains descriptive beside
-its disabled entry; it cannot authorize another run. Unreadable local snapshots revoke cache
+counts use an unknown value; local Study readiness comes only from the qualified planner. The Practice
+entry shows this device's saved progress. Unreadable local snapshots revoke cache
 availability rather than presenting stale online rows as completed offline data.
 
 Explicit sign-out revokes access before remote transport, clears the selected account, and blocks
@@ -316,6 +316,38 @@ account; verify keyboard, Today/Library navigation, Deck layout, Setup, swipe an
 important unsynchronized work before testing storage clearing. PR #49's physical acceptance remains valid
 for the earlier browsing/rename/stabilization release.
 
+## Offline Practice
+
+Practice runs from the downloaded collection with the same screen online and offline. Its pool is the
+Deck's live Notes in server order, read through the same local fallback as browsing. One record per
+account and Deck lives in the existing `meta` store under `practice:<deckId>`: the last server state,
+the commands not yet acknowledged on top of it, and the run the learner last saw. No IndexedDB version
+change was needed; nothing enumerates `meta`, so earlier shells ignore the new keys, and a collection
+rebuild clears only the downloaded rows. Each step is one strict read-decide-write transaction, and the
+screen advances only after it commits, in the same task as the new card, so nothing in between is
+painted. A write another tab made in between refuses the step and reloads. Unsent commands that earlier
+versions kept in local storage move into the record once with their identities.
+
+Commands are delivered oldest first, one at a time with the same identity, after Note edits and before
+the pull, on reconnection, on foreground and after each step. Transport failures and lost answers retry
+at 2, 5, 15, 30 and 60 seconds; an answer that arrived is recorded even if the connection dropped right
+after it. A refusal is settled in one place, never discarded:
+
+- this device's commands have no net effect (an answer and its Undo), or both devices reached the same
+  progress: the server's run is adopted silently;
+- the server moved but made no progress (another device's answer and Undo): the commands are sent once
+  more, renumbered with new identities;
+- otherwise the record keeps both runs and every refused command, and Practice asks once which run to
+  continue. Keeping this device's sends one `replace`; keeping the other adopts it. Either way the
+  losing run is archived on the device, and a replaced server run is also kept in `sync_conflicts`.
+
+Progress is compared over the Notes both runs still hold, so content changed on one side is not a
+conflict. A Deck that is gone keeps its saved Practice with the reason; Settings > Offline & sync offers
+to discard it. Delivery requires the validated, matching account; sign-out, account change and expired
+sessions stop it and leave records in their account's database. When the device database cannot be
+opened, Practice keeps working online from memory and refuses steps once the server is away, with a
+plain message. Pending Practice counts in the Offline & sync status, one per Deck.
+
 ## Verification and later writes
 
 Phase 8.3 release verification on Windows passed 1,088 unit/PostgreSQL tests across 98 files, including
@@ -395,7 +427,7 @@ All 66 Windows visual cases passed, with the gallery rerun after a Chromium reso
 
 Offline Note creation and its initial Card identity mapping remain later work.
 Phase 8.5 adds qualified local Study admission and retains [durable Review/Undo transport](offline-study.md);
-persistent Practice transport and offline Import application remain absent. Current
+offline Import application remains absent. Current
 server authorization, immutable Review semantics and deletion/restoration ownership remain authoritative.
 
 ## Phase 8.4 production stabilization

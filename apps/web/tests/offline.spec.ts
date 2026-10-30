@@ -500,7 +500,8 @@ test('foreground stalled HTTP hands a mounted Deck to local reads without a pend
     document.dispatchEvent(new Event('visibilitychange'));
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
   });
-  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeDisabled();
+  // Practice runs from the downloaded collection, so the handover leaves it available.
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
   await expect(
     page.getByRole('button', { name: /Durable word Downloaded meaning 0/ }),
   ).toBeVisible();
@@ -868,9 +869,7 @@ test.describe('reconciliation measurements', () => {
     const baseline = process.env['STABILIZATION_BASELINE'] === 'true';
     if (!baseline) {
       await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
-      await expect(
-        page.getByRole('button', { name: 'Start practice', exact: true }),
-      ).toBeDisabled();
+      await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
       await expect(
         page.getByText(
           /Browse downloaded Folders, Decks and Notes, rename existing collections, and edit existing Notes/,
@@ -2300,6 +2299,22 @@ test('in-session Library keeps its header, nested expansion and row geometry whe
   await page.getByRole('button', { name: 'Show what is inside', exact: true }).click();
   const row = page.locator(`[data-collection-id="${deckId}"]`);
   await expect(row.getByText('60 notes', { exact: true })).toBeVisible();
+  // Opened content enters 4px high after a short delay. Its transition may not exist yet when the
+  // running animations are collected, so wait for the resting position itself.
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        [
+          ...document.querySelectorAll(
+            '.neu-disclosure[data-disclosure-open="true"] > .neu-disclosure-clip > .neu-disclosure-content',
+          ),
+        ].every((element) => {
+          const style = getComputedStyle(element);
+          return style.transform === 'none' && style.opacity === '1';
+        }),
+      ),
+    )
+    .toBe(true);
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(
@@ -2390,13 +2405,10 @@ for (const width of [undefined, 320]) {
     await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
     for (const name of ['New note', 'Import'])
       await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
-    // aria-disabled describes the unavailable capability; a deliberate press explains it.
-    await page.getByRole('button', { name: 'Start practice', exact: true }).click({ force: true });
+    // Practice is not a server action: it stays available from the download.
     await expect(
-      page.getByText('This action needs a verified connection. Try again after reconnecting.', {
-        exact: true,
-      }),
-    ).toBeVisible();
+      page.getByRole('button', { name: 'Start practice', exact: true }),
+    ).not.toHaveAttribute('aria-disabled', 'true');
     control.lost = false;
     control.updated = true;
     let release!: () => void;
@@ -2620,7 +2632,7 @@ test('stable capabilities keep Deck selection and Settings mounted through repea
   await expect(page.getByText('Appearance', { exact: true })).toBeVisible();
 });
 
-test('direct offline Practice explains unavailable server data without admitting a local pool', async ({
+test('direct offline Practice opens setup from the downloaded collection without a request', async ({
   page,
   context,
 }) => {
@@ -2640,14 +2652,9 @@ test('direct offline Practice explains unavailable server data without admitting
     dispatchEvent(new PopStateEvent('popstate', { state: history.state }));
   }, deckId);
   await expect(page.getByRole('heading', { name: 'Practice', exact: true })).toBeVisible();
-  await expect(
-    page
-      .getByRole('status')
-      .getByText('This action needs a verified connection. Try again after reconnecting.', {
-        exact: true,
-      }),
-  ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Practice setup', exact: true })).toBeVisible();
+  await expect(page.getByText('60 / 60 notes', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
   expect(writes).toBe(0);
   await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
   await expect(page.getByRole('searchbox')).toBeVisible();

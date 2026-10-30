@@ -11,6 +11,7 @@ import { exportLifecycle } from '../../lib/lifecycle';
 import { noteEdits, retryNoteEdits } from '../../lib/note-outbox';
 import { retryConnection, retryDownload, useOffline } from '../../lib/offline';
 import { checkDownloadedStudy } from '../../lib/offline-study';
+import { deliverPractice, practiceHeld } from '../../lib/practice-outbox';
 import { useShellCache } from '../../lib/pwa';
 import { retryReviews, reviewEvents } from '../../lib/review-outbox';
 import { Button } from '../../ui/button';
@@ -20,6 +21,7 @@ import { Disclosure } from '../../ui/disclosure';
 import { Spinner } from '../../ui/spinner';
 
 import { PendingNotes } from './pending-notes';
+import { PendingPractice, usePracticeRecords } from './pending-practice';
 import { PendingRenames } from './pending-renames';
 import { PendingReviews } from './pending-reviews';
 import { workIsSettled } from './saved-work';
@@ -59,7 +61,8 @@ export function OfflineAccess() {
   });
   const work = useSavedWork();
   const send = useMutation({
-    mutationFn: () => Promise.allSettled([retryReviews(), retryNoteEdits(), deliverRenames()]),
+    mutationFn: () =>
+      Promise.allSettled([retryReviews(), retryNoteEdits(), deliverRenames(), deliverPractice()]),
   });
   const [details, setDetails] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -201,6 +204,7 @@ export function OfflineAccess() {
             <PendingReviews />
             <PendingNotes />
             <PendingRenames />
+            <PendingPractice />
           </div>
         )}
         <div className="border-t border-subtle pt-4">
@@ -300,17 +304,26 @@ function useSavedWork() {
     queryFn: () => reviewEvents(state.accountId!),
     ...options,
   });
+  const practice = usePracticeRecords();
   const entries: { state: string; failure?: string | undefined; acknowledgement?: unknown }[] = [
     ...(names.data ?? []),
     ...(notes.data ?? []),
     ...(reviews.data ?? []),
+    // One Deck's saved Practice counts once, however many steps it holds.
+    ...(practice.data ?? []).flatMap((record) =>
+      record.conflict || practiceHeld(record)
+        ? [{ state: 'conflict' }]
+        : record.pending.length
+          ? [{ state: 'pending', failure: record.failure }]
+          : [],
+    ),
   ];
   const open = entries.filter((entry) => !workIsSettled(entry) && entry.state !== 'archived');
   const waiting = open.filter((entry) => entry.state === 'pending');
   return {
     // Answers kept for recovery were never synchronized; the status says so.
     kept: entries.filter((entry) => entry.state === 'archived' && !workIsSettled(entry)).length,
-    error: !!(names.error || notes.error || reviews.error),
+    error: !!(names.error || notes.error || reviews.error || practice.error),
     waiting: waiting.length,
     stalled: waiting.some((entry) => entry.failure !== undefined),
     attention: open.length - waiting.length,

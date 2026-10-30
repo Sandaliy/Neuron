@@ -7,21 +7,21 @@ file named after the change.
 
 ## By product area
 
-| Area                                         | Files                                                                                                                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Smoke                                        | `smoke.spec.ts`                                                                                                                                              |
-| Shell, navigation, dialogs, toasts, keyboard | `navigation.spec.ts`, `dialogs.spec.ts`, `toast.spec.ts`, `keyboard.spec.ts`                                                                                 |
-| Today and Study setup                        | `today-setup.spec.ts`, `study-language.spec.ts`, `polish.spec.ts` (setup controls, focus halos, disclosure continuity)                                       |
-| Study sittings, answers, Undo                | `study.spec.ts`, `rich-study.spec.ts` (typed, listening, directions)                                                                                         |
-| Practice                                     | `practice-setup.spec.ts`, `stabilization.spec.ts` (also grammar fields)                                                                                      |
-| Library, Folders, Decks, Deleted             | `collection-integrity.spec.ts`, `library-polish.spec.ts`, `recovery-regressions.spec.ts`, `refinement.spec.ts` (creation feedback)                           |
-| Notes and the editor                         | `note-list.spec.ts`, `note-conversion.spec.ts`, `grammar-stabilization.spec.ts`, `iphone-ux.spec.ts` (autosave, Known, restart)                              |
-| Import                                       | `import.spec.ts`                                                                                                                                             |
-| Offline and sync, routed                     | `offline.spec.ts`, `offline-renames.spec.ts`, `offline-notes.spec.ts`, `offline-reviews.spec.ts`, `offline-study.spec.ts`, `sync-delivery.spec.ts`           |
-| Offline and sync, live                       | `connectivity-live.spec.ts`, `offline-live.spec.ts`, `offline-review-live.spec.ts`, `offline-study-live.spec.ts`, `learning-live.spec.ts`                    |
-| Motion and timing                            | `motion.spec.ts`, `acceptance-motion.spec.ts`, `interaction-lifecycle.spec.ts` (swipe frame pacing), `acceptance-latency.spec.ts`, `phase84-latency.spec.ts` |
-| Frame-rate budgets                           | `performance.spec.ts`, `00-note-list-performance.spec.ts` (project `phone-performance`)                                                                      |
-| Visual baselines                             | `screens.spec.ts`, `gallery.spec.ts`, `polish-visual.spec.ts` (projects `phone` and `desktop`, Windows)                                                      |
+| Area                                         | Files                                                                                                                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Smoke                                        | `smoke.spec.ts`                                                                                                                                                                |
+| Shell, navigation, dialogs, toasts, keyboard | `navigation.spec.ts`, `dialogs.spec.ts`, `toast.spec.ts`, `keyboard.spec.ts`                                                                                                   |
+| Today and Study setup                        | `today-setup.spec.ts`, `study-language.spec.ts`, `polish.spec.ts` (setup controls, focus halos, disclosure continuity)                                                         |
+| Study sittings, answers, Undo                | `study.spec.ts`, `rich-study.spec.ts` (typed, listening, directions)                                                                                                           |
+| Practice                                     | `practice-setup.spec.ts`, `stabilization.spec.ts` (also grammar fields)                                                                                                        |
+| Library, Folders, Decks, Deleted             | `collection-integrity.spec.ts`, `library-polish.spec.ts`, `recovery-regressions.spec.ts`, `refinement.spec.ts` (creation feedback)                                             |
+| Notes and the editor                         | `note-list.spec.ts`, `note-conversion.spec.ts`, `grammar-stabilization.spec.ts`, `iphone-ux.spec.ts` (autosave, Known, restart)                                                |
+| Import                                       | `import.spec.ts`                                                                                                                                                               |
+| Offline and sync, routed                     | `offline.spec.ts`, `offline-renames.spec.ts`, `offline-notes.spec.ts`, `offline-reviews.spec.ts`, `offline-study.spec.ts`, `offline-practice.spec.ts`, `sync-delivery.spec.ts` |
+| Offline and sync, live                       | `connectivity-live.spec.ts`, `offline-live.spec.ts`, `offline-review-live.spec.ts`, `offline-study-live.spec.ts`, `learning-live.spec.ts`                                      |
+| Motion and timing                            | `motion.spec.ts`, `acceptance-motion.spec.ts`, `interaction-lifecycle.spec.ts` (swipe frame pacing), `acceptance-latency.spec.ts`, `phase84-latency.spec.ts`                   |
+| Frame-rate budgets                           | `performance.spec.ts`, `00-note-list-performance.spec.ts` (project `phone-performance`)                                                                                        |
+| Visual baselines                             | `screens.spec.ts`, `gallery.spec.ts`, `polish-visual.spec.ts` (projects `phone` and `desktop`, Windows)                                                                        |
 
 Live files need the throwaway database (`DATABASE_URL_TEST`) and an opt-in variable named at the top of
 each file. They skip otherwise, and a skip is not a pass.

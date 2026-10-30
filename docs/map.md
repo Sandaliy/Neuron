@@ -254,6 +254,7 @@ the api anywhere in browser code would cost the session cookie.
 | `settings/pending-renames.tsx`                  | Account-bound saved names, delivery status, original versions and explicit conflict recovery    |
 | `settings/pending-notes.tsx`                    | Saved Note versions, delivery states and explicit conflict recovery                             |
 | `settings/pending-reviews.tsx`                  | Grouped Study delivery status, one retry/recovery action and retained rejected-session recovery |
+| `settings/pending-practice.tsx`                 | Practice kept on two devices or for a missing Deck: leads to the choice or discards on request  |
 | `settings/offline-access.tsx`, `saved-work.tsx` | Offline & sync: one status, decisions only, what works offline; when work counts as settled     |
 | `settings/totp.tsx`                             | Enrollment in three steps that cannot be skipped, and removal                                   |
 | `library/library.tsx`                           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
@@ -321,6 +322,7 @@ every one of these in every state.
 | `lib/note-outbox.ts`                              | Durable raw/valid Note drafts, frozen deliveries, acknowledged successors and explicit recovery   |
 | `lib/review-outbox.ts`                            | Durable immutable answer/cancellation intents, batched causal exact delivery and session recovery |
 | `lib/review-intent.ts`                            | Pure validation of existing immutable Review/Undo intents, shared with local planning             |
+| `lib/practice-outbox.ts`                          | Per-Deck Practice records in `meta`, exact delivery, refusal settling and the learner's choice    |
 | `lib/offline-study.ts`, `offline-study-worker.ts` | Account/visit-bound local planning worker and atomic reads of the existing stores                 |
 | `lib/offline-study-snapshot.ts`                   | Download authority, pending event replay, conservative admission and shared planner inputs        |
 | `lib/collection-transport.ts`                     | Collection GET fallback, confirmed transport loss and cancellation/account guards                 |
@@ -383,7 +385,8 @@ hierarchies and note dependencies, and `purge-action.tsx` owns irreversible conf
 - `apps/api/src/db/repositories/practice.ts`: account-isolated persistent Practice with version conflicts.
 - `apps/api/src/db/repositories/reviews.ts`: restart events and canonical card projection.
 - `apps/api/src/routes/study.ts`: shared workload planning, target-language sessions and per-Deck summaries.
-- `apps/web/src/lib/practice.ts`: optimistic serialized Practice commands and pending retry IDs.
+- `apps/web/src/lib/practice.ts`: per-Deck Practice store over the device record, local/server pool.
+- `apps/api/src/db/repositories/practice.test.ts`: exact retries, offline sequences, conflicts, RLS.
 - `apps/web/src/lib/learning-navigation.ts`: route-owned learning history and entry-context exits.
 - `apps/web/src/features/today/study-draft.tsx`: account-visit Study setup draft and sitting boundaries.
 - `apps/web/src/features/today/study-scope.tsx`: temporary leaf Deck selection through Folder ancestry.
