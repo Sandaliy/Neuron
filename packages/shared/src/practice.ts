@@ -127,6 +127,14 @@ export const practiceCommandSchema = z.discriminatedUnion('kind', [
     expectedVersion: z.number().int().nonnegative(),
     runId: z.uuid(),
   }),
+  /** Keeps one device's whole run after the learner chose it over another device's. */
+  z.strictObject({
+    kind: z.literal('replace'),
+    id: z.uuid(),
+    expectedVersion: z.number().int().nonnegative(),
+    runId: z.uuid(),
+    run: practiceRunSchema,
+  }),
 ]);
 export type PracticeCommand = z.infer<typeof practiceCommandSchema>;
 export interface PracticeNote {
@@ -144,6 +152,14 @@ export function reconcilePractice(run: PracticeRun, notes: readonly PracticeNote
     statuses: Object.fromEntries(eligible.map((n) => [n.id, run.statuses[n.id] ?? 'unseen'])),
     queue: [...run.queue.filter((id) => ids.has(id)), ...added],
   };
+}
+/** The shape every reducer step preserves: a queue of distinct, unfinished pool members. */
+export function isPracticeRunConsistent(run: PracticeRun): boolean {
+  return (
+    !samePracticeSides(run.front, run.back) &&
+    new Set(run.queue).size === run.queue.length &&
+    run.queue.every((id) => run.statuses[id] !== undefined && run.statuses[id] !== 'known')
+  );
 }
 /** Pure product state. No scheduling or review dependency. */
 export function advancePractice(
@@ -166,8 +182,23 @@ export function advancePractice(
       notes,
     );
   }
+  if (command.kind === 'replace') {
+    if (command.run.id !== command.runId || !isPracticeRunConsistent(command.run))
+      throw new Error('Practice run changed');
+    return reconcilePractice(command.run, notes);
+  }
   if (!run || run.id !== command.runId) throw new Error('Practice run changed');
   const current = reconcilePractice(run, notes);
+  // A Note deleted or changed elsewhere has left the pool. Classifying it, or taking that
+  // classification back, no longer means anything, so the step keeps the run as it is.
+  if (command.kind === 'answer' && current.statuses[command.noteId] === undefined) return current;
+  if (
+    command.kind === 'undo' &&
+    command.previous.id === current.id &&
+    command.previous.queue[0] !== undefined &&
+    current.statuses[command.previous.queue[0]] === undefined
+  )
+    return current;
   if (command.kind === 'undo') {
     const previous = command.previous;
     if (
@@ -221,4 +252,15 @@ export const practiceResultSchema = z.object({
   run: practiceRunSchema.nullable(),
   version: z.number().int().nonnegative(),
 });
+/** Every Deck's stored run, so a downloaded collection can resume Practice without a network. */
+export const practiceRunsResultSchema = z.object({
+  runs: z.array(
+    z.object({
+      deckId: z.uuid(),
+      run: practiceRunSchema,
+      version: z.number().int().positive(),
+    }),
+  ),
+});
+export type PracticeRunsResult = z.infer<typeof practiceRunsResultSchema>;
 export const restartLearningSchema = z.strictObject({ id: z.uuid() });

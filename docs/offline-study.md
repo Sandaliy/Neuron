@@ -2,8 +2,8 @@
 
 Phase 8.4 continues an already-started Study sitting after connectivity loss. Phase 8.5 also starts
 new sittings from a complete usable download, using the existing Today, setup, learning card, Typing,
-Listening, progress, Undo and completion interfaces. Offline Practice, Note creation and Import
-application remain outside this release.
+Listening, progress, Undo and completion interfaces. Offline Practice is described in
+`offline-collection.md`; Note creation and Import application remain outside this release.
 
 ## Downloaded planning and conservative admission
 

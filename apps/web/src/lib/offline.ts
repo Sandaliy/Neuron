@@ -29,6 +29,15 @@ import {
   noteEditFor,
   noteEditOverlay,
 } from './note-outbox';
+import {
+  cancelPracticeDelivery,
+  deliverPractice,
+  onPracticeChange,
+  practiceOutboxKey,
+  practiceRecordKey,
+  readPractice,
+  refreshPracticeRuns,
+} from './practice-outbox';
 import { cancelReviewDelivery, deliverReviews, onReviewOutboxChange } from './review-outbox';
 import { projectConfirmedReview } from './review-projection';
 
@@ -152,6 +161,7 @@ export function revokeOffline(explicit = false) {
   cancelRenameDelivery();
   cancelNoteDelivery();
   cancelReviewDelivery();
+  cancelPracticeDelivery();
   epoch++;
   connection++;
   validatingConnection = false;
@@ -376,7 +386,10 @@ export function acceptAccount(account: Me, startedEpoch: number, startedConnecti
   emit({ offline: false, validated: true, connectivity: 'reachable', accountId: account.id });
   client?.setQueryData(['account'], account);
   lifecycle('account-ready');
-  if (newAccount || reconnecting) void deliverReviews();
+  if (newAccount || reconnecting) {
+    void deliverReviews();
+    void deliverPractice();
+  }
   if (reconnecting) void transitionReads(false);
   // Authentication fields are selected explicitly by meSchema; cookies/tokens never enter this store.
   // Repeated account reads/navigation join the current visit; they never queue pulls.
@@ -414,6 +427,7 @@ function enterLocalConnection(connectivity: OfflineState['connectivity']) {
   cancelRenameDelivery();
   cancelNoteDelivery();
   cancelReviewDelivery();
+  cancelPracticeDelivery();
   controller?.abort();
   void restoreOfflineAccount();
   void transitionReads(true);
@@ -480,6 +494,8 @@ async function download(account: Me) {
       localStorage.setItem(CONTEXT_KEY, account.id);
       await deliverRenames();
       await deliverNoteEdits();
+      // After Note edits, so the server's pool already holds what this device practiced on.
+      await deliverPractice();
       if (ownEpoch !== epoch || signal.aborted || state.accountId !== account.id) return;
       while (!signal.aborted && ownEpoch === epoch && !state.offline) {
         stage = 'database';
@@ -501,6 +517,7 @@ async function download(account: Me) {
         if (signal.aborted || ownEpoch !== epoch || state.accountId !== account.id) return;
         if (!page.hasMore && applied.complete) {
           emit({ download: 'ready', available: true, revision: applied.cursor, failure: null });
+          void refreshPracticeRuns(signal).catch(() => undefined);
           // A Review delivery or settings write may advance the pull beyond
           // the account response that started it. Refresh that existing record,
           // then finish pulling if the confirmed head advanced again.
@@ -636,6 +653,15 @@ export function initializeOffline(queryClient: QueryClient) {
       }, 500);
     }
   });
+  onPracticeChange((change) => {
+    if (change.accountId !== state.accountId) return;
+    void client?.invalidateQueries({ queryKey: practiceOutboxKey(change.accountId) });
+    void readPractice(change.accountId, change.deckId)
+      .then((record) =>
+        client?.setQueryData(practiceRecordKey(change.accountId, change.deckId), record ?? null),
+      )
+      .catch(() => undefined);
+  });
   onNoteOutboxChange((change) => {
     const id = state.accountId;
     const visit = epoch;
@@ -743,6 +769,7 @@ export function initializeOffline(queryClient: QueryClient) {
         cancelRenameDelivery();
         cancelNoteDelivery();
         cancelReviewDelivery();
+        cancelPracticeDelivery();
         epoch++;
         connection++;
         validatingConnection = false;
@@ -769,6 +796,7 @@ export function initializeOffline(queryClient: QueryClient) {
       cancelRenameDelivery();
       cancelNoteDelivery();
       cancelReviewDelivery();
+      cancelPracticeDelivery();
       epoch++;
       connection++;
       validatingConnection = false;
@@ -798,6 +826,7 @@ export function initializeOffline(queryClient: QueryClient) {
     void confirmConnection().then(() => {
       if (!state.validated || state.offline || state.checking) return;
       void deliverReviews();
+      void deliverPractice();
       refreshDownload();
     });
   };
