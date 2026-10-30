@@ -2299,6 +2299,22 @@ test('in-session Library keeps its header, nested expansion and row geometry whe
   await page.getByRole('button', { name: 'Show what is inside', exact: true }).click();
   const row = page.locator(`[data-collection-id="${deckId}"]`);
   await expect(row.getByText('60 notes', { exact: true })).toBeVisible();
+  // Opened content enters 4px high after a short delay. Its transition may not exist yet when the
+  // running animations are collected, so wait for the resting position itself.
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        [
+          ...document.querySelectorAll(
+            '.neu-disclosure[data-disclosure-open="true"] > .neu-disclosure-clip > .neu-disclosure-content',
+          ),
+        ].every((element) => {
+          const style = getComputedStyle(element);
+          return style.transform === 'none' && style.opacity === '1';
+        }),
+      ),
+    )
+    .toBe(true);
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(
