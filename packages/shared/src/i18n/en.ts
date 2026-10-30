@@ -400,8 +400,6 @@ export const en = {
   'study.oneOff': 'Applies only to this session. Your daily plan stays the same.',
   'study.saveFailed': 'An answer could not be confirmed. Retry saving before continuing.',
   'study.answered': '{count} answered',
-  'study.unavailable': 'Card unavailable',
-  'study.unavailableBody': 'Return to Today and start a new session.',
   'study.again': 'Again',
   'study.hard': 'Hard',
   'study.good': 'Good',

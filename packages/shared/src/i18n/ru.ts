@@ -406,8 +406,6 @@ export const ru = {
   'study.oneOff': 'Только для этого подхода. Ежедневный план не изменится.',
   'study.saveFailed': 'Не удалось подтвердить ответ. Повтори сохранение, чтобы продолжить.',
   'study.answered': 'Ответов: {count}',
-  'study.unavailable': 'Карточка недоступна',
-  'study.unavailableBody': 'Вернись на Сегодня и начни новый подход.',
   'study.again': 'Снова',
   'study.hard': 'Трудно',
   'study.good': 'Хорошо',
