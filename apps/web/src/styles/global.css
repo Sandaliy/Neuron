@@ -635,7 +635,8 @@
   /*
    * A checkbox is drawn as the switch: the same track, the same knob and the
    * same movement. Checked carries the knob across; partial, a Folder with
-   * some of its Decks chosen, stops it half way on the filled track.
+   * some of its Decks chosen, stops it half way on the unfilled track, so it
+   * cannot be mistaken for on.
    */
   [data-slot='checkbox'] [data-slot='switch-track'] {
     transition: background-color var(--dur-3) var(--ease-inout);

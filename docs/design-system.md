@@ -157,8 +157,8 @@ everywhere and is for two or three options; it is native radio inputs, so the ar
 browser's own, and the thumb travels on `transform`. A switch is a capsule and a white disc. A
 checkbox is a whole row whose state is that same switch at its end: checkbox semantics, including the
 partial state a Folder needs, drawn with the control Settings already uses for yes and no. Partial
-stops the knob half way on the filled track. There is no separate checkbox mark: a fill framed by a
-white ring read as a radio bullet at twenty pixels, and a tick read as a form.
+stops the knob half way on the unfilled track, so it cannot read as on. There is no separate checkbox
+mark: a fill framed by a white ring read as a radio bullet at twenty pixels, and a tick read as a form.
 
 **Row** (`ui/row.tsx`). `Row` is a deck row, a settings row, or anything with a title, a subtitle and
 something at the far end. `TreeRow` and `TreeChildren` are the deck tree: indentation and a hairline,

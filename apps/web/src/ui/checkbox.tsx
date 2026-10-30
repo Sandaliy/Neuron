@@ -56,7 +56,7 @@ export function Checkbox({
       <span
         aria-hidden="true"
         data-slot="switch-track"
-        className="relative h-32 w-56 shrink-0 rounded-full bg-switch-off group-data-[state=checked]:bg-fill-accent group-data-[state=indeterminate]:bg-fill-accent"
+        className="relative h-32 w-56 shrink-0 rounded-full bg-switch-off group-data-[state=checked]:bg-fill-accent"
       >
         <span
           data-slot="switch-knob"
