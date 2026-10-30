@@ -121,6 +121,17 @@ export const en = {
   'error.review_delivery_pending':
     'Saved answers are still being sent. Study can start as soon as they arrive.',
   'offline.access': 'Offline & sync',
+  'offline.status.saved': 'All changes saved',
+  'offline.status.saving': 'Saving changes ({count})…',
+  'offline.status.waitingOffline': 'Changes will sync when you are online ({count})',
+  'offline.status.stalled': 'Changes are waiting to be sent ({count})',
+  'offline.status.safeDetail': 'They are safe on this device. Neuron keeps trying.',
+  'offline.status.attention': 'Changes need your attention ({count})',
+  'offline.status.attentionDetail': 'They stay on this device until you choose what to keep.',
+  'offline.works': 'What works offline',
+  'offline.works.available':
+    'Without a connection you can browse your Library and Notes, rename Folders and Decks, edit existing Notes and study.',
+  'offline.works.needsConnection': 'Practice, new Notes and Import need a connection.',
   'offline.diagnostics': 'Save startup diagnostics',
   'offline.practiceUnavailable': 'Practice requires a connection.',
   'offline.ready': 'Collection downloaded for offline reading.',

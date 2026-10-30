@@ -207,7 +207,7 @@ test('a cold offline PWA plans new Study and reconciles committed work after reo
       now: new Date(),
       durationMs: 9000,
     });
-    await page.getByRole('button', { name: 'Offline details', exact: true }).click();
+    await page.getByRole('button', { name: 'What works offline', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
     server = serve({ fetch, hostname: '127.0.0.1', port });
     await new Promise<void>((resolve) =>

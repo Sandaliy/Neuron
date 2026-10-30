@@ -127,6 +127,18 @@ export const ru = {
   'error.review_delivery_pending':
     'Сохранённые ответы ещё отправляются. Занятие можно начать, как только они дойдут.',
   'offline.access': 'Офлайн и синхронизация',
+  'offline.status.saved': 'Все изменения сохранены',
+  'offline.status.saving': 'Сохраняем изменения ({count})…',
+  'offline.status.waitingOffline': 'Изменения отправятся, когда появится сеть ({count})',
+  'offline.status.stalled': 'Изменения ждут отправки ({count})',
+  'offline.status.safeDetail': 'Они сохранены на этом устройстве. Neuron продолжает попытки.',
+  'offline.status.attention': 'Изменения требуют внимания ({count})',
+  'offline.status.attentionDetail':
+    'Они хранятся на этом устройстве, пока ты не решишь, что оставить.',
+  'offline.works': 'Что работает без сети',
+  'offline.works.available':
+    'Без сети можно просматривать библиотеку и заметки, переименовывать папки и колоды, изменять существующие заметки и учиться.',
+  'offline.works.needsConnection': 'Для Практики, новых заметок и импорта нужен интернет.',
   'offline.diagnostics': 'Сохранить диагностику запуска',
   'offline.practiceUnavailable': 'Для практики нужно подключение.',
   'offline.ready': 'Коллекция загружена для чтения без сети.',

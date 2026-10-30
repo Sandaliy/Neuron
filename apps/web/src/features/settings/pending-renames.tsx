@@ -13,9 +13,9 @@ import {
 import { retryDownload, useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
 
-import { SavedWork, workIsSettled } from './saved-work';
+import { workIsSettled } from './saved-work';
 
-export function PendingRenames({ history = false }: { readonly history?: boolean }) {
+export function PendingRenames() {
   const t = useTranslate();
   const state = useOffline();
   const client = useQueryClient();
@@ -42,14 +42,15 @@ export function PendingRenames({ history = false }: { readonly history?: boolean
     },
   });
   const keep = useMutation({ mutationFn: keepServerVersion });
-  const saved = (entries.data ?? []).filter((entry) => workIsSettled(entry) === history);
+  // Waiting renames are counted in the section's status; only decisions are listed.
+  const saved = (entries.data ?? []).filter(
+    (entry) => !workIsSettled(entry) && entry.state !== 'pending',
+  );
   if (!entries.error && saved.length === 0) return null;
   return (
     <section aria-label={t('offline.savedChanges')} className="flex flex-col gap-12">
       {saved.length > 0 && (
-        <p className={history ? 'text-12 text-secondary' : 'text-14 font-semibold text-primary'}>
-          {t('offline.savedChanges')}
-        </p>
+        <p className="text-14 font-semibold text-primary">{t('offline.savedChanges')}</p>
       )}
       <div className="flex flex-col gap-12">
         {entries.error && (
@@ -57,74 +58,64 @@ export function PendingRenames({ history = false }: { readonly history?: boolean
             {t('offline.changesUnavailable')}
           </p>
         )}
-        {!entries.error && saved.length === 0 && (
-          <p className="text-13 text-secondary">{t('offline.noChanges')}</p>
-        )}
-        <SavedWork
-          entries={saved}
-          title={t('offline.savedChanges')}
-          label={(entry) => entry.payload.name}
-          render={(entry) => (
-            <div key={entry.operationId} className="flex flex-col gap-8">
-              <p className="text-14 text-primary">{entry.payload.name}</p>
-              <p className="text-13 text-secondary">{t(`offline.rename.${entry.state}`)}</p>
-              {entry.failure && API_ERROR_CODES.includes(entry.failure as ApiErrorCode) && (
-                <p className="text-13 text-secondary">
-                  {t(`error.${entry.failure}` as MessageKey)}
-                </p>
-              )}
-              {entry.state === 'conflict' && (
-                <p className="text-13 text-secondary">
-                  {t(
-                    entry.outcome?.reason === 'deleted_remotely'
-                      ? 'offline.renameDeleted'
-                      : 'offline.renameChanged',
-                  )}
-                </p>
-              )}
-              <p className="text-12 text-tertiary">
-                {t('offline.originalName', { name: String(entry.base.row['name']) })}
+        {saved.map((entry) => (
+          <div key={entry.operationId} className="flex flex-col gap-8">
+            <p className="text-14 text-primary">{entry.payload.name}</p>
+            <p className="text-13 text-secondary">{t(`offline.rename.${entry.state}`)}</p>
+            {entry.failure && API_ERROR_CODES.includes(entry.failure as ApiErrorCode) && (
+              <p className="text-13 text-secondary">{t(`error.${entry.failure}` as MessageKey)}</p>
+            )}
+            {entry.state === 'conflict' && (
+              <p className="text-13 text-secondary">
+                {t(
+                  entry.outcome?.reason === 'deleted_remotely'
+                    ? 'offline.renameDeleted'
+                    : 'offline.renameChanged',
+                )}
               </p>
-              <div className="flex flex-wrap gap-8">
+            )}
+            <p className="text-12 text-tertiary">
+              {t('offline.originalName', { name: String(entry.base.row['name']) })}
+            </p>
+            <div className="flex flex-wrap gap-8">
+              <Button
+                variant="text"
+                onClick={() => void navigator.clipboard.writeText(entry.payload.name)}
+              >
+                {t('offline.copyName')}
+              </Button>
+              {entry.state === 'pending' && (
+                <Button
+                  variant="quiet"
+                  disabled={!state.validated || state.offline}
+                  busy={retry.isPending}
+                  onClick={() => retry.mutate()}
+                >
+                  {t('common.retry')}
+                </Button>
+              )}
+              {entry.state === 'conflict' && entry.outcome?.reason === 'changed_remotely' && (
+                <Button
+                  variant="quiet"
+                  disabled={!state.validated || state.offline}
+                  busy={resolve.isPending}
+                  onClick={() => resolve.mutate(entry)}
+                >
+                  {t('offline.applySavedName')}
+                </Button>
+              )}
+              {['conflict', 'rejected'].includes(entry.state) && (
                 <Button
                   variant="text"
-                  onClick={() => void navigator.clipboard.writeText(entry.payload.name)}
+                  busy={keep.isPending}
+                  onClick={() => keep.mutate(entry.operationId)}
                 >
-                  {t('offline.copyName')}
+                  {t('offline.keepServerVersion')}
                 </Button>
-                {entry.state === 'pending' && (
-                  <Button
-                    variant="quiet"
-                    disabled={!state.validated || state.offline}
-                    busy={retry.isPending}
-                    onClick={() => retry.mutate()}
-                  >
-                    {t('common.retry')}
-                  </Button>
-                )}
-                {entry.state === 'conflict' && entry.outcome?.reason === 'changed_remotely' && (
-                  <Button
-                    variant="quiet"
-                    disabled={!state.validated || state.offline}
-                    busy={resolve.isPending}
-                    onClick={() => resolve.mutate(entry)}
-                  >
-                    {t('offline.applySavedName')}
-                  </Button>
-                )}
-                {['conflict', 'rejected'].includes(entry.state) && (
-                  <Button
-                    variant="text"
-                    busy={keep.isPending}
-                    onClick={() => keep.mutate(entry.operationId)}
-                  >
-                    {t('offline.keepServerVersion')}
-                  </Button>
-                )}
-              </div>
+              )}
             </div>
-          )}
-        />
+          </div>
+        ))}
         {(retry.error || resolve.error || keep.error) && (
           <p role="alert" className="text-13 text-secondary">
             {t('offline.renameRetryFailed')}
