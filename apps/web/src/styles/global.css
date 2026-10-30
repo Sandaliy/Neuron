@@ -398,6 +398,18 @@
   }
 
   /*
+   * A dialog blurs what is under it without boosting its colour. The boost
+   * that gives a bar its life turned the primary button behind a dialog into
+   * a blue glow across the dialog's rows.
+   */
+  @supports ((-webkit-backdrop-filter: blur(2px)) or (backdrop-filter: blur(2px))) {
+    [data-g='panel'] {
+      -webkit-backdrop-filter: blur(var(--g-blur));
+      backdrop-filter: blur(var(--g-blur));
+    }
+  }
+
+  /*
    * Never stack two blurred layers. A glass element inside glass drops its blur
    * and takes an opaque nested tint. The rule is enforced here rather than left
    * to discipline.
