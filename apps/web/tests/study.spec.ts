@@ -485,7 +485,7 @@ test('Study passes over a Card its Note no longer produces without answering it'
   await usePreferences(page, { locale: 'en', theme: 'dark' });
   await useFixtures(page);
   // Cloze gaps are numbered from one. A cloze Card still at slot 0, as seeded
-  // Cards are, names no gap of its Note, so there is nothing of it to draw.
+  // Cards were, names no gap of its Note, so there is nothing of it to draw.
   const orphan = { ...cards[0]!, id: id(41), noteId: id(51), direction: 'cloze', slot: 0 };
   const gap = { ...orphan, id: id(42), slot: 1 };
   const planned = [orphan, gap, cards[1]!];
