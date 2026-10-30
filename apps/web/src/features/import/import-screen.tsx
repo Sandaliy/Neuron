@@ -35,6 +35,7 @@ import { Button } from '../../ui/button';
 import { Card, GroupLabel, Panel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
 import { Dialog, DialogFooter } from '../../ui/dialog';
+import { Disclosure } from '../../ui/disclosure';
 import { FormField } from '../../ui/form-field';
 import { Progress } from '../../ui/progress';
 import { Select } from '../../ui/select';
@@ -594,15 +595,13 @@ function Preview({
       ) : undefined}
 
       {cards.length > 0 && (
-        <details
-          className="rounded-12 border border-default p-16"
-          onToggle={(event) => setShowCards(event.currentTarget.open)}
+        <Disclosure
+          title={t('import.generatedPreview')}
+          open={showCards}
+          onOpenChange={setShowCards}
         >
-          <summary className="min-h-44 cursor-pointer text-14 text-primary">
-            {t('import.generatedPreview')}
-          </summary>
           {showCards && <CardPreview cards={cards.map((card) => ({ ...card, change: 'adds' }))} />}
-        </details>
+        </Disclosure>
       )}
       <div className="flex flex-col gap-4">
         <GroupLabel>{t('import.preview')}</GroupLabel>
@@ -743,9 +742,8 @@ function PreviewRow({
         </span>
       ) : undefined}
       {noteType === 'vocab' && !!row.fields['grammar'] && (
-        <details className="w-full text-13 text-secondary">
-          <summary className="min-h-44 cursor-pointer">{t('note.section.grammar')}</summary>
-          <dl className="neu-reveal grid grid-cols-2 gap-12 pb-12">
+        <Disclosure quiet className="w-full" title={t('note.section.grammar')}>
+          <dl className="grid grid-cols-2 gap-12 text-13 text-secondary">
             {PRACTICE_FIELDS.filter(
               (field) =>
                 field.startsWith('grammar.') && practiceValue(row.fields, field) !== undefined,
@@ -761,7 +759,7 @@ function PreviewRow({
               );
             })}
           </dl>
-        </details>
+        </Disclosure>
       )}
     </div>
   );

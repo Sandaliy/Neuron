@@ -173,6 +173,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       <CollectionHeader
         readOnly={offline.offline}
         title={deck?.name ?? t('notes.title')}
+        path={<CollectionPath tree={decks.data ?? []} id={deckId ?? ''} trail />}
         actions={
           <>
             <ServerControls available={serverReady}>
@@ -196,16 +197,15 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           </>
         }
       >
-        <div className="flex min-h-44 flex-wrap items-center justify-between gap-8">
-          <CollectionPath tree={decks.data ?? []} id={deckId ?? ''} />
-          {deck && (
+        {deck && (
+          <div className="flex min-h-44 items-center">
             <ReadOnlySlot readOnly={false} inline>
               <ServerControls available={serverReady}>
                 <RestartLearning deck={deck} skillsOnly />
               </ServerControls>
             </ReadOnlySlot>
-          )}
-        </div>
+          </div>
+        )}
       </CollectionHeader>
       {deckId && (
         <PracticeEntry

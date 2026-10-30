@@ -251,11 +251,12 @@ test('invalid acknowledgement and failed acknowledgement persistence keep the ex
   // Let the local save notification finish before asking for an explicit retry.
   // A local commit must not queue the online-write follow-up while this invalid
   // acknowledgement leaves the original command pending.
+  // A toast stays for its reading time, about six seconds for this sentence.
   await expect(
     page.getByText('Name saved on this device. It will sync after sign-in is confirmed.', {
       exact: true,
     }),
-  ).toBeHidden();
+  ).toBeHidden({ timeout: 10_000 });
   expect(state.deliveries).toEqual([saved.payload]);
   state.badAck = false;
   await page.evaluate(() => {

@@ -154,7 +154,8 @@ test('Today returns collapsed from the first disclosure commit while voices init
       const content = document.getElementById(button.getAttribute('aria-controls')!)!;
       return {
         height: content.getBoundingClientRect().height,
-        opacity: getComputedStyle(content).opacity,
+        opacity: getComputedStyle(content.querySelector('.neu-disclosure-content') ?? content)
+          .opacity,
       };
     }),
   ).toEqual({ height: 0, opacity: '0' });
@@ -252,16 +253,20 @@ test('a confirmed language change continuously resizes expanded Study setup', as
           const heights = [content.getBoundingClientRect().height];
           const times = [performance.now()];
           const start = performance.now();
-          const frame = () => {
-            const height = content.getBoundingClientRect().height;
-            const time = performance.now();
-            if (height !== heights.at(-1) || time !== times.at(-1)) {
-              heights.push(height);
-              times.push(time);
-            }
-            if (performance.now() - start > 600) resolve({ heights, times });
-            else requestAnimationFrame(frame);
-          };
+          // Read each frame after it is drawn. A layout read inside
+          // requestAnimationFrame runs before resize observation in the same
+          // frame, so it can see an intermediate size that is never painted.
+          const frame = () =>
+            setTimeout(() => {
+              const height = content.getBoundingClientRect().height;
+              const time = performance.now();
+              if (height !== heights.at(-1) || time !== times.at(-1)) {
+                heights.push(height);
+                times.push(time);
+              }
+              if (performance.now() - start > 600) resolve({ heights, times });
+              else requestAnimationFrame(frame);
+            });
           requestAnimationFrame(frame);
         },
         { once: true, capture: true },
@@ -319,7 +324,8 @@ for (const theme of ['light', 'dark'] as const) {
         const content = document.getElementById(button.getAttribute('aria-controls')!)!;
         return {
           height: content.getBoundingClientRect().height,
-          opacity: getComputedStyle(content).opacity,
+          opacity: getComputedStyle(content.querySelector('.neu-disclosure-content') ?? content)
+            .opacity,
           hidden: content.getAttribute('aria-hidden'),
           inert: content.hasAttribute('inert'),
         };

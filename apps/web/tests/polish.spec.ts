@@ -192,6 +192,9 @@ for (const theme of ['light', 'dark'] as const)
       await page.setViewportSize({ width, height: 812 });
       for (const name of ['Study language', 'Time for this session', 'Study mode']) {
         const control = page.getByRole('combobox', { name, exact: true });
+        // The ring belongs to keyboard focus. A tapped select deliberately
+        // shows none, so the halo is measured as a keyboard user sees it.
+        await page.keyboard.press('Shift');
         await control.focus();
         const clipped = await control.evaluate((element) => {
           const box = element.getBoundingClientRect();

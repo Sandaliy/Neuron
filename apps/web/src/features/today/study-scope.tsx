@@ -56,9 +56,7 @@ export function StudyScope({
         const folder = row.kind === 'folder';
         return (
           <div key={row.id} className="flex flex-col gap-8">
-            <div
-              className={`${collectionSurface(row.kind)} ${count > 0 && !folder ? 'bg-fill-accent-quiet' : ''}`}
-            >
+            <div className={collectionSurface(row.kind)}>
               <Checkbox
                 labelClassName="min-w-0 flex-1"
                 checked={count === ids.length ? true : count ? 'indeterminate' : false}
