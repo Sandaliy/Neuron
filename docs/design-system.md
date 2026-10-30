@@ -208,7 +208,8 @@ text on the layer.
 - `--g-alpha-bar` is the floating bars. Every label on a bar is primary, so the floor is primary and the
   tint can be .58.
 - `--g-alpha-sheer` is a dialog, which sits over a scrim that has already dimmed the backdrop and can
-  therefore be sheerer still.
+  therefore be sheerer still. A dialog blurs without the saturation boost the bars use: with it, the
+  primary button under a dialog showed through the dialog's rows as a blue glow.
 
 Off is not a failure state: it is what a browser without `backdrop-filter` already gets, and what the
 declared fallback background paints first in every case.
