@@ -3,7 +3,11 @@ import { expect, test } from '@playwright/test';
 import { advancePractice, reconcilePractice } from '@neuron/shared';
 import type { PracticeCommand, PracticeNote, PracticeRun } from '@neuron/shared';
 
-import { storedPractice, useFixtures, usePreferences } from './fixtures';
+import {
+  storedPractice,
+  useFixtures as installFixtures,
+  usePreferences as installPreferences,
+} from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -88,8 +92,8 @@ async function fixture(page: Page) {
     );
     server.version++;
   };
-  await usePreferences(page, { locale: 'en', theme: 'dark' });
-  await useFixtures(page);
+  await installPreferences(page, { locale: 'en', theme: 'dark' });
+  await installFixtures(page);
   await page.route(
     (url) => url.pathname.startsWith('/api/'),
     async (route) => {

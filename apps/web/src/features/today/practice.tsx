@@ -332,10 +332,12 @@ function PersistentPractice({
       startRun();
     }
   }
+  // A run waiting for the learner's choice is not a sitting: no progress, counts or Undo for it.
+  const sitting = !!run && active && !configuring && !state.conflict;
   return (
     <section
       data-screen=""
-      data-learning-screen={run && active && !configuring ? '' : undefined}
+      data-learning-screen={sitting ? '' : undefined}
       data-typing-ready={typingReady || undefined}
       className="neu-session flex flex-col gap-16"
     >
@@ -343,12 +345,12 @@ function PersistentPractice({
         title={t('practice.title')}
         exitLabel={t('practice.exit')}
         onExit={onFinish}
-        {...(run && active && !configuring
+        {...(sitting
           ? { value: known, max: statuses.length, progressLabel: t('practice.knownProgress') }
           : {})}
         action={
           <div className="flex items-center gap-4">
-            {run && active && !configuring && (
+            {sitting && (
               <Button
                 variant="text"
                 className="w-44 text-secondary"
@@ -370,7 +372,7 @@ function PersistentPractice({
           </div>
         }
       />
-      {active && !configuring && run && (
+      {sitting && (
         <div
           className="neu-practice-progress grid shrink-0 grid-cols-2 gap-16 text-12 text-secondary"
           aria-label={t('practice.progressLabel')}
@@ -794,9 +796,7 @@ function PracticeConflict({
       ).map(([side, run]) => (
         <div key={side} className="flex flex-col gap-4 border-t border-subtle pt-12">
           <p className="text-13 text-secondary">{t(`practice.conflict.${side}`)}</p>
-          <p className="text-15 text-primary" data-numeric="">
-            {describeRun(run)}
-          </p>
+          <p className="text-15 text-primary">{describeRun(run)}</p>
           {run && (
             <p className="text-13 text-secondary">
               {t('practice.recipe', {
