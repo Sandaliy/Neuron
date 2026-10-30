@@ -1,6 +1,6 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import {
   IMPORT_FIELDS,
@@ -20,7 +20,6 @@ import {
 import type {
   Note,
   DuplicateMatch,
-  ImportFormat,
   MessageKey,
   NoteTypeName,
   ParseResult,
@@ -29,8 +28,11 @@ import type {
 
 import { useTranslate } from '../../i18n/locale';
 import { describe, request } from '../../lib/api';
+import { hasServerAuthority, useCapabilities } from '../../lib/capabilities';
+import { localNotes } from '../../lib/collection-read';
 import { DECK_TREE_KEY, findDeck, settingsFor, useDeckTree } from '../../lib/decks';
 import { findDuplicates, NOTE_KEY, noteQueryString } from '../../lib/notes';
+import { accountEpoch, connectionEpoch, useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel, Panel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
@@ -39,17 +41,19 @@ import { Disclosure } from '../../ui/disclosure';
 import { FormField } from '../../ui/form-field';
 import { Progress } from '../../ui/progress';
 import { Select } from '../../ui/select';
-import { ErrorState } from '../../ui/states';
+import { ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
 import { CardPreview } from '../notes/card-preview';
 
+import { importDrafts, importDraftVisit, newImportDraft, saveImportDraft } from './import-drafts';
 import { createAttempt, groupMatches, planRows, resolveDuplicate } from './import-plan';
 import { ImportSource, fieldLabelKey } from './import-source';
 import { PromptDialog } from './prompt-dialog';
+import { useImportDraft } from './use-import-draft';
 
+import type { ImportDraft } from './import-drafts';
 import type { ImportAttempt, Overrides, Resolution } from './import-plan';
-import type { ImportMode } from './import-source';
 
 /** Where the screen is. Each step only exists once the one before it is done. */
 type Stage =
@@ -85,26 +89,129 @@ type Stage =
  * stopped rather than started again.
  */
 export function ImportScreen({ deckId }: { readonly deckId?: string }) {
+  const offline = useOffline();
+  const loadId = useId();
+  const saved = useQuery({
+    queryKey: ['import-drafts', offline.accountId, accountEpoch(), loadId],
+    queryFn: () => importDrafts(offline.accountId!),
+    enabled: !!offline.accountId,
+    networkMode: 'always',
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
+  if (!offline.accountId || saved.isPending) return <SkeletonRows rows={4} />;
+  return (
+    <ImportWorkspace
+      key={offline.accountId}
+      accountId={offline.accountId}
+      deckId={deckId}
+      saved={saved.data ?? []}
+      storageFailed={!!saved.error}
+    />
+  );
+}
+
+function ImportWorkspace({
+  accountId,
+  deckId,
+  saved,
+  storageFailed,
+}: {
+  readonly accountId: string;
+  readonly deckId: string | undefined;
+  readonly saved: readonly ImportDraft[];
+  readonly storageFailed: boolean;
+}) {
+  const [selected, setSelected] = useState(
+    () =>
+      saved.find((draft) => deckId === undefined || draft.preparation.deck === deckId) ??
+      newImportDraft(accountId, deckId),
+  );
+  const [drafts, setDrafts] = useState(saved);
+  return (
+    <ImportEditor
+      key={selected.id}
+      initialDraft={selected}
+      deckId={deckId}
+      saved={drafts}
+      storageFailed={storageFailed}
+      onChoose={async (draft) => {
+        const next = await importDrafts(accountId);
+        const selected = draft
+          ? await saveImportDraft(next.find((entry) => entry.id === draft.id) ?? draft)
+          : newImportDraft(accountId, deckId);
+        setDrafts(next);
+        setSelected(selected);
+      }}
+    />
+  );
+}
+
+function ImportEditor({
+  initialDraft,
+  deckId,
+  saved,
+  storageFailed,
+  onChoose,
+}: {
+  readonly initialDraft: ImportDraft;
+  readonly deckId: string | undefined;
+  readonly saved: readonly ImportDraft[];
+  readonly storageFailed: boolean;
+  readonly onChoose: (draft?: ImportDraft) => Promise<void>;
+}) {
   const t = useTranslate();
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const decks = useDeckTree();
-
-  const [deck, setDeck] = useState(deckId ?? '');
-  const [raw, setRaw] = useState('');
-  const [mode, setMode] = useState<ImportMode>('simple');
-  const [format, setFormat] = useState<ImportFormat | ''>('');
-  const [noteType, setNoteType] = useState<NoteTypeName>('vocab');
-  const [columns, setColumns] = useState<readonly string[]>([]);
-  const [stage, setStage] = useState<Stage>({ kind: 'source' });
+  const offline = useOffline();
+  const capability = useCapabilities();
+  const draft = useImportDraft(initialDraft);
+  const { deck, raw, mode, format, noteType, columns, resolution, overrides } =
+    draft.draft.preparation;
+  const [stage, setStage] = useState<Stage>(() => {
+    const delivery = initialDraft.delivery;
+    if (delivery?.summary)
+      return {
+        kind: 'done',
+        notes: delivery.summary.notes,
+        cards: delivery.summary.cards,
+        ...(delivery.attempt.create.length ? { batchId: delivery.attempt.batchId } : {}),
+      };
+    if (delivery)
+      return {
+        kind: 'importing',
+        attempt: delivery.attempt,
+        done: delivery.done,
+        total: Math.ceil(delivery.attempt.create.length / IMPORT_CHUNK_SIZE),
+        failed: true,
+      };
+    const p = initialDraft.preparation;
+    return p.preview
+      ? {
+          kind: 'preview',
+          parsed: parseImport(p.raw, p.format || detectFormat(p.raw), {
+            noteType: p.noteType,
+            ...(p.columns.length ? { columns: p.columns } : {}),
+          }),
+        }
+      : { kind: 'source' };
+  });
   const [duplicates, setDuplicates] = useState<readonly DuplicateMatch[]>([]);
-  const [resolution, setResolution] = useState<Resolution>('skip');
-  const [overrides, setOverrides] = useState<Overrides>({});
+  const [duplicateStatus, setDuplicateStatus] = useState<'unavailable' | 'local' | 'confirmed'>(
+    'unavailable',
+  );
+  const [changedDuplicates, setChangedDuplicates] = useState(false);
   const [checking, setChecking] = useState(false);
   const checkSequence = useRef(0);
   const [failure, setFailure] = useState<unknown>();
   const [prompt, setPrompt] = useState(false);
+  const applying = useRef(false);
+  const uploading = useRef(false);
+  const switchingDraft = useRef(false);
+  const [switching, setSwitching] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState<
     { readonly notes: number; readonly reviewedCards: number } | undefined
   >();
@@ -112,8 +219,28 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
   const tree = decks.data ?? [];
   const chosenFormat = format === '' ? detectFormat(raw) : format;
 
-  /** Reads the file, then asks the server which of its words are already here. */
-  async function read() {
+  async function chooseDraft(next?: ImportDraft, separate = false) {
+    if (switchingDraft.current) return;
+    switchingDraft.current = true;
+    setSwitching(true);
+    try {
+      if (separate) {
+        const copy = {
+          ...newImportDraft(initialDraft.accountId, deck),
+          preparation: draft.current.current.preparation,
+        };
+        await onChoose(await saveImportDraft(copy));
+      } else if (await draft.persist()) await onChoose(next);
+    } catch {
+      toast.show(t('import.draftsUnavailable'));
+    } finally {
+      switchingDraft.current = false;
+      setSwitching(false);
+    }
+  }
+
+  /** Parsing and field/card previews never require a connection. */
+  function read() {
     setFailure(undefined);
 
     const parsed = parseImport(raw, chosenFormat, {
@@ -121,31 +248,114 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       ...(columns.length > 0 ? { columns } : {}),
     });
 
-    await checkParsed(parsed);
+    draft.edit({ preview: true, columns: parsed.columns ?? [] });
+    setStage({ kind: 'preview', parsed });
   }
 
-  async function checkParsed(parsed: ParseResult) {
-    const sequence = ++checkSequence.current;
-    setFailure(undefined);
-    setDuplicates([]);
-    setOverrides({});
-    setStage({ kind: 'preview', parsed });
-    setColumns(parsed.columns ?? []);
-    setChecking(true);
+  const checkParsed = useCallback(
+    async (parsed: ParseResult) => {
+      const sequence = ++checkSequence.current;
+      const current = importDraftVisit(initialDraft.accountId);
+      setFailure(undefined);
+      setDuplicates([]);
+      setDuplicateStatus('unavailable');
+      setChangedDuplicates(false);
+      setChecking(true);
 
-    try {
-      const terms = parsed.rows.map((row) => termOf(row.fields)).filter((term) => term !== '');
-
-      const found = await findDuplicates(deck, terms);
-      if (sequence === checkSequence.current) setDuplicates(found);
-    } catch (error) {
-      // Keep the preview, but do not write before duplicate lookup succeeds.
-      if (sequence === checkSequence.current) {
-        setFailure(error);
-        setDuplicates([]);
+      try {
+        const terms = parsed.rows.map((row) => termOf(row.fields)).filter((term) => term !== '');
+        let found: DuplicateMatch[] = [];
+        if (capability.server && deck) found = await findDuplicates(deck, terms);
+        else if (offline.available && deck) {
+          const keys = new Set(parsed.rows.map((row) => noteTermKey(row.fields)));
+          let cursor: string | undefined;
+          do {
+            const page = await localNotes({ deckId: deck }, cursor);
+            found.push(
+              ...page.items
+                .filter((note) => keys.has(noteTermKey(note.fields)))
+                .map((note) => ({
+                  term: noteTermKey(note.fields),
+                  noteId: note.id,
+                  noteType: note.noteType,
+                  deckId: note.deckId,
+                  written: termOf(note.fields),
+                })),
+            );
+            cursor = page.nextCursor;
+          } while (cursor);
+        }
+        current();
+        if (sequence === checkSequence.current) {
+          setDuplicates(found);
+          setDuplicateStatus(
+            capability.server && deck
+              ? 'confirmed'
+              : offline.available && deck
+                ? 'local'
+                : 'unavailable',
+          );
+        }
+      } catch (error) {
+        // Keep the preview, but do not write before duplicate lookup succeeds.
+        if (sequence === checkSequence.current) {
+          if (capability.server && hasServerAuthority()) setFailure(error);
+          setDuplicates([]);
+        }
+      } finally {
+        if (sequence === checkSequence.current) setChecking(false);
       }
+    },
+    [deck, capability.server, offline.available, initialDraft.accountId],
+  );
+
+  const parsed = stage.kind === 'preview' ? stage.parsed : undefined;
+  const connection = connectionEpoch();
+  useEffect(() => {
+    let active = true;
+    const sequence = checkSequence;
+    void Promise.resolve().then(() => {
+      if (active && parsed) void checkParsed(parsed);
+    });
+    return () => {
+      active = false;
+      sequence.current++;
+    };
+  }, [parsed, checkParsed, connection]);
+
+  async function start() {
+    if (!parsed || applying.current || !hasServerAuthority()) return;
+    applying.current = true;
+    setChecking(true);
+    const current = importDraftVisit(initialDraft.accountId);
+    const sequence = ++checkSequence.current;
+    try {
+      const found = await findDuplicates(
+        deck,
+        parsed.rows.map((row) => termOf(row.fields)).filter(Boolean),
+      );
+      current();
+      if (!hasServerAuthority() || sequence !== checkSequence.current) return;
+      setFailure(undefined);
+      setDuplicates(found);
+      setDuplicateStatus('confirmed');
+      const signature = (matches: readonly DuplicateMatch[]) =>
+        JSON.stringify(
+          matches
+            .map(({ term, noteId, noteType, deckId }) => [term, noteId, noteType, deckId])
+            .sort(),
+        );
+      if (signature(found) !== signature(duplicates)) {
+        setChangedDuplicates(true);
+        return;
+      }
+      const choices = draft.current.current.preparation;
+      await upload(createAttempt(parsed, found, choices.resolution, choices.overrides, deck));
+    } catch (error) {
+      setFailure(error);
     } finally {
-      if (sequence === checkSequence.current) setChecking(false);
+      applying.current = false;
+      setChecking(false);
     }
   }
 
@@ -155,6 +365,12 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
    * @param from which chunk to start at, so a failure can be carried on from
    */
   async function upload(plan: ImportAttempt, from = 0) {
+    if (uploading.current) return;
+    if (!hasServerAuthority()) {
+      toast.show(t('offline.serverRequired'));
+      return;
+    }
+    const current = importDraftVisit(initialDraft.accountId);
     const batchId = plan.create.length > 0 ? plan.batchId : undefined;
     const chunks: (typeof plan.create)[] = [];
 
@@ -162,6 +378,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       chunks.push(plan.create.slice(start, start + IMPORT_CHUNK_SIZE));
     }
 
+    uploading.current = true;
     setFailure(undefined);
     setStage({
       kind: 'importing',
@@ -172,6 +389,10 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
     });
 
     try {
+      draft.delivery({ attempt: plan, done: from });
+      if (!(await draft.persist())) throw new Error('import_draft_storage');
+      current();
+      if (!hasServerAuthority()) throw new Error('import_connection_required');
       if (from === 0 && batchId) {
         await request('/imports', {
           method: 'POST',
@@ -185,6 +406,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       }
 
       for (let index = from; index < chunks.length; index += 1) {
+        current();
         if (!batchId) {
           throw new Error('an import chunk needs a batch');
         }
@@ -202,6 +424,10 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
           },
         });
 
+        current();
+        draft.delivery({ attempt: plan, done: index + 1 });
+        if (!(await draft.persist())) throw new Error('import_draft_storage');
+
         setStage({
           kind: 'importing',
           attempt: plan,
@@ -215,6 +441,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       // only what is empty on the note that is already there, so a note being
       // reviewed keeps every word of it.
       for (const merge of plan.merge) {
+        current();
         await request(`/notes/${merge.noteId}`, {
           method: 'PATCH',
           body: { fields: merge.fields, noteType: plan.noteType, merge: true },
@@ -224,6 +451,13 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       const summary = batchId
         ? await request<{ notes: number; cards: number }>(`/imports/${batchId}`)
         : { notes: 0, cards: 0 };
+      current();
+      draft.delivery({
+        attempt: plan,
+        done: chunks.length,
+        summary: { notes: summary.notes, cards: summary.cards },
+      });
+      if (!(await draft.persist())) throw new Error('import_draft_storage');
 
       // The list and tree are intentionally fresh for five minutes between
       // collection screens. This write happened outside the normal note
@@ -237,6 +471,7 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
         queryClient.invalidateQueries({ queryKey: ['practice-notes'], refetchType: 'none' }),
         queryClient.invalidateQueries({ queryKey: ['practice-summary'], refetchType: 'none' }),
       ]);
+      current();
 
       // Warm the exact destination first page, including when its old query is inactive.
       const destination = noteQueryString({ deckId: deck, sort: 'created' });
@@ -264,16 +499,26 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       setStage((current) =>
         current.kind === 'importing' ? { ...current, failed: true } : current,
       );
+    } finally {
+      uploading.current = false;
     }
   }
 
   async function undo(batchId: string) {
+    if (!hasServerAuthority()) {
+      toast.show(t('offline.serverRequired'));
+      return;
+    }
+    const current = importDraftVisit(initialDraft.accountId);
     await request(`/imports/${batchId}/undo`, { method: 'POST' });
+    current();
 
     setConfirmUndo(undefined);
     toast.show(t('import.undone'));
     setStage({ kind: 'source' });
-    setRaw('');
+    // Keep the source available after Undo without reopening its completed delivery.
+    draft.delivery(undefined);
+    draft.edit({ preview: false });
   }
 
   return (
@@ -287,144 +532,272 @@ export function ImportScreen({ deckId }: { readonly deckId?: string }) {
       </header>
       <CollectionPath tree={tree} id={deck} />
 
-      {stage.kind === 'source' ? (
-        <ImportSource
-          scoped={deckId !== undefined}
-          decks={tree}
-          deck={deck}
-          raw={raw}
-          mode={mode}
-          onMode={setMode}
-          noteType={noteType}
-          onDeck={setDeck}
-          onRaw={(value) => {
-            setRaw(value);
-            setColumns([]);
-          }}
-          onFormat={setFormat}
-          onNoteType={setNoteType}
-          onRead={() => void read()}
-        />
-      ) : undefined}
+      <div className="flex flex-col gap-8">
+        <p role="status" className="text-14 text-secondary">
+          {t(
+            draft.status === 'failed'
+              ? draft.conflict
+                ? 'import.draftConflict'
+                : 'import.draftFailed'
+              : draft.status === 'saved'
+                ? 'import.draftSaved'
+                : 'import.draftPending',
+          )}
+        </p>
+        {storageFailed ? (
+          <p className="text-14 text-error">{t('import.draftsUnavailable')}</p>
+        ) : undefined}
+        <div className="flex flex-wrap gap-8">
+          <Button
+            variant="quiet"
+            busy={draft.status === 'saving' || switching}
+            onClick={() => void draft.persist()}
+          >
+            {t('import.saveDraft')}
+          </Button>
+          <Button
+            variant="text"
+            onClick={() => {
+              const link = document.createElement('a');
+              const url = URL.createObjectURL(
+                new Blob([raw], { type: 'text/plain;charset=utf-8' }),
+              );
+              link.href = url;
+              link.download = `import-source.${chosenFormat === 'json' ? 'json' : 'txt'}`;
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            {t('import.saveSource')}
+          </Button>
+          <Button
+            variant="text"
+            disabled={switching || (stage.kind === 'importing' && !stage.failed)}
+            onClick={() => void chooseDraft()}
+          >
+            {t('import.newDraft')}
+          </Button>
+          {draft.conflict && !draft.draft.delivery ? (
+            <Button
+              variant="quiet"
+              disabled={switching}
+              onClick={() => void chooseDraft(undefined, true)}
+            >
+              {t('import.saveSeparateDraft')}
+            </Button>
+          ) : undefined}
+        </div>
+        {saved.length > 0 ? (
+          <Disclosure title={t('import.savedDrafts')}>
+            <div className="flex flex-col gap-8 py-8">
+              {saved.map((entry, index) => (
+                <Button
+                  key={entry.id}
+                  variant="quiet"
+                  disabled={
+                    switching ||
+                    entry.id === initialDraft.id ||
+                    (stage.kind === 'importing' && !stage.failed)
+                  }
+                  onClick={() => void chooseDraft(entry)}
+                >
+                  {t('import.draftName', {
+                    number: index + 1,
+                    deck: findDeck(tree, entry.preparation.deck)?.name ?? t('import.deck'),
+                  })}
+                </Button>
+              ))}
+            </div>
+          </Disclosure>
+        ) : undefined}
+      </div>
 
-      {stage.kind === 'preview' ? (
-        <Preview
-          deckId={deck}
-          parsed={stage.parsed}
-          duplicates={duplicates}
-          resolution={resolution}
-          overrides={overrides}
-          blocked={failure !== undefined}
-          onOverride={(line, value) =>
-            setOverrides((current) => {
-              const next = { ...current };
+      <fieldset className="contents" disabled={switching} aria-busy={switching}>
+        {stage.kind === 'source' ? (
+          <ImportSource
+            scoped={deckId !== undefined}
+            decks={tree}
+            deck={deck}
+            raw={raw}
+            mode={mode}
+            onMode={(mode) => draft.edit({ mode })}
+            noteType={noteType}
+            onDeck={(deck) => draft.edit({ deck, overrides: {} })}
+            onRaw={(value) => {
+              draft.edit({ raw: value, columns: [], overrides: {} });
+            }}
+            onFormat={(format) =>
+              draft.edit({
+                format,
+                ...(format === draft.current.current.preparation.format
+                  ? {}
+                  : { columns: [], overrides: {} }),
+              })
+            }
+            onNoteType={(noteType) => draft.edit({ noteType, columns: [], overrides: {} })}
+            left={draft.draft.preparation.left}
+            right={draft.draft.preparation.right}
+            onLeft={(left) => draft.edit({ left })}
+            onRight={(right) => draft.edit({ right })}
+            onRead={() => void read()}
+          />
+        ) : undefined}
+
+        {stage.kind === 'preview' ? (
+          <Preview
+            deckId={deck}
+            parsed={stage.parsed}
+            duplicates={duplicates}
+            resolution={resolution}
+            overrides={overrides}
+            blocked={
+              !deck ||
+              failure !== undefined ||
+              !capability.server ||
+              duplicateStatus !== 'confirmed'
+            }
+            duplicateStatus={duplicateStatus}
+            changedDuplicates={changedDuplicates}
+            onOverride={(line, value) => {
+              const next = { ...overrides };
               if (value === '') delete next[line];
               else next[line] = value;
-              return next;
-            })
-          }
-          checking={checking}
-          columns={columns}
-          onColumns={(next) => {
-            setColumns(next);
-            void checkParsed(parseImport(raw, chosenFormat, { noteType, columns: next }));
-          }}
-          onResolution={setResolution}
-          onBack={() => setStage({ kind: 'source' })}
-          onStart={() =>
-            void upload(createAttempt(stage.parsed, duplicates, resolution, overrides, deck))
-          }
-        />
-      ) : undefined}
-
-      {stage.kind === 'importing' ? (
-        <Card className="flex flex-col gap-16">
-          <p className="text-15 text-primary">{t('import.importing')}</p>
-
-          <Progress
-            value={stage.total === 0 ? 1 : stage.done / stage.total}
-            label={t('import.importing')}
+              draft.edit({ overrides: next });
+            }}
+            checking={checking}
+            columns={columns}
+            onColumns={(next) => {
+              draft.edit({ columns: next, overrides: {} });
+              setStage({
+                kind: 'preview',
+                parsed: parseImport(raw, chosenFormat, { noteType, columns: next }),
+              });
+            }}
+            onResolution={(resolution) => draft.edit({ resolution })}
+            onBack={() => {
+              checkSequence.current++;
+              draft.edit({ preview: false });
+              setStage({ kind: 'source' });
+            }}
+            onStart={() => void start()}
           />
+        ) : undefined}
 
-          <p className="text-13 text-tertiary" data-numeric="">
-            {t('import.progress', { done: stage.done, total: stage.total })}
-          </p>
+        {stage.kind === 'importing' ? (
+          <Card className="flex flex-col gap-16">
+            <p className="text-15 text-primary">{t('import.importing')}</p>
 
-          {stage.failed ? (
-            <>
-              <p className="text-14 leading-body text-error">
-                {t('import.failed', { done: stage.done, total: stage.total })}
-              </p>
+            <Progress
+              value={stage.total === 0 ? 1 : stage.done / stage.total}
+              label={t('import.importing')}
+            />
+
+            <p className="text-13 text-tertiary" data-numeric="">
+              {t('import.progress', { done: stage.done, total: stage.total })}
+            </p>
+
+            {stage.failed ? (
+              <>
+                <p className="text-14 leading-body text-error">
+                  {t('import.failed', { done: stage.done, total: stage.total })}
+                </p>
+                <Button
+                  variant="primary"
+                  disabled={!capability.server}
+                  onClick={() => {
+                    void upload(stage.attempt, stage.done);
+                  }}
+                >
+                  {t('import.resume')}
+                </Button>
+              </>
+            ) : undefined}
+          </Card>
+        ) : undefined}
+
+        {stage.kind === 'done' ? (
+          <Card className="flex flex-col items-start gap-16">
+            <p className="text-17 text-primary">{t('import.doneTitle')}</p>
+            <p className="text-14 leading-body text-secondary" data-numeric="">
+              {t('import.doneBody', { notes: stage.notes, cards: stage.cards })}
+            </p>
+            {stage.batchId ? (
+              <>
+                <p className="text-14 leading-body text-secondary">{t('import.undoBoundary')}</p>
+              </>
+            ) : undefined}
+
+            <div className="flex flex-wrap gap-8">
               <Button
                 variant="primary"
-                onClick={() => {
-                  void upload(stage.attempt, stage.done);
-                }}
+                onClick={() =>
+                  void navigate({
+                    to: '/notes',
+                    search: deck === '' ? {} : { deckId: deck },
+                  })
+                }
               >
-                {t('import.resume')}
+                {t('import.openDeck')}
               </Button>
-            </>
-          ) : undefined}
-        </Card>
-      ) : undefined}
 
-      {stage.kind === 'done' ? (
-        <Card className="flex flex-col items-start gap-16">
-          <p className="text-17 text-primary">{t('import.doneTitle')}</p>
-          <p className="text-14 leading-body text-secondary" data-numeric="">
-            {t('import.doneBody', { notes: stage.notes, cards: stage.cards })}
-          </p>
-          {stage.batchId ? (
-            <>
-              <p className="text-14 leading-body text-secondary">{t('import.undoBoundary')}</p>
-            </>
-          ) : undefined}
+              {stage.batchId ? (
+                <Button
+                  variant="destructive"
+                  disabled={!capability.server}
+                  onClick={async () => {
+                    if (!hasServerAuthority()) return;
+                    const summary = await request<{ notes: number; reviewedCards: number }>(
+                      `/imports/${stage.batchId}`,
+                    );
 
-          <div className="flex flex-wrap gap-8">
-            <Button
-              variant="primary"
-              onClick={() =>
-                void navigate({
-                  to: '/notes',
-                  search: deck === '' ? {} : { deckId: deck },
-                })
-              }
-            >
-              {t('import.openDeck')}
-            </Button>
+                    setConfirmUndo(summary);
+                  }}
+                >
+                  {t('import.undo')}
+                </Button>
+              ) : undefined}
+            </div>
+          </Card>
+        ) : undefined}
 
-            {stage.batchId ? (
-              <Button
-                variant="destructive"
-                onClick={async () => {
-                  const summary = await request<{ notes: number; reviewedCards: number }>(
-                    `/imports/${stage.batchId}`,
-                  );
-
-                  setConfirmUndo(summary);
-                }}
-              >
-                {t('import.undo')}
-              </Button>
-            ) : undefined}
-          </div>
-        </Card>
-      ) : undefined}
-
-      {failure && stage.kind !== 'importing' ? (
-        <ErrorState
-          message={t(describe(failure).key, describe(failure).values)}
-          retryLabel={t('common.retry')}
-          {...(stage.kind === 'preview' ? { onRetry: () => void checkParsed(stage.parsed) } : {})}
-        />
-      ) : undefined}
-
+        {failure && stage.kind !== 'importing' ? (
+          <ErrorState
+            message={t(describe(failure).key, describe(failure).values)}
+            retryLabel={t('common.retry')}
+            {...(stage.kind === 'preview' ? { onRetry: () => void checkParsed(stage.parsed) } : {})}
+          />
+        ) : undefined}
+      </fieldset>
       <PromptDialog
         open={prompt}
         onOpenChange={setPrompt}
         deck={deck === '' ? undefined : findDeck(tree, deck)}
         decks={tree}
       />
+
+      {draft.navigation.status === 'blocked' ? (
+        <Dialog
+          open
+          onOpenChange={() => draft.navigation.reset?.()}
+          title={t('import.draftLeaveTitle')}
+        >
+          <p className="text-14 text-secondary">{t('import.draftFailed')}</p>
+          <DialogFooter>
+            <Button
+              variant="primary"
+              full
+              onClick={async () => {
+                if (await draft.persist()) draft.navigation.proceed?.();
+              }}
+            >
+              {t('import.saveDraft')}
+            </Button>
+            <Button variant="text" full onClick={() => draft.navigation.reset?.()}>
+              {t('common.cancel')}
+            </Button>
+          </DialogFooter>
+        </Dialog>
+      ) : undefined}
 
       {confirmUndo && stage.kind === 'done' ? (
         <Dialog
@@ -467,6 +840,8 @@ function Preview({
   overrides,
   onOverride,
   blocked,
+  duplicateStatus,
+  changedDuplicates,
   checking,
   columns,
   onColumns,
@@ -481,6 +856,8 @@ function Preview({
   readonly overrides: Overrides;
   readonly onOverride: (line: number, value: Resolution | '') => void;
   readonly blocked: boolean;
+  readonly duplicateStatus: 'unavailable' | 'local' | 'confirmed';
+  readonly changedDuplicates: boolean;
   readonly checking: boolean;
   readonly columns: readonly string[];
   readonly onColumns: (columns: readonly string[]) => void;
@@ -491,9 +868,12 @@ function Preview({
   const t = useTranslate();
   const decks = useDeckTree();
   const [showCards, setShowCards] = useState(false);
-  const counts = termCounts(parsed.rows);
-  const known = groupMatches(duplicates);
-  const plan = planRows(parsed, duplicates, resolution, overrides);
+  const counts = useMemo(() => termCounts(parsed.rows), [parsed]);
+  const known = useMemo(() => groupMatches(duplicates), [duplicates]);
+  const plan = useMemo(
+    () => planRows(parsed, duplicates, resolution, overrides),
+    [parsed, duplicates, resolution, overrides],
+  );
   const firstValid = parsed.rows.find(
     (row) => rowProblems(row, parsed.noteType, counts).missing.length === 0,
   );
@@ -523,6 +903,7 @@ function Preview({
             {columns.map((column, index) => (
               <Select
                 key={index}
+                disabled={checking}
                 value={column}
                 aria-label={t('import.columns')}
                 onChange={(event) => {
@@ -545,6 +926,23 @@ function Preview({
       ) : undefined}
 
       <Panel className="flex flex-col gap-8">
+        <p className="text-13 text-secondary">
+          {t(`import.format.${parsed.format}`)} · {t(`note.type.${parsed.noteType}`)}
+        </p>
+        <p role="status" className="text-14 text-secondary">
+          {t(
+            duplicateStatus === 'confirmed'
+              ? 'import.duplicatesConfirmed'
+              : duplicateStatus === 'local'
+                ? 'import.duplicatesLocal'
+                : 'import.duplicatesUnavailable',
+          )}
+        </p>
+        {changedDuplicates ? (
+          <p role="status" className="text-14 text-secondary">
+            {t('import.duplicatesChanged')}
+          </p>
+        ) : undefined}
         <p className="text-14 text-primary" data-numeric="">
           {t('import.previewCount', { count: parsed.rows.length })}
         </p>
@@ -581,6 +979,7 @@ function Preview({
           {(props) => (
             <Select
               {...props}
+              disabled={checking}
               value={resolution}
               onChange={(event) => onResolution(event.target.value as Resolution)}
             >
@@ -652,6 +1051,7 @@ function Preview({
                     {(props) => (
                       <Select
                         {...props}
+                        disabled={checking}
                         className="scroll-my-96"
                         value={overrides[row.line] ?? ''}
                         onChange={(event) =>

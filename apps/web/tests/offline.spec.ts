@@ -2403,9 +2403,10 @@ for (const width of [undefined, 320]) {
     );
     expect(control.collectionReads).toBe(requests);
     await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
-    for (const name of ['New note', 'Import'])
-      await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
-    // Practice is not a server action: it stays available from the download.
+    await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Import', exact: true })).toBeEnabled();
+    // aria-disabled describes the unavailable capability; a deliberate press explains it.
+    await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
     await expect(
       page.getByRole('button', { name: 'Start practice', exact: true }),
     ).not.toHaveAttribute('aria-disabled', 'true');
@@ -2422,6 +2423,7 @@ for (const width of [undefined, 320]) {
       await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
       release();
       await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
+
       await expect(
         page.getByRole('button', { name: /Durable word Reconciled meaning/ }),
       ).toBeVisible();

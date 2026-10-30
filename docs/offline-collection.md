@@ -143,8 +143,9 @@ pausing probes while hidden; observed server progress requests immediate validat
 navigation adds no probe or collection scan. The handover cancels pending reads and
 invalidates active collection observers without removing cached query entries or remounting Library
 and Deck screens. Complete snapshot reads replace those entries locally. Local capabilities permit only
-existing Folder/Deck rename, durable existing-Note content editing, qualified offline Study and
-Practice; drag/drop, selection mutations, direct/swipe deletion, Note creation and Import application
+existing Folder/Deck rename, durable existing-Note content editing, qualified offline Study, Practice and Import
+preparation with local drafts;
+drag/drop, selection mutations, direct/swipe deletion, Note creation and Import application
 remain unavailable. Browsing completeness and learning-history readiness are separate Settings states.
 Control regions show deliberate unavailable states during the current visit and on re-entry.
 Search covers stored fields and
@@ -160,6 +161,57 @@ events revoke other open tabs. The account databases may remain on the device, b
 cannot select them after sign-out or use a prior account's query cache. Account deletion also revokes
 the local visit. Cookies, passwords, tokens, recovery codes and session secrets are never persisted in
 IndexedDB or service-worker caches.
+
+## Offline Import preparation
+
+Import uses its existing source, mapping, diagnostics and generated-card preview offline. JSON, CSV,
+TSV, plain text and Anki text still use the shared parser and the three existing Note types. File
+selection retains its 10 MiB limit; a preview draws at most 200 rows while counting the entire source.
+The normal Import entry in a Deck remains available offline. Preparation can also be parsed before a
+destination is selected. It creates no Notes or Cards and queues no entity mutations.
+
+Account-local drafts retain the raw source, unadded single-row fields, destination, source mode/format,
+Note type, column mapping, duplicate defaults and row choices, and source/preview position. Changes
+autosave; Save draft commits explicitly. Saved drafts reopen in Import, including after a cached PWA
+restart. They are preparation data, separate from Settings' synchronization outboxes. A source-copy
+download provides a recovery option when saving fails. Browser storage eviction can still remove local
+work; device storage is not a backup.
+
+`features/import/import-drafts.ts` stores version-1 envelopes under `import-draft:<id>` keys in the
+existing account database's `meta` store, with `import-draft-current` retaining the last selected draft.
+No shared collection schema change or Offline Practice persistence integration is required. Compatible additive upgrades
+and collection rebuilds preserve these keys. Unknown draft formats and unreadable storage fail closed
+without deleting existing records. Account and visit checks guard reads, writes and late results;
+sign-out, session rejection and account switching revoke access while retaining the originating data.
+Compare-and-save revisions prevent a stale tab from replacing another tab's saved work. A conflicting
+preparation can be retained as a separate draft.
+
+Duplicate matches from a complete downloaded collection are explicitly preliminary. Incomplete or
+unreadable collection data produces an unchecked state rather than an empty confirmed result. On
+reconnection, current server duplicate lookup replaces preliminary results. Each new application checks
+again immediately before freezing its plan; changed matches return to preview for review. Duplicate
+choices never authorize offline application. Server endpoints still validate destination, Note fields,
+duplicate merge behavior and every applied chunk.
+
+Before the first online write, the draft commits a frozen delivery checkpoint with its original batch
+and Note IDs. Each acknowledged 500-row chunk advances the checkpoint. A reopened interrupted import
+offers explicit online resume using those same IDs, including after a lost response. Resuming a frozen
+delivery retains its original duplicate decisions; it does not replan already-applied rows as new
+duplicates. The completed summary retains access to the existing server-confirmed Undo flow. Merges
+still fill blanks and remain outside the undoable additions batch.
+
+A failed storage transaction retains the previous committed draft and the current visible input.
+In-app navigation waits for the latest save and stays on the form if it fails. Pending changes request
+the browser's normal unload protection, and background/page-hide events attempt a flush. Application
+and delivery stop if a checkpoint cannot commit, including when persistence is disabled. Parsing and
+preview remain usable. Forced process termination before a save completes cannot guarantee the latest
+keystroke survives.
+
+`import.spec.ts` covers all formats, Note types, invalid/incomplete input, 5,000-row files, local
+duplicate uncertainty, server rechecks, durable navigation/reload, account switching and sign-out,
+quota/disabled storage, competing tabs, compatible upgrades, interrupted delivery and Undo. Its real
+HTTP-origin shutdown test closes and reopens the cached PWA offline. Browser evidence does not replace
+installed-iPhone acceptance of saving, reopening and reconnecting.
 
 ## Application shell and recovery
 

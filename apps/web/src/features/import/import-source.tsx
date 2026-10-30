@@ -36,6 +36,10 @@ export function ImportSource({
   raw,
   noteType,
   mode,
+  left,
+  right,
+  onLeft: setLeft,
+  onRight: setRight,
   onMode,
   onDeck,
   onRaw,
@@ -49,6 +53,10 @@ export function ImportSource({
   readonly raw: string;
   readonly noteType: NoteTypeName;
   readonly mode: ImportMode;
+  readonly left: string;
+  readonly right: string;
+  readonly onLeft: (value: string) => void;
+  readonly onRight: (value: string) => void;
   readonly onMode: (mode: ImportMode) => void;
   readonly onDeck: (value: string) => void;
   readonly onRaw: (value: string) => void;
@@ -58,8 +66,6 @@ export function ImportSource({
 }) {
   const t = useTranslate();
   const fileInput = useRef<HTMLInputElement>(null);
-  const [left, setLeft] = useState('');
-  const [right, setRight] = useState('');
   const [fileError, setFileError] = useState(false);
   const [appendError, setAppendError] = useState(false);
   const [reading, setReading] = useState(false);
@@ -428,7 +434,7 @@ export function ImportSource({
         variant="primary"
         full
         busy={reading}
-        disabled={!raw.trim() || !deck || fileError}
+        disabled={!raw.trim() || fileError}
         onClick={onRead}
       >
         {t('import.read')}

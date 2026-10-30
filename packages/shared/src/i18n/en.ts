@@ -130,8 +130,8 @@ export const en = {
   'offline.status.attentionDetail': 'They stay on this device until you choose what to keep.',
   'offline.works': 'What works offline',
   'offline.works.available':
-    'Without a connection you can browse your Library and Notes, rename Folders and Decks, edit existing Notes, study and practice.',
-  'offline.works.needsConnection': 'New Notes and Import need a connection.',
+    'Without a connection you can browse your Library and Notes, rename Folders and Decks, edit existing Notes, study, practice and prepare Import drafts.',
+  'offline.works.needsConnection': 'New Notes and applying an Import need a connection.',
   'offline.diagnostics': 'Save startup diagnostics',
   'offline.practiceUnavailable': 'Practice requires a connection.',
   'offline.practice.savedChanges': 'Saved Practice',
@@ -815,6 +815,31 @@ export const en = {
     'Cannot read row {row}. Check that its columns are assigned to supported fields.',
 
   'import.title': 'Import',
+  'import.saveDraft': 'Save draft on this device',
+  'import.saveSeparateDraft': 'Save these changes as a separate draft',
+  'import.saveSource': 'Save a copy of the source',
+  'import.newDraft': 'New import draft',
+  'import.savedDrafts': 'Saved import drafts',
+  'import.draftName': 'Draft {number} · {deck}',
+  'import.draftSaved':
+    'Draft saved on this device. Preparation is local; nothing is imported until you apply it online.',
+  'import.draftPending':
+    'Import preparation stays on this device. Changes are saved automatically.',
+  'import.draftFailed':
+    'The latest draft could not be saved. Keep this screen open, save a copy of the source and retry saving.',
+  'import.draftConflict':
+    'Another window saved a newer version. Your changes remain here. Save them as a separate draft or copy the source.',
+  'import.draftsUnavailable':
+    'Saved drafts could not be read. Existing drafts are kept. You can prepare a new import here and retry saving.',
+  'import.draftLeaveTitle': 'Save this draft before leaving',
+  'import.duplicatesLocal':
+    'Preliminary matches from the downloaded collection. Connect to check current server duplicates before importing.',
+  'import.duplicatesUnavailable':
+    'Collection duplicates have not been checked. You can prepare this draft; connect to check duplicates and apply the import.',
+  'import.duplicatesConfirmed':
+    'Duplicates checked with the server. They will be checked again before this import is applied.',
+  'import.duplicatesChanged':
+    'Server duplicates have changed. Review the updated matches and choices before importing.',
   'import.subtitle': 'Review your notes before importing.',
   'import.deck': 'Import into',
   'import.paste': 'Paste the list here',

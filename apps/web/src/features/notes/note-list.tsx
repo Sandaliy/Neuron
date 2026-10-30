@@ -178,14 +178,15 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           <>
             <ServerControls available={serverReady}>
               {deck && <RestartLearning deck={deck} />}
-              <Button
-                variant="quiet"
-                onClick={() => void navigate({ to: '/import', search: deckSearch })}
-              >
-                <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
-                <span className="sr-only sm:not-sr-only">{t('notes.import')}</span>
-              </Button>
-
+            </ServerControls>
+            <Button
+              variant="quiet"
+              onClick={() => void navigate({ to: '/import', search: deckSearch })}
+            >
+              <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
+              <span className="sr-only sm:not-sr-only">{t('notes.import')}</span>
+            </Button>
+            <ServerControls available={serverReady}>
               <Button
                 variant="primary"
                 onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
