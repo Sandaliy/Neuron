@@ -4,11 +4,12 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-10-30.
+Last updated: 2026-10-31.
 
 ## Release
 
-Phases 0 to 8.6 and the 2026-10-30 quality pass are on protected `main`. The product has:
+Phases 0 to 8.6, the 2026-10-30 quality pass, offline Practice and offline Import preparation are on
+protected `main`. The product has:
 
 - Daily Study with deterministic time-based planning, explainable new-card admission, current-session
   Undo and durable answers that survive offline sittings, reload and lost responses.
@@ -16,15 +17,18 @@ Phases 0 to 8.6 and the 2026-10-30 quality pass are on protected `main`. The pro
 - Writable Folders/Decks/Notes, import with resume and undo, soft deletion with Deleted/Restore.
 - Offline: a complete downloaded collection browses, renames, edits existing Notes and plans Study
   locally. Answers, renames and Note edits travel through account-bound outboxes with exact retries and
-  retained conflicts. Settings > Offline & sync shows saved work and recovery.
+  retained conflicts. Practice runs offline with durable ordered delivery and explicit two-device
+  conflict choice. Import preparation works offline with account-local drafts and resumable delivery
+  checkpoints; creating Notes and applying an Import still require a connection. Settings > Offline &
+  sync shows saved work and recovery.
 
-Not built: offline Note creation, offline Import, Phase 9 progressive directions,
+Not built: offline Note creation or Import application, Phase 9 progressive directions,
 Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
 Owner acceptance on the installed iPhone is the gate for interaction work. The last full acceptance was
 Phase 8.4 (PR #53) and offline Study (PR #54/#55). PR #56 was not accepted: the app still felt slow,
-inconsistent and cumbersome, which started the quality pass below. The pass itself still needs iPhone
-acceptance.
+inconsistent and cumbersome, which started the quality pass below. The quality pass, offline Practice,
+and offline Import preparation still need installed-iPhone acceptance.
 
 ## Quality pass, merged 2026-10-30
 
@@ -35,38 +39,23 @@ acceptance.
 | #60 | One motion system (screens arrive by direction, dialogs, menus, toasts, card advance and Undo, disclosures and Library folders), no focus ring after a tap, choices drawn as switch rows, a faithful drag preview, Deleted and headers matching Library, readable toasts, dialog glass without the colour boost, a Study tap that waits for its plan. |
 | #59 | This file, the browser test index, `test:screens:ci`.                                                                                                                                                                                                                                                                                                 |
 
-## In review: offline Practice (`work/offline-practice`)
-
-Practice starts, continues, undoes and completes from a downloaded collection. Each step is saved on
-the device before the card moves on and is delivered in order with its own identity on reconnection.
-The server answers exact retries from `sync_receipts`, no longer changes the run version on read,
-skips steps for Notes that left the pool, and has `GET /decks/practice` and a `replace` command. Two
-devices that practiced the same Deck apart are asked once which run to continue; nothing is merged.
-No migration and no IndexedDB version change. Details in `offline-collection.md`. The pull request is
-left open for owner acceptance on the installed iPhone; offline Import is a separate pull request by
-another agent and touches the same i18n "what works offline" strings.
-
 ## Next
 
-1. Owner acceptance of offline Practice on the installed iPhone: start and finish offline, close and
-   reopen the app, reconnect, and practice one Deck on two devices apart.
-2. Owner acceptance of the quality pass on the installed iPhone: screen and card motion, folders and
-   disclosures, choice rows, Study start after a setup change, and reconnecting after an offline sitting.
-3. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
+1. Owner acceptance of the quality pass and recent offline features on the installed iPhone: screen
+   and card motion, folders and disclosures, choice rows, Study start after a setup change, and
+   reconnecting after an offline sitting; start and finish Practice offline, close and reopen, reconnect,
+   and choose between runs after practicing one Deck on two devices; prepare and reopen an Import draft
+   offline, then connect to check duplicates and apply or resume it.
+2. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
-4. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
+3. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
    learning-semantics decision for the owner.
 
 ## Open threads
 
-- Offline Import preparation is implemented on `work/offline-import-drafts`, pending protected PR
-  review/checks and installed-iPhone acceptance. The existing Import screen parses/previews offline and
-  saves account-local drafts plus resumable delivery checkpoints. Application stays online-only.
-  Drafts use existing metadata keys without an IndexedDB schema change or Offline Practice dependency;
-  see `offline-collection.md`. This branch is not merged or enabled in production.
-- "Card unavailable" can end a sitting on its first card when a Card's direction/slot no longer exists
-  in its Note's possible cards (seen with seeded cloze data; could follow a Note edit that retains a
-  Card). A fix is in progress in its own pull request.
+- Study now passes over Cards whose Note no longer produces a displayable face, so a sitting can
+  finish. Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue;
+  repairing those records or changing planning semantics remains an owner decision.
 - Local new-card admission offline is conservative over the last complete download and this device's
   events; it cannot see other devices' offline work. Reconnection keeps server authority.
 - Hosted CI has shown one unreproduced desktop navigation scroll assertion and occasional Chromium
