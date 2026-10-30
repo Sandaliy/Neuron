@@ -34,6 +34,7 @@ export function Checkbox({
     <RadixCheckbox.Root
       id={id}
       data-slot="checkbox"
+      aria-labelledby={`${id}-label`}
       checked={checked}
       disabled={disabled}
       onCheckedChange={(next) => onChange(next === true)}
@@ -43,6 +44,7 @@ export function Checkbox({
       ].join(' ')}
     >
       <span
+        id={`${id}-label`}
         className={[
           'min-w-0 flex-1 text-14 leading-body text-secondary',
           'group-data-[state=checked]:text-primary group-data-[state=indeterminate]:text-primary',

@@ -1541,7 +1541,8 @@ body:has([data-learning-screen]) [data-g='tabbar'] {
  * contents changes, so picking it up reads as moving it, not replacing it.
  */
 [data-collection-preview] {
-  animation: neu-lift var(--dur-2) var(--ease-enter) both;
+  transform: scale(1.02);
+  animation: neu-lift var(--dur-2) var(--ease-enter) backwards;
 }
 [data-collection-preview] > * {
   box-shadow: var(--elev-3);

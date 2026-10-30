@@ -934,11 +934,20 @@ test('small and large saved Note histories stay compact by default and disclose 
   );
   await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
   await expect(region.getByRole('button', { name: /Saved receipt/ })).toHaveCount(10);
-  // Nothing in the region may still be moving, including the section resizing
-  // to the receipts that load just after it opens.
-  await region.evaluate((element) =>
-    Promise.all(element.getAnimations({ subtree: true }).map((motion) => motion.finished)),
-  );
+  // Recent activity must have finished opening, and resizing to the receipts
+  // that load after it opens, before the nested section is measured.
+  await expect
+    .poll(() =>
+      page.getByRole('button', { name: 'Recent activity', exact: true }).evaluate((button) => {
+        const body = document.getElementById(button.getAttribute('aria-controls')!)!;
+        return (
+          body.dataset['disclosureOpen'] === 'true' &&
+          body.dataset['moving'] === 'false' &&
+          body.getAnimations({ subtree: true }).length === 0
+        );
+      }),
+    )
+    .toBe(true);
   const frames = await region
     .getByRole('button', { name: /Saved receipt/ })
     .first()
