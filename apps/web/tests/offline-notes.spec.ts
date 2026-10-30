@@ -337,8 +337,9 @@ test('newer edits remain durable while a frozen delivery loses acknowledgement a
   release();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page
-    .getByRole('region', { name: 'Saved Note edits' })
-    .getByRole('button', { name: 'Try again', exact: true })
+    .getByRole('region', { name: 'Offline & sync' })
+    .getByRole('button', { name: /^(Send now|Try again)$/ })
+    .first()
     .click();
   await expect
     .poll(async () => (await stored(page)).map((entry) => entry.state))
@@ -881,7 +882,7 @@ for (const malformed of [false, true])
     }
   });
 
-test('small and large saved Note histories stay compact by default and disclose retained versions accessibly', async ({
+test('small and large synchronized Note histories stay on the device without being listed', async ({
   page,
 }, info) => {
   const state = await fixture(page);
@@ -890,17 +891,8 @@ test('small and large saved Note histories stay compact by default and disclose 
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('synchronized');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   const region = page.getByRole('region', { name: 'Saved Note edits' });
-  await expect(
-    page.getByText('Everything is saved to your account.', { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Recent activity', exact: true })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  );
-  await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
-    0,
-  );
-  await expect(region.getByText(/Original server revision/)).toHaveCount(0);
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  await expect(region).toHaveCount(0);
   const saved = (await stored(page))[0]!;
   await page.evaluate(
     async ({ accountId, saved }) => {
@@ -931,87 +923,10 @@ test('small and large saved Note histories stay compact by default and disclose 
     { accountId: account.id, saved },
   );
   await page.reload();
-  await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
-    0,
-  );
-  await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
-  await expect(region.getByRole('button', { name: /Saved receipt/ })).toHaveCount(10);
-  // Recent activity must have finished opening, and resizing to the receipts
-  // that load after it opens, before the nested section is measured.
-  await expect
-    .poll(() =>
-      page.getByRole('button', { name: 'Recent activity', exact: true }).evaluate((button) => {
-        const body = document.getElementById(button.getAttribute('aria-controls')!)!;
-        return (
-          body.dataset['disclosureOpen'] === 'true' &&
-          body.dataset['moving'] === 'false' &&
-          body.getAnimations({ subtree: true }).length === 0
-        );
-      }),
-    )
-    .toBe(true);
-  const frames = await region
-    .getByRole('button', { name: /Saved receipt/ })
-    .first()
-    .evaluate(async (button) => {
-      const content = document.getElementById(button.getAttribute('aria-controls')!)!;
-      const fade = content.querySelector('.neu-disclosure-content')!;
-      const parent = content.parentElement!.closest('.neu-disclosure') as HTMLElement;
-      const parentContent = parent.querySelector('.neu-disclosure-content')!;
-      const frames: Array<{
-        opacity: number;
-        complete: boolean;
-        parentFollows: boolean;
-        clippedUnits: number;
-      }> = [];
-      (button as HTMLButtonElement).click();
-      const start = performance.now();
-      await new Promise<void>((resolve) => {
-        const sample = () => {
-          const boundary = content.getBoundingClientRect().bottom;
-          const clippedUnits = Array.from(
-            fade.querySelectorAll('label, input, textarea, select, button, p'),
-          ).filter((unit) => {
-            // A closed section nested inside keeps layout boxes it does not paint.
-            if (unit.closest('[data-disclosure-open="false"]')) return false;
-            const bounds = unit.getBoundingClientRect();
-            return bounds.height > 0 && bounds.top < boundary - 1 && bounds.bottom > boundary + 1;
-          }).length;
-          frames.push({
-            clippedUnits,
-            opacity: Number(getComputedStyle(fade).opacity),
-            complete:
-              content.getBoundingClientRect().height >= fade.getBoundingClientRect().height - 1,
-            // The open parent grows with the nested body instead of cutting it off.
-            parentFollows:
-              parent.getBoundingClientRect().height >=
-              parentContent.getBoundingClientRect().height - 1,
-          });
-          if (performance.now() - start < 800) requestAnimationFrame(sample);
-          else resolve();
-        };
-        requestAnimationFrame(sample);
-      });
-      return frames;
-    });
-  await info.attach('nested-history-reveal-frames', {
-    body: JSON.stringify(frames),
-    contentType: 'application/json',
-  });
-  expect(frames.some((frame) => frame.opacity > 0.05 && !frame.complete)).toBe(true);
-  expect(frames.every((frame) => frame.clippedUnits === 0 || frame.opacity < 0.99)).toBe(true);
-  expect(frames.every((frame) => frame.parentFollows)).toBe(true);
-  expect(frames.at(-1)).toMatchObject({ complete: true, opacity: 1 });
-  await expect(region.getByRole('button', { name: 'Copy saved draft', exact: true })).toHaveCount(
-    1,
-  );
-  await expect(region.locator('[data-moving="true"]')).toHaveCount(0);
-  await region
-    .getByRole('button', { name: 'Copy saved draft', exact: true })
-    .scrollIntoViewIfNeeded();
-  await expect(
-    region.getByRole('button', { name: 'Copy saved draft', exact: true }),
-  ).toBeInViewport();
+  const section = page.getByRole('region', { name: 'Offline & sync' });
+  await expect(section.getByText('All changes saved', { exact: true })).toBeVisible();
+  await expect(section.getByRole('button', { name: /Saved receipt/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Recent activity' })).toHaveCount(0);
   expect(await stored(page)).toHaveLength(250);
-  await page.screenshot({ path: info.outputPath('compact-note-history.png') });
+  await page.screenshot({ path: info.outputPath('settled-note-history.png') });
 });

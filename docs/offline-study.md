@@ -47,10 +47,11 @@ unavailable until the new matching plan is ready; an admitted sitting keeps its 
 answer/Undo path. Healthy setup omits the persistent downloaded-source paragraph. Actual limitations,
 missing voices, local saving, storage failures and pending delivery retain contextual feedback.
 
-Settings reports synchronization and verified Study readiness compactly. Download completeness,
-capability details, connection checks and diagnostic export are available under Offline details.
-Pending/rejected/conflicting work, storage failures and incomplete history remain outside optional
-Recent activity. Browsing download completeness stays separate from Study data readiness, with a
+Settings > Offline & sync is one status: everything saved, saving (with Send now), waiting for a
+connection, needs your attention, or a broken offline copy. Only work that needs a decision is listed,
+each item with its own actions; waiting work is a count, and synchronized work is not listed at all
+(its records stay on the device). What works offline, Check connection and diagnostic export sit under
+What works offline. Browsing download completeness stays separate from Study data readiness, with a
 restricted-work count and synchronization/rebuild guidance for real history gaps. Rebuild preserves
 receipts and refuses unresolved/recovery work. Available due reviews, admissible new Cards and
 excluded work are distinct: a collection of fifty Cards is not a promise of fifty Cards in one sitting.
@@ -169,8 +170,8 @@ Copy recovery record. Invalid/mismatched acknowledgements remain pending. Storag
 visible; collection Rebuild refuses unresolved Reviews, recovery archives or unreadable records.
 No command, receipt, original version or archive is deleted to simplify Settings.
 
-Settings presents this work as one piece rather than one row per event. Waiting events are a count,
-refused ones are grouped by the reason the server gave, and Retry, Keep session for recovery and
+Settings presents this work as one piece rather than one row per event. Waiting events are a count in
+the section's status, refused ones are grouped by the reason the server gave, and Retry, Keep session for recovery and
 Copy recovery record each appear once; the recovery copy carries every unsettled event. Retry always
 retried the whole queue, so a button per row was the same button sixteen times, and the one answer
 the server actually refused was indistinguishable from the fifteen waiting their turn. The summary
@@ -182,9 +183,10 @@ transaction archives all its undelivered answers/cancellations and closes that s
 writes. It preserves every original event and reports that they were not synchronized. Automatic
 retry excludes this archive; a fresh server-authorized sitting can proceed from server schedules.
 Archiving alone never fabricates a Review or server acknowledgement. Recovery-copy access stays
-available. Synchronized history stays in optional, bounded Recent activity; recovery stays visible.
-If a validated acknowledgement was already in flight during concurrent recovery closure, it is stored
-inside the retained archive and shown explicitly as server-confirmed in optional Recent activity.
+available. Synchronized history is kept on the device and not listed; while an archive holds events the
+server never confirmed, the status says they were kept and not synchronized. If a validated
+acknowledgement was already in flight during concurrent recovery closure, it is stored inside the
+retained archive, which then counts as settled.
 Its authoritative Card is reconciled; the closed sitting is never reopened for delivery.
 
 Expiry/sign-out/account switching revoke delivery and local access before late results can publish.

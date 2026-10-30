@@ -180,7 +180,7 @@ test('an admitted offline sitting reopens its durable events and retries a lost 
       saved.map((entry) => entry.event),
     );
     await expect(page.getByRole('button', { name: 'Undo last answer' })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Offline details', exact: true }).click();
+    await page.getByRole('button', { name: 'What works offline', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeVisible();
     server = serve({ fetch, hostname: '127.0.0.1', port });
     await new Promise<void>((resolve) =>

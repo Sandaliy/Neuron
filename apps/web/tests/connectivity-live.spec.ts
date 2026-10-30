@@ -257,7 +257,7 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
       server.listening ? resolve() : server.once('listening', resolve),
     );
     reads = accountReads;
-    await page.getByRole('button', { name: 'Offline details', exact: true }).click();
+    await page.getByRole('button', { name: 'What works offline', exact: true }).click();
     const check = page.getByRole('button', { name: 'Check connection', exact: true });
     await check.evaluate((el) => (el as HTMLButtonElement).click());
     await expect.poll(() => accountReads).toBe(reads + 1);

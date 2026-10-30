@@ -347,7 +347,9 @@ test('a draining backlog settles the Settings list without rearranging the scree
   await expect.poll(async () => (await stored(page)).length).toBe(ANSWERS);
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Study answers' })).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Offline & sync' }).getByText(/^Saving changes \(\d+\)…$/),
+  ).toBeVisible();
   /*
    * Everything below the list is what the owner watches jump about. Sampling
    * the position of the next section says how many times the screen moved

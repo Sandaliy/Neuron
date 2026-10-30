@@ -254,7 +254,7 @@ the api anywhere in browser code would cost the session cookie.
 | `settings/pending-renames.tsx`                  | Account-bound saved names, delivery status, original versions and explicit conflict recovery    |
 | `settings/pending-notes.tsx`                    | Saved Note versions, delivery states and explicit conflict recovery                             |
 | `settings/pending-reviews.tsx`                  | Grouped Study delivery status, one retry/recovery action and retained rejected-session recovery |
-| `settings/saved-work.tsx`, `sync-summary.tsx`   | Bounded optional receipt disclosures and concise account synchronization status                 |
+| `settings/offline-access.tsx`, `saved-work.tsx` | Offline & sync: one status, decisions only, what works offline; when work counts as settled     |
 | `settings/totp.tsx`                             | Enrollment in three steps that cannot be skipped, and removal                                   |
 | `library/library.tsx`                           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
 | `library/deck-dialogs.tsx`                      | Deck naming, safe move picker and inherited language/level settings                             |
