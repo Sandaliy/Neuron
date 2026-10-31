@@ -72,7 +72,7 @@ export async function practicePool(deckId: string, signal: AbortSignal): Promise
     const notes: Note[] = [];
     let cursor: string | undefined;
     do {
-      const page = await localNotes({ deckId, sort: 'created' }, cursor);
+      const page = await localNotes({ deckId, sort: 'created' }, cursor, 1000, true);
       notes.push(...page.items);
       cursor = page.nextCursor;
     } while (cursor);

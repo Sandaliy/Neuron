@@ -110,6 +110,10 @@ export function describe(error: unknown): { key: MessageKey; values: MessageValu
     return { key: 'error.review_delivery_pending', values: {} };
   if (error instanceof Error && error.message === 'collection_note_storage')
     return { key: 'offline.note.notSaved', values: {} };
+  if (error instanceof Error && error.message === 'collection_create_deck')
+    return { key: 'offline.create.deckMissing', values: {} };
+  if (error instanceof Error && error.message === 'collection_create_storage')
+    return { key: 'offline.create.notSaved', values: {} };
   if (error instanceof Error && error.message === 'practice_storage')
     return { key: 'practice.storageFailed', values: {} };
   if (error instanceof Error && error.message === 'collection_rename_pending')

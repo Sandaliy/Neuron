@@ -20,6 +20,7 @@ import {
   parseNoteFields,
   updateNoteSchema,
   editOfflineNoteCommandSchema,
+  createOfflineNoteCommandSchema,
 } from '@neuron/shared';
 import type { NoteTypeName } from '@neuron/shared';
 
@@ -157,6 +158,12 @@ export function noteRoutes(): Hono<RequestBindings> {
       note: serialiseNote((await repo.notes.byId(id))!, await repo.noteTypes.namesById()),
       cards: (await repo.cards.forNote(id)).map(serialiseCard),
     });
+  });
+
+  /** A Note saved on the device first, delivered exactly once under its own id. */
+  routes.post('/offline-create', async (context) => {
+    const command = await readBody(context, createOfflineNoteCommandSchema);
+    return context.json(await repositoriesOf(context).collectionNotes.create(command));
   });
 
   routes.post('/status', async (context) => {
