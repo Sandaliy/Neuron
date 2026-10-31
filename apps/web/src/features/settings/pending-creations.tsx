@@ -61,9 +61,9 @@ function SavedCreation({ entry }: { readonly entry: PendingNoteCreate }) {
   const client = useQueryClient();
   const decks = useDeckTree();
   const tree = decks.data ?? [];
-  const [deck, setDeck] = useState(
-    () => flatten(tree).find((row) => row.kind === 'deck')?.id ?? '',
-  );
+  const [picked, setDeck] = useState('');
+  // The first live Deck is offered; nothing moves until the learner confirms it.
+  const deck = picked || (flatten(tree).find((row) => row.kind === 'deck')?.id ?? '');
   const choose = useMutation({
     mutationFn: () => chooseCreationDeck(entry.entityId, deck),
     onSuccess: () => void client.invalidateQueries({ queryKey: ['notes', 'list'] }),

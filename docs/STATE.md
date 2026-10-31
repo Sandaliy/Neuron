@@ -9,7 +9,8 @@ Last updated: 2026-10-31.
 ## Release
 
 Phases 0 to 8.6, the 2026-10-30 quality pass, offline Practice and offline Import preparation are on
-protected `main`. The product has:
+protected `main`. Offline Note creation is on `work/offline-note-creation`, awaiting owner review. The
+product has:
 
 - Daily Study with deterministic time-based planning, explainable new-card admission, current-session
   Undo and durable answers that survive offline sittings, reload and lost responses.
@@ -19,10 +20,13 @@ protected `main`. The product has:
   locally. Answers, renames and Note edits travel through account-bound outboxes with exact retries and
   retained conflicts. Practice runs offline with durable ordered delivery and explicit two-device
   conflict choice. Import preparation works offline with account-local drafts and resumable delivery
-  checkpoints; creating Notes and applying an Import still require a connection. Settings > Offline &
-  sync shows saved work and recovery.
+  checkpoints; applying an Import still requires a connection. Settings > Offline & sync shows saved
+  work and recovery.
+- Offline Note creation (branch, not merged): new Notes save into downloaded Decks through the normal
+  editor, keep one device-chosen id, and are delivered once; the server makes their Cards. A Deck deleted
+  meanwhile leaves the Note on the device for an explicit choice in Settings.
 
-Not built: offline Note creation or Import application, Phase 9 progressive directions,
+Not built: offline Import application, Phase 9 progressive directions,
 Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
 Owner acceptance on the installed iPhone is the gate for interaction work. The last full acceptance was
@@ -45,7 +49,8 @@ and offline Import preparation still need installed-iPhone acceptance.
    and card motion, folders and disclosures, choice rows, Study start after a setup change, and
    reconnecting after an offline sitting; start and finish Practice offline, close and reopen, reconnect,
    and choose between runs after practicing one Deck on two devices; prepare and reopen an Import draft
-   offline, then connect to check duplicates and apply or resume it.
+   offline, then connect to check duplicates and apply or resume it; offline Note creation with the steps
+   in `offline-collection.md`.
 2. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
 3. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
@@ -96,3 +101,4 @@ and offline Import preparation still need installed-iPhone acceptance.
 | 2026-10-30 | api functions in `fra1`                                     | The database is in Frankfurt; a query costs one round trip |
 | 2026-10-30 | Screens animate their arrival by direction                  | Owner acceptance: navigation felt abrupt with no motion    |
 | 2026-10-30 | Visual changes are shown to the owner before merging        | Two restyles in a row were rejected on sight               |
+| 2026-11-01 | New Notes get their id on the device, Cards on the server   | One identity across retries; schedules stay authoritative  |
