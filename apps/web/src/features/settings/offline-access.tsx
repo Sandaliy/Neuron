@@ -7,6 +7,11 @@ import type { MessageKey } from '@neuron/shared';
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { deliverRenames, renames } from '../../lib/collection-outbox';
+import {
+  deckCreations,
+  deckCreationsQueryKey,
+  deliverDeckCreations,
+} from '../../lib/deck-creation';
 import { exportLifecycle } from '../../lib/lifecycle';
 import { noteCreations, retryNoteCreations } from '../../lib/note-creation';
 import { noteEdits, retryNoteEdits } from '../../lib/note-outbox';
@@ -21,6 +26,7 @@ import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 import { Disclosure } from '../../ui/disclosure';
 import { Spinner } from '../../ui/spinner';
 
+import { PendingCollections } from './pending-collections';
 import { PendingCreations, noteCreationsKey } from './pending-creations';
 import { PendingNotes } from './pending-notes';
 import { PendingPractice, usePracticeRecords } from './pending-practice';
@@ -69,6 +75,7 @@ export function OfflineAccess() {
         retryNoteCreations().then(retryNoteEdits),
         deliverRenames(),
         deliverPractice(),
+        deliverDeckCreations(),
       ]),
   });
   const [details, setDetails] = useState(false);
@@ -211,6 +218,7 @@ export function OfflineAccess() {
             <PendingReviews />
             <PendingCreations />
             <PendingNotes />
+            <PendingCollections />
             <PendingRenames />
             <PendingPractice />
           </div>
@@ -297,6 +305,11 @@ function Alert() {
 function useSavedWork() {
   const state = useOffline();
   const options = { enabled: !!state.accountId, networkMode: 'always' as const };
+  const collections = useQuery({
+    queryKey: deckCreationsQueryKey(state.accountId),
+    queryFn: () => deckCreations(state.accountId!),
+    ...options,
+  });
   const names = useQuery({
     queryKey: ['outbox', state.accountId],
     queryFn: () => renames(state.accountId!),
@@ -319,6 +332,7 @@ function useSavedWork() {
   });
   const practice = usePracticeRecords();
   const entries: { state: string; failure?: string | undefined; acknowledgement?: unknown }[] = [
+    ...(collections.data ?? []),
     ...(names.data ?? []),
     ...(notes.data ?? []),
     ...(creations.data ?? []),
@@ -337,7 +351,14 @@ function useSavedWork() {
   return {
     // Answers kept for recovery were never synchronized; the status says so.
     kept: entries.filter((entry) => entry.state === 'archived' && !workIsSettled(entry)).length,
-    error: !!(names.error || notes.error || creations.error || reviews.error || practice.error),
+    error: !!(
+      names.error ||
+      notes.error ||
+      creations.error ||
+      reviews.error ||
+      practice.error ||
+      collections.error
+    ),
     waiting: waiting.length,
     stalled: waiting.some((entry) => entry.failure !== undefined),
     attention: open.length - waiting.length,

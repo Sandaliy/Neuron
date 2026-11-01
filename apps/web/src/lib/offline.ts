@@ -25,6 +25,12 @@ import {
   projectCollectionCreation,
   projectCollectionNote,
 } from './collection-read';
+import {
+  cancelDeckCreationDelivery,
+  deliverDeckCreations,
+  onDeckCreationChange,
+  deckCreationsQueryKey,
+} from './deck-creation';
 import { lifecycle } from './lifecycle';
 import {
   cancelNoteCreationDelivery,
@@ -170,6 +176,7 @@ async function transitionReads(local: boolean) {
 export function revokeOffline(explicit = false) {
   clearCollectionProjection();
   confirmedReviewCards.clear();
+  cancelDeckCreationDelivery();
   cancelRenameDelivery();
   cancelNoteDelivery();
   cancelNoteCreationDelivery();
@@ -437,6 +444,7 @@ function enterLocalConnection(connectivity: OfflineState['connectivity']) {
   }
   lifecycle('offline');
   emit({ offline: true, validated: false, connectivity });
+  cancelDeckCreationDelivery();
   cancelRenameDelivery();
   cancelNoteDelivery();
   cancelNoteCreationDelivery();
@@ -507,6 +515,7 @@ async function download(account: Me) {
       stage = 'database';
       localStorage.setItem(CONTEXT_KEY, account.id);
       await deliverRenames();
+      await deliverDeckCreations();
       // Before edits: an edit made while a new Note was on its way is based on
       // the revision its creation acknowledgement names.
       await deliverNoteCreations();
@@ -818,6 +827,18 @@ export function initializeOffline(queryClient: QueryClient) {
       })
       .catch(() => undefined);
   });
+  onDeckCreationChange(() => {
+    const visit = epoch;
+    const id = state.accountId;
+    if (!id) return;
+    void client?.invalidateQueries({ queryKey: deckCreationsQueryKey(id) });
+    if (!state.offline && state.validated)
+      void deliverDeckCreations().then(() => {
+        if (visit !== epoch) return;
+        refreshDownload();
+        void client?.invalidateQueries({ queryKey: ['decks'] });
+      });
+  });
   onOutboxChange(() => {
     const visit = epoch;
     const id = state.accountId;
@@ -862,6 +883,7 @@ export function initializeOffline(queryClient: QueryClient) {
     if (event.key === SIGNED_OUT_KEY) {
       if (event.newValue === 'true') {
         confirmedReviewCards.clear();
+        cancelDeckCreationDelivery();
         cancelRenameDelivery();
         cancelNoteDelivery();
         cancelNoteCreationDelivery();
@@ -890,6 +912,7 @@ export function initializeOffline(queryClient: QueryClient) {
     }
     if (event.key === CONTEXT_KEY && event.newValue !== state.accountId) {
       confirmedReviewCards.clear();
+      cancelDeckCreationDelivery();
       cancelRenameDelivery();
       cancelNoteDelivery();
       cancelNoteCreationDelivery();

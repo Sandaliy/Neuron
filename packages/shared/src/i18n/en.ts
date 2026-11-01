@@ -2,6 +2,29 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'offline.collection.saved':
+    'Saved on this device. It will sync when your connection is confirmed.',
+  'offline.collection.local': 'Saved on device',
+  'offline.collection.waiting':
+    'Sync or resolve saved Folders and Decks before changing the Library.',
+  'offline.collection.notSaved': 'Could not save on this device. Keep this name and try again.',
+  'offline.collection.parentRequired': 'Choose a downloaded Folder, or create at the Library root.',
+  'offline.collection.dependencies':
+    'This Folder or Deck must sync before you can add to it or change it.',
+  'offline.collection.parent_unavailable':
+    'The original Folder is unavailable. This creation is still saved on this device. Choose where to create it.',
+  'offline.collection.parent_changed':
+    'The original Folder or its inherited settings changed. Review where to create this saved item.',
+  'offline.collection.identity_exists':
+    'This identity already belongs to another item. The saved name is retained; copy it and create a new item.',
+  'offline.collection.name_exists':
+    'This name is already used here. Choose a different name or location.',
+  'offline.collection.rejected':
+    'The server did not accept this creation. Its name and original location remain saved on this device.',
+  'offline.collection.originalParent': 'Original location: {name}',
+  'offline.collection.chooseParent': 'Create inside',
+  'offline.collection.saveHere': 'Create here',
+  'offline.collection.archive': 'Stop syncing and archive',
   'offline.connectionUncertain':
     'The server is taking longer to respond. Your download is available while checking continues.',
   'offline.study.waitingDownload': 'Offline Study needs a complete download.',
@@ -145,7 +168,7 @@ export const en = {
   'offline.status.attentionDetail': 'They stay on this device until you choose what to keep.',
   'offline.works': 'What works offline',
   'offline.works.available':
-    'Without a connection you can browse your Library and Notes, rename Folders and Decks, edit existing Notes, study, practice and prepare Import drafts.',
+    'Without a connection you can browse your Library and Notes, create or rename Folders and Decks, edit existing Notes, study, practice and prepare Import drafts. New Folders and Decks must sync before you can add to them.',
   'offline.works.needsConnection': 'New Notes and applying an Import need a connection.',
   'offline.diagnostics': 'Save startup diagnostics',
   'offline.practiceUnavailable': 'Practice requires a connection.',
