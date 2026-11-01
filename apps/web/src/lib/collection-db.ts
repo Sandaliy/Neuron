@@ -19,6 +19,12 @@ export const collectionName = (accountId: string) => `neuron.collection:${accoun
 export const DECK_CREATION_PREFIX = 'deck-create:';
 export const deckCreationRange = () =>
   IDBKeyRange.bound(DECK_CREATION_PREFIX, `${DECK_CREATION_PREFIX}\uffff`);
+/** New Notes saved on this device, one `meta` record each. Earlier shells never read them. */
+export const NOTE_CREATION_PREFIX = 'note-create:';
+/** The unsaved new-Note form for one destination. */
+export const NOTE_DRAFT_PREFIX = 'note-create-draft:';
+export const noteCreationRange = () =>
+  IDBKeyRange.bound(NOTE_CREATION_PREFIX, `${NOTE_CREATION_PREFIX}\uffff`);
 export interface CollectionMeta {
   cursor: number;
   complete: boolean;
@@ -240,6 +246,7 @@ export async function snapshot(
 ): Promise<
   Record<(typeof READ_ENTITIES)[number], CollectionRow[]> & {
     outbox: (PendingRename | PendingNoteEdit)[];
+    creations: unknown[];
   }
 > {
   const tx = db.transaction([
@@ -253,10 +260,11 @@ export async function snapshot(
       ? Promise.resolve([])
       : result<CollectionRow[]>(tx.objectStore(entity).getAll()),
   );
-  const [meta, rows, outbox] = await Promise.all([
+  const [meta, rows, outbox, creations] = await Promise.all([
     result<CollectionMeta | undefined>(tx.objectStore('meta').get('sync')),
     Promise.all(reads),
     result<(PendingRename | PendingNoteEdit)[]>(tx.objectStore('outbox').getAll()),
+    result<unknown[]>(tx.objectStore('meta').getAll(noteCreationRange())),
     done,
   ]);
   if (!meta?.complete || meta.format !== COLLECTION_VERSION)
@@ -264,8 +272,10 @@ export async function snapshot(
   return {
     ...Object.fromEntries(READ_ENTITIES.map((entity, index) => [entity, rows[index]])),
     outbox,
+    creations,
   } as Record<(typeof READ_ENTITIES)[number], CollectionRow[]> & {
     outbox: (PendingRename | PendingNoteEdit)[];
+    creations: unknown[];
   };
 }
 
@@ -303,8 +313,21 @@ export async function deleteCollection(accountId: string): Promise<void> {
         tx.abort();
       }
     };
+    const created = tx.objectStore('meta').getAll(noteCreationRange());
+    created.onsuccess = () => {
+      if (
+        created.result.some(
+          (entry: { state: string }) =>
+            entry.state !== 'synchronized' && entry.state !== 'resolved',
+        )
+      ) {
+        blocked = true;
+        tx.abort();
+      }
+    };
     const read = tx.objectStore('outbox').getAll();
     read.onsuccess = () => {
+      if (blocked) return;
       if (
         read.result.some(
           (entry: { state: string }) =>

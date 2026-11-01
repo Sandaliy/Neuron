@@ -20,7 +20,11 @@ import {
   renames,
   renameOverlay,
 } from './collection-outbox';
-import { clearCollectionProjection, projectCollectionNote } from './collection-read';
+import {
+  clearCollectionProjection,
+  projectCollectionCreation,
+  projectCollectionNote,
+} from './collection-read';
 import {
   cancelDeckCreationDelivery,
   deliverDeckCreations,
@@ -28,6 +32,13 @@ import {
   deckCreationsQueryKey,
 } from './deck-creation';
 import { lifecycle } from './lifecycle';
+import {
+  cancelNoteCreationDelivery,
+  creationNote,
+  deliverNoteCreations,
+  noteCreationFor,
+  unsentCreation,
+} from './note-creation';
 import {
   cancelNoteDelivery,
   deliverNoteEdits,
@@ -48,6 +59,7 @@ import { cancelReviewDelivery, deliverReviews, onReviewOutboxChange } from './re
 import { projectConfirmedReview } from './review-projection';
 
 import type { CollectionDiagnostic, CollectionStage } from './collection-failure';
+import type { PendingNoteCreate } from './note-creation';
 import type { QueryClient, InfiniteData } from '@tanstack/react-query';
 
 const CONTEXT_KEY = 'neuron.offline.account';
@@ -167,6 +179,7 @@ export function revokeOffline(explicit = false) {
   cancelDeckCreationDelivery();
   cancelRenameDelivery();
   cancelNoteDelivery();
+  cancelNoteCreationDelivery();
   cancelReviewDelivery();
   cancelPracticeDelivery();
   epoch++;
@@ -434,6 +447,7 @@ function enterLocalConnection(connectivity: OfflineState['connectivity']) {
   cancelDeckCreationDelivery();
   cancelRenameDelivery();
   cancelNoteDelivery();
+  cancelNoteCreationDelivery();
   cancelReviewDelivery();
   cancelPracticeDelivery();
   controller?.abort();
@@ -502,6 +516,9 @@ async function download(account: Me) {
       localStorage.setItem(CONTEXT_KEY, account.id);
       await deliverRenames();
       await deliverDeckCreations();
+      // Before edits: an edit made while a new Note was on its way is based on
+      // the revision its creation acknowledgement names.
+      await deliverNoteCreations();
       await deliverNoteEdits();
       // After Note edits, so the server's pool already holds what this device practiced on.
       await deliverPractice();
@@ -611,6 +628,70 @@ function refreshDownload() {
   void retryDownload();
 }
 
+type ListPages = InfiniteData<{
+  items: Note[];
+  nextCursor?: string;
+  local?: true;
+  unsent?: string[];
+}>;
+
+/**
+ * Cached reads learn of a new Note saved on this device, without a collection
+ * read or a refetch while the learner types.
+ */
+function patchCreation(creation: PendingNoteCreate) {
+  const noteId = creation.entityId;
+  void client?.invalidateQueries({ queryKey: ['note-creation', creation.accountId] });
+  const unsent = unsentCreation(creation);
+  const shown = creation.state !== 'resolved';
+  const note = creationNote(creation);
+  if (creation.state === 'synchronized')
+    // The server holds it now, with its Cards: its own answer replaces this copy.
+    void client?.invalidateQueries({ queryKey: ['notes', noteId], exact: true });
+  else if (!shown) client?.removeQueries({ queryKey: ['notes', noteId], exact: true });
+  else
+    client?.setQueryData<{ note: Note; cards: Card[]; local?: true }>(['notes', noteId], (data) =>
+      !data || data.local ? { note, cards: [], local: true } : data,
+    );
+  for (const [key, pages] of client?.getQueriesData<ListPages>({ queryKey: ['notes', 'list'] }) ??
+    []) {
+    if (!pages) continue;
+    const params = new URLSearchParams(String(key[2]));
+    const exists = pages.pages.some((page) => page.items.some((item) => item.id === noteId));
+    const append =
+      unsent &&
+      shown &&
+      !exists &&
+      (!params.get('deckId') || params.get('deckId') === note.deckId) &&
+      (!params.get('sort') || params.get('sort') === 'created') &&
+      !['search', 'status', 'tag', 'source', 'cardState'].some((name) => params.has(name)) &&
+      !pages.pages.at(-1)?.nextCursor;
+    if (!exists && !append) continue;
+    client?.setQueryData<ListPages>(key, {
+      ...pages,
+      pages: pages.pages.map((page, index) => {
+        const holds = page.items.some((item) => item.id === noteId);
+        const last = index === pages.pages.length - 1;
+        if (!holds && !(append && last)) return page;
+        const items = !shown
+          ? page.items.filter((item) => item.id !== noteId)
+          : holds
+            ? page.items.map((item) =>
+                item.id === noteId && unsent
+                  ? { ...item, fields: note.fields, tags: note.tags }
+                  : item,
+              )
+            : [...page.items, note];
+        const waiting = (page.unsent ?? []).filter((id) => id !== noteId);
+        if (unsent && shown) waiting.push(noteId);
+        const { unsent: _previous, ...rest } = page;
+        return { ...rest, items, ...(waiting.length ? { unsent: waiting } : {}) };
+      }),
+    });
+  }
+  void client?.invalidateQueries({ queryKey: ['decks'], refetchType: 'none' });
+}
+
 export function retryConnection() {
   if (state.signedOut) return Promise.resolve();
   clearTimeout(reconnectTimer);
@@ -682,10 +763,17 @@ export function initializeOffline(queryClient: QueryClient) {
     void client?.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
     void client?.invalidateQueries({ queryKey: ['note-outbox', id], exact: true });
     void client?.invalidateQueries({ queryKey: ['note-outbox', id, change.entityId], exact: true });
-    void noteEditFor(id, change.entityId)
-      .then((entry) => {
+    void client?.invalidateQueries({ queryKey: ['note-creation', id] });
+    void Promise.all([
+      noteEditFor(id, change.entityId),
+      noteCreationFor(id, change.entityId).catch(() => undefined),
+    ])
+      .then(([entry, creation]) => {
         if (visit !== epoch || id !== state.accountId) return;
-        projectCollectionNote(id, change.entityId, entry, change.version);
+        if (creation) {
+          projectCollectionCreation(id, creation, entry, change.version);
+          patchCreation(creation);
+        } else projectCollectionNote(id, change.entityId, entry, change.version);
         // Patch cached content only. No cancelled request, tree notification or
         // full collection read competes with the editor's next keystroke.
         client?.setQueryData<{ note: Note; cards: Card[]; local?: true }>(
@@ -723,10 +811,18 @@ export function initializeOffline(queryClient: QueryClient) {
             refetchType: 'none',
           });
         if (state.validated && !state.offline) {
-          void deliverNoteEdits().then(() => {
-            if (visit === epoch && (entry?.state === 'synchronized' || entry?.state === 'conflict'))
-              refreshDownload();
-          });
+          void deliverNoteCreations()
+            .then(() => deliverNoteEdits())
+            .then(() => {
+              if (
+                visit === epoch &&
+                (entry?.state === 'synchronized' ||
+                  entry?.state === 'conflict' ||
+                  creation?.state === 'synchronized' ||
+                  creation?.state === 'conflict')
+              )
+                refreshDownload();
+            });
         }
       })
       .catch(() => undefined);
@@ -790,6 +886,7 @@ export function initializeOffline(queryClient: QueryClient) {
         cancelDeckCreationDelivery();
         cancelRenameDelivery();
         cancelNoteDelivery();
+        cancelNoteCreationDelivery();
         cancelReviewDelivery();
         cancelPracticeDelivery();
         epoch++;
@@ -818,6 +915,7 @@ export function initializeOffline(queryClient: QueryClient) {
       cancelDeckCreationDelivery();
       cancelRenameDelivery();
       cancelNoteDelivery();
+      cancelNoteCreationDelivery();
       cancelReviewDelivery();
       cancelPracticeDelivery();
       epoch++;

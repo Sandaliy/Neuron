@@ -875,7 +875,9 @@ test.describe('reconciliation measurements', () => {
     });
     const baseline = process.env['STABILIZATION_BASELINE'] === 'true';
     if (!baseline) {
-      await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
+      // A new Note saves on the device; server-only Deck actions wait for authority.
+      await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeEnabled();
+      await expect(page.getByRole('button', { name: 'Study skills', exact: true })).toBeDisabled();
       await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
       await expect(
         page.getByText(
@@ -885,7 +887,7 @@ test.describe('reconciliation measurements', () => {
     }
     const authorityStart = performance.now();
     release();
-    await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Study skills', exact: true })).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
     const authoritativeActionsMs = performance.now() - start;
     const reconciliationMs = performance.now() - authorityStart;
@@ -2410,7 +2412,8 @@ for (const width of [undefined, 320]) {
     );
     expect(control.collectionReads).toBe(requests);
     await page.getByRole('button', { name: 'Downloaded Deck', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Study skills', exact: true })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Import', exact: true })).toBeEnabled();
     // aria-disabled describes the unavailable capability; a deliberate press explains it.
     await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
@@ -2427,7 +2430,7 @@ for (const width of [undefined, 320]) {
       await page.evaluate(() => window.dispatchEvent(new Event('online')));
       await expect.poll(() => control.accountReads).toBe(accounts + 2);
       await expect(page.getByText('Offline', { exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
+      await expect(page.getByRole('button', { name: 'Study skills', exact: true })).toBeDisabled();
       release();
       await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
 

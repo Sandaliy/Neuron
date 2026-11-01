@@ -82,6 +82,21 @@ export const en = {
   'offline.note.copyOriginal': 'Copy original server version',
   'offline.note.applyDraft': 'Apply draft to current Note',
   'offline.note.keepServer': 'Keep server version and archive draft',
+  'offline.create.cardsLater': 'Cards are made when it syncs',
+  'offline.create.deckMissing': 'This Deck is not on this device yet. Connect to save the Note.',
+  'offline.create.notSaved':
+    'The Note could not be saved on this device. What you typed is still here. Try again.',
+  'offline.create.savedNotes': 'New Notes saved on this device',
+  'offline.create.deckUnavailable':
+    'Its Deck was deleted or is no longer a Deck, so the Note was not added. It is kept on this device. Choose a Deck for it, or copy it.',
+  'offline.create.exists':
+    'The server already has a different Note with this identity, so this one was not added. It is kept on this device; copy it to add it again.',
+  'offline.create.rejected':
+    'The server refused this new Note. It is kept on this device; copy it before you archive it.',
+  'offline.create.chooseDeck': 'Choose a Deck',
+  'offline.create.useDeck': 'Add it to this Deck',
+  'offline.create.archive': 'Stop syncing and archive',
+  'offline.create.copy': 'Copy the Note',
   'offline.renamePending':
     'This collection already has a saved rename waiting to sync. Open Settings to retry or recover it.',
   'offline.renameNotSaved':
