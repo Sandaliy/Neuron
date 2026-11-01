@@ -6,6 +6,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import config from '../playwright.config.ts';
+
 import { interactionArguments } from './screens-ci.mjs';
 
 const script = fileURLToPath(new URL('./screens-ci.mjs', import.meta.url));
@@ -84,3 +86,20 @@ for (const failure of ['build', 'test']) {
     assert.equal(commands.length, failure === 'build' ? 1 : 2);
   });
 }
+
+test('phone swipe benchmarks run once without excluding ordinary desktop motion', () => {
+  const phone = config.projects.find((project) => project.name === 'phone-interaction');
+  const desktop = config.projects.find((project) => project.name === 'desktop-interaction');
+  const webkit = config.projects.find((project) => project.name === 'webkit-phone-interaction');
+  assert.equal(phone.testIgnore.test('interaction-lifecycle.spec.ts'), false);
+  assert.equal(desktop.testIgnore.test('interaction-lifecycle.spec.ts'), true);
+  assert.equal(webkit.testMatch.test('interaction-lifecycle.spec.ts'), true);
+  for (const file of [
+    'study-language.spec.ts',
+    'acceptance-motion.spec.ts',
+    'navigation.spec.ts',
+  ]) {
+    assert.equal(phone.testIgnore.test(file), false);
+    assert.equal(desktop.testIgnore.test(file), false);
+  }
+});

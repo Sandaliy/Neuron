@@ -23,6 +23,10 @@ file named after the change.
 | Frame-rate budgets                           | `performance.spec.ts`, `00-note-list-performance.spec.ts` (project `phone-performance`)                                                                                                                         |
 | Visual baselines                             | `screens.spec.ts`, `gallery.spec.ts`, `polish-visual.spec.ts` (projects `phone` and `desktop`, Windows)                                                                                                         |
 
+`interaction-lifecycle.spec.ts` fixes its own viewport at 375px. Its three glass-mode frame/input
+budgets run in `phone-interaction`; desktop excludes that duplicate. Ordinary desktop motion cases
+and the separate opt-in mobile WebKit coverage remain selected.
+
 Live files need the throwaway database (`DATABASE_URL_TEST`) and an opt-in variable named at the top of
 each file. They skip otherwise, and a skip is not a pass.
 
