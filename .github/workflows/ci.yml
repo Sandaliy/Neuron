@@ -132,7 +132,7 @@ jobs:
           BROWSER_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           BROWSER_FULL: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          node --test scripts/select-browser-tests.test.mjs scripts/browser-gate.test.mjs
+          node --test scripts/select-browser-tests.test.mjs scripts/browser-gate.test.mjs apps/web/scripts/screens-ci.test.mjs
           node scripts/select-browser-tests.mjs
 
   phone-interaction:

@@ -31,16 +31,50 @@ each file. They skip otherwise, and a skip is not a pass.
 ```
 pnpm --filter @neuron/web test:screens tests/study.spec.ts --project=phone-interaction
 pnpm --filter @neuron/web test:screens:ci
+pnpm --filter @neuron/web test:screens:ci tests/study-language.spec.ts --project=phone-interaction --grep "a confirmed language change continuously resizes expanded Study setup"
 ```
 
 The first form serves the dev server, which reloads as files change: do not edit source while it runs,
 or the tests exercise half-written code and fail for reasons that are not in the product. The second
 builds the app and runs the phone and desktop interaction projects against Vite preview, which is what
 CI runs. Use it before a pull request that touches shared UI, navigation, query/cache code or
-anything in `src/ui`.
+anything in `src/ui`. An explicit `--project` replaces the helper's default pair for a focused
+reproduction; file paths and quoted filters pass literally to Playwright. Omitting it still runs
+both interaction viewports on one worker. A narrow reproduction does not replace the full gate
+when the change affects shared browser behavior.
 
-A test that fails locally on unchanged `main` is not a regression of the change in hand. Check by
-stashing the change and running the same test once before rewriting anything.
+For a suspected pre-existing failure, compare the same test and configuration in a clean checkout of
+the base revision. Preserve any unrelated local work.
+
+## Diagnosing a failed run
+
+Download the failed job's report before rerunning it. Keep the trace, error context and attached
+measurements together: the HTML report references files under `playwright-report/data`. Artifact paths
+must be distinct on case-insensitive filesystems too; use semantic scenario names rather than names
+that differ only by capitalization.
+
+- Inspect request delivery as well as the assertion. A route handler exception, missing response or
+  failed document/module request can prevent the fixture from reaching the screen. Establish that
+  boundary before changing a product expectation. Keep mutable fixture data inside its test; a new
+  browser context does not reset module-level objects in the test worker.
+- A page crash, browser disconnect or pre-application network failure is a different observation from
+  a rendered UI assertion. Retain the original failing result and inspect the trace's document,
+  scripts, API activity and browser logs. An unexplained crash is still a failed run; a later isolated
+  pass does not establish its cause.
+- For unchanged code with a diagnosed transient infrastructure failure, rerun failed jobs only
+  (`gh run rerun RUN_ID --failed`). Keep successful sibling jobs and the original artifacts. A new
+  source revision needs its own selected checks; do not reuse an older revision's green gate.
+- After a correction, first run the exact built-app reproduction, then the relevant screen suites.
+  Shared changes still require the full interaction gate. CI selection remains conservative for
+  shared code and the scheduled full regression remains independent. API authentication/RLS,
+  migrations, data integrity and learning correctness retain their separate checks.
+
+Motion measurements must use the rendering phase they intend to observe and the frame clock for
+animation time. A timer queued inside `requestAnimationFrame` can observe a later commit before its
+resize observers, so it is not a paint fence. Keep frame samples on failure and verify a measurement
+change with a deliberately broken motion control. Preserve the visual-motion assertions and the
+controlled performance budgets; tracing itself can affect a frame-rate measurement (see
+`docs/interaction-performance.md`).
 
 ## Writing them
 
