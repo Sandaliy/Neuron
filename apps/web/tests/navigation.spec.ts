@@ -439,7 +439,13 @@ test('saving a new Note leaves the draft without a discard prompt', async ({ pag
   await page.goto(`/notes/new?deckId=${deckId}`);
   await page.getByRole('textbox', { name: 'Word', exact: true }).fill('Gespeichert');
   await page.getByRole('textbox', { name: 'Translation', exact: true }).fill('Saved');
+  // This Deck is not in the (empty) download, so the save goes to the server.
+  const posted = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/notes',
+  );
   await page.getByRole('button', { name: 'Save the note', exact: true }).click();
+  await posted;
   await expect(page).toHaveURL(new RegExp(`/notes/${saved.id}$`));
   await expect(page.getByRole('textbox', { name: 'Word', exact: true })).toHaveValue('Gespeichert');
   await expect(page.getByRole('dialog')).toHaveCount(0);

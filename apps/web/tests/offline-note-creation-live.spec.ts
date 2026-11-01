@@ -173,7 +173,7 @@ test('real PostgreSQL: offline Notes survive a reopened shell, a lost answer and
     const add = async (deck: RegExp, term: string, translation: string) => {
       await page.getByRole('link', { name: 'Library', exact: true }).click();
       await page.getByRole('button', { name: deck }).click();
-      await page.getByRole('button', { name: 'New note', exact: true }).click();
+      await page.getByRole('button', { name: 'New note', exact: true }).first().click();
       await page.getByRole('textbox', { name: 'Word', exact: true }).fill(term);
       await page.getByRole('textbox', { name: 'Translation', exact: true }).fill(translation);
       await page.getByRole('button', { name: 'Save the note', exact: true }).click();
