@@ -10,6 +10,82 @@ qualified local Study planning as described in `offline-study.md`. Phase 8.7 run
 download with durable delivery (see Offline Practice below). Note creation, type conversion, moves, deletion/restoration, explicit direction changes and Import application remain online-only. Remote Note media is not
 downloaded; its stored reference remains readable.
 
+## Durable Folder and Deck creation
+
+The existing Library naming dialog can create a Folder or Deck offline, at the root or under a live
+Folder in a complete download. Names keep the shared 1–200 character trimmed rule and case-insensitive
+sibling uniqueness. New entities inherit settings through their original Folder ancestry; their own
+settings remain null. A complete download uses this durable local-first path online too, so stale
+browser connectivity hints cannot lose a creation. Without a complete download, or for an online
+Folder not downloaded yet, creation continues through the existing server endpoint and interaction.
+
+Each creation receives one device-generated entity ID and an immutable operation ID. A strict
+IndexedDB transaction commits a version-1 `deck-create:<entityId>` record in the account's existing
+`meta` store before the dialog closes or reports success. The record includes the command, the observed
+root-first Folder IDs/revisions and original Folder presentation. It is separate from downloaded server
+rows. Creation keeps the ancestry observed when the dialog opened, even if a background pull advances
+before Save. Recovery similarly freezes the displayed destination before refreshing its download.
+No IndexedDB version change or SQL migration is required. Earlier shells ignore these keys.
+Storage failure retains the dialog's name and reports that it was not saved. A completed commit survives
+cached-PWA reopening; browser storage eviction remains a device-storage limitation.
+
+Only Library overlays these identities. Until acknowledged and available from the server, new entities
+have no dependent actions: no nested creation, Note creation, Import application, rename, settings,
+move, reorder or deletion. Library retains its normal rows and menus, with a saved-on-device label and
+a contextual explanation. Structural Library actions wait while creations are unresolved so that a
+reorder cannot accidentally include an identity the server has not accepted. Other collection pickers
+continue to read server-backed rows. There is no local Card or scheduling projection for these entities.
+
+`POST /decks/offline-create` validates the shared command, matches the authenticated account, and takes
+the existing account write lock. It follows live parent links, checks Folder kinds and depth, compares
+every observed ancestor revision, derives the materialized path and appends at the current sibling
+position. The database still owns uniqueness and RLS. Missing, deleted, purged, foreign or invalid
+parents produce `parent_unavailable`; changed ancestry, names or inherited settings produce
+`parent_changed`. Existing entity identities and sibling names produce distinct retained conflicts.
+It never upserts or resurrects an existing entity. Creation and a digest-only immutable `sync_receipts`
+outcome commit together. An exact retry returns that original outcome even after later edits or purge;
+an altered command under the same operation ID is refused. Receipt content contains no collection names.
+
+Delivery runs after renames and before Note edits/pull, oldest identity first, with bounded retries at
+2, 5, 15, 30 and 60 seconds for transport, malformed acknowledgements, server failures or failed local
+acknowledgement commits. Payloads never change during retry. Session expiry, sign-out and account
+switching revoke delivery and late responses; remembered identity alone never authorizes it. Each
+account's pending work stays in its own database. Acknowledged creations remain projected until the
+download reaches their revision, then server rows and tombstones own their visibility.
+
+Settings > Offline & sync counts waiting creations and lists refusals. It retains the saved name and
+original location. A parent/name conflict allows an explicit current destination and name, preserving
+the entity ID while issuing a new operation ID and archiving the original command/outcome atomically.
+Identity collisions and other refusals offer Copy saved name or Stop syncing and archive. A missing
+or moved parent never silently places local work at the root. Rebuild refuses unresolved creation
+records and unknown record formats; downloaded-row recovery preserves all `meta` preparation records,
+Note/name outboxes, Review protection, Practice progress and Import drafts.
+
+### Relationship to Offline Note Creation
+
+Offline Note Creation is independently delivered in PR #67, outside this branch's `main` base. Its
+`note-create:` and `note-draft:` metadata ranges do not overlap `deck-create:` or
+`deck-create-archive:`. Its destination check requires a live server-backed Deck from the downloaded
+`decks` store, which this implementation never populates with pending creations. That guard and the
+Library-only overlay keep Note delivery independent. Integration must retain both creation delivery
+and recovery hooks; collection creation can precede Note creation, but that order does not grant
+permission to create Notes in an unacknowledged Deck.
+
+Supporting Notes or children inside a pending Folder/Deck would require durable dependency identities,
+ordered acknowledgement checkpoints and recovery for the dependent subtree, including parent refusal,
+account boundaries, successor commands and mixed-version shells. This slice does not add that protocol.
+After server acknowledgement and download, these entities use the normal collection contracts,
+including Offline Note Creation when that separate flow is integrated. Offline deletion/restoration,
+moving existing entities, reordering, general settings edits and Import application remain outside scope.
+
+`collection-creation.test.ts` covers PostgreSQL/RLS receipts, exact/concurrent retries, names,
+identities, ancestry and preservation of existing learning data. `offline-collections.spec.ts` covers
+device commits, restart, delivery, unavailable-parent/name recovery, duplicate identities, session and
+account boundaries, malformed/uncommitted acknowledgements and storage/rebuild failures in Chromium
+and mobile WebKit. `offline-collections-live.spec.ts` separately exercises actual HTTP, restricted-role
+PostgreSQL and the cached shell with the origin stopped, a removed parent and a deliberately lost
+acknowledgement. Installed-iPhone acceptance remains separate from browser evidence.
+
 ## Storage and initial download
 
 `neuron.collection:<account id>` is an IndexedDB database at schema version 3; snapshot format remains 1.
@@ -142,8 +218,8 @@ busy control. Local mode retries automatically with bounded backoff (1.5, 3, 8, 
 pausing probes while hidden; observed server progress requests immediate validation. Ordinary healthy
 navigation adds no probe or collection scan. The handover cancels pending reads and
 invalidates active collection observers without removing cached query entries or remounting Library
-and Deck screens. Complete snapshot reads replace those entries locally. Local capabilities permit only
-existing Folder/Deck rename, durable existing-Note content editing, qualified offline Study, Practice and Import
+and Deck screens. Complete snapshot reads replace those entries locally. Local capabilities permit
+bounded Folder/Deck creation, existing Folder/Deck rename, durable existing-Note content editing, qualified offline Study, Practice and Import
 preparation with local drafts;
 drag/drop, selection mutations, direct/swipe deletion, Note creation and Import application
 remain unavailable. Browsing completeness and learning-history readiness are separate Settings states.

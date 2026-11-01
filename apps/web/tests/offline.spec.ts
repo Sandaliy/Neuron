@@ -537,7 +537,7 @@ test('cached navigation detects stalled HTTP without a connectivity or foregroun
   const at = Date.now();
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   // Silence enables local content without declaring a confirmed outage.
-  await expect(page.getByRole('button', { name: 'New deck', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Deleted', exact: true })).toBeDisabled();
   await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
   const handover = Date.now() - at;
   expect(handover).toBeLessThan(5000);
@@ -564,10 +564,17 @@ test('a false offline hint cannot overrule a freshly accepted server session', a
   await expect(page.getByRole('button', { name: 'New deck', exact: true })).toBeEnabled();
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
   let created = false;
-  await page.route('**/api/decks', (route) => {
-    if (route.request().method() !== 'POST') return route.fallback();
+  await page.route('**/api/decks/offline-create', (route) => {
     created = true;
-    return route.fulfill({ json: { deck: { ...deck, ...route.request().postDataJSON() } } });
+    const command = route.request().postDataJSON();
+    return route.fulfill({
+      json: {
+        operationId: command.operationId,
+        entityId: command.entityId,
+        status: 'applied',
+        revision: 3,
+      },
+    });
   });
   await page.getByRole('button', { name: 'New deck', exact: true }).click();
   await page.getByRole('dialog').getByLabel('Name', { exact: true }).fill('Connection checked');
@@ -2336,7 +2343,7 @@ test('in-session Library keeps its header, nested expansion and row geometry whe
   for (const handle of await page.getByRole('button', { name: /Drag/i }).all())
     await expect(handle).toBeDisabled();
   for (const button of await page.getByRole('button', { name: /New deck|New folder/i }).all())
-    await expect(button).toBeDisabled();
+    await expect(button).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Hide what is inside', exact: true })).toHaveCount(
     2,
   );

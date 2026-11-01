@@ -8,9 +8,10 @@ import { request } from './api';
 import { renames, renameOverlay, saveRename } from './collection-outbox';
 import { localDeckTree } from './collection-read';
 import { collectionRead } from './collection-transport';
+import { hasDownloadedCreationParent, saveDeckCreation } from './deck-creation';
 import { projectDeck } from './deck-projection';
 import { writeEntities } from './entity-writes';
-import { offlineState } from './offline';
+import { accountEpoch, offlineState } from './offline';
 
 import type { QueryClient } from '@tanstack/react-query';
 
@@ -85,6 +86,22 @@ export function flatten(decks: readonly DeckNode[]): DeckNode[] {
 /** One deck out of the tree, by id. */
 export function findDeck(decks: readonly DeckNode[], id: string): DeckNode | undefined {
   return flatten(decks).find((deck) => deck.id === id);
+}
+
+/** Freeze the location the learner is choosing, independently of a later pull. */
+export function creationAncestors(tree: readonly DeckNode[], parentId: string | null): Deck[] {
+  const byId = new Map(flatten(tree).map((row) => [row.id, row]));
+  const chain: Deck[] = [];
+  const seen = new Set<string>();
+  while (parentId !== null) {
+    const row = byId.get(parentId);
+    if (!row || row.kind !== 'folder' || seen.has(parentId) || seen.size >= 8)
+      throw new Error('collection_create_parent');
+    seen.add(parentId);
+    chain.unshift({ ...row });
+    parentId = row.parentId;
+  }
+  return chain;
 }
 
 /**
@@ -173,14 +190,55 @@ export function useDeckActions() {
 
   const create = useMutation({
     onMutate: () => client.cancelQueries({ queryKey: DECK_TREE_KEY, exact: true }),
-    mutationFn: (input: { name: string; parentId: string | null; kind: 'folder' | 'deck' }) =>
-      request<{ deck: Deck }>('/decks', {
+    mutationFn: async ({
+      owner,
+      ...input
+    }: {
+      name: string;
+      parentId: string | null;
+      kind: 'folder' | 'deck';
+      owner: { accountId: string | null; epoch: number };
+      observedAncestors: readonly Deck[];
+    }) => {
+      const active = () =>
+        owner.accountId === offlineState().accountId && owner.epoch === accountEpoch();
+      if (!active()) throw new Error('collection_account_changed');
+      const state = offlineState();
+      if (state.available || state.offline || !state.validated) {
+        try {
+          if (
+            state.offline ||
+            !state.validated ||
+            input.parentId === null ||
+            (await hasDownloadedCreationParent(input.parentId))
+          ) {
+            const saved = await saveDeckCreation(
+              owner,
+              { entityId: uuidV7(), name: input.name, kind: input.kind, parentId: input.parentId },
+              input.observedAncestors,
+            );
+            return { saved };
+          }
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            ['collection_create_parent', 'collection_create_name'].includes(error.message)
+          )
+            throw error;
+          throw new Error('collection_create_storage', { cause: error });
+        }
+      }
+      if (!active()) throw new Error('collection_account_changed');
+      return request<{ deck: Deck }>('/decks', {
         method: 'POST',
         // The id is generated here rather than by the server, so that a retry
         // after a timeout that actually landed does not make a second deck.
-        body: { id: uuidV7(), ...input },
-      }),
-    onSuccess: ({ deck }) => {
+        body: { id: uuidV7(), name: input.name, kind: input.kind, parentId: input.parentId },
+      });
+    },
+    onSuccess: (response) => {
+      if (!('deck' in response)) return;
+      const { deck } = response;
       // An acknowledged empty collection can appear from the write response.
       // The background read still owns final ordering and aggregate counts.
       client.setQueryData<{ decks: DeckNode[] }>(DECK_TREE_KEY, (cached) => {

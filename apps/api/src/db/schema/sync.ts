@@ -1,7 +1,12 @@
 import { sql } from 'drizzle-orm';
 import { check, index, jsonb, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
 
-import type { RestoreNoteResult, RenameDeckResult, EditOfflineNoteResult } from '@neuron/shared';
+import type {
+  RestoreNoteResult,
+  RenameDeckResult,
+  EditOfflineNoteResult,
+  CreateOfflineDeckResult,
+} from '@neuron/shared';
 
 import { user } from './auth.js';
 import { id, instant, literalList } from './columns.js';
@@ -13,6 +18,7 @@ export interface SyncReceiptOutcome {
   noteRestoration?: RestoreNoteResult & { id: string };
   clamped: boolean;
   rename?: { digest: string; result: RenameDeckResult };
+  deckCreation?: { digest: string; result: CreateOfflineDeckResult };
   noteEdit?: { digest: string; result: EditOfflineNoteResult };
   reviewUndo?: { targetId: string; submittedAt: string | null; cancellationId: string };
   practice?: { deckId: string; digest: string };

@@ -24,7 +24,7 @@ test('collection creation separates acknowledgement from refresh latency', async
   page,
 }, info) => {
   await usePreferences(page, { locale: 'en', theme: 'dark' });
-  await useFixtures(page, { decks: [] });
+  await useFixtures(page, { decks: [], collectionDownload: false });
   let created: Record<string, unknown> | undefined;
   let acknowledgedMs = 0;
   let started = 0;
@@ -137,7 +137,7 @@ test('Study skill save measures feedback, transport and authoritative readiness'
 
 test('failed collection creation stays editable and never fabricates a row', async ({ page }) => {
   await usePreferences(page, { locale: 'en', theme: 'light' });
-  await useFixtures(page, { decks: [] });
+  await useFixtures(page, { decks: [], collectionDownload: false });
   await page.route('**/api/decks', (route) =>
     route.request().method() === 'POST'
       ? route.fulfill({ status: 500, json: { error: 'internal_error' } })
