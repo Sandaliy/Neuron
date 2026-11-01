@@ -8,8 +8,9 @@ Last updated: 2026-11-01.
 
 ## Release
 
-Phases 0 to 8.6, the 2026-10-30 quality pass, offline Practice and offline Import preparation are on
-protected `main`, with offline Note creation and Phase 9.0 triage. The product has:
+Phases 0 to 8.6, the 2026-10-30 quality pass, offline Practice, offline Import preparation, offline
+Note and Folder/Deck creation and Phase 9.0 triage are on protected `main`. Phase 9.1, learning waves,
+ships from `work/learning-waves`. The product has:
 
 - Daily Study with deterministic time-based planning, explainable new-card admission, current-session
   Undo and durable answers that survive offline sittings, reload and lost responses.
@@ -21,23 +22,34 @@ protected `main`, with offline Note creation and Phase 9.0 triage. The product h
   conflict choice. Import preparation works offline with account-local drafts and resumable delivery
   checkpoints; applying an Import still requires a connection. Settings > Offline & sync shows saved
   work and recovery.
-- Offline Note creation: new Notes save into downloaded Decks through the normal
-  editor, keep one device-chosen id, and are delivered once; the server makes their Cards. A Deck deleted
-  meanwhile leaves the Note on the device for an explicit choice in Settings.
+- Offline creation: new Notes save into downloaded Decks and new Folders/Decks into downloaded Folders.
+  Each keeps one device-chosen id and is delivered once; the server makes Note Cards. A pending Folder
+  or Deck holds nothing until the server has it: no Notes, no children, no moves.
+- Triage (9.0): a Deck with 20 or more Notes offers a sweep that marks Notes Known, Unsure or New, with
+  Undo, a decisions list and resume. Known is the `known` status; Unsure and New are a mark beside an
+  active status (migration 0018). Triage writes no Card or Review and skips Notes with an answered Card.
+- Learning waves (9.1): a Deck's Notes in Study are cut into waves of 50 in file order, Unsure first
+  inside each wave. The time-based throttle still decides how many start. The Deck screen shows the
+  current wave, what Study lets in today or why it lets in none, when the next wave starts and what waits
+  after it; Today's rows name the wave instead of every new Note.
 
-Phase 9.0 triage: a Deck with 20 or more Notes, or an import that just finished, offers a sweep: one
-tap marks a Note Known, Unsure or New, Undo walks back through the visit, a list finds any Note to change
-its decision, and progress resumes after a reload. Known is the existing `known` status; Unsure and New
-stay in Study with a mark (migration 0018). Triage never touches Cards or Reviews and skips any Note with
-an answered Card. It reads the download offline and sends decisions in batches when it can.
-
-Not built: offline Import application, Phase 9 waves and progressive directions,
-Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
+Not built: offline Import application, rank-ordered waves, Phase 9 progressive directions and the
+problem-card area, Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
 Owner acceptance on the installed iPhone is the gate for interaction work. The last full acceptance was
 Phase 8.4 (PR #53) and offline Study (PR #54/#55). PR #56 was not accepted: the app still felt slow,
-inconsistent and cumbersome, which started the quality pass below. The quality pass, offline Practice,
-and offline Import preparation still need installed-iPhone acceptance.
+inconsistent and cumbersome, which started the quality pass below. Everything since needs
+installed-iPhone acceptance.
+
+## Integration, merged 2026-11-01
+
+| PR  | Commit    | What it changed                                                                                              |
+| --- | --------- | ------------------------------------------------------------------------------------------------------------ |
+| #66 | `6b9c6f2` | The seed creates canonical Cloze slots; a read-only tool inventories legacy slot-0 Cloze Cards.              |
+| #67 | `7605770` | New Notes offline, delivered once under their own id.                                                        |
+| #69 | `893a49c` | Triage, migration 0018. Offline triage leaves out unsent Notes and delivers after this device's Note writes. |
+| #68 | `756a1f3` | New Folders and Decks offline. Note and Folder/Deck save failures keep separate messages.                    |
+| #72 | `4e60772` | CI runs the 33 database test files (RLS, repositories, routes) that it used to skip.                         |
 
 ## Quality pass, merged 2026-10-30
 
@@ -50,34 +62,43 @@ and offline Import preparation still need installed-iPhone acceptance.
 
 ## Next
 
-1. Review and installed-iPhone acceptance of Phase 9.0 triage. The shared Preview database needs
-   migration 0018 before the branch preview can show it.
-2. Owner decision for the waves slice: whether Unsure Notes are admitted before New ones as a quick
-   check, or stay in plain source order as now.
-3. Owner acceptance of the quality pass and recent offline features on the installed iPhone: screen
-   and card motion, folders and disclosures, choice rows, Study start after a setup change, and
-   reconnecting after an offline sitting; start and finish Practice offline, close and reopen, reconnect,
-   and choose between runs after practicing one Deck on two devices; prepare and reopen an Import draft
-   offline, then connect to check duplicates and apply or resume it; offline Note creation with the steps
-   in `offline-collection.md`.
+1. Installed-iPhone acceptance of the integrated release: the scenarios in "Acceptance on the iPhone"
+   below, then the quality pass and earlier offline features (screen and card motion, folders and
+   disclosures, Study start after a setup change, offline Practice on two devices, offline Import drafts).
+2. Rank order for waves. Waves follow file order today; a frequency list imported out of order would
+   need waves by its rank column, which is a per-Deck choice for the owner.
+3. Phase 9 continues: progressive directions from demonstrated stability, then the problem-card area.
 4. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
 5. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
    learning-semantics decision for the owner.
 
+## Acceptance on the iPhone
+
+- Import a list of a few hundred words, sweep part of it in triage, mark some Unsure. The Deck screen
+  shows Wave 1 with Unsure first, and Today's row says `wave 1: N new`. Study starts the Unsure words
+  first; the number of new words matches what Today promised.
+- Answer a session, return to the Deck: started rises, waiting falls. When reviews fill the minutes,
+  the card says none comes in today and why.
+- Offline: mark a word Known in triage, then open Today. It is not offered. Reconnect: the decision is
+  sent and the plan agrees.
+- Offline: create a Deck, then a Note in an existing Deck. The new Deck opens nothing until it syncs;
+  the Note is not in triage until the server has it. Reconnect: both arrive once.
+
 ## Open threads
 
-- Study now passes over Cards whose Note no longer produces a displayable face, so a sitting can
-  finish. Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue;
-  repairing those records or changing planning semantics remains an owner decision.
+- Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.
+  Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue.
 - Local new-card admission offline is conservative over the last complete download and this device's
   events; it cannot see other devices' offline work. Reconnection keeps server authority.
 - Hosted CI has shown one unreproduced desktop navigation scroll assertion and occasional Chromium
   context crashes. Assertions and failure artifacts are kept; see `interaction-performance.md`.
 - The Preview database is one empty, long-lived Neon database shared by all previews.
 - Dependency alerts: `nanoid` 3.3.17 and the Drizzle tooling `esbuild`.
-- Triage decisions not yet delivered are invisible to Study planning, online and offline, and are not
-  listed in Settings > Offline & sync. See `offline-collection.md`.
+- Triage decisions not yet delivered are not listed in Settings > Offline & sync. The server plan has
+  not heard of them; this device's offline plan applies them conservatively. See `offline-collection.md`.
+- Legacy Cloze Cards at slot 0 are inventoried by `docs/legacy-cloze-assessment.md`, not repaired. The
+  repair policy there needs owner approval before any migration.
 
 ## Where things are explained
 
@@ -115,3 +136,6 @@ and offline Import preparation still need installed-iPhone acceptance.
 | 2026-11-01 | Triage is a mark beside status; Known is the `known` status | No second status model, no change to Study admission       |
 | 2026-11-01 | Triage never classifies a Note with an answered Card        | Study's evidence outranks a pre-learning guess             |
 | 2026-11-01 | New Notes get their id on the device, Cards on the server   | One identity across retries; schedules stay authoritative  |
+| 2026-11-01 | Waves of 50 order new material; the throttle sets how much  | Finite and visible without a daily quota                   |
+| 2026-11-01 | Unsure first inside its wave (owner decision)               | Settles uncertainty early, moves nothing past one wave     |
+| 2026-11-01 | CI runs the database tests against PostgreSQL 17            | Green CI had been skipping every RLS and repository test   |

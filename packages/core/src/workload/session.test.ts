@@ -582,6 +582,37 @@ describe('what the session says about itself', () => {
     expect(second.cards.map((card) => card.id)).toEqual(first.cards.map((card) => card.id));
   });
 
+  it('lets admission rank choose which new cards fill the places, never how many', () => {
+    const cards = untouched(12);
+    const plain = buildSession({ cards, budget, config, now: NOW, rng: rng(), marginalCost: 5 });
+    // The last four created rank first, as an earlier wave or a quick check would.
+    const ranked = cards.map((card, index) => ({ ...card, admissionRank: index >= 8 ? 0 : 1 }));
+    const session = buildSession({
+      cards: ranked,
+      budget,
+      config,
+      now: NOW,
+      rng: rng(),
+      marginalCost: 5,
+    });
+
+    expect(plain.newCount).toBeGreaterThan(0);
+    expect(plain.newCount).toBeLessThan(8);
+    expect(session.newCount).toBe(plain.newCount);
+    expect(session.newCards.allowed).toBe(plain.newCards.allowed);
+    expect(session.cards.every((card) => Number(card.id.split('-').at(-1)) >= 8)).toBe(true);
+    // A rank of zero everywhere is the same as no rank at all.
+    const zero = buildSession({
+      cards: cards.map((card) => ({ ...card, admissionRank: 0 })),
+      budget,
+      config,
+      now: NOW,
+      rng: rng(),
+      marginalCost: 5,
+    });
+    expect(zero.cards.map((card) => card.id)).toEqual(plain.cards.map((card) => card.id));
+  });
+
   it('counts what it holds', () => {
     const session = buildSession({
       cards: [...dueToday(50), ...untouched(10)],

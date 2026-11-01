@@ -584,6 +584,7 @@ export const ru = {
   'today.waitingLabel': 'карточки на повтор',
   'today.newLabel': 'новых',
   'today.deckCounts': '{due} на повтор · {fresh} новых',
+  'today.deckWave': '{due} на повтор · волна {number}: {waiting} новых',
   'today.waiting': 'Карточек к повторению: {count}',
   'today.newAvailable': 'Новых карточек готово: {count}',
   'today.newAvailableHint':
@@ -978,7 +979,7 @@ export const ru = {
   'triage.unsureDoneTitle': 'Записей «Сомневаюсь» не осталось',
   'triage.doneBody': 'Знаю {known} · Сомневаюсь {unsure} · Новое {new}',
   'triage.doneHint':
-    'Записи «Знаю» не попадают в Учёбу. «Сомневаюсь» и «Новое» остаются в Учёбе и придут как новые карточки. Любое решение можно изменить позже.',
+    'Записи «Знаю» не попадают в Учёбу. «Сомневаюсь» и «Новое» входят в Учёбу волнами по {size}, в каждой волне первыми идут «Сомневаюсь». Любое решение можно изменить позже.',
   'triage.reviewUnsure': 'Пройти «Сомневаюсь» ({count})',
   'triage.reviewAll': 'Посмотреть решения',
   'triage.done': 'Готово',
@@ -1142,4 +1143,23 @@ export const ru = {
   'error.unexpected': 'Что-то пошло не так. Попробуй ещё раз.',
   'error.internal_error':
     'Что-то сломалось на нашей стороне. Попробуй ещё раз, а если повторится, назови этот номер: {correlationId}',
+
+  'waves.title': 'Волна {number} из {count}',
+  'waves.started': 'Начато {started} из {size}',
+  'waves.progress': 'Начатые записи этой волны',
+  'waves.waiting': 'Ждут в этой волне: {count}.',
+  'waves.unsure': 'Первыми идут «Сомневаюсь»: {count}.',
+  'waves.today': 'Сегодня Учёба впустит: {count}.',
+  'waves.paused.backlogActive':
+    'Сегодня ни одной: повторы отстают, и новое ждёт, пока они не догонят.',
+  'waves.paused.forecastOverBudget':
+    'Сегодня ни одной: повторы уже занимают твои минуты в день. Новое войдёт, когда освободится время.',
+  'waves.paused.dailyCapReached': 'Сегодня ни одной: дневной предел новых карточек набран.',
+  'waves.paused.withinBudget': 'Сегодня больше ни одной: место для нового на сегодня занято.',
+  'waves.next': 'Следующая волна начнётся, когда начнутся все записи этой.',
+  'waves.nextDay': 'При нынешнем темпе следующая волна начнётся завтра.',
+  'waves.nextDays': 'При нынешнем темпе следующая волна начнётся примерно через {count} дн.',
+  'waves.later':
+    'Ещё {count} ждут в следующих волнах. Пока они не начаты, времени они не занимают.',
+  'waves.last': 'Это последняя волна.',
 } satisfies Partial<Messages>;

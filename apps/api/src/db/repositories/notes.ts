@@ -98,6 +98,8 @@ export interface NoteRepository {
   duplicatesOf: (deckId: string, termKeys: readonly string[]) => Promise<DuplicateRow[]>;
   byId: (id: string, options?: { readonly forUpdate: boolean }) => Promise<NoteRow | undefined>;
   byIds: (ids: readonly string[]) => Promise<NoteRow[]>;
+  /** Live Notes in Study in these Decks that triage marked Unsure. They start first in their wave. */
+  unsureIn: (deckIds: readonly string[]) => Promise<string[]>;
   /**
    * The browse screen: filtered, and one page at a time.
    *
@@ -375,6 +377,26 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
 
         return rows.map((row) => ({ ...row, termKey: row.termKey ?? '' }));
       });
+    },
+
+    async unsureIn(deckIds) {
+      if (!deckIds.length) return [];
+      const rows = await run((tx) =>
+        tx
+          .select({ id: notes.id })
+          .from(notes)
+          .where(
+            and(
+              eq(notes.userId, userId),
+              inArray(notes.deckId, [...deckIds]),
+              eq(notes.status, 'active'),
+              eq(notes.triage, 'unsure'),
+              isNull(notes.deletedAt),
+              isNull(notes.purgedAt),
+            ),
+          ),
+      );
+      return rows.map((row) => row.id);
     },
 
     async byIds(ids) {

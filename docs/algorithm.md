@@ -416,12 +416,48 @@ elapsed session time. If time ends first, the retry stays at the due time FSRS
 gave it for a later session; session construction never shortens an interval to
 force it back in.
 
-Triage does not reach the planner. A Note marked Known leaves Study through its `known` status, as
-Mark as known always did. Unsure and New Notes stay `active`, and their Cards are admitted in the same
-stable due/id order as any other new Card, which for an import is file order. Nothing is written to a
-Card or the review log to record a classification, so FSRS state is exactly what answers made it.
-Admission does not read the triage mark yet; whether Unsure material is checked first belongs to the
-wave work.
+Triage writes nothing the scheduler reads. A Note marked Known leaves Study through its `known` status,
+as Mark as known always did. Unsure and New Notes stay `active`. Nothing is written to a Card or the
+review log to record a classification, so FSRS state is exactly what answers made it. The mark reaches
+planning in one place only, the order of new material inside a wave, below.
+
+## Learning waves
+
+A Deck's Notes in Study are taken in creation order, which for an import is the order of the file, and
+cut into waves of 50 (`WAVE_SIZE` in `packages/shared/src/learning-waves.ts`). A Note has started once
+any of its Cards has left `new`. The current wave is the first one that still holds a Note that has not
+started. Known, Set aside and Draft Notes have no Cards in planning, so they are in no wave, and the
+waves close up around them. A Note started over with Restart learning is back in its own wave.
+
+Waves change **which** new Cards fill the places the throttle allows, never **how many**. The planner
+gives every Card an admission rank, `2 × wave + (Unsure ? 0 : 1)`, and `orderNewCards` sorts by that
+rank before the existing due/id order. The forecast, the budget, the backlog stop, the daily ceiling and
+the per-Deck merging of streams are untouched; the core test holds the count and the allowance equal
+with and without ranks. Without triage marks, waves only restate creation order.
+
+Unsure goes first inside its wave, by owner decision on 2026-11-01. The learning case: an Unsure Note
+is often partly known, so its first answer settles it quickly, and a confident first answer starts with
+a long interval, which costs less later than a New Note does. The throttle prices every new Card the
+same, so admitting cheaper material first can only leave the forecast pessimistic, never optimistic.
+The cost: inside one wave, an Unsure Note can start before a New Note the file put earlier. Nothing
+moves further than one wave, so a frequency list keeps its shape at the scale of 50 Notes. The two
+rejected options were Unsure as plain New (the mark would mean nothing) and every Unsure before any New
+(in a frequency list, rare Unsure words would push common New words weeks back).
+
+Nothing about a wave is stored. Every plan works the waves out from the Cards it plans with and the
+Unsure marks it can see, so the server and an offline plan agree by construction. The server reads the
+marks with one query beside the planning Cards. A device planning offline reads the marks in its
+download and applies its own triage decisions that are not yet delivered, conservatively: a Known
+decision takes a Note out and an Unsure or New decision orders it, but a Known Note returning to Study
+waits for the server, which may still refuse it.
+
+Each plan reports, per Deck: the current wave's number and size, how many of its Notes have started,
+how many wait and how many of those are Unsure, how many Notes wait in later waves, and how many Notes
+of the Deck today's plan starts. That last number comes from the plan over every language, which is
+where the account's one automatic allowance is divided between Decks, so it is the same whichever
+language a sitting then picks. The next wave needs no event: it is current as soon as every Note of the
+one before has started. Computing waves for 5,000 Notes (10,000 Cards) takes about 2 ms, against about
+2.7 s for the whole plan on the same machine, where the forecast dominates.
 
 ## What the simulator measured
 

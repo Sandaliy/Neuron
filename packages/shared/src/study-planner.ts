@@ -13,6 +13,7 @@ import {
 import type { WorkloadCard, WorkloadReview } from '@neuron/core';
 
 import { resolveDeckSettings } from './deck-settings.js';
+import { learningWaves } from './learning-waves.js';
 
 import type { DailyStudySessionRequest } from './api/study.js';
 import type { DeckSettings, ResolvedDeckSettings } from './deck-settings.js';
@@ -32,11 +33,16 @@ export function planDailyStudy(input: {
   readonly explicitScope: boolean;
   readonly settings: ResolvedDeckSettings;
   readonly cards: readonly WorkloadCard[];
+  /** Notes marked Unsure in triage. They start first inside their wave. */
+  readonly unsureNoteIds?: ReadonlySet<string>;
   readonly allLogs: readonly WorkloadReview[];
   readonly body: DailyStudySessionRequest;
   readonly now: Date;
 }) {
-  const { account, collections, scopeDeckIds, settings, cards, allLogs, body, now } = input;
+  const { account, collections, scopeDeckIds, settings, allLogs, body, now } = input;
+  // Waves only order new material; the throttle below still decides how much.
+  const waves = learningWaves(input.cards, input.unsureNoteIds ?? new Set());
+  const cards = waves.cards;
   const byDeck = new Map(collections.map((deck) => [deck.id, deck]));
   const scope = input.explicitScope ? scopeDeckIds : undefined;
   const selected = new Set(scopeDeckIds);
@@ -133,6 +139,16 @@ export function planDailyStudy(input: {
         nextDue: future(pool),
       };
     }),
+    // Today's share comes from the plan over every language, which is where the
+    // account's one automatic allowance is divided between Decks.
+    waves: waves.decks.map((wave) => ({
+      ...wave,
+      today: new Set(
+        aggregate.cards
+          .filter((card) => card.deckId === wave.deckId && card.scheduling.state === 'new')
+          .map((card) => card.noteId),
+      ).size,
+    })),
     availableCount: supported.filter(available).length,
     nextDue: future(supported),
   };

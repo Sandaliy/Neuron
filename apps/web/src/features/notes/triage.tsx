@@ -6,6 +6,7 @@ import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 
 import {
   TRIAGE_DECISIONS,
+  WAVE_SIZE,
   countTriage,
   nextInTriage,
   normaliseTerm,
@@ -440,7 +441,9 @@ export function TriageDone({
         <p className="text-14 text-secondary" data-numeric="">
           {t('triage.doneBody', { known: counts.known, unsure: counts.unsure, new: counts.new })}
         </p>
-        <p className="max-w-[38ch] text-14 leading-body text-secondary">{t('triage.doneHint')}</p>
+        <p className="max-w-[38ch] text-14 leading-body text-secondary">
+          {t('triage.doneHint', { size: WAVE_SIZE })}
+        </p>
         {excluded}
       </div>
       <div className="neu-learning-actions flex flex-col gap-8">

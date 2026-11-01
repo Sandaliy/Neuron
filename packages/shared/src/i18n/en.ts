@@ -587,6 +587,7 @@ export const en = {
   'today.waitingLabel': 'cards to review',
   'today.newLabel': 'new',
   'today.deckCounts': '{due} to review · {fresh} new',
+  'today.deckWave': '{due} to review · wave {number}: {waiting} new',
   'today.waiting': 'Cards waiting: {count}',
   'today.newAvailable': 'New cards ready to start: {count}',
   'today.newAvailableHint':
@@ -976,7 +977,7 @@ export const en = {
   'triage.unsureDoneTitle': 'No Unsure Notes left',
   'triage.doneBody': 'Known {known} · Unsure {unsure} · New {new}',
   'triage.doneHint':
-    'Known Notes sit out of Study. Unsure and New Notes stay in Study and arrive as new cards. Any decision can be changed later.',
+    'Known Notes sit out of Study. Unsure and New Notes enter Study in waves of {size}, Unsure first in each wave. Any decision can be changed later.',
   'triage.reviewUnsure': 'Go through Unsure ({count})',
   'triage.reviewAll': 'Review decisions',
   'triage.done': 'Done',
@@ -1151,6 +1152,24 @@ export const en = {
   'error.unexpected': 'Something went wrong. Try again in a moment.',
   'error.internal_error':
     'Something went wrong at our end. Try again in a moment, and quote this if it keeps happening: {correlationId}',
+
+  'waves.title': 'Wave {number} of {count}',
+  'waves.started': '{started} / {size} started',
+  'waves.progress': 'Notes started in this wave',
+  'waves.waiting': 'Waiting in this wave: {count}.',
+  'waves.unsure': 'Unsure go first: {count}.',
+  'waves.today': 'Study lets in {count} today.',
+  'waves.paused.backlogActive':
+    'None today: reviews are behind, and new Notes wait until they catch up.',
+  'waves.paused.forecastOverBudget':
+    'None today: reviews already fill your minutes a day. New Notes come in as time frees up.',
+  'waves.paused.dailyCapReached': 'None today: the daily limit for new cards is reached.',
+  'waves.paused.withinBudget': 'None more today: today’s room for new material is used.',
+  'waves.next': 'The next wave starts when every Note in this one has started.',
+  'waves.nextDay': 'At today’s pace, the next wave starts tomorrow.',
+  'waves.nextDays': 'At today’s pace, the next wave starts in about {count} days.',
+  'waves.later': '{count} more wait in later waves. They take no time until they start.',
+  'waves.last': 'This is the last wave.',
 } as const;
 
 /** Every key the interface can ask for. */

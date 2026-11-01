@@ -25,6 +25,9 @@ export const NOTE_CREATION_PREFIX = 'note-create:';
 export const NOTE_DRAFT_PREFIX = 'note-create-draft:';
 export const noteCreationRange = () =>
   IDBKeyRange.bound(NOTE_CREATION_PREFIX, `${NOTE_CREATION_PREFIX}\uffff`);
+/** Triage decisions saved on this device, one `meta` record per Note. */
+export const TRIAGE_PREFIX = 'triage:';
+export const triageRange = () => IDBKeyRange.bound(TRIAGE_PREFIX, `${TRIAGE_PREFIX}\uffff`);
 export interface CollectionMeta {
   cursor: number;
   complete: boolean;

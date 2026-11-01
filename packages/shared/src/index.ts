@@ -379,4 +379,6 @@ export type { ReviewHistoryRow } from './api/reviews.js';
 export * from './typed-answer.js';
 
 export { planDailyStudy } from './study-planner.js';
+export { WAVE_SIZE, deckWaveSchema, learningWaves, waveRank } from './learning-waves.js';
+export type { DeckWave } from './learning-waves.js';
 export type { PlanningDeck } from './study-planner.js';

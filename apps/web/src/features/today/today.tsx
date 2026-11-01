@@ -31,6 +31,7 @@ import { Spinner } from '../../ui/spinner';
 import { ErrorState, Skeleton } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { DeckSettingsDialog } from '../library/deck-dialogs';
+import { showsWave } from '../notes/learning-wave';
 
 import { CardDisplaySetup } from './card-display';
 import { ListeningSetup, useListeningAvailability } from './listening-setup';
@@ -617,7 +618,10 @@ function Waiting({
     .filter((summary) => selected.includes(summary.deckId))
     .flatMap((summary) => {
       const deck = live.find((row) => row.id === summary.deckId);
-      return deck ? [{ ...deck, ...summary }] : [];
+      const wave = result?.waves.find((row) => row.deckId === summary.deckId);
+      return deck
+        ? [{ ...deck, ...summary, wave: wave && showsWave(wave) ? wave : undefined }]
+        : [];
     });
   return (
     <div data-today-view="" className="flex flex-col gap-24">
@@ -788,6 +792,13 @@ function Waiting({
                     waitingLabel
                   ) : deck.due === 0 && deck.fresh === 0 && deck.nextDue ? (
                     <ReviewTime due={deck.nextDue} />
+                  ) : deck.wave ? (
+                    // A large Deck shows its current wave, not every new Note it will ever hold.
+                    t('today.deckWave', {
+                      due: deck.due,
+                      number: deck.wave.number,
+                      waiting: deck.wave.waiting,
+                    })
                   ) : (
                     t('today.deckCounts', { due: deck.due, fresh: deck.fresh })
                   )

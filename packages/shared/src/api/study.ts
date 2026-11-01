@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { languageCodeSchema } from '../languages.js';
+import { deckWaveSchema } from '../learning-waves.js';
 import { noteTypeSchema } from '../note-types.js';
 
 import { cardSchema } from './cards.js';
@@ -77,6 +78,8 @@ export const dailyStudySessionSchema = z.object({
       }),
     )
     .default([]),
+  /** Each Deck's wave now entering Study. Absent from plans made before waves. */
+  waves: z.array(deckWaveSchema).default([]),
   cards: z.array(cardSchema),
   notes: z.array(noteSchema),
   nextDue: z.string().nullable(),

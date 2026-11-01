@@ -473,3 +473,58 @@ describe('downloaded Study authority and committed history', () => {
     expect(s.events).toEqual([rejected, second, third]);
   });
 });
+
+describe('learning waves in the downloaded plan', () => {
+  const first = (s: StudySnapshot) =>
+    plan(s)
+      .cards.filter((card) => card.state === 'new')
+      .map((card) => card.noteId);
+  const pending = (noteId: string, choice: string, owner = accountId) => ({
+    kind: 'triage',
+    accountId: owner,
+    noteId,
+    choice,
+    sequence: 5,
+  });
+
+  it('lets an Unsure Note in first, from the download or from a decision not yet sent', () => {
+    expect(first(snapshot())).toEqual([id(11)]);
+
+    const marked = snapshot();
+    marked.notes[1]!.row['triage'] = 'unsure';
+    expect(first(marked)).toEqual([id(12)]);
+    expect(plan(marked).waves.find((wave) => wave.deckId === id(1))).toMatchObject({
+      number: 1,
+      size: 2,
+      waiting: 2,
+      unsure: 1,
+    });
+
+    const saved = snapshot();
+    saved.triage = [pending(id(12), 'unsure')];
+    expect(first(saved)).toEqual([id(12)]);
+  });
+
+  it('applies a Known decision not yet sent, but waits for the server before a Note returns', () => {
+    const known = snapshot();
+    known.triage = [pending(id(11), 'known')];
+    expect(first(known)).toEqual([id(12)]);
+    expect(plan(known).waves.find((wave) => wave.deckId === id(1))).toMatchObject({ size: 1 });
+
+    const returning = snapshot();
+    returning.notes[0]!.row['status'] = 'known';
+    returning.triage = [pending(id(11), 'unsorted')];
+    expect(first(returning)).toEqual([id(12)]);
+  });
+
+  it('ignores decisions of another account and records that do not read as one', () => {
+    const s = snapshot();
+    s.triage = [
+      pending(id(11), 'known', 'someone-else'),
+      { ...pending(id(11), 'known'), kind: 'note-edit' },
+      { ...pending(id(11), 'known'), choice: 'forgotten' },
+      null,
+    ];
+    expect(first(s)).toEqual([id(11)]);
+  });
+});
