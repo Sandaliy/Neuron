@@ -12,6 +12,7 @@ import { reviewRepository } from './reviews.js';
 import { nameUser, transactionRunner } from './session.js';
 import { importBatchRepository, presetRepository } from './study.js';
 import { syncRepository } from './sync.js';
+import { triageRepository } from './triage.js';
 
 import type { AccountRepository } from './account.js';
 import type { CardRepository } from './cards.js';
@@ -23,6 +24,7 @@ import type { ReviewRepository } from './reviews.js';
 import type { Runner } from './session.js';
 import type { ImportBatchRepository, PresetRepository } from './study.js';
 import type { SyncRepository } from './sync.js';
+import type { TriageRepository } from './triage.js';
 
 /**
  * The only way into the database.
@@ -53,6 +55,7 @@ export interface Repositories {
   readonly presets: PresetRepository;
   readonly importBatches: ImportBatchRepository;
   readonly sync: SyncRepository;
+  readonly triage: TriageRepository;
   readonly account: AccountRepository;
   /**
    * Runs several operations in one transaction.
@@ -79,6 +82,7 @@ function build(db: Database, userId: string, run: Runner): Repositories {
     presets: presetRepository(userId, run),
     importBatches: importBatchRepository(userId, run),
     sync: syncRepository(userId, run),
+    triage: triageRepository(userId, run),
     account: accountRepository(userId, run),
 
     transaction: async (work) =>

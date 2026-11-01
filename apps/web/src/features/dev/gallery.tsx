@@ -24,6 +24,7 @@ import { EmptyState, ErrorState, Skeleton, SkeletonRows } from '../../ui/states'
 import { Switch } from '../../ui/switch';
 import { TextArea } from '../../ui/textarea';
 import { TypedResponse } from '../../ui/typed-response';
+import { TriageCard, TriageDone, TriageEntryCard, TriageRow } from '../notes/triage';
 
 import type { GlassLevel } from '../../preferences/glass';
 import type { ReactNode } from 'react';
@@ -118,7 +119,105 @@ export function GalleryScreen() {
           </div>
         ))}
       </section>
+      <section data-triage-specimen="" className="mx-auto flex max-w-[720px] flex-col gap-20 p-20">
+        <GroupLabel>Triage</GroupLabel>
+        {(['dark', 'light'] as const).map((theme) => (
+          <div
+            key={theme}
+            data-theme={theme}
+            className="flex flex-col gap-12 bg-canvas p-20 text-primary"
+          >
+            <TriageSpecimen />
+          </div>
+        ))}
+      </section>
     </div>
+  );
+}
+
+/** Every state of the triage sweep, drawn by the components the screen uses. */
+function TriageSpecimen() {
+  const t = useTranslate();
+  const [revealed, setRevealed] = useState(false);
+  const counts = { known: 812, unsure: 96, new: 331, unsorted: 1761 };
+  const item = {
+    id: '01900000-0000-7000-8000-000000000412',
+    deckId: '01900000-0000-7000-8000-000000000001',
+    noteType: 'vocab' as const,
+    rank: 412,
+    choice: 'unsorted' as const,
+    term: 'die Sorgfalt',
+    detail: 'ˈzɔʁkfalt',
+    meaning: 'care, thoroughness',
+  };
+  return (
+    <>
+      <ModeHeader
+        title={t('triage.title')}
+        exitLabel={t('triage.exit')}
+        onExit={() => undefined}
+        value={1239}
+        max={3000}
+        progressLabel={t('triage.progress')}
+      />
+      <State>unsorted, then revealed</State>
+      <div className="flex h-[520px] flex-col gap-12">
+        <TriageCard
+          item={item}
+          position={1240}
+          total={3000}
+          choice="unsorted"
+          counts={counts}
+          revealed={revealed}
+          onReveal={() => setRevealed(true)}
+          onOpen={() => undefined}
+          onDecide={() => setRevealed(false)}
+        />
+      </div>
+      <State>decided earlier, opened from the list</State>
+      <div className="flex h-[440px] flex-col gap-12">
+        <TriageCard
+          item={{ ...item, term: 'die Wohnung', detail: '', rank: null }}
+          position={58}
+          total={3000}
+          choice="unsure"
+          counts={counts}
+          revealed
+          onReveal={() => undefined}
+          onOpen={() => undefined}
+          onDecide={() => undefined}
+        />
+      </div>
+      <State>finished</State>
+      <div className="flex flex-col gap-12">
+        <TriageDone
+          queue="unsorted"
+          counts={{ ...counts, unsorted: 0 }}
+          onUnsure={() => undefined}
+          onList={() => undefined}
+          onFinish={() => undefined}
+        />
+      </div>
+      <State>Deck entry: before a sweep is opened, not started, then waiting to send</State>
+      <TriageEntryCard onOpen={() => undefined} />
+      <TriageEntryCard progress={{ sorted: 0, total: 3000 }} onOpen={() => undefined} />
+      <TriageEntryCard progress={{ sorted: 1239, total: 3000 }} waiting onOpen={() => undefined} />
+      <State>list rows</State>
+      <div className="overflow-hidden rounded-24 border border-glass" data-g="card">
+        {(['unsorted', 'known', 'unsure', 'new'] as const).map((choice, index) => (
+          <TriageRow
+            key={choice}
+            item={{ ...item, id: `${item.id.slice(0, -1)}${index}`, term: `Wort ${index + 1}` }}
+            choice={choice}
+            onOpen={() => undefined}
+          />
+        ))}
+      </div>
+      <State>loading, empty, error</State>
+      <SkeletonRows rows={2} />
+      <EmptyState title={t('triage.emptyTitle')} description={t('triage.emptyBody')} />
+      <ErrorState message={t('error.network_unreachable')} retryLabel={t('common.retry')} />
+    </>
   );
 }
 

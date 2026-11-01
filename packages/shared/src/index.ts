@@ -372,6 +372,7 @@ export { CATALOGUES, en, ru, translate } from './i18n/index.js';
 export type { MessageKey, MessageValues, Messages } from './i18n/index.js';
 
 export * from './practice.js';
+export * from './triage.js';
 
 export { studyDecks } from './study-scope.js';
 export type { ReviewHistoryRow } from './api/reviews.js';

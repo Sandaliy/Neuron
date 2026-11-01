@@ -528,6 +528,8 @@ uses ты everywhere; the app belongs to one person.
 | streak            | 6 days in a row                | 6 дней подряд                      | серия, стрик                          |
 | daily time budget | minutes a day                  | минут в день                       | лимит, бюджет времени                 |
 | wave              | wave, 8 new words let in       | волна, впустили 8 новых слов       | батч, партия                          |
+| triage            | triage                         | разбор                             | сортировка, триаж                     |
+| unsure (triage)   | Unsure                         | Сомневаюсь                         | не уверен, неизвестно                 |
 | two-factor auth   | 2FA                            | двухфакторная аутентификация (2FA) | вход в два шага, двухэтапная проверка |
 | recovery code     | recovery code                  | резервный код                      | код доступа, код восстановления       |
 | direction         | ask both ways                  | спрашивать с двух сторон           | направление, реверс                   |
@@ -650,6 +652,14 @@ membership reconciliation update the same ratio. The Deck entry retains its sepa
 summary; completion retains its Known ring. The compact label/count row retains identical anchors during Typing. They do not
 imply SRS mastery. Never invent
 language pairs, grammar, streaks, or statistics not provided by the current model/presentation recipe.
+
+Triage reuses the same composition. The Note's word is the prompt, its meaning waits behind Show
+meaning, and Open Note sits beside it. Known, Unsure and New are three equal stacked quiet actions in
+the action band with their running counts, shaped like the Study grades. None is filled: no decision is
+the expected one. Undo and the decisions list are header icons. The list is a Note-list screen of dense
+rows with the decision as quiet trailing text. The Deck entry is a quiet card for a Deck of 20 or more
+Notes. It fetches nothing, so it never arrives late or moves with connectivity; it shows progress once
+a sweep has been opened in the visit.
 
 Standalone meaningful actions such as Practice and Undo have a bounded neutral control. Lightweight
 utilities such as the Practice entry settings may use text treatment when the surrounding group makes

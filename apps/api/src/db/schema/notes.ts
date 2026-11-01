@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { check, index, integer, jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 
-import { NOTE_STATUSES } from '@neuron/shared';
+import { NOTE_STATUSES, TRIAGE_MARKS } from '@neuron/shared';
 import type { NoteFields } from '@neuron/shared';
 
 import { id, instant, literalList } from './columns.js';
@@ -51,6 +51,13 @@ export const notes = pgTable(
      */
     rank: integer('rank'),
     status: text('status').notNull().default('active'),
+    /**
+     * Unsure or New, as decided in triage, beside an active status.
+     *
+     * Known needs no mark because it is the status. Null means nothing was
+     * decided, which is every Note written before triage existed.
+     */
+    triage: text('triage'),
     importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
       onDelete: 'set null',
     }),
@@ -95,6 +102,10 @@ export const notes = pgTable(
     index('notes_user_rev_idx').on(table.userId, table.rev),
     index('notes_import_batch_idx').on(table.importBatchId),
     check('notes_status_known', sql`${table.status} in (${literalList(NOTE_STATUSES)})`),
+    check(
+      'notes_triage_known',
+      sql`${table.triage} is null or ${table.triage} in (${literalList(TRIAGE_MARKS)})`,
+    ),
     check('notes_rank_not_negative', sql`${table.rank} is null or ${table.rank} >= 0`),
     check('notes_rev_not_negative', sql`${table.rev} >= 0`),
   ],
