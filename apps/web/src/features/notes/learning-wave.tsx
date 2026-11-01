@@ -52,7 +52,7 @@ export function LearningWaveCard({
   return (
     <Card className="flex flex-col gap-16">
       <div className="flex w-full flex-wrap items-center justify-between gap-8">
-        <h2 className="text-17 text-primary" data-numeric="">
+        <h2 className="text-17 text-primary">
           {t('waves.title', { number: wave.number, count: wave.count })}
         </h2>
         <span className="text-12 text-secondary" data-numeric="">
@@ -62,7 +62,7 @@ export function LearningWaveCard({
       <div className="h-4">
         <Progress value={wave.started} max={wave.size} label={t('waves.progress')} />
       </div>
-      <div className="flex flex-col gap-8 text-14 leading-body text-secondary" data-numeric="">
+      <div className="flex flex-col gap-8 text-14 leading-body text-secondary">
         <p>
           {t('waves.waiting', { count: wave.waiting })}
           {wave.unsure > 0 && ` ${t('waves.unsure', { count: wave.unsure })}`}
