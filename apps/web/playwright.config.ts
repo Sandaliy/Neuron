@@ -53,7 +53,7 @@ export default defineConfig({
     {
       name: 'webkit-phone-interaction',
       testMatch:
-        /(?:import|connectivity-live|offline(?:-live|-renames|-notes|-note-creation(?:-live)?|-reviews|-practice)?|stabilization|rich-study|study|study-language|practice-setup|navigation|learning-live|offline-review-live|offline-study(?:-live)?|phase84-latency|acceptance-motion|interaction-lifecycle|polish(?:-visual)?|triage)\.spec\.ts/,
+        /(?:import|connectivity-live|offline(?:-live|-collections(?:-live)?|-renames|-notes|-note-creation(?:-live)?|-reviews|-practice)?|stabilization|rich-study|study|study-language|practice-setup|navigation|learning-live|offline-review-live|offline-study(?:-live)?|phase84-latency|acceptance-motion|interaction-lifecycle|polish(?:-visual)?|triage)\.spec\.ts/,
       use: { ...devices['iPhone 13'] },
     },
     {

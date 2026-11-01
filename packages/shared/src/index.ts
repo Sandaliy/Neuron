@@ -139,6 +139,17 @@ export {
 export type { ApiError, ApiErrorCode } from './api/errors.js';
 
 export {
+  createOfflineDeckCommandSchema,
+  createOfflineDeckResultSchema,
+  savedDeckCreationSchema,
+} from './api/deck-creation.js';
+export type {
+  CreateOfflineDeckCommand,
+  CreateOfflineDeckResult,
+  SavedDeckCreation,
+} from './api/deck-creation.js';
+
+export {
   createDeckSchema,
   deckNodeSchema,
   deletedDeckListSchema,

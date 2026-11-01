@@ -9,6 +9,8 @@ import {
   triageResultSchema,
   cardSchema,
   createDeckSchema,
+  createOfflineDeckCommandSchema,
+  createOfflineDeckResultSchema,
   createImportSchema,
   createNoteSchema,
   createPresetSchema,
@@ -72,6 +74,8 @@ const registry: Record<string, z.ZodType> = {
   DeletedDeck: deletedDeckSchema,
   DeletedDeckList: deletedDeckListSchema,
   CreateDeck: createDeckSchema,
+  CreateOfflineDeckCommand: createOfflineDeckCommandSchema,
+  CreateOfflineDeckResult: createOfflineDeckResultSchema,
   UpdateDeck: updateDeckSchema,
   RenameDeckCommand: renameDeckCommandSchema,
   RenameDeckResult: renameDeckResultSchema,
@@ -232,6 +236,16 @@ export function openApiDocument(baseUrl: string) {
           summary: 'Create a deck',
           requestBody: body('CreateDeck'),
           responses: { 201: answer('The deck'), ...commonErrors },
+        },
+      },
+      '/decks/offline-create': {
+        post: {
+          summary: 'Create a saved Folder or Deck exactly once',
+          requestBody: body('CreateOfflineDeckCommand'),
+          responses: {
+            200: answer('Applied or retained conflict outcome', 'CreateOfflineDeckResult'),
+            ...commonErrors,
+          },
         },
       },
       '/decks/reorder': {

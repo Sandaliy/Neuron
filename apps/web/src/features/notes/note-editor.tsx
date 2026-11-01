@@ -661,7 +661,7 @@ function Editor({
             new Error(
               reason === 'collection_deck_missing'
                 ? 'collection_create_deck'
-                : 'collection_create_storage',
+                : 'collection_note_create_storage',
               { cause: error },
             ),
           );

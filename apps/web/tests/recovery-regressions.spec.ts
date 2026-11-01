@@ -71,7 +71,7 @@ test.describe('phone collection row isolation', () => {
 
 test('deck create stays successful when the refresh fails', async ({ page }) => {
   await usePreferences(page, { theme: 'dark', locale: 'en' });
-  await useFixtures(page);
+  await useFixtures(page, { collectionDownload: false });
   let failRefresh = false;
   await page.route('/api/decks', async (route) => {
     if (route.request().method() === 'POST') {

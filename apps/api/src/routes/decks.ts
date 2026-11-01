@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 
 import {
   createDeckSchema,
+  createOfflineDeckCommandSchema,
   practiceCommandSchema,
   restartLearningSchema,
   idParamSchema,
@@ -58,6 +59,11 @@ export function deckRoutes(): Hono<RequestBindings> {
     });
 
     return context.json({ deck: serialiseDeck(deck) }, 201);
+  });
+
+  routes.post('/offline-create', async (context) => {
+    const command = await readBody(context, createOfflineDeckCommandSchema);
+    return context.json(await repositoriesOf(context).collectionCreation.create(command));
   });
 
   routes.get('/deleted', async (context) => {

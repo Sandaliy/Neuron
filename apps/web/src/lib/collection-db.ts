@@ -4,6 +4,7 @@ import {
   noteSchema,
   pullSyncResultSchema,
   SYNC_ENTITIES,
+  savedDeckCreationSchema,
 } from '@neuron/shared';
 import type { PullSyncResult } from '@neuron/shared';
 
@@ -15,6 +16,9 @@ import type { PendingNoteEdit } from './note-outbox';
 export const COLLECTION_VERSION = 1;
 export const COLLECTION_DATABASE_VERSION = 3;
 export const collectionName = (accountId: string) => `neuron.collection:${accountId}`;
+export const DECK_CREATION_PREFIX = 'deck-create:';
+export const deckCreationRange = () =>
+  IDBKeyRange.bound(DECK_CREATION_PREFIX, `${DECK_CREATION_PREFIX}\uffff`);
 /** New Notes saved on this device, one `meta` record each. Earlier shells never read them. */
 export const NOTE_CREATION_PREFIX = 'note-create:';
 /** The unsaved new-Note form for one destination. */
@@ -282,6 +286,26 @@ export async function deleteCollection(accountId: string): Promise<void> {
     const tx = db.transaction(['meta', 'outbox', 'review-outbox', ...SYNC_ENTITIES], 'readwrite');
     const done = committed(tx);
     let blocked = false;
+    const creationsRead = tx.objectStore('meta').getAll(deckCreationRange());
+    creationsRead.onsuccess = () => {
+      if (
+        creationsRead.result.some((entry: unknown) => {
+          const parsed = savedDeckCreationSchema.safeParse(entry);
+          return (
+            !parsed.success ||
+            parsed.data.accountId !== accountId ||
+            parsed.data.payload.accountId !== accountId ||
+            !(
+              parsed.data.state === 'resolved' ||
+              (parsed.data.state === 'synchronized' && parsed.data.outcome?.status === 'applied')
+            )
+          );
+        })
+      ) {
+        blocked = true;
+        tx.abort();
+      }
+    };
     const reviewRead = tx.objectStore('review-outbox').getAll();
     reviewRead.onsuccess = () => {
       if (reviewRead.result.some((entry: { state: string }) => entry.state !== 'synchronized')) {

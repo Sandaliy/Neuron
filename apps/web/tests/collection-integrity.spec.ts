@@ -220,6 +220,10 @@ test('partial swipe reveals one action with an accessible button fallback', asyn
 
 test('creation sends the kind and moves offer only folders', async ({ page }) => {
   await setup(page, 'en', 'light');
+  // This case covers the existing online path before a collection download.
+  await page.route('**/api/sync?*', (route) =>
+    route.fulfill({ status: 503, json: { error: { code: 'internal_error' } } }),
+  );
   const created: Record<string, unknown>[] = [];
   await page.route('**/api/decks', (route) => {
     if (route.request().method() === 'POST') {
