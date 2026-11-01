@@ -365,6 +365,13 @@ every one of these in every state.
 
 ## Documentation
 
+Account export: `packages/shared/src/account-export.ts` owns the versioned JSON Lines envelope and
+streaming delivery validator. `apps/api/src/db/repositories/account-export.ts` owns field allowlists
+and the read-only snapshot; `apps/api/src/routes/account-export.ts` streams it behind the account
+session. `apps/web/src/features/settings/account-export.tsx` and `apps/web/src/lib/account-export.ts`
+own preparation, account-bound validation and file delivery. The contract and acceptance steps are in
+`docs/account-export.md`.
+
 | File                              | Holds                                                                                     |
 | --------------------------------- | ----------------------------------------------------------------------------------------- |
 | `docs/STATE.md`                   | Current phase, open threads, decision log. Read this first                                |

@@ -1,21 +1,27 @@
 import { getTableColumns, getTableName } from 'drizzle-orm';
+import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { RATING } from '@neuron/core';
 import { ExportValidator, uuidV7 } from '@neuron/shared';
 
+import { mountCollection } from '../create-app.js';
 import { EXPORT_TABLES, exportVersion, ExportLimit } from '../db/repositories/account-export.js';
 import { AUTH_TABLES, schema } from '../db/schema/index.js';
 import {
   asUser,
+  appClient,
   createUser,
   rawAppPool,
   rawOwnerPool,
   repositoriesFor,
   testDatabase,
 } from '../db/testing/database.js';
+import { createPermissiveRateLimiter } from '../rate-limit.js';
 import { signedOutServer, testServer } from '../testing/server.js';
 
+import type { Auth } from '../auth.js';
+import type { AuthDatabase } from '../db/client.js';
 import type { Repositories } from '../db/repositories/index.js';
 
 const database = testDatabase();
@@ -33,7 +39,7 @@ describe('export allowlists', () => {
       )!;
       const keys = Object.keys(getTableColumns(table));
       if (definition.entity === 'preferences') continue; // Authentication columns are deliberately unreachable.
-      expect(keys.filter((key) => !excluded.includes(key) && key !== 'triage').sort()).toEqual(
+      expect(keys.filter((key) => !excluded.includes(key)).sort()).toEqual(
         [...definition.columns].sort(),
       );
     }
@@ -109,7 +115,12 @@ describe.skipIf(!database)('private synchronized account export on PostgreSQL', 
     const { lines, validator } = await archive(OTHER);
     expect(validator.records).toBe(4);
     expect(rows(lines, 'preferences')).toEqual([
-      expect.objectContaining({ id: OTHER, timezone: 'Europe/Moscow', currentRev: 0, settings: {} }),
+      expect.objectContaining({
+        id: OTHER,
+        timezone: 'Europe/Moscow',
+        currentRev: 0,
+        settings: {},
+      }),
     ]);
     expect(
       rows(lines, 'noteTypes')
@@ -185,6 +196,10 @@ describe.skipIf(!database)('private synchronized account export on PostgreSQL', 
     await repo.reviews.undo(answer.review.id, cancellationId);
     const restartId = uuidV7();
     await repo.reviews.restartDeck(deck.id, restartId);
+    await repo.triage.decide([
+      { id: vocab.id, choice: 'unsure' },
+      { id: cloze.id, choice: 'new' },
+    ]);
     await repo.presets.create({
       deckId: deck.id,
       name: 'Recall',
@@ -237,8 +252,24 @@ describe.skipIf(!database)('private synchronized account export on PostgreSQL', 
     );
     await repo.notes.softDelete(cloze.id);
     const before = await repo.sync.revision();
+    const unchangedTables = [
+      ...EXPORT_TABLES.filter((entry) => !['preferences', 'noteTypes'].includes(entry.entity)).map(
+        (entry) => entry.table,
+      ),
+      'sync_receipts',
+    ];
+    const digestSql = unchangedTables
+      .map(
+        (table) =>
+          `select '${table}' as name, md5(coalesce(string_agg(to_jsonb(t)::text, '' order by to_jsonb(t)::text), '')) as digest from "${table}" t where user_id=$1`,
+      )
+      .join(' union all ');
+    const digests = (await owner!.query(digestSql, [OWNER])).rows;
+    const preferences = await repo.account.read();
     const raw = await owner!.query('select * from reviews where user_id=$1 order by id', [OWNER]);
     const { lines, text } = await archive();
+    expect((await owner!.query(digestSql, [OWNER])).rows).toEqual(digests);
+    expect(await repo.account.read()).toEqual(preferences);
     expect(await repo.sync.revision()).toBe(before);
     expect(
       (await owner!.query('select * from reviews where user_id=$1 order by id', [OWNER])).rows,
@@ -249,6 +280,7 @@ describe.skipIf(!database)('private synchronized account export on PostgreSQL', 
       tags: ['verbs'],
       rank: 7,
       importBatchId: batch.id,
+      triage: 'unsure',
     });
     expect(exportedNotes.find((row) => row['id'] === basic.id)).toMatchObject({
       fields: {},
@@ -257,6 +289,7 @@ describe.skipIf(!database)('private synchronized account export on PostgreSQL', 
     expect(exportedNotes.find((row) => row['id'] === cloze.id)).toMatchObject({
       fields: cloze.fields,
       deletedAt: expect.any(String),
+      triage: 'new',
     });
     const exportedReviews = rows(lines, 'reviews');
     expect(exportedReviews).toHaveLength(raw.rowCount!);
@@ -387,6 +420,53 @@ describe.skipIf(!database)('private synchronized account export on PostgreSQL', 
     expect(await repo.sync.revision()).toBe(before);
     expect((await archive()).validator.complete).toBe(true);
   });
+
+  it.each(['expired', 'changed'])(
+    'does not complete after the authenticated session has %s',
+    async (state) => {
+      let calls = 0;
+      const client = appClient(db);
+      const auth = {
+        api: {
+          getSession: async () => {
+            calls++;
+            if (calls > 1 && state === 'expired') return null;
+            return {
+              user: {
+                id: calls > 1 ? OTHER : OWNER,
+                name: 'Synthetic learner',
+                email: 'learner@neuron.test',
+                emailVerified: true,
+              },
+              session: { passwordChangeRequired: false },
+            };
+          },
+        },
+      } as unknown as Auth;
+      const server = mountCollection(
+        new Hono(),
+        {
+          db: client,
+          authDb: client as unknown as AuthDatabase,
+          auth,
+          limiter: createPermissiveRateLimiter(),
+          requireVerifiedEmail: false,
+        },
+        'http://localhost:8787',
+      );
+      const response = await server.request('/api/account/export', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ accountId: OWNER }),
+      });
+      const text = await response.text();
+      expect(text).toContain('"type":"manifest"');
+      expect(text).toContain('"type":"error"');
+      expect(text).not.toContain('"type":"complete"');
+      expect(calls).toBe(2);
+      await client.$client.end();
+    },
+  );
 
   it('bounds unexpectedly large individual records instead of completing a partial archive', async () => {
     const user = 'account-export-oversized';

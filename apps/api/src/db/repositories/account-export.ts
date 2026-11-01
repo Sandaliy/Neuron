@@ -82,6 +82,7 @@ export const EXPORT_TABLES = [
       'source',
       'rank',
       'status',
+      'triage',
       'importBatchId',
       'purgedAt',
     ],
@@ -219,7 +220,7 @@ export const EXPORT_GUIDE = {
   practice:
     'One stored run/version per Deck, without live-membership reconciliation. Historical versions exist only where retained in conflicts; there is no complete command/version history. Queue/status Note IDs may refer to Notes removed from the pool. Practice never changes Reviews or schedules.',
   notes:
-    'vocab, basic and cloze fields follow their exported noteTypes definitions. Image/audio fields are stored references, not bundled remote files. Cloze direction plus slot identifies a gap. Triage is the stored mark; null also covers schemas predating triage.',
+    'vocab, basic and cloze fields follow their exported noteTypes definitions. Image/audio fields are stored references, not bundled remote files. Cloze direction plus slot identifies a gap. Triage is the stored mark; null means no mark, including Notes created before triage.',
   conflicts:
     'Retained losing and kept learning versions, with explicit field allowlists. A losing data object is an attempted change, not an accepted event. Unknown entity payloads are omitted; purged targets have payloads redacted. Practice run references may be historical.',
   exclusions:
@@ -237,7 +238,11 @@ export class ExportLimit extends Error {
 export function accountExportRepository(db: Database, userId: string) {
   return {
     /** Await each chunk for backpressure; no archive-sized server buffer or writes. */
-    async write(write: (line: string) => Promise<void>, signal: AbortSignal): Promise<void> {
+    async write(
+      write: (line: string) => Promise<void>,
+      signal: AbortSignal,
+      authorizeCompletion?: () => Promise<void>,
+    ): Promise<void> {
       const started = Date.now();
       const exportId = uuidV7();
       const counts = emptyExportCounts();
@@ -283,8 +288,6 @@ export function accountExportRepository(db: Database, userId: string) {
           check();
           const { entity, columns } = definition;
           const pairs = columns.map((key) => sql`${key}::text, ${sql.identifier(snake(key))}`);
-          // A forward-compatible, single-field allowlist for PR #69; null on older schemas.
-          if (entity === 'notes') pairs.push(sql`'triage', to_jsonb(export_source)->'triage'`);
           if (entity === 'conflicts')
             pairs.push(sql`'redacted', case
             when entity = 'notes' then not exists (select 1 from notes n where n.user_id = ${userId} and n.id = export_source.entity_id and n.purged_at is null)
@@ -341,6 +344,7 @@ export function accountExportRepository(db: Database, userId: string) {
         }
       });
       // A committed snapshot, not a successful last FETCH, makes an archive complete.
+      await authorizeCompletion?.();
       await emit({ type: 'complete', exportId, records, counts, bytes });
     },
   };

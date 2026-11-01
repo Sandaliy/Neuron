@@ -10,19 +10,19 @@ The field allowlists live in `apps/api/src/db/repositories/account-export.ts` (`
 `exportVersion`). A schema coverage test requires an explicit decision when a learning column or table
 is added. All relationships use the stored IDs, including deleted and purged tombstones.
 
-| Entity | Exported data |
-| --- | --- |
-| `preferences` | Account ID, synchronized locale/theme, timezone, day cutoff, root study settings, current revision |
-| `noteTypes` | Built-in and account-owned definitions, field descriptions, Card templates and lifecycle timestamps |
-| `decks` | Folders and Decks, parent/path/order, names, settings overrides, deletion operation and lifecycle |
-| `notes` | Type/Deck/Import IDs, every supported vocab/basic/cloze field, grammar and accepted answers, tags, source, rank, status, triage and lifecycle |
-| `cards` | Note/Deck IDs, direction/slot, full stored scheduling state, placed due, unlock/suspend/reset and deletion lifecycle |
-| `reviews` | Every stored immutable answer, cancellation and reset, target/restart IDs, original and accepted timestamps, durations, historical memory/scheduling values, captured prior state, revision |
-| `learningRestarts` | Operation IDs, Deck/optional Note scope, Card count and timestamps, including empty restarts |
-| `studyPresets` | Global/Deck scope, name, stored configuration, default flag and lifecycle |
-| `practiceRuns` | Stored run, version, last operation ID and lifecycle, without membership reconciliation |
-| `importBatches` | Destination, source label, format, recorded Note count, Undo and lifecycle timestamps |
-| `conflicts` | Entity/target/reason/time and allowlisted losing/kept versions, including retained Practice versions |
+| Entity             | Exported data                                                                                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `preferences`      | Account ID, synchronized locale/theme, timezone, day cutoff, root study settings, current revision                                                                                          |
+| `noteTypes`        | Built-in and account-owned definitions, field descriptions, Card templates and lifecycle timestamps                                                                                         |
+| `decks`            | Folders and Decks, parent/path/order, names, settings overrides, deletion operation and lifecycle                                                                                           |
+| `notes`            | Type/Deck/Import IDs, every supported vocab/basic/cloze field, grammar and accepted answers, tags, source, rank, status, triage and lifecycle                                               |
+| `cards`            | Note/Deck IDs, direction/slot, full stored scheduling state, placed due, unlock/suspend/reset and deletion lifecycle                                                                        |
+| `reviews`          | Every stored immutable answer, cancellation and reset, target/restart IDs, original and accepted timestamps, durations, historical memory/scheduling values, captured prior state, revision |
+| `learningRestarts` | Operation IDs, Deck/optional Note scope, Card count and timestamps, including empty restarts                                                                                                |
+| `studyPresets`     | Global/Deck scope, name, stored configuration, default flag and lifecycle                                                                                                                   |
+| `practiceRuns`     | Stored run, version, last operation ID and lifecycle, without membership reconciliation                                                                                                     |
+| `importBatches`    | Destination, source label, format, recorded Note count, Undo and lifecycle timestamps                                                                                                       |
+| `conflicts`        | Entity/target/reason/time and allowlisted losing/kept versions, including retained Practice versions                                                                                        |
 
 Notes support `vocab`, `basic` and `cloze`. Grammar includes supported legacy properties and boolean
 false. Media values are references; the export does not fetch external images or audio. Preset
@@ -89,7 +89,8 @@ documentation and matching reader validation; adding a database column never sil
 
 `POST /api/account/export` accepts only `{ "accountId": "the-current-account" }`. This is an expected
 identity check, not an account selector. There is no public URL, export ID lookup or pagination API.
-Better Auth's existing session gates apply. Every read includes the bound account predicate and runs
+Better Auth's existing session gates apply. The server rechecks the same session/account immediately
+before completion; expiry or account replacement leaves no complete archive. Every read includes the bound account predicate and runs
 as `neuron_app` with transaction-local identity and forced RLS. Authentication tables remain inaccessible
 to that role. User IDs, archive contents and session material are not logged or put in URLs.
 
@@ -123,6 +124,9 @@ throughout transfer and rechecks the authenticated account after completion. Lea
 the request and revokes the Blob URL; an account change remounts the section. Nothing is retained in
 React Query, IndexedDB or diagnostics.
 
+Saving an already prepared file does not require a connection. The same account visit must still own
+it; signing out or changing the account discards it. Preparation itself requires server access.
+
 ## Delivery and acceptance
 
 Preparation and saving are separate user actions, preserving the user gesture needed by file sharing
@@ -152,8 +156,16 @@ Practice replacement versions, imports, presets, preferences, ownership predicat
 Concurrent writes between manifest and table reads prove one snapshot. Interrupted/oversized deliveries
 cannot complete, and read-only checks compare learning state before and after.
 
-Representative large fixture: 5,000 Notes, 20,000 Cards, 100,000 stored Reviews. First local-to-Neon run:
-66,388,021 bytes (63.3 MiB), 39.2 seconds generation, process RSS 118 to 242 MiB (124 MiB growth).
+On merged triage `main` (`893a49c`): 102 targeted PostgreSQL/route/format/isolation/rate-limit tests passed.
+The built-app browser gate passed 36 scenarios across Chromium desktop/phone and iPhone WebKit,
+including saving a prepared file after network loss. Eight affected Settings baselines were updated
+and visually inspected. Typecheck, lint, build and format checks passed. Hosted Vercel streaming and
+physical-iPhone acceptance are not claimed by these local results.
+
+Representative large fixture: 5,000 Notes, 20,000 Cards, 100,000 stored Reviews. Local-to-Neon measurements:
+66.3 to 66.4 MB (63.3 MiB), 39.2 to 54.3 seconds generation across three runs, process RSS peaks 238 to
+257 MiB (104 to 124 MiB growth). The final run on merged triage schema generated 66,388,021 bytes in
+54.3 seconds with a 238 MiB peak (108 MiB growth), alongside other checks.
 This includes the streaming validator and driver in a test process; it is not a Vercel production or
 physical-iPhone memory measurement. The server callback does not retain archive lines.
 
@@ -161,7 +173,7 @@ Run the focused archive, PostgreSQL and browser suites:
 
 ```sh
 pnpm exec vitest run --project api src/routes/account-export.test.ts src/db/isolation.test.ts src/rate-limit.test.ts --project shared src/account-export.test.ts
-pnpm --filter @neuron/web test:screens:ci --config=playwright.export.config.ts
+pnpm --filter @neuron/web test:screens:ci --config=playwright.export.config.ts --project=webkit-phone-interaction
 ```
 
 The export-specific browser configuration adds iPhone WebKit and keeps the existing shared browser

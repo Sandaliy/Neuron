@@ -67,6 +67,11 @@ and offline Import preparation still need installed-iPhone acceptance.
 
 ## Open threads
 
+- Account data export is implemented on `work/user-data-export` for protected review, separately from
+  Phase 9 integration. Settings prepares a versioned server snapshot with learning history and stored
+  triage; device-only work and archive import/restore are excluded. Installed-iPhone Files/Share and
+  hosted streaming acceptance remain open. See `account-export.md` for coverage, limits and evidence.
+
 - Study now passes over Cards whose Note no longer produces a displayable face, so a sitting can
   finish. Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue;
   repairing those records or changing planning semantics remains an owner decision.

@@ -317,7 +317,7 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
   api.route('/reviews', reviewRoutes());
   api.route('/sync', syncRoutes());
   api.route('/account', accountRoutes(parts));
-  api.route('/account', accountExportRoutes());
+  api.route('/account', accountExportRoutes(parts));
 
   /**
    * The api described, behind a session.

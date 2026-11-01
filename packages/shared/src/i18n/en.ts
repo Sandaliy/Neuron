@@ -14,6 +14,8 @@ export const en = {
   'export.save': 'Save file',
   'export.share': 'Share file',
   'export.saveHint':
+    'If Save file opens a preview, use its Share menu to save a copy. Saving is finished in your browser or the Files app.',
+  'export.shareHint':
     'On iPhone, use Share file → Save to Files. If Save file opens a preview, use its Share menu. Saving is finished in your browser or the Files app.',
   'export.private': 'This file contains private learning data. Store and share it carefully.',
   'export.again': 'Prepare a new export',
@@ -24,6 +26,7 @@ export const en = {
   'export.limit':
     'This export reached the supported size or time limit. Try again on a stable connection. If it happens again, contact support.',
   'export.shareFailed': 'Sharing did not finish. Try Save file or share again.',
+  'export.rateLimited': 'Several exports were requested. Wait a minute, then try again.',
   'offline.connectionUncertain':
     'The server is taking longer to respond. Your download is available while checking continues.',
   'offline.study.waitingDownload': 'Offline Study needs a complete download.',

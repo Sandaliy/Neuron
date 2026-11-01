@@ -1,9 +1,4 @@
-import {
-  EXPORT_MAX_BYTES,
-  EXPORT_MAX_LINE_BYTES,
-  ExportValidator,
-  apiErrorSchema,
-} from '@neuron/shared';
+import { EXPORT_MAX_BYTES, EXPORT_MAX_LINE_BYTES, ExportValidator } from '@neuron/shared';
 
 import { ApiFailure, request } from './api';
 import { accountEpoch, offlineState } from './offline';
@@ -22,8 +17,8 @@ export async function prepareAccountExport(
 ): Promise<PreparedExport> {
   const epoch = accountEpoch();
   const current = () => {
+    signal.throwIfAborted();
     if (
-      signal.aborted ||
       epoch !== accountEpoch() ||
       offlineState().accountId !== accountId ||
       offlineState().signedOut
@@ -40,17 +35,30 @@ export async function prepareAccountExport(
     body: JSON.stringify({ accountId }),
     signal,
   });
-  current();
+  try {
+    current();
+  } catch (failure) {
+    await response.body?.cancel().catch(() => undefined);
+    throw failure;
+  }
   if (!response.ok) {
-    const parsed = apiErrorSchema.safeParse(await response.json().catch(() => undefined));
+    // Error bodies are not archives and never need to be buffered or logged.
+    await response.body?.cancel().catch(() => undefined);
     throw new ApiFailure({
-      code: parsed.success ? parsed.data.error.code : 'unexpected',
+      code:
+        response.status === 401
+          ? 'not_authenticated'
+          : response.status === 429
+            ? 'rate_limited'
+            : 'unexpected',
       status: response.status,
-      correlationId: parsed.success ? parsed.data.error.correlationId : 'export',
+      correlationId: 'export',
     });
   }
-  if (!response.body || !response.headers.get('content-type')?.startsWith('application/x-ndjson'))
+  if (!response.body || !response.headers.get('content-type')?.startsWith('application/x-ndjson')) {
+    await response.body?.cancel().catch(() => undefined);
     throw new Error('export_incomplete');
+  }
   const reader = response.body.getReader();
   const validator = new ExportValidator(accountId);
   const chunks: Uint8Array<ArrayBuffer>[] = [];

@@ -74,7 +74,7 @@ test('prepares and downloads the exact documented archive, with local-only scope
   expect(download.suggestedFilename()).toBe('neuron-export-2026-11-01.jsonl');
   expect(await download.failure()).toBeNull();
   expect(await readFile((await download.path())!, 'utf8')).toBe(text);
-  await expect(section.getByText(/On iPhone/)).toBeVisible();
+  await expect(section.getByText(/Saving is finished/)).toBeVisible();
 });
 
 test('shows busy feedback, allows cancellation, and retries without offering a partial file', async ({
@@ -175,4 +175,67 @@ test('downloads a substantial collection without parsing it into an in-memory co
   await page.goto('/settings');
   await page.getByRole('button', { name: 'Prepare export', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Save file', exact: true })).toBeVisible();
+});
+
+test('discards the completed bytes when the final session check belongs to another account', async ({
+  page,
+}) => {
+  let exported = false;
+  await page.route('**/api/account', async (route) => {
+    if (!exported) return route.fallback();
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'other-account' }),
+    });
+  });
+  await page.route('**/api/account/export', async (route) => {
+    exported = true;
+    await route.fulfill({ contentType: 'application/x-ndjson', body: archive() });
+  });
+  await page.goto('/settings');
+  const section = page.getByRole('region', { name: 'Export your data' });
+  await section.getByRole('button', { name: 'Prepare export', exact: true }).click();
+  await expect(section.getByRole('alert')).toBeVisible();
+  await expect(section.getByRole('link', { name: 'Save file', exact: true })).toHaveCount(0);
+});
+
+test('saves an already prepared file after losing the network without changing account visits', async ({
+  page,
+  context,
+}) => {
+  await page.route('**/api/account/export', (route) =>
+    route.fulfill({ contentType: 'application/x-ndjson', body: archive() }),
+  );
+  await page.goto('/settings');
+  await page.getByRole('button', { name: 'Prepare export', exact: true }).click();
+  const save = page.getByRole('link', { name: 'Save file', exact: true });
+  await expect(save).toBeVisible();
+  await context.setOffline(true);
+  const receiving = page.waitForEvent('download');
+  await save.click();
+  const download = await receiving;
+  expect(await download.failure()).toBeNull();
+  expect(await readFile((await download.path())!, 'utf8')).toBe(archive());
+});
+
+test('checks session expiry after delivery before offering Save', async ({ page }) => {
+  let exported = false;
+  await page.route('**/api/account', async (route) => {
+    if (!exported) return route.fallback();
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: { code: 'not_authenticated', status: 401, correlationId: 'expired-after-export' },
+      }),
+    });
+  });
+  await page.route('**/api/account/export', async (route) => {
+    exported = true;
+    await route.fulfill({ contentType: 'application/x-ndjson', body: archive() });
+  });
+  await page.goto('/settings');
+  await page.getByRole('button', { name: 'Prepare export', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Save file', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
 });

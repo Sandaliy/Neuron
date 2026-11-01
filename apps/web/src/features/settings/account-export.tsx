@@ -7,7 +7,7 @@ import { useAccount } from '../../lib/account';
 import { prepareAccountExport } from '../../lib/account-export';
 import { ApiFailure } from '../../lib/api';
 import { hasServerAuthority, useCapabilities } from '../../lib/capabilities';
-import { accountEpoch } from '../../lib/offline';
+import { accountEpoch, offlineState } from '../../lib/offline';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 
@@ -61,11 +61,14 @@ function ExportForAccount({
     } catch (failure) {
       if (active.current === controller)
         setError(
-          failure instanceof ApiFailure && failure.status === 401
+          (failure instanceof ApiFailure && failure.status === 401) ||
+            (failure instanceof Error && failure.message === 'export_account')
             ? 'export.expired'
-            : failure instanceof Error && failure.message === 'export_limit'
-              ? 'export.limit'
-              : 'export.failed',
+            : failure instanceof ApiFailure && failure.status === 429
+              ? 'export.rateLimited'
+              : failure instanceof Error && failure.message === 'export_limit'
+                ? 'export.limit'
+                : 'export.failed',
         );
     } finally {
       clearTimeout(timeout);
@@ -76,7 +79,14 @@ function ExportForAccount({
     }
   };
   const valid = () => {
-    if (ready && ready.epoch === accountEpoch() && hasServerAuthority()) return true;
+    const current = offlineState();
+    if (
+      ready &&
+      ready.epoch === accountEpoch() &&
+      current.accountId === accountId &&
+      !current.signedOut
+    )
+      return true;
     setReady(undefined);
     if (resource.current) {
       URL.revokeObjectURL(resource.current);
@@ -133,7 +143,9 @@ function ExportForAccount({
               </a>
               {canShare ? <Button onClick={() => void share()}>{t('export.share')}</Button> : null}
             </div>
-            <p className="text-14 text-secondary">{t('export.saveHint')}</p>
+            <p className="text-14 text-secondary">
+              {t(canShare ? 'export.shareHint' : 'export.saveHint')}
+            </p>
             <p className="text-14 text-secondary">{t('export.private')}</p>
           </>
         ) : null}
