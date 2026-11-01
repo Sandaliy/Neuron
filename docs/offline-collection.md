@@ -400,6 +400,29 @@ sessions stop it and leave records in their account's database. When the device 
 opened, Practice keeps working online from memory and refuses steps once the server is away, with a
 plain message. Pending Practice counts in the Offline & sync status, one per Deck.
 
+## Triage
+
+Triage reads the downloaded collection when the server cannot be reached, by the server's own rules:
+Notes under the Folder or Deck in id order, without an answered Card, Set aside and Draft counted and
+left out. Rows downloaded before migration 0018 carry no mark and read as unsorted, which is what the
+server holds for them.
+
+A decision is shown at once and written to the account's collection database as one `meta` record per
+Note (`triage:<noteId>`), so a reload, closing the app or losing the connection loses nothing. Records
+are validated against the signed-in account on read. Decisions travel in batches of up to 500 when the
+server is reachable: a run of taps opens a half-second gathering window that later taps never extend,
+failures retry on the answer ladder (2, 5, 15, 30, 60 s), and the latest decision per Note is the only
+one sent. An acknowledgement removes a record only if no newer decision replaced it while it travelled.
+The cached triage list takes the server's answer before the device overlay lets go, so nothing on screen
+steps back. Skipped decisions refetch the list and show one toast.
+
+Limits of this first slice: until a decision is delivered, neither the server's Study plan nor the
+local offline planner has heard of it, so offline Study can still offer a Note marked Known on this
+device. If it is answered there, the delivery is then skipped as `studied`, which is the intended
+outcome. Pending triage decisions are shown on the triage screen and the Deck entry, not in Settings >
+Offline & sync. Download reset does not remove them. Two devices deciding the same Note offline settle
+by delivery order.
+
 ## Verification and later writes
 
 Phase 8.3 release verification on Windows passed 1,088 unit/PostgreSQL tests across 98 files, including

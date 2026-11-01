@@ -220,6 +220,47 @@ export function manyNotes(count: number): Record<string, unknown>[] {
   );
 }
 
+/** An imported frequency list as the browse screen reads it, with real ids so decisions validate. */
+export function triageNotes(count: number, deckId = 'd5'): Record<string, unknown>[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `01900000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,
+    deckId,
+    noteType: 'vocab',
+    fields: { term: `Wort ${index + 1}`, translation: `word ${index + 1}` },
+    tags: [],
+    source: 'Frequency list',
+    rank: index + 1,
+    status: 'active',
+    triage: null,
+    importBatchId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    rev: 1,
+    cardStates: { new: 1, learning: 0, review: 0, relearning: 0 },
+  }));
+}
+
+/** The triage answer for a set of browse rows: none of them studied, nothing decided. */
+export function triageList(notes: readonly Record<string, unknown>[]) {
+  return {
+    items: notes.map((row) => {
+      const fields = row['fields'] as Record<string, string>;
+      return {
+        id: row['id'],
+        deckId: row['deckId'],
+        noteType: row['noteType'],
+        rank: row['rank'] ?? null,
+        choice: row['status'] === 'known' ? 'known' : (row['triage'] ?? 'unsorted'),
+        term: fields['term'] ?? fields['front'] ?? '',
+        detail: '',
+        meaning: fields['translation'] ?? fields['back'] ?? '',
+      };
+    }),
+    studied: 0,
+    setAside: 0,
+  };
+}
+
 export interface FixtureOptions {
   /** Answers `/account` with a session. Off puts the app on the sign in screen. */
   readonly signedIn?: boolean;
@@ -436,6 +477,17 @@ export async function useFixtures(page: Page, options: FixtureOptions = {}): Pro
           }),
         });
 
+        return;
+      }
+
+      // Triage reads the same Notes; every decision is applied as sent.
+      if (path.endsWith('/api/notes/triage')) {
+        if (route.request().method() === 'POST') {
+          const body = route.request().postDataJSON() as { decisions: unknown[] };
+          await route.fulfill({ json: { applied: body.decisions, skipped: [] } });
+          return;
+        }
+        await route.fulfill({ json: triageList(notes) });
         return;
       }
 

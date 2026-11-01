@@ -20,6 +20,9 @@ import {
   parseNoteFields,
   updateNoteSchema,
   editOfflineNoteCommandSchema,
+  triageDecisionsSchema,
+  triageFace,
+  triageQuerySchema,
 } from '@neuron/shared';
 import type { NoteTypeName } from '@neuron/shared';
 
@@ -206,6 +209,39 @@ export function noteRoutes(): Hono<RequestBindings> {
     const deleted = await repositoriesOf(context).notes.softDeleteMany(body.ids);
 
     return context.json({ deleted });
+  });
+
+  /**
+   * Triage: every Note under a Folder or Deck that has no learning history, in
+   * source order, with what has been decided about it. One answer, because the
+   * sweep needs the whole order before it can show the first card.
+   */
+  routes.get('/triage', async (context) => {
+    const query = readQuery(context, triageQuerySchema);
+    const repositories = repositoriesOf(context);
+    const started = performance.now();
+    const [rows, typeNames] = await Promise.all([
+      repositories.triage.list(query.deckId),
+      repositories.noteTypes.namesById(),
+    ]);
+    if (!rows) throw new ApiError('not_found');
+    context.header('Server-Timing', `triage_read;dur=${(performance.now() - started).toFixed(1)}`);
+
+    return context.json({
+      items: rows.items.map(({ fields, noteTypeId, ...row }) => {
+        const noteType = (typeNames.get(noteTypeId) ?? 'basic') as NoteTypeName;
+        return { ...row, noteType, ...triageFace(noteType, fields) };
+      }),
+      studied: rows.studied,
+      setAside: rows.setAside,
+    });
+  });
+
+  /** Known, Unsure, New or back to unsorted, for up to five hundred Notes at once. */
+  routes.post('/triage', async (context) => {
+    const body = await readBody(context, triageDecisionsSchema);
+
+    return context.json(await repositoriesOf(context).triage.decide(body.decisions));
   });
 
   routes.get('/:id', async (context) => {
