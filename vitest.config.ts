@@ -64,6 +64,7 @@ export default defineConfig({
           // Brings the test database up to the schema and empties it once,
           // before any file runs.
           globalSetup: ['src/db/testing/global-setup.ts'],
+          setupFiles: ['src/db/testing/ws-proxy.ts'],
         },
       },
     ],

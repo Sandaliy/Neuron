@@ -86,8 +86,21 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # The database tests empty every table, so they get a database of their
+      # own beside the one the application role is configured for. The roles
+      # exist first, with the passwords these connection strings carry; the
+      # migrations then only grant to them.
+      - name: Prepare the test database
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/neuron -v ON_ERROR_STOP=1             -c "create database neuron_test"             -c "create role neuron_app with login password 'runtimeapp123' noinherit nosuperuser nocreatedb nocreaterole nobypassrls"             -c "create role neuron_auth with login password 'runtimeauth123' noinherit nosuperuser nocreatedb nocreaterole nobypassrls"
+
       - name: Test
         run: pnpm test
+        env:
+          DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/neuron_test
+          DATABASE_URL: postgresql://neuron_app:runtimeapp123@postgres:5432/neuron
+          DATABASE_URL_AUTH: postgresql://neuron_auth:runtimeauth123@postgres:5432/neuron
+          DATABASE_URL_TEST_WS_PROXY: localhost:5433/v1
 
       - name: Test migration safety against a behind schema
         run: node node_modules/vitest/vitest.mjs run --config apps/api/vitest.release.config.ts
