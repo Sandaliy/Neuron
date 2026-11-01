@@ -1,6 +1,6 @@
 import type { DailyStudySessionRequest, Me } from '@neuron/shared';
 
-import { COLLECTION_VERSION, committed, openCollection, result } from './collection-db';
+import { COLLECTION_VERSION, committed, openCollection, result, triageRange } from './collection-db';
 import { planDownloadedStudy } from './offline-study-snapshot';
 
 import type { CollectionMeta, CollectionRow } from './collection-db';
@@ -22,10 +22,11 @@ self.onmessage = async (
     const entities = ['decks', 'notes', 'cards', 'reviews'] as const;
     const tx = db.transaction(['meta', 'outbox', 'review-outbox', ...entities]);
     const done = committed(tx);
-    const [meta, account, reviewSequence, edits, events, rows] = await Promise.all([
+    const [meta, account, reviewSequence, triage, edits, events, rows] = await Promise.all([
       result<CollectionMeta | undefined>(tx.objectStore('meta').get('sync')),
       result<unknown>(tx.objectStore('meta').get('account')),
       result<number | undefined>(tx.objectStore('meta').get('review-sequence')),
+      result<unknown[]>(tx.objectStore('meta').getAll(triageRange())),
       result<unknown[]>(tx.objectStore('outbox').getAll()),
       result<unknown[]>(tx.objectStore('review-outbox').getAll()),
       Promise.all(
@@ -42,6 +43,7 @@ self.onmessage = async (
         cursor: meta.cursor,
         complete: meta.complete,
         reviewSequence: reviewSequence ?? 0,
+        triage,
         edits,
         events,
         decks: rows[0]!,
