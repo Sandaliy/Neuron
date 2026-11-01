@@ -661,6 +661,16 @@ rows with the decision as quiet trailing text. The Deck entry is a quiet card fo
 Notes. It fetches nothing, so it never arrives late or moves with connectivity; it shows progress once
 a sweep has been opened in the visit.
 
+The learning wave is a quiet card beside the triage entry on a Deck larger than one wave: the wave as
+the heading, started out of size as the 12 px count with the shared progress line, then four short
+lines in reading order. What waits in this wave, Unsure first. What Study lets in today, the only line
+in primary text, or the plain reason none comes in. When the next wave starts. How much waits after it,
+and that it costs no time until it starts. It has no action: triage, Mark as known and the one-off
+"Include more new material" in Study setup are the controls. It reads the plan Today already made and,
+while a newer one is made, keeps the last one on screen, so it does not arrive late and push the Notes
+down. A Deck no larger than one wave, or with every Note started, has no card. Today's Deck rows name the
+wave, `wave 3: 32 new`, instead of every new Note a large Deck will ever hold.
+
 Standalone meaningful actions such as Practice and Undo have a bounded neutral control. Lightweight
 utilities such as the Practice entry settings may use text treatment when the surrounding group makes
 their role clear. Avoid multiple equal-weight action slabs competing with Study.

@@ -421,10 +421,11 @@ remotely. An acknowledgement removes a record only if no newer decision replaced
 The cached triage list takes the server's answer before the device overlay lets go, so nothing on screen
 steps back. Skipped decisions refetch the list and show one toast.
 
-Limits of this first slice: until a decision is delivered, neither the server's Study plan nor the
-local offline planner has heard of it, so offline Study can still offer a Note marked Known on this
-device. If it is answered there, the delivery is then skipped as `studied`, which is the intended
-outcome. Pending triage decisions are shown on the triage screen and the Deck entry, not in Settings >
+Until a decision is delivered, the server's Study plan has not heard of it. The device's own offline
+plan reads the saved decisions in the same transaction as the download and applies only what keeps
+admission conservative: Known takes a Note out of local Study and Unsure or New orders it inside its
+wave, but a Known Note returned to Study stays out until the server confirms it. If a Note is answered
+before its decision arrives, the delivery is skipped as `studied`, which is the intended outcome. Pending triage decisions are shown on the triage screen and the Deck entry, not in Settings >
 Offline & sync. Download reset does not remove them. Two devices deciding the same Note offline settle
 by delivery order.
 
