@@ -77,6 +77,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Test browser verification commands
+        run: node --test apps/web/scripts/screens-ci.test.mjs
+
       - name: Check formatting
         run: pnpm format:check
 
@@ -132,7 +135,7 @@ jobs:
           BROWSER_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           BROWSER_FULL: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          node --test scripts/select-browser-tests.test.mjs scripts/browser-gate.test.mjs apps/web/scripts/screens-ci.test.mjs
+          node --test scripts/select-browser-tests.test.mjs scripts/browser-gate.test.mjs
           node scripts/select-browser-tests.mjs
 
   phone-interaction:
