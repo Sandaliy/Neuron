@@ -406,7 +406,8 @@ plain message. Pending Practice counts in the Offline & sync status, one per Dec
 
 Triage reads the downloaded collection when the server cannot be reached, by the server's own rules:
 Notes under the Folder or Deck in id order, without an answered Card, Set aside and Draft counted and
-left out. Rows downloaded before migration 0018 carry no mark and read as unsorted, which is what the
+left out. A Note created on this device and not yet acknowledged is left out too, because the server's
+list cannot hold it yet. Rows downloaded before migration 0018 carry no mark and read as unsorted, which is what the
 server holds for them.
 
 A decision is shown at once and written to the account's collection database as one `meta` record per
@@ -414,7 +415,9 @@ Note (`triage:<noteId>`), so a reload, closing the app or losing the connection 
 are validated against the signed-in account on read. Decisions travel in batches of up to 500 when the
 server is reachable: a run of taps opens a half-second gathering window that later taps never extend,
 failures retry on the answer ladder (2, 5, 15, 30, 60 s), and the latest decision per Note is the only
-one sent. An acknowledgement removes a record only if no newer decision replaced it while it travelled.
+one sent. Each delivery first sends this device's pending Note creations and edits: a decision takes a
+new revision for its Note, and an edit based on the earlier revision would otherwise return as changed
+remotely. An acknowledgement removes a record only if no newer decision replaced it while it travelled.
 The cached triage list takes the server's answer before the device overlay lets go, so nothing on screen
 steps back. Skipped decisions refetch the list and show one toast.
 
