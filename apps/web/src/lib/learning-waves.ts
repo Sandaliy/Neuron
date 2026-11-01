@@ -29,3 +29,20 @@ export function wavePlanQuery(account: Me | undefined, offline: boolean) {
     staleTime: 15_000,
   };
 }
+
+/**
+ * The last waves this device planned, shown while a newer plan is made, so the
+ * card is there at once instead of arriving and pushing the Notes down.
+ */
+export function lastWavePlan(client: QueryClient, accountId: string | undefined) {
+  if (!accountId) return undefined;
+  const candidates = [
+    ...client.getQueriesData<DailyStudySession>({ queryKey: ['study-plan', 'waves', accountId] }),
+    ...client.getQueriesData<DailyStudySession>({ queryKey: initialStudyQuery().queryKey }),
+  ]
+    .map(([key, data]) => ({ data, at: client.getQueryState(key)?.dataUpdatedAt ?? 0 }))
+    // The early plan is not keyed by account; its planning context says whose it is.
+    .filter((entry) => entry.data?.waves && entry.data.planningContext?.accountId === accountId)
+    .sort((a, b) => b.at - a.at);
+  return candidates[0]?.data;
+}

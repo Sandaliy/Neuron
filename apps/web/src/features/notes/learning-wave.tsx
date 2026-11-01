@@ -1,10 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { DailyStudySession, DeckWave } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
-import { wavePlanQuery } from '../../lib/learning-waves';
+import { lastWavePlan, wavePlanQuery } from '../../lib/learning-waves';
 import { useOffline } from '../../lib/offline';
 import { Card } from '../../ui/card';
 import { Progress } from '../../ui/progress';
@@ -13,17 +13,20 @@ import { Progress } from '../../ui/progress';
  * The Deck's wave now entering Study, read from the default Daily Study plan.
  *
  * A Deck no larger than one wave has nothing to cut up, and a Deck whose every
- * Note has started has nothing waiting, so neither shows the card. While the
- * plan loads, or when it cannot be made, the card is simply not there: Today
- * owns those states, and this card only explains the plan Today already has.
+ * Note has started has nothing waiting, so neither shows the card. While a
+ * newer plan is made the last one stands in; with none at all, or when no plan
+ * can be made, the card is simply not there. Today owns those states, and this
+ * card only explains the plan Today already has.
  */
 export function LearningWave({ deckId }: { readonly deckId: string }) {
   const account = useAccount();
   const offline = useOffline();
+  const client = useQueryClient();
   const local = offline.offline;
   const plan = useQuery({
     ...wavePlanQuery(account.data, local),
     enabled: !!account.data && (!local || offline.available),
+    placeholderData: () => lastWavePlan(client, account.data?.id),
   });
   const wave = plan.data?.waves.find((row) => row.deckId === deckId);
   if (!plan.data || !wave || !showsWave(wave)) return null;
