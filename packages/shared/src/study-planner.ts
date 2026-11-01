@@ -139,10 +139,12 @@ export function planDailyStudy(input: {
         nextDue: future(pool),
       };
     }),
+    // Today's share comes from the plan over every language, which is where the
+    // account's one automatic allowance is divided between Decks.
     waves: waves.decks.map((wave) => ({
       ...wave,
       today: new Set(
-        session.cards
+        aggregate.cards
           .filter((card) => card.deckId === wave.deckId && card.scheduling.state === 'new')
           .map((card) => card.noteId),
       ).size,
