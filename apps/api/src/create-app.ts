@@ -18,8 +18,10 @@ import {
   AUTH_LIMIT,
   SYNC_LIMIT,
   WRITE_LIMIT,
+  EXPORT_LIMIT,
   createRateLimiter,
 } from './rate-limit.js';
+import { accountExportRoutes } from './routes/account-export.js';
 import { accountRoutes } from './routes/account.js';
 import { cardRoutes, unlockRoute } from './routes/cards.js';
 import { deckRoutes } from './routes/decks.js';
@@ -256,6 +258,16 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
    */
   const api = new Hono<RequestBindings>();
 
+  // Includes authentication failures, before the session middleware can refuse.
+  api.use('/account/export', async (context, next) => {
+    context.header('Cache-Control', 'private, no-store, max-age=0');
+    context.header('CDN-Cache-Control', 'no-store');
+    context.header('Vercel-CDN-Cache-Control', 'no-store');
+    context.header('X-Content-Type-Options', 'nosniff');
+    context.header('Referrer-Policy', 'no-referrer');
+    await next();
+  });
+
   /**
    * Each resource twice: the collection and everything under it.
    *
@@ -293,6 +305,7 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
   // pushes a burst and that burst is the system working.
   api.use('/sync', perAccount(SYNC_LIMIT));
   api.use('/sync/*', perAccount(SYNC_LIMIT));
+  api.use('/account/export', perAccount(EXPORT_LIMIT));
 
   api.route('/decks', deckRoutes());
   api.route('/notes', noteRoutes());
@@ -304,6 +317,7 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
   api.route('/reviews', reviewRoutes());
   api.route('/sync', syncRoutes());
   api.route('/account', accountRoutes(parts));
+  api.route('/account', accountExportRoutes());
 
   /**
    * The api described, behind a session.

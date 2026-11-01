@@ -2,6 +2,28 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'export.title': 'Export your data',
+  'export.scope': 'Download your synchronized collection, study settings and learning history.',
+  'export.local':
+    'Pending changes, drafts and recovery work saved only on a device are not included. Offline & sync shows pending deliveries, but does not list every device-only draft.',
+  'export.readOnly':
+    'Exporting changes nothing. Importing or restoring this file is not supported yet.',
+  'export.prepare': 'Prepare export',
+  'export.progress': 'Preparing your file… {size} MB received. Keep this screen open.',
+  'export.ready': 'Your file is ready. Save a copy to keep it.',
+  'export.save': 'Save file',
+  'export.share': 'Share file',
+  'export.saveHint':
+    'On iPhone, use Share file → Save to Files. If Save file opens a preview, use its Share menu. Saving is finished in your browser or the Files app.',
+  'export.private': 'This file contains private learning data. Store and share it carefully.',
+  'export.again': 'Prepare a new export',
+  'export.retry': 'Try export again',
+  'export.failed':
+    'The export did not finish. No complete file was prepared. Check your connection and try again.',
+  'export.expired': 'Your session changed or expired. Sign in again, then prepare a new export.',
+  'export.limit':
+    'This export reached the supported size or time limit. Try again on a stable connection. If it happens again, contact support.',
+  'export.shareFailed': 'Sharing did not finish. Try Save file or share again.',
   'offline.connectionUncertain':
     'The server is taking longer to respond. Your download is available while checking continues.',
   'offline.study.waitingDownload': 'Offline Study needs a complete download.',

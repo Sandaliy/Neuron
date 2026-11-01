@@ -2,5 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "pnpm --workspace-root turbo run build --filter=@neuron/api^... && pnpm db:verify-vercel",
   "framework": "hono",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "functions": { "src/index.ts": { "maxDuration": 180 } }
 }

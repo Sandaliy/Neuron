@@ -1,3 +1,4 @@
+import { accountExportRepository } from './account-export.js';
 import { accountRepository } from './account.js';
 import { cardRepository } from './cards.js';
 import { collectionNoteRepository } from './collection-notes.js';
@@ -41,6 +42,7 @@ import type { TriageRepository } from './triage.js';
  */
 
 export interface Repositories {
+  readonly accountExport: ReturnType<typeof accountExportRepository>;
   readonly collectionRenames: ReturnType<typeof collectionRenameRepository>;
   readonly collectionNotes: ReturnType<typeof collectionNoteRepository>;
   readonly practice: ReturnType<typeof practiceRepository>;
@@ -67,6 +69,7 @@ export interface Repositories {
 
 function build(db: Database, userId: string, run: Runner): Repositories {
   return {
+    accountExport: accountExportRepository(db, userId),
     collectionRenames: collectionRenameRepository(userId, run),
     collectionNotes: collectionNoteRepository(userId, run),
     practice: practiceRepository(userId, run),
