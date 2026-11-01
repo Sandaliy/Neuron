@@ -1,5 +1,12 @@
-import { cardSchema, deckSchema, noteSchema, termOf } from '@neuron/shared';
-import type { Card, DeckNode, Note } from '@neuron/shared';
+import {
+  cardSchema,
+  deckSchema,
+  noteSchema,
+  termOf,
+  triageChoiceOf,
+  triageFace,
+} from '@neuron/shared';
+import type { Card, DeckNode, Note, TriageItem, TriageList } from '@neuron/shared';
 
 import { metadata, openCollection, snapshot } from './collection-db';
 import { renameOverlay, validateRenames } from './collection-outbox';
@@ -311,4 +318,47 @@ export async function localNotes(
       ? { nextCursor: `local:${offset + items.length}` }
       : {}),
   };
+}
+
+/**
+ * Triage from the downloaded collection, built by the same rules as the server's
+ * answer: Notes under the Folder or Deck, in source order, without one answered
+ * Card. Set aside and Draft Notes are counted and left out. A Note saved on this
+ * device and not yet acknowledged is not in the server's list either: a decision
+ * about it would arrive before the Note and be refused as missing.
+ */
+export async function localTriage(deckId: string): Promise<TriageList & { local: true }> {
+  const { decks, notes: all, cards, unsent } = await collection(true);
+  const notes = all.filter((note) => !unsent.has(note.id));
+  const parents = new Map(decks.map((deck) => [deck.id, deck.parentId]));
+  if (!parents.has(deckId)) throw new Error('collection_deck_missing');
+  const under = (id: string) => {
+    const seen = new Set<string>();
+    for (let at: string | null | undefined = id; at && !seen.has(at); at = parents.get(at)) {
+      if (at === deckId) return true;
+      seen.add(at);
+    }
+    return false;
+  };
+  const studied = new Set<string>();
+  for (const card of await cards()) if (card.state !== 'new') studied.add(card.noteId);
+  const items: TriageItem[] = [];
+  let left = 0;
+  let aside = 0;
+  for (const note of [...notes].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+    if (!under(note.deckId)) continue;
+    const choice = triageChoiceOf(note.status, note.triage);
+    if (choice === undefined) aside++;
+    else if (studied.has(note.id)) left++;
+    else
+      items.push({
+        id: note.id,
+        deckId: note.deckId,
+        noteType: note.noteType,
+        rank: note.rank,
+        choice,
+        ...triageFace(note.noteType, note.fields),
+      });
+  }
+  return { items, studied: left, setAside: aside, local: true };
 }

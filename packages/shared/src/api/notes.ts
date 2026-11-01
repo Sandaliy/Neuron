@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { noteStatusSchema, noteTypeSchema } from '../note-types.js';
+import { triageMarkSchema } from '../triage.js';
 
 import { cardStateSchema, cardDirectionSchema } from './cards.js';
 import { cursorSchema, idSchema, tagSchema } from './common.js';
@@ -32,6 +33,8 @@ export const noteSchema = z.object({
   source: z.string().nullable(),
   rank: z.number().int().nullable(),
   status: noteStatusSchema,
+  /** Unsure or New from triage, beside an active status. Absent on rows saved before triage. */
+  triage: triageMarkSchema.nullable().optional(),
   importBatchId: idSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),

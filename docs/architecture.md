@@ -86,6 +86,24 @@ same card. That failure is silent for a long time, so it is tested loudly:
   including the due date and the full precision of stability
 - it runs over 25 seeded cards and again over a card answered eight times through the repository layer
 
+### Triage is a classification, not an answer
+
+Migration 0018 adds `notes.triage`: null, `unsure` or `new`. Known needs no mark, because it is the
+existing `known` status with its existing meaning. A triage decision writes the Note's status and mark,
+one revision per batch, and nothing else: no Review, no Card row, no due date. Unsure and New keep the
+Note `active`, so Study admits its Cards exactly as before. The mark is recorded for the wave admission
+that follows in Phase 9.
+
+Triage applies only to live Notes that are Studying or Known and whose Cards are all still new. A Note
+with an answered Card, a Set aside or Draft Note, and a deleted one are skipped and reported back as
+`studied`, `set_aside` or `missing`. The check runs under the account write lock that answers also take,
+so a decision made offline cannot take a word that another device has started studying out of Study.
+Restart learning returns Cards to new, which makes the Note eligible again; its Reviews stay.
+
+`GET /notes/triage?deckId=` answers every eligible Note under a Folder or Deck in one response, in id
+order (the order of the imported file), each with a precomputed face. `POST /notes/triage` takes up to
+500 absolute decisions; sending the same ones again writes nothing and takes no revision.
+
 ## Two barriers around user data
 
 ### One, in the code

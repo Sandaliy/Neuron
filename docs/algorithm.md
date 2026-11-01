@@ -416,6 +416,13 @@ elapsed session time. If time ends first, the retry stays at the due time FSRS
 gave it for a later session; session construction never shortens an interval to
 force it back in.
 
+Triage does not reach the planner. A Note marked Known leaves Study through its `known` status, as
+Mark as known always did. Unsure and New Notes stay `active`, and their Cards are admitted in the same
+stable due/id order as any other new Card, which for an import is file order. Nothing is written to a
+Card or the review log to record a classification, so FSRS state is exactly what answers made it.
+Admission does not read the triage mark yet; whether Unsure material is checked first belongs to the
+wave work.
+
 ## What the simulator measured
 
 `pnpm --filter @neuron/core simulate` runs a virtual learner through a year under

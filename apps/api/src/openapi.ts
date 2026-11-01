@@ -3,6 +3,10 @@ import { z } from 'zod';
 import {
   apiErrorSchema,
   bulkStatusSchema,
+  triageDecisionsSchema,
+  triageListSchema,
+  triageQuerySchema,
+  triageResultSchema,
   cardSchema,
   createDeckSchema,
   createImportSchema,
@@ -82,6 +86,9 @@ const registry: Record<string, z.ZodType> = {
   CreateNote: createNoteSchema,
   UpdateNote: updateNoteSchema,
   BulkStatus: bulkStatusSchema,
+  TriageList: triageListSchema,
+  TriageDecisions: triageDecisionsSchema,
+  TriageResult: triageResultSchema,
   Card: cardSchema,
   DueCards: dueCardsSchema,
   UnlockDirection: unlockDirectionSchema,
@@ -351,6 +358,24 @@ export function openApiDocument(baseUrl: string) {
           summary: 'Change the status of many notes at once',
           requestBody: body('BulkStatus'),
           responses: { 200: answer('How many changed'), ...commonErrors },
+        },
+      },
+      '/notes/triage': {
+        get: {
+          summary: 'Every Note under a Folder or Deck that triage applies to, in source order',
+          parameters: queryParameters(triageQuerySchema),
+          responses: {
+            200: answer('The Notes and what was left out', 'TriageList'),
+            ...commonErrors,
+          },
+        },
+        post: {
+          summary: 'Record Known, Unsure, New or unsorted for many Notes at once',
+          requestBody: body('TriageDecisions'),
+          responses: {
+            200: answer('What was applied and skipped', 'TriageResult'),
+            ...commonErrors,
+          },
         },
       },
       '/notes/{id}': {

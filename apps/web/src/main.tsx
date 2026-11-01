@@ -13,6 +13,7 @@ import { confirmConnection, initializeOffline, offlineState } from './lib/offlin
 import { practiceQuery } from './lib/practice';
 import { registerShell } from './lib/pwa';
 import { initialStudyQuery } from './lib/study-plan';
+import { initializeTriage } from './lib/triage';
 import { trackViewport } from './lib/viewport';
 import { watchFrameRate } from './preferences/frame-rate';
 import { router } from './router';
@@ -122,6 +123,7 @@ function warmUp(path = window.location.pathname, search = window.location.search
 }
 
 initializeOffline(queryClient);
+initializeTriage(queryClient);
 lifecycle('module');
 registerShell();
 warmUp();

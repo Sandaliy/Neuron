@@ -740,6 +740,17 @@ function ImportEditor({
                 {t('import.openDeck')}
               </Button>
 
+              {deck !== '' && stage.notes > 0 ? (
+                <Button
+                  variant="quiet"
+                  onClick={() =>
+                    void navigate({ to: '/notes', search: { deckId: deck, learning: 'triage' } })
+                  }
+                >
+                  {t('import.triage')}
+                </Button>
+              ) : undefined}
+
               {stage.batchId ? (
                 <Button
                   variant="destructive"
