@@ -1,6 +1,12 @@
 import type { DailyStudySessionRequest, Me } from '@neuron/shared';
 
-import { COLLECTION_VERSION, committed, openCollection, result, triageRange } from './collection-db';
+import {
+  COLLECTION_VERSION,
+  committed,
+  openCollection,
+  result,
+  triageRange,
+} from './collection-db';
 import { planDownloadedStudy } from './offline-study-snapshot';
 
 import type { CollectionMeta, CollectionRow } from './collection-db';

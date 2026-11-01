@@ -4,7 +4,7 @@ import { TRIAGE_BATCH_LIMIT, triageChoiceSchema, triageResultSchema } from '@neu
 import type { TriageChoice, TriageList, TriageResult } from '@neuron/shared';
 
 import { ApiFailure, request } from './api';
-import { committed, openCollection, result } from './collection-db';
+import { TRIAGE_PREFIX, committed, openCollection, result, triageRange } from './collection-db';
 import { localTriage } from './collection-read';
 import { collectionRead } from './collection-transport';
 import { lifecycle } from './lifecycle';
@@ -68,8 +68,7 @@ export interface TriageSnapshot {
   readonly skipped: number;
 }
 
-const key = (noteId: string) => `triage:${noteId}`;
-const RANGE = () => IDBKeyRange.bound('triage:', 'triage:￿');
+const key = (noteId: string) => `${TRIAGE_PREFIX}${noteId}`;
 /** Waits after a failed delivery, the same ladder answers use. */
 const RETRY_SECONDS = [2, 5, 15, 30, 60];
 /** Decisions made in a quick run go as one request. */
@@ -135,7 +134,7 @@ function adopt(next: string | null) {
       const db = await openCollection(owner);
       try {
         const values = await result<unknown[]>(
-          db.transaction('meta').objectStore('meta').getAll(RANGE()),
+          db.transaction('meta').objectStore('meta').getAll(triageRange()),
         );
         if (accountId !== owner) return;
         for (const value of values) {

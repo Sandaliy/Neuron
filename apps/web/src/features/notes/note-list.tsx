@@ -29,6 +29,7 @@ import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
 import { DeckPractice } from '../today/practice';
 
+import { LearningWave } from './learning-wave';
 import { NoteProgressSummary } from './note-progress';
 import { NoteSelectionBar } from './note-selection';
 import { PracticeEntry } from './practice-entry';
@@ -237,6 +238,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           }}
         />
       )}
+      {deckId && <LearningWave deckId={deckId} />}
 
       {!unavailable && (rows.length > 0 || filtered || typed !== '') && !selecting ? (
         <div className="flex flex-col gap-12">

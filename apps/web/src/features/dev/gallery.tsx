@@ -24,6 +24,7 @@ import { EmptyState, ErrorState, Skeleton, SkeletonRows } from '../../ui/states'
 import { Switch } from '../../ui/switch';
 import { TextArea } from '../../ui/textarea';
 import { TypedResponse } from '../../ui/typed-response';
+import { LearningWaveCard } from '../notes/learning-wave';
 import { TriageCard, TriageDone, TriageEntryCard, TriageRow } from '../notes/triage';
 
 import type { GlassLevel } from '../../preferences/glass';
@@ -131,7 +132,78 @@ export function GalleryScreen() {
           </div>
         ))}
       </section>
+      <section data-wave-specimen="" className="mx-auto flex max-w-[720px] flex-col gap-20 p-20">
+        <GroupLabel>Learning waves</GroupLabel>
+        {(['dark', 'light'] as const).map((theme) => (
+          <div
+            key={theme}
+            data-theme={theme}
+            className="flex flex-col gap-12 bg-canvas p-20 text-primary"
+          >
+            <WaveSpecimen />
+          </div>
+        ))}
+      </section>
     </div>
+  );
+}
+
+/**
+ * Every state of the Deck's wave card. Small Decks, fully started Decks and a
+ * plan still loading or failing draw no card at all, so they have no specimen.
+ */
+function WaveSpecimen() {
+  const wave = {
+    deckId: 'd',
+    number: 3,
+    count: 60,
+    size: 50,
+    started: 18,
+    waiting: 32,
+    unsure: 6,
+    later: 2850,
+    today: 8,
+  };
+  const open = { allowed: 8, reason: 'withinBudget' } as const;
+  return (
+    <>
+      <State>letting in today, Unsure first</State>
+      <LearningWaveCard wave={wave} decision={open} />
+      <State>last few today</State>
+      <LearningWaveCard
+        wave={{ ...wave, started: 49, waiting: 1, unsure: 0, today: 1 }}
+        decision={open}
+      />
+      <State>paused: reviews fill the minutes</State>
+      <LearningWaveCard
+        wave={{ ...wave, today: 0 }}
+        decision={{ allowed: 0, reason: 'forecastOverBudget' }}
+      />
+      <State>paused: backlog</State>
+      <LearningWaveCard
+        wave={{ ...wave, today: 0 }}
+        decision={{ allowed: 0, reason: 'backlogActive' }}
+      />
+      <State>paused: daily limit</State>
+      <LearningWaveCard
+        wave={{ ...wave, today: 0 }}
+        decision={{ allowed: 0, reason: 'dailyCapReached' }}
+      />
+      <State>today's room used elsewhere, last wave</State>
+      <LearningWaveCard
+        wave={{
+          ...wave,
+          number: 60,
+          size: 20,
+          started: 4,
+          waiting: 16,
+          unsure: 0,
+          later: 0,
+          today: 0,
+        }}
+        decision={{ allowed: 3, reason: 'withinBudget' }}
+      />
+    </>
   );
 }
 

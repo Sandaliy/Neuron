@@ -954,7 +954,7 @@ export const en = {
   'triage.unsureDoneTitle': 'No Unsure Notes left',
   'triage.doneBody': 'Known {known} · Unsure {unsure} · New {new}',
   'triage.doneHint':
-    'Known Notes sit out of Study. Unsure and New Notes stay in Study and arrive as new cards. Any decision can be changed later.',
+    'Known Notes sit out of Study. Unsure and New Notes enter Study in waves of {size}, Unsure first in each wave. Any decision can be changed later.',
   'triage.reviewUnsure': 'Go through Unsure ({count})',
   'triage.reviewAll': 'Review decisions',
   'triage.done': 'Done',
