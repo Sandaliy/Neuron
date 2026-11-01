@@ -178,9 +178,15 @@ chosen.
 Make sources such as Oxford 3000/5000, TOEFL vocabulary, professional terminology, and large theory sets
 manageable after import.
 
+**Status**
+
+Phase 9.0, the triage sweep, is implemented on `work/large-collection-triage` and waits for review and
+installed-iPhone acceptance. Known is the existing `known` status; Unsure and New stay in Study with a
+recorded mark; Study admission is unchanged. How Unsure material is admitted is decided with the waves.
+
 **Core deliverables**
 
-- Add a fast triage sweep for Known, Unsure, and New decisions.
+- Add a fast triage sweep for Known, Unsure, and New decisions. (Phase 9.0)
 - Admit new material in visible finite waves ordered by rank or source order.
 - Release additional card directions progressively from demonstrated stability and deck policy.
 - Explain when new material is paused and when capacity is likely to return.

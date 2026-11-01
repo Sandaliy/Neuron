@@ -671,3 +671,18 @@ reveal itself.
 
 These are bounded Windows Chromium samples against routed fixtures at a fixed simulated latency. They
 establish the number of requests and the shape of the wait, not an installed-iPhone duration.
+
+## Phase 9.0 triage at five thousand Notes
+
+Measured on the development machine, Chromium at 375 by 812, processor throttled 4x through the
+debugger (`tests/performance.spec.ts`): one tap to the next Note drawn, median 32.7 ms, p95 50.1 ms,
+worst 80.4 ms over 40 taps, with the whole sweep recounted and the decision written to IndexedDB on every
+tap. The decisions list keeps under 60 mounted rows over 5000. A pure recount and next-position search
+over 5000 Notes costs about 0.2 ms per tap (`packages/shared/src/triage.test.ts`).
+
+Against the Neon test branch from this machine (`apps/api/src/routes/triage.test.ts`), over three runs:
+the 5000-Note list answered in 0.6 to 1.6 s, and once in 5.9 s on the first read straight after the
+import, when Neon's buffers were cold. The response is 973 KiB before compression. Ten batches of 500
+decisions took 7.9 to 10.4 s, about a second each, almost all of it round trips from this machine to
+Frankfurt. Production functions run in `fra1`, next to the database, and report `triage_read` in
+`Server-Timing`. A sweep sends small batches as it goes, so none of this is on the tap path.

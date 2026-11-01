@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 
 /** A learning visit owns a history entry immediately after its entry screen. */
 export function useLearningNavigation(
-  mode: 'study' | 'practice',
+  mode: 'study' | 'practice' | 'triage',
   searchKey: 'learning' | 'followup' = 'learning',
 ) {
   const router = useRouter();

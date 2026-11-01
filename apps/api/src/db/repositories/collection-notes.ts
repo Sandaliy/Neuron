@@ -3,17 +3,23 @@ import { createHash } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 
 import { parseNoteFields } from '@neuron/shared';
-import type { EditOfflineNoteCommand, EditOfflineNoteResult, NoteTypeName } from '@neuron/shared';
+import type {
+  CreateOfflineNoteCommand,
+  CreateOfflineNoteResult,
+  EditOfflineNoteCommand,
+  EditOfflineNoteResult,
+  NoteTypeName,
+} from '@neuron/shared';
 
 import { ApiError } from '../../errors.js';
-import { applyCardChange, planCardChange } from '../../note-cards.js';
+import { applyCardChange, createOpeningCards, planCardChange } from '../../note-cards.js';
 import { notes, syncReceipts, user } from '../schema/index.js';
 
 import { cardRepository } from './cards.js';
 import { deckRepository } from './decks.js';
 import { noteTypeRepository } from './note-types.js';
 import { noteRepository } from './notes.js';
-import { requireLiveDeck, RestoreDependency } from './restoration.js';
+import { InvalidCollectionKind, requireLiveDeck, RestoreDependency } from './restoration.js';
 import { reviewRepository } from './reviews.js';
 
 import type { Runner } from './session.js';
@@ -21,6 +27,90 @@ import type { Runner } from './session.js';
 /** Exact retry and Note-specific compare-and-set share the account write lock. */
 export function collectionNoteRepository(userId: string, run: Runner) {
   return {
+    /**
+     * A Note the device saved before the server knew of it. The receipt and the
+     * Note with its opening Cards commit together, so a retry after a lost
+     * answer returns the first outcome and never writes a second Note.
+     */
+    create: (command: CreateOfflineNoteCommand): Promise<CreateOfflineNoteResult> =>
+      run(async (tx) => {
+        if (command.accountId !== userId) throw new ApiError('sync_rejected');
+        await tx.execute(
+          sql`select ${user.id} from ${user} where ${user.id} = ${userId} for update`,
+        );
+        const fingerprint = `note-create:${command.operationId}`;
+        const digest = createHash('sha256')
+          .update(
+            JSON.stringify([
+              command.accountId,
+              command.noteId,
+              command.deckId,
+              command.noteType,
+              command.fields,
+              command.tags,
+            ]),
+          )
+          .digest('hex');
+        const [receipt] = await tx
+          .select()
+          .from(syncReceipts)
+          .where(and(eq(syncReceipts.userId, userId), eq(syncReceipts.fingerprint, fingerprint)));
+        if (receipt) {
+          if (receipt.outcome.noteCreate?.digest !== digest) throw new ApiError('sync_rejected');
+          return receipt.outcome.noteCreate.result;
+        }
+        // Invalid content is refused before anything, receipt included, is written.
+        const fields = parseNoteFields(command.noteType, command.fields);
+        const identity = { operationId: command.operationId, noteId: command.noteId };
+        let result: CreateOfflineNoteResult | undefined;
+        try {
+          await requireLiveDeck(tx, userId, command.deckId, 'deck');
+        } catch (error) {
+          if (!(error instanceof RestoreDependency || error instanceof InvalidCollectionKind))
+            throw error;
+          result = { ...identity, status: 'conflict', reason: 'deck_unavailable', revision: 0 };
+        }
+        if (!result) {
+          const within: Runner = async (work) => work(tx);
+          const [row] = await noteRepository(userId, within).createMany(
+            [
+              {
+                id: command.noteId,
+                deckId: command.deckId,
+                noteType: command.noteType,
+                fields,
+                // The order and spelling a later edit's setTags would store.
+                tags: [...new Set(command.tags)].sort(),
+              },
+            ],
+            // Another row holding this id, in any account, writes nothing here.
+            { skipExisting: true },
+          );
+          if (row) {
+            await createOpeningCards(
+              {
+                decks: deckRepository(userId, within),
+                cards: cardRepository(userId, within),
+                reviews: reviewRepository(userId, within),
+              },
+              row.id,
+              command.deckId,
+              command.noteType,
+              fields,
+            );
+            result = { ...identity, status: 'applied', revision: row.rev };
+          } else {
+            result = { ...identity, status: 'rejected', reason: 'note_exists', revision: 0 };
+          }
+        }
+        // Outcome metadata only: no Note content is retained in the receipt.
+        await tx.insert(syncReceipts).values({
+          userId,
+          fingerprint,
+          outcome: { clamped: false, noteCreate: { digest, result } },
+        });
+        return result;
+      }),
     edit: (id: string, command: EditOfflineNoteCommand): Promise<EditOfflineNoteResult> =>
       run(async (tx) => {
         if (command.accountId !== userId) throw new ApiError('sync_rejected');

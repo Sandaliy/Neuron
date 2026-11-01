@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { noteStatusSchema, noteTypeSchema } from '../note-types.js';
+import { triageMarkSchema } from '../triage.js';
 
 import { cardStateSchema, cardDirectionSchema } from './cards.js';
 import { cursorSchema, idSchema, tagSchema } from './common.js';
@@ -32,6 +33,8 @@ export const noteSchema = z.object({
   source: z.string().nullable(),
   rank: z.number().int().nullable(),
   status: noteStatusSchema,
+  /** Unsure or New from triage, beside an active status. Absent on rows saved before triage. */
+  triage: triageMarkSchema.nullable().optional(),
   importBatchId: idSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -184,6 +187,46 @@ export const editOfflineNoteResultSchema = z.discriminatedUnion('status', [
 ]);
 export type EditOfflineNoteCommand = z.infer<typeof editOfflineNoteCommandSchema>;
 export type EditOfflineNoteResult = z.infer<typeof editOfflineNoteResultSchema>;
+
+/**
+ * Creating a Note the device saved first. The Note id is chosen on the device
+ * and never changes; the server still creates every Card and its schedule.
+ */
+export const createOfflineNoteCommandSchema = z.strictObject({
+  accountId: z.string().min(1),
+  operationId: idSchema,
+  noteId: idSchema,
+  deckId: idSchema,
+  noteType: noteTypeSchema,
+  fields: z.record(z.string(), z.unknown()),
+  tags: z.array(tagSchema).max(50),
+});
+const noteCreateResult = {
+  operationId: idSchema,
+  noteId: idSchema,
+  revision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+};
+export const createOfflineNoteResultSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    ...noteCreateResult,
+    status: z.literal('applied'),
+    reason: z.never().optional(),
+  }),
+  /** The destination was deleted, purged, or is no longer a Deck. Nothing was written. */
+  z.strictObject({
+    ...noteCreateResult,
+    status: z.literal('conflict'),
+    reason: z.literal('deck_unavailable'),
+  }),
+  /** The Note id already belongs to another row. Nothing was written. */
+  z.strictObject({
+    ...noteCreateResult,
+    status: z.literal('rejected'),
+    reason: z.literal('note_exists'),
+  }),
+]);
+export type CreateOfflineNoteCommand = z.infer<typeof createOfflineNoteCommandSchema>;
+export type CreateOfflineNoteResult = z.infer<typeof createOfflineNoteResultSchema>;
 
 /**
  * Changing the status of many notes at once.

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useBlocker, useNavigate } from '@tanstack/react-router';
 import { Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -33,6 +33,15 @@ import { useAccount } from '../../lib/account';
 import { ApiFailure, describe } from '../../lib/api';
 import { hasServerAuthority } from '../../lib/capabilities';
 import { flatten, findDeck, settingsFor, useDeckActions, useDeckTree } from '../../lib/decks';
+import {
+  creationNote,
+  noteCreationFor,
+  readNoteDraft,
+  saveNoteCreation,
+  unsentCreation,
+  updateNoteCreation,
+  writeNoteDraft,
+} from '../../lib/note-creation';
 import { noteEditFor, saveNoteEdit } from '../../lib/note-outbox';
 import { useNote, useNoteActions } from '../../lib/notes';
 import { accountEpoch, offlineState, useOffline } from '../../lib/offline';
@@ -56,6 +65,7 @@ import { NoteField } from './note-field';
 import { NoteHeader } from './note-header';
 
 import type { PreviewCard } from './card-preview';
+import type { NoteDraft, PendingNoteCreate } from '../../lib/note-creation';
 import type { PendingNoteEdit } from '../../lib/note-outbox';
 
 /**
@@ -93,6 +103,22 @@ export function NoteEditorScreen({
     queryFn: async () => (await noteEditFor(offline.accountId!, noteId!)) ?? null,
     enabled: noteId !== undefined && offline.accountId !== null,
     networkMode: 'always',
+  });
+  // A Note this device created keeps its record until the server has it, and after.
+  const savedCreation = useQuery({
+    queryKey: ['note-creation', offline.accountId, noteId],
+    queryFn: async () => (await noteCreationFor(offline.accountId!, noteId!)) ?? null,
+    enabled: noteId !== undefined && offline.accountId !== null,
+    networkMode: 'always',
+  });
+  // The unsaved new-Note form for this destination, if the app closed on one.
+  const draftScope = deckId ?? 'any';
+  const savedDraft = useQuery({
+    queryKey: ['note-draft', offline.accountId, draftScope],
+    queryFn: async () => (await readNoteDraft(offline.accountId!, draftScope)) ?? null,
+    enabled: noteId === undefined && offline.accountId !== null,
+    networkMode: 'always',
+    staleTime: Infinity,
   });
   if (noteId !== undefined && offline.offline && !offline.available)
     return (
@@ -152,6 +178,8 @@ export function NoteEditorScreen({
     );
   }
 
+  const creation = savedCreation.data ?? undefined;
+  const unsent = unsentCreation(creation);
   const effectiveEdit =
     savedEdit.data?.state === 'synchronized' &&
     existing.data &&
@@ -166,15 +194,21 @@ export function NoteEditorScreen({
         ? {}
         : { note: existing.data.note, cards: existing.data.cards })}
       decks={decks.data ?? []}
-      local={offline.offline || offline.available || !!savedEdit.error}
+      local={offline.offline || offline.available || !!savedEdit.error || !!creation}
       storageUnavailable={!!savedEdit.error}
       refreshNote={existing.refetch}
       initialEdit={effectiveEdit}
       savedEdit={savedEdit.data ?? undefined}
+      creation={creation}
+      draft={savedDraft.data ?? undefined}
+      draftScope={draftScope}
       serverActions={
         !offline.offline &&
         offline.validated &&
         !savedEdit.error &&
+        !unsent &&
+        // The server's own answer, with the Cards it made, comes before its actions.
+        !(creation && existing.data?.local) &&
         (!effectiveEdit || effectiveEdit.state === 'synchronized')
       }
       {...(deckId === undefined ? {} : { deckId })}
@@ -196,7 +230,13 @@ function Editor({
   storageUnavailable,
   refreshNote,
   serverActions,
+  creation,
+  draft: restored,
+  draftScope,
 }: {
+  readonly creation?: PendingNoteCreate | undefined;
+  readonly draft?: NoteDraft | undefined;
+  readonly draftScope: string;
   readonly note?: Note;
   readonly cards?: readonly Card[];
   readonly decks: readonly DeckNode[];
@@ -211,6 +251,7 @@ function Editor({
   const t = useTranslate();
   const toast = useToast();
   const navigate = useNavigate();
+  const client = useQueryClient();
   const actions = useNoteActions();
   const deckActions = useDeckActions();
   const account = useAccount();
@@ -252,8 +293,22 @@ function Editor({
   const [save, setSave] = useState<SaveState>(initialEdit ? 'local' : 'clean');
   const [owner] = useState(() => ({ accountId: offlineState().accountId, epoch: accountEpoch() }));
   const [committedEdit, setCommittedEdit] = useState(initialEdit);
+  const [committedCreation, setCommittedCreation] = useState(creation);
+  const latestCreation =
+    committedCreation && (!creation || committedCreation.updatedAt > creation.updatedAt)
+      ? committedCreation
+      : creation;
+  const unsent = unsentCreation(latestCreation);
   const draft = useRef({ fields: storedFields, tags, version: 0 });
-  const localEditor = useRef(local || !!savedEdit);
+  const localEditor = useRef(local || !!savedEdit || !!creation);
+  // Whether this Note was created on this device, so edits ask its record first.
+  const deviceCreated = useRef(!!creation);
+  useEffect(() => {
+    if (creation) {
+      deviceCreated.current = true;
+      localEditor.current = true;
+    }
+  }, [creation]);
   const observed = useRef(note);
   useEffect(() => {
     if (local || savedEdit) localEditor.current = true;
@@ -285,7 +340,7 @@ function Editor({
   const saving = useRef<Promise<boolean> | undefined>(undefined);
   const [saveError, setSaveError] = useState<unknown>();
   const [statusError, setStatusError] = useState<unknown>();
-  const createId = useRef(uuidV7());
+  const createId = useRef(restored?.noteId ?? uuidV7());
   const created = useRef(false);
   const restartId = useRef(uuidV7());
   const [conversion, setConversion] = useState<{
@@ -420,7 +475,11 @@ function Editor({
               .filter(Boolean),
           };
           if (offlineState().offline) localEditor.current = true;
-          if (localEditor.current || offlineState().offline) {
+          const unsentSave = deviceCreated.current
+            ? await updateNoteCreation(owner, persistedId, values)
+            : undefined;
+          if (unsentSave) setCommittedCreation(unsentSave);
+          else if (localEditor.current || offlineState().offline) {
             const plan = savePlan.current;
             const parsed = noteFieldsSchemas[plan.storedType].safeParse(snapshot.fields);
             const removes = parsed.success
@@ -478,6 +537,59 @@ function Editor({
     };
   }, [persist]);
 
+  /*
+   * The new-Note form outlives a closed app. It is kept on the device as the
+   * learner types and comes back when this destination's form opens again,
+   * with the Note id it will be saved under. Leaving through the app still asks
+   * first, and discarding there removes it.
+   */
+  const form = useRef({ deck, noteType: storedType, fields: storedFields, tags, save });
+  useEffect(() => {
+    form.current = { deck, noteType: storedType, fields: storedFields, tags, save };
+  }, [deck, storedType, storedFields, tags, save]);
+  const discarded = useRef(false);
+  const restoredDraft = useRef(false);
+  useEffect(() => {
+    if (note || !restored || restoredDraft.current || form.current.save !== 'clean') return;
+    restoredDraft.current = true;
+    createId.current = restored.noteId;
+    setDeck(restored.deckId);
+    setNoteType(restored.noteType);
+    setFields(restored.fields);
+    setRetainedGrammar(filledPaths(restored.fields));
+    setTags(restored.tags);
+    setSave('dirty');
+  }, [note, restored]);
+  const saveDraft = useCallback(() => {
+    const current = form.current;
+    if (note || created.current || discarded.current || !owner.accountId) return;
+    if (current.save !== 'dirty' && current.save !== 'failed') return;
+    void writeNoteDraft(owner, draftScope, {
+      noteId: createId.current,
+      deckId: current.deck,
+      noteType: current.noteType,
+      fields: current.fields,
+      tags: current.tags,
+    }).catch(() => undefined);
+  }, [note, owner, draftScope]);
+  useEffect(() => {
+    if (note || save !== 'dirty') return;
+    const timer = setTimeout(saveDraft, 700);
+    return () => clearTimeout(timer);
+  }, [note, save, storedFields, tags, deck, storedType, saveDraft]);
+  useEffect(() => {
+    if (note) return;
+    const flush = () => {
+      if (document.visibilityState === 'hidden') saveDraft();
+    };
+    document.addEventListener('visibilitychange', flush);
+    window.addEventListener('pagehide', saveDraft);
+    return () => {
+      document.removeEventListener('visibilitychange', flush);
+      window.removeEventListener('pagehide', saveDraft);
+    };
+  }, [note, saveDraft]);
+
   const unsavedDraft =
     !!conversion || save === 'failed' || (!note && (save === 'dirty' || save === 'saving'));
   const navigation = useBlocker({
@@ -508,11 +620,57 @@ function Editor({
   }
 
   async function create() {
-    if (!hasServerAuthority()) {
-      toast.show(t('offline.serverRequired'));
+    if (deck === '') {
       return;
     }
-    if (deck === '') {
+    const input = {
+      noteId: createId.current,
+      deckId: deck,
+      noteType,
+      fields,
+      tags: [...new Set(tagList)],
+    };
+    // With a complete download the Note is saved here first and sent after,
+    // the same as an edit. The server still makes its Cards.
+    if (offlineState().available && owner.accountId) {
+      setSave('saving');
+      setSaveError(undefined);
+      try {
+        const saved = await saveNoteCreation(owner, input, draftScope);
+        client.setQueryData(['note-creation', owner.accountId, input.noteId], saved);
+        client.setQueryData(['note-outbox', owner.accountId, input.noteId], null);
+        client.setQueryData(['notes', input.noteId], (data: unknown) =>
+          data ? data : { note: creationNote(saved), cards: [], local: true },
+        );
+        created.current = true;
+        setSave('saved');
+        await navigate({ to: '/notes/$noteId', params: { noteId: input.noteId } });
+        return;
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : '';
+        // An account change or an id already used must not become a second write.
+        if (
+          !hasServerAuthority() ||
+          [
+            'collection_note_exists',
+            'collection_account_changed',
+            'collection_no_account',
+          ].includes(reason)
+        ) {
+          setSaveError(
+            new Error(
+              reason === 'collection_deck_missing'
+                ? 'collection_create_deck'
+                : 'collection_create_storage',
+              { cause: error },
+            ),
+          );
+          setSave('failed');
+          return;
+        }
+      }
+    } else if (!hasServerAuthority()) {
+      toast.show(t('offline.serverRequired'));
       return;
     }
 
@@ -532,6 +690,7 @@ function Editor({
 
       setSave('saved');
       created.current = true;
+      if (owner.accountId) void writeNoteDraft(owner, draftScope, undefined).catch(() => undefined);
       await navigate({ to: '/notes/$noteId', params: { noteId: written.note.id } });
     } catch (error) {
       setSaveError(error);
@@ -628,6 +787,7 @@ function Editor({
                     ? committedEdit
                     : savedEdit
                 }
+                creation={latestCreation}
                 onRetry={() => void persist()}
               />
             )}
@@ -662,10 +822,15 @@ function Editor({
             </span>
             <span
               key={`${note.status}:${cards.map((card) => card.state).join()}`}
-              className={`neu-reveal ${serverActions ? '' : 'invisible'}`}
-              aria-hidden={!serverActions}
+              className={`neu-reveal ${serverActions || unsent ? '' : 'invisible'}`}
+              aria-hidden={!serverActions && !unsent}
             >
-              {note.status === 'active' &&
+              {unsent ? (
+                <span className="flex flex-col gap-4 text-right">
+                  {t('offline.create.cardsLater')}
+                </span>
+              ) : (
+                note.status === 'active' &&
                 (() => {
                   const config = createSchedulerConfig({
                     timezone: account.data?.timezone ?? 'UTC',
@@ -694,7 +859,8 @@ function Editor({
                       {next && <ReviewTime due={next} />}
                     </span>
                   );
-                })()}
+                })()
+              )}
             </span>
           </span>
           <div className="grid grid-cols-2 gap-8">
@@ -1053,7 +1219,17 @@ function Editor({
         description={t('note.leaveBody')}
       >
         <DialogFooter>
-          <Button variant="destructive" full onClick={() => navigation.proceed?.()}>
+          <Button
+            variant="destructive"
+            full
+            onClick={() => {
+              if (!note && owner.accountId) {
+                discarded.current = true;
+                void writeNoteDraft(owner, draftScope, undefined).catch(() => undefined);
+              }
+              navigation.proceed?.();
+            }}
+          >
             {t('note.discardChanges')}
           </Button>
           <Button variant="text" full onClick={() => navigation.reset?.()}>
@@ -1118,14 +1294,18 @@ function Editor({
 /** What the last save actually did. Never more than that. */
 function SaveIndicator({
   state,
-  savedEdit,
+  savedEdit: edit,
+  creation,
   onRetry,
 }: {
   readonly state: SaveState;
   readonly savedEdit?: PendingNoteEdit | undefined;
+  readonly creation?: PendingNoteCreate | undefined;
   readonly onRetry: () => void;
 }) {
   const t = useTranslate();
+  // A later edit speaks for the Note; before one exists, its creation does.
+  const savedEdit: { state: string } | undefined = edit ?? creation;
 
   return (
     <div
@@ -1143,7 +1323,7 @@ function SaveIndicator({
           ) : state === 'dirty' ? (
             t('note.saveNeeded')
           ) : savedEdit && ['conflict', 'unsupported', 'rejected'].includes(savedEdit.state) ? (
-            <Link to="/settings">{t(`offline.note.${savedEdit.state}`)}</Link>
+            <Link to="/settings">{t(`offline.note.${savedEdit.state}` as MessageKey)}</Link>
           ) : savedEdit?.state === 'draft' ? (
             t('offline.note.incomplete')
           ) : savedEdit?.state === 'synchronized' ? (

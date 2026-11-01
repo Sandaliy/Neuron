@@ -86,6 +86,24 @@ same card. That failure is silent for a long time, so it is tested loudly:
   including the due date and the full precision of stability
 - it runs over 25 seeded cards and again over a card answered eight times through the repository layer
 
+### Triage is a classification, not an answer
+
+Migration 0018 adds `notes.triage`: null, `unsure` or `new`. Known needs no mark, because it is the
+existing `known` status with its existing meaning. A triage decision writes the Note's status and mark,
+one revision per batch, and nothing else: no Review, no Card row, no due date. Unsure and New keep the
+Note `active`, so Study admits its Cards exactly as before. The mark is recorded for the wave admission
+that follows in Phase 9.
+
+Triage applies only to live Notes that are Studying or Known and whose Cards are all still new. A Note
+with an answered Card, a Set aside or Draft Note, and a deleted one are skipped and reported back as
+`studied`, `set_aside` or `missing`. The check runs under the account write lock that answers also take,
+so a decision made offline cannot take a word that another device has started studying out of Study.
+Restart learning returns Cards to new, which makes the Note eligible again; its Reviews stay.
+
+`GET /notes/triage?deckId=` answers every eligible Note under a Folder or Deck in one response, in id
+order (the order of the imported file), each with a precomputed face. `POST /notes/triage` takes up to
+500 absolute decisions; sending the same ones again writes nothing and takes no revision.
+
 ## Two barriers around user data
 
 ### One, in the code
@@ -680,7 +698,8 @@ through the same shared deterministic planner as the API. A lazy worker owns col
 validation, replay and forecast work. Matching settings/revision and usable history permit conservative
 new admission; uncertainty restricts it and never grants override. Provisional browse/content overlays
 remain insufficient learning authority. Reload ends the visit-local Undo stack while retaining pending intents. Settings bounds optional synchronized receipt detail and keeps unresolved work visible.
-Offline Note creation, Practice synchronization and Import application remain unavailable. No new
+New Notes are saved on the device and delivered once by id; the server still creates every Card.
+Import application remains online-only. No new
 SQL migration, IndexedDB version or Review event protocol is introduced by local Study planning. See [offline collection contracts](offline-collection.md) and [durable Study transport](offline-study.md).
 
 **Preview data is separate and empty.** The long-lived Neon `preview` branch is schema-only, and its

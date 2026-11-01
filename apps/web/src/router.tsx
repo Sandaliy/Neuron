@@ -203,11 +203,13 @@ const noteListRoute = createRoute({
     search: Record<string, unknown>,
   ): {
     deckId?: string;
-    learning?: 'practice';
+    learning?: 'practice' | 'triage';
     entry?: 'resume' | 'setup';
   } => ({
     ...(typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {}),
-    ...(search['learning'] === 'practice' ? { learning: 'practice' as const } : {}),
+    ...(search['learning'] === 'practice' || search['learning'] === 'triage'
+      ? { learning: search['learning'] }
+      : {}),
     ...(search['entry'] === 'setup' || search['entry'] === 'resume'
       ? { entry: search['entry'] }
       : {}),

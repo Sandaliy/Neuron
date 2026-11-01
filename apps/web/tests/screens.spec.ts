@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { hostedWindowsSnapshot, useFixtures, usePreferences } from './fixtures';
+import { hostedWindowsSnapshot, triageNotes, useFixtures, usePreferences } from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -113,6 +113,22 @@ for (const theme of THEMES) {
         fullPage: true,
         maxDiffPixelRatio: 0.001,
       });
+    });
+
+    test('triage', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page, { notes: triageNotes(3000) });
+      await page.goto('/notes?deckId=d5&learning=triage');
+      await expect(page.getByText('Wort 1', { exact: true })).toBeVisible();
+      await settle(page);
+      await expect.soft(page).toHaveScreenshot(`triage-${theme}.png`, { fullPage: true });
+
+      await page.getByRole('button', { name: /^Unsure \d+$/ }).click();
+      await page.getByRole('button', { name: /^Known \d+$/ }).click();
+      await page.getByRole('button', { name: 'All Notes in triage', exact: true }).click();
+      await expect(page.getByRole('heading', { name: 'Decisions' })).toBeVisible();
+      await settle(page);
+      await expect.soft(page).toHaveScreenshot(`triage-list-${theme}.png`);
     });
 
     test('settings', async ({ page }, info) => {

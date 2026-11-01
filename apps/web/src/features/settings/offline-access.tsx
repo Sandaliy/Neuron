@@ -8,6 +8,7 @@ import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
 import { deliverRenames, renames } from '../../lib/collection-outbox';
 import { exportLifecycle } from '../../lib/lifecycle';
+import { noteCreations, retryNoteCreations } from '../../lib/note-creation';
 import { noteEdits, retryNoteEdits } from '../../lib/note-outbox';
 import { retryConnection, retryDownload, useOffline } from '../../lib/offline';
 import { checkDownloadedStudy } from '../../lib/offline-study';
@@ -20,6 +21,7 @@ import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
 import { Disclosure } from '../../ui/disclosure';
 import { Spinner } from '../../ui/spinner';
 
+import { PendingCreations, noteCreationsKey } from './pending-creations';
 import { PendingNotes } from './pending-notes';
 import { PendingPractice, usePracticeRecords } from './pending-practice';
 import { PendingRenames } from './pending-renames';
@@ -62,7 +64,12 @@ export function OfflineAccess() {
   const work = useSavedWork();
   const send = useMutation({
     mutationFn: () =>
-      Promise.allSettled([retryReviews(), retryNoteEdits(), deliverRenames(), deliverPractice()]),
+      Promise.allSettled([
+        retryReviews(),
+        retryNoteCreations().then(retryNoteEdits),
+        deliverRenames(),
+        deliverPractice(),
+      ]),
   });
   const [details, setDetails] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -202,6 +209,7 @@ export function OfflineAccess() {
         {work.attention > 0 && (
           <div className="flex flex-col gap-16 border-t border-subtle pt-16">
             <PendingReviews />
+            <PendingCreations />
             <PendingNotes />
             <PendingRenames />
             <PendingPractice />
@@ -299,6 +307,11 @@ function useSavedWork() {
     queryFn: () => noteEdits(state.accountId!),
     ...options,
   });
+  const creations = useQuery({
+    queryKey: noteCreationsKey(state.accountId),
+    queryFn: () => noteCreations(state.accountId!),
+    ...options,
+  });
   const reviews = useQuery({
     queryKey: ['review-outbox', state.accountId],
     queryFn: () => reviewEvents(state.accountId!),
@@ -308,6 +321,7 @@ function useSavedWork() {
   const entries: { state: string; failure?: string | undefined; acknowledgement?: unknown }[] = [
     ...(names.data ?? []),
     ...(notes.data ?? []),
+    ...(creations.data ?? []),
     ...(reviews.data ?? []),
     // One Deck's saved Practice counts once, however many steps it holds.
     ...(practice.data ?? []).flatMap((record) =>
@@ -323,7 +337,7 @@ function useSavedWork() {
   return {
     // Answers kept for recovery were never synchronized; the status says so.
     kept: entries.filter((entry) => entry.state === 'archived' && !workIsSettled(entry)).length,
-    error: !!(names.error || notes.error || reviews.error || practice.error),
+    error: !!(names.error || notes.error || creations.error || reviews.error || practice.error),
     waiting: waiting.length,
     stalled: waiting.some((entry) => entry.failure !== undefined),
     attention: open.length - waiting.length,
