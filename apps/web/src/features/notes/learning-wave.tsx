@@ -1,36 +1,26 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-
 import type { DailyStudySession, DeckWave } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { useAccount } from '../../lib/account';
-import { lastWavePlan, wavePlanQuery } from '../../lib/learning-waves';
-import { useOffline } from '../../lib/offline';
+import { useLastWavePlan } from '../../lib/learning-waves';
 import { Card } from '../../ui/card';
 import { Progress } from '../../ui/progress';
 
 /**
- * The Deck's wave now entering Study, read from the default Daily Study plan.
+ * The Deck's wave now entering Study, from the last plan Today made.
  *
- * A Deck no larger than one wave has nothing to cut up, and a Deck whose every
- * Note has started has nothing waiting, so neither shows the card. While a
- * newer plan is made the last one stands in; with none at all, or when no plan
- * can be made, the card is simply not there. Today owns those states, and this
- * card only explains the plan Today already has.
+ * Like the triage entry beside it, it requests nothing, so it never arrives
+ * late or moves with connectivity. Before Today has planned in this visit
+ * there is nothing to show. A Deck no larger than one wave, or with every Note
+ * started, has no card either. Loading and failure belong to Today; this card
+ * only explains the plan Today already has.
  */
 export function LearningWave({ deckId }: { readonly deckId: string }) {
   const account = useAccount();
-  const offline = useOffline();
-  const client = useQueryClient();
-  const local = offline.offline;
-  const plan = useQuery({
-    ...wavePlanQuery(account.data, local),
-    enabled: !!account.data && (!local || offline.available),
-    placeholderData: () => lastWavePlan(client, account.data?.id),
-  });
-  const wave = plan.data?.waves.find((row) => row.deckId === deckId);
-  if (!plan.data || !wave || !showsWave(wave)) return null;
-  return <LearningWaveCard wave={wave} decision={plan.data.newCards} />;
+  const plan = useLastWavePlan(account.data?.id);
+  const wave = plan?.waves.find((row) => row.deckId === deckId);
+  if (!plan || !wave || !showsWave(wave)) return null;
+  return <LearningWaveCard wave={wave} decision={plan.newCards} />;
 }
 
 /** Whether a Deck's wave is worth a card of its own. */

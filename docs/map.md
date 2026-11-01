@@ -332,7 +332,7 @@ every one of these in every state.
 | `lib/review-intent.ts`                            | Pure validation of existing immutable Review/Undo intents, shared with local planning             |
 | `lib/practice-outbox.ts`                          | Per-Deck Practice records in `meta`, exact delivery, refusal settling and the learner's choice    |
 | `lib/triage.ts`                                   | Triage list read with offline fallback, device-saved decisions in `meta`, batched delivery        |
-| `lib/learning-waves.ts`                           | The default plan read for its waves, online or offline, and the last planned waves as placeholder |
+| `lib/learning-waves.ts`                           | The waves of the last plan made in this visit, kept per account; the Deck card never plans itself |
 | `lib/offline-study.ts`, `offline-study-worker.ts` | Account/visit-bound local planning worker and atomic reads of the existing stores                 |
 | `lib/offline-study-snapshot.ts`                   | Download authority, pending event replay, conservative admission and shared planner inputs        |
 | `lib/collection-transport.ts`                     | Collection GET fallback, confirmed transport loss and cancellation/account guards                 |

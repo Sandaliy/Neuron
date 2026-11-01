@@ -666,9 +666,10 @@ the heading, started out of size as the 12 px count with the shared progress lin
 lines in reading order. What waits in this wave, Unsure first. What Study lets in today, the only line
 in primary text, or the plain reason none comes in. When the next wave starts. How much waits after it,
 and that it costs no time until it starts. It has no action: triage, Mark as known and the one-off
-"Include more new material" in Study setup are the controls. It reads the plan Today already made and,
-while a newer one is made, keeps the last one on screen, so it does not arrive late and push the Notes
-down. A Deck no larger than one wave, or with every Note started, has no card. Today's Deck rows name the
+"Include more new material" in Study setup are the controls. Like the triage entry it requests nothing:
+it shows the waves of the last plan Today made in this visit, so it never arrives late, moves with
+connectivity or costs a plan. Before Today has planned there is no card, and neither is there for a Deck
+no larger than one wave or with every Note started. Today's Deck rows name the
 wave, `wave 3: 32 new`, instead of every new Note a large Deck will ever hold.
 
 Standalone meaningful actions such as Practice and Undo have a bounded neutral control. Lightweight

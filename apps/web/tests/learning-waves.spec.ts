@@ -34,7 +34,7 @@ async function withPlan(
     (route) =>
       route.fulfill({
         json: {
-          planningContext: { accountId: 'u1', revision: 42 },
+          planningContext: { accountId: 'user_1', revision: 42 },
           cards: [],
           notes: [],
           nextDue: null,
@@ -66,14 +66,27 @@ async function open(page: Page) {
   await installFixtures(page);
 }
 
+/** The Deck screen requests no plan: Today plans, then the Deck shows that plan's wave. */
+async function deckAfterToday(page: Page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: /^Verben mit Dativ/ }).click();
+  await expect(page.getByRole('heading', { name: 'Verben mit Dativ' })).toBeVisible();
+}
+
 test('a large Deck shows its current wave, what Study lets in today and what waits', async ({
   page,
 }) => {
   await open(page);
   await withPlan(page);
-  await page.goto('/notes?deckId=d3');
+  let plans = 0;
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/study/session') plans++;
+  });
+  await deckAfterToday(page);
 
   await expect(page.getByRole('heading', { name: 'Wave 3 of 60' })).toBeVisible();
+  // The Deck screen made no plan of its own.
+  expect(plans).toBe(1);
   await expect(page.getByText('18 / 50 started', { exact: true })).toBeVisible();
   await expect(
     page.getByRole('progressbar', { name: 'Notes started in this wave' }),
@@ -95,7 +108,7 @@ test('a large Deck shows its current wave, what Study lets in today and what wai
 test('when reviews fill the minutes, the wave says why nothing new comes in', async ({ page }) => {
   await open(page);
   await withPlan(page, { today: 0 }, { allowed: 0, reason: 'forecastOverBudget' });
-  await page.goto('/notes?deckId=d3');
+  await deckAfterToday(page);
 
   await expect(
     page.getByText(
@@ -115,15 +128,28 @@ test('a Deck no larger than one wave, or with everything started, shows no wave'
 }) => {
   await open(page);
   await withPlan(page, { number: 1, count: 1, size: 20, started: 0, waiting: 20, later: 0 });
-  await page.goto('/notes?deckId=d3');
-  await expect(page.getByRole('heading', { name: 'Verben mit Dativ' })).toBeVisible();
+  await deckAfterToday(page);
   await expect(page.getByRole('heading', { name: /^Wave / })).toHaveCount(0);
 
   await page.unroute((url) => url.pathname === '/api/study/session');
   await withPlan(page, { number: 0, size: 0, started: 0, waiting: 0, later: 0 });
+  await deckAfterToday(page);
+  await expect(page.getByRole('heading', { name: /^Wave / })).toHaveCount(0);
+});
+
+test('opened directly, before Today has planned, a Deck requests no plan and shows no wave', async ({
+  page,
+}) => {
+  await open(page);
+  await withPlan(page);
+  let plans = 0;
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/study/session') plans++;
+  });
   await page.goto('/notes?deckId=d3');
   await expect(page.getByRole('heading', { name: 'Verben mit Dativ' })).toBeVisible();
   await expect(page.getByRole('heading', { name: /^Wave / })).toHaveCount(0);
+  expect(plans).toBe(0);
 });
 
 test('Today names the wave instead of every new Note in the Deck', async ({ page }) => {
