@@ -49,7 +49,7 @@ installed-iPhone acceptance.
 | #67 | `7605770` | New Notes offline, delivered once under their own id.                                                        |
 | #69 | `893a49c` | Triage, migration 0018. Offline triage leaves out unsent Notes and delivers after this device's Note writes. |
 | #68 | `756a1f3` | New Folders and Decks offline. Note and Folder/Deck save failures keep separate messages.                    |
-| #72 |           | CI runs the 33 database test files (RLS, repositories, routes) that it used to skip.                         |
+| #72 | `4e60772` | CI runs the 33 database test files (RLS, repositories, routes) that it used to skip.                         |
 
 ## Quality pass, merged 2026-10-30
 
