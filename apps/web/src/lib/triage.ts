@@ -8,6 +8,8 @@ import { committed, openCollection, result } from './collection-db';
 import { localTriage } from './collection-read';
 import { collectionRead } from './collection-transport';
 import { lifecycle } from './lifecycle';
+import { deliverNoteCreations } from './note-creation';
+import { deliverNoteEdits } from './note-outbox';
 import { offlineState, onOfflineChange } from './offline';
 
 import type { QueryClient } from '@tanstack/react-query';
@@ -272,6 +274,11 @@ async function deliver(): Promise<void> {
   publish();
   const owner = accountId;
   try {
+    // A decision takes a new revision for its Note. This device's own new Notes
+    // and edits go first, or an edit based on the old revision would come back
+    // as changed remotely, and a decision about an unsent Note as missing.
+    await deliverNoteCreations();
+    await deliverNoteEdits();
     while (entries.size && authority() && accountId === owner) {
       const sent = new Map(
         [...entries].slice(0, TRIAGE_BATCH_LIMIT).map(([id, entry]) => [id, entry.sequence]),

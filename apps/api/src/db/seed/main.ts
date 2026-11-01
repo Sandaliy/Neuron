@@ -15,6 +15,7 @@ import type {
   SchedulingState,
   CardDirection,
 } from '@neuron/core';
+import { openingCards, resolveDeckSettings } from '@neuron/shared';
 
 import { createDb } from '../client.js';
 import { createRepositories } from '../repositories/index.js';
@@ -457,14 +458,17 @@ async function writeCollection(repositories: Repositories, now: Date) {
   );
 
   clozes.forEach((note, index) => {
-    planned.push({
-      id: seedId(`card:cloze:${index}:cloze`),
-      noteId: note.id,
-      direction: 'cloze',
-      due: now,
-      unlockedAt: historyStart,
-      history: index < 2 ? 'settled' : 'none',
-    });
+    for (const card of openingCards('cloze', note.fields, resolveDeckSettings([]).ladder)) {
+      planned.push({
+        id: seedId(`card:cloze:${index}:${card.direction}:${card.slot}`),
+        noteId: note.id,
+        direction: card.direction,
+        slot: card.slot,
+        due: now,
+        unlockedAt: historyStart,
+        history: index < 2 ? 'settled' : 'none',
+      });
+    }
   });
 
   // One word the person already knew when they imported the list. It keeps its
@@ -501,6 +505,7 @@ async function writeCollection(repositories: Repositories, now: Date) {
         id: card.id,
         noteId: card.noteId,
         direction: card.direction,
+        slot: card.slot ?? 0,
         due: card.due,
         ...(card.unlockedAt === undefined ? {} : { unlockedAt: card.unlockedAt }),
       });
@@ -528,6 +533,7 @@ async function writeCollection(repositories: Repositories, now: Date) {
       id: card.id,
       noteId: card.noteId,
       direction: card.direction,
+      slot: card.slot ?? 0,
       due: history.state.due,
       scheduling: history.state,
       ...(card.unlockedAt === undefined ? {} : { unlockedAt: card.unlockedAt }),
@@ -553,6 +559,8 @@ export interface SeedTarget {
   readonly appUrl: string;
   /** Silences the summary, for the tests that call this in a loop. */
   readonly quiet?: boolean;
+  /** Fixed history endpoint for reproducible verification. Defaults to the current time. */
+  readonly now?: Date;
 }
 
 /**
@@ -571,7 +579,7 @@ export async function runSeed(target: SeedTarget): Promise<{ cards: number; revi
   await resetDemoUser(target.ownerUrl);
 
   const repositories = createRepositories(createDb(target.appUrl), DEMO_USER_ID);
-  const written = await writeCollection(repositories, new Date());
+  const written = await writeCollection(repositories, target.now ?? new Date());
 
   return { cards: written.cards, reviews: written.reviews };
 }

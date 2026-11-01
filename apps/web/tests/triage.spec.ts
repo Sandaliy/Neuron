@@ -394,10 +394,52 @@ test('offline, a downloaded collection is sorted on the device and sent on recon
   ).toBeVisible();
   state.offline = true;
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
+  // A Note saved on this device that the server has not acknowledged yet. The
+  // server's list cannot hold it, so the device's copy leaves it out as well.
+  const unsent = id(950);
+  await page.evaluate(
+    async ({ accountId, deckId, noteId, operationId }) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const open = indexedDB.open(`neuron.collection:${accountId}`);
+        open.onsuccess = () => resolve(open.result);
+        open.onerror = () => reject(open.error);
+      });
+      const values = { fields: { term: 'Unsent', translation: 'unsent' }, tags: [] };
+      const at = new Date().toISOString();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('meta', 'readwrite');
+        tx.objectStore('meta').put(
+          {
+            kind: 'note-create',
+            accountId,
+            entityId: noteId,
+            operationId,
+            sequence: 1,
+            createdAt: at,
+            updatedAt: at,
+            payload: { accountId, operationId, noteId, deckId, noteType: 'vocab', ...values },
+            working: values,
+            started: false,
+            state: 'pending',
+          },
+          `note-create:${noteId}`,
+        );
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    },
+    { accountId: account.id, deckId, noteId: unsent, operationId: id(951) },
+  );
 
+  // The record is valid: the device's browse list holds the Note.
+  await page.goto(`/notes?deckId=${deckId}`);
+  await page.getByRole('searchbox', { name: 'Search' }).fill('Unsent');
+  await expect(page.getByRole('button', { name: /^Unsent unsent/ })).toBeVisible();
   await page.goto(`/notes?deckId=${deckId}&learning=triage`);
   await expect(term(page, 1)).toBeVisible();
-  // The device's copy follows the server's rules: the answered and the set aside Notes are out.
+  // The device's copy follows the server's rules: the answered and the set aside Notes are out,
+  // and so is the Note the server has not received.
   await expect(page.getByText('Left: 28', { exact: true })).toBeVisible();
   await decision(page, 'Known').click();
   await decision(page, 'New').click();

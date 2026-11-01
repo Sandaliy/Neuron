@@ -127,11 +127,18 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       !notes.data.pages.some((page) => page.local),
   );
   const serverReady = capability.server;
+  // A new Note can be saved on the device into a downloaded Deck, and sent later.
+  const canCreate = serverReady || capability.localEdits;
   const unavailable = offline.offline && !offline.available;
   const readOnly = !serverReady;
 
   /** Which deck the screens next to this one should open with. */
   const deckSearch: { deckId?: string } = deckId === undefined ? {} : { deckId };
+  // Saved on this device, not yet on the server: no server action reaches them.
+  const unsent = useMemo(
+    () => new Set(notes.data?.pages.flatMap((page) => page.unsent ?? []) ?? []),
+    [notes.data],
+  );
   const rows = useMemo(
     () => (unavailable ? [] : (notes.data?.pages.flatMap((page) => page.items) ?? [])),
     [unavailable, notes.data],
@@ -189,7 +196,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
               <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
               <span className="sr-only sm:not-sr-only">{t('notes.import')}</span>
             </Button>
-            <ServerControls available={serverReady}>
+            <ServerControls available={canCreate}>
               <Button
                 variant="primary"
                 onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
@@ -396,7 +403,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
             title={t('notes.emptyTitle')}
             description={t(readOnly ? 'offline.empty' : 'notes.emptyBody')}
             action={
-              !readOnly && (
+              canCreate && (
                 <Button
                   variant="primary"
                   onClick={() => void navigate({ to: '/notes/new', search: deckSearch })}
@@ -415,7 +422,9 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           ids={[...selected]}
           notes={rows.filter((note) => selected.has(note.id))}
           {...(deckId === undefined ? {} : { deckId })}
-          onSelectAll={() => setSelected(new Set(rows.map((note) => note.id)))}
+          onSelectAll={() =>
+            setSelected(new Set(rows.filter((note) => !unsent.has(note.id)).map((note) => note.id)))
+          }
           onClear={() => setSelected(new Set())}
           onDone={() => {
             setSelected(new Set());
@@ -427,6 +436,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         <VirtualNotes
           key={deckId ?? 'all'}
           rows={rows}
+          unsent={unsent}
           onRemove={removeNote}
           selecting={selecting}
           readOnly={readOnly}
@@ -455,6 +465,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
  */
 function VirtualNotes({
   readOnly,
+  unsent,
   rows,
   selecting,
   layoutKey,
@@ -466,6 +477,7 @@ function VirtualNotes({
   onNeedMore,
 }: {
   readonly readOnly: boolean;
+  readonly unsent: ReadonlySet<string>;
   readonly rows: readonly Note[];
   readonly selecting: boolean;
   readonly selected: ReadonlySet<string>;
@@ -538,13 +550,14 @@ function VirtualNotes({
             >
               <NoteRow
                 note={note}
-                readOnly={readOnly}
+                readOnly={readOnly || unsent.has(note.id)}
+                unsent={unsent.has(note.id)}
                 selecting={selecting}
                 selected={selected.has(note.id)}
                 onToggle={onToggle}
                 onOpen={onOpen}
                 onRemove={onRemove}
-                revealed={!readOnly && !selecting && revealed === note.id}
+                revealed={!readOnly && !unsent.has(note.id) && !selecting && revealed === note.id}
                 onReveal={setRevealed}
               />
             </div>
@@ -558,6 +571,7 @@ function VirtualNotes({
 /** Scroll updates move the window, but do not change the surviving notes. */
 const NoteRow = memo(function NoteRow({
   readOnly,
+  unsent,
   note,
   selecting,
   selected,
@@ -568,6 +582,7 @@ const NoteRow = memo(function NoteRow({
   onReveal,
 }: {
   readonly readOnly: boolean;
+  readonly unsent: boolean;
   readonly note: Note;
   readonly selecting: boolean;
   readonly selected: boolean;
@@ -601,11 +616,19 @@ const NoteRow = memo(function NoteRow({
         word={termOf(note.fields)}
         meaning={meaning}
         onClick={() =>
-          revealed ? onReveal(null) : selecting ? onToggle(note.id) : onOpen(note.id)
+          revealed
+            ? onReveal(null)
+            : selecting
+              ? unsent
+                ? toast.show(t('offline.serverRequired'))
+                : onToggle(note.id)
+              : onOpen(note.id)
         }
         trailing={
           <>
-            {note.status !== 'active' ? (
+            {unsent ? (
+              <span className="shrink-0 text-12 text-secondary">{t('offline.note.saved')}</span>
+            ) : note.status !== 'active' ? (
               <Chip tone="new">{t(`note.status.${note.status}`)}</Chip>
             ) : (
               <NoteProgressSummary counts={note.cardStates} />

@@ -10,10 +10,12 @@ import type { Card, DeckNode, Note, TriageItem, TriageList } from '@neuron/share
 
 import { metadata, openCollection, snapshot } from './collection-db';
 import { renameOverlay, validateRenames } from './collection-outbox';
+import { creationNote, unsentCreation, validateNoteCreations } from './note-creation';
 import { noteEditOverlay, validateNoteEdits } from './note-outbox';
 import { accountEpoch, offlineReadFailed, offlineState } from './offline';
 
 import type { CollectionRow } from './collection-db';
+import type { PendingNoteCreate } from './note-creation';
 import type { PendingNoteEdit } from './note-outbox';
 import type { NoteQuery } from './notes';
 
@@ -23,6 +25,11 @@ type Collection = {
   cards: () => Promise<Card[]>;
   originals: Map<string, Note>;
   positions: Map<string, number>;
+  /** Every Note id the download holds, tombstones included: those rows own the Note. */
+  pulled: Set<string>;
+  /** Saved on this device and not yet acknowledged: no Cards and no learning. */
+  unsent: Set<string>;
+  liveDecks: Set<string>;
 };
 /** Validation stays on the read boundary, but large snapshots must yield to input and paint. */
 async function projectRows<T>(
@@ -54,6 +61,42 @@ let projection:
   | undefined;
 export function clearCollectionProjection() {
   projection = undefined;
+}
+
+/** A new Note saved, edited or settled on this device replaces one projected row. */
+export function projectCollectionCreation(
+  accountId: string,
+  entry: PendingNoteCreate,
+  edit: PendingNoteEdit | undefined,
+  version: number,
+) {
+  const cached = projection;
+  if (!cached || cached.accountId !== accountId || cached.version !== version - 1) return;
+  cached.version = version;
+  cached.value = cached.value.then((rows) => {
+    const id = entry.entityId;
+    if (rows.pulled.has(id)) return rows;
+    if (unsentCreation(entry)) rows.unsent.add(id);
+    else rows.unsent.delete(id);
+    const at = rows.positions.get(id);
+    const shown = entry.state !== 'resolved' && rows.liveDecks.has(entry.payload.deckId);
+    if (!shown) {
+      rows.originals.delete(id);
+      if (at !== undefined) {
+        rows.notes.splice(at, 1);
+        rows.positions = new Map(rows.notes.map((note, index) => [note.id, index]));
+      }
+      return rows;
+    }
+    const original = creationNote(entry);
+    rows.originals.set(id, original);
+    const note = noteEditOverlay(edit, original);
+    if (at === undefined) {
+      rows.positions.set(id, rows.notes.length);
+      rows.notes.push(note);
+    } else rows.notes[at] = note;
+    return rows;
+  });
 }
 
 /** A content edit replaces one projected row; it never reopens the collection stores. */
@@ -130,6 +173,16 @@ async function collection(includeCards = false): Promise<Collection> {
               })()
             : undefined,
         );
+        const pulled = new Set(rows.notes.map((row) => row.id));
+        const unsent = new Set<string>();
+        for (const entry of validateNoteCreations(rows.creations, id)) {
+          if (entry.state === 'resolved' || pulled.has(entry.entityId)) continue;
+          if (unsentCreation(entry)) unsent.add(entry.entityId);
+          const original = creationNote(entry);
+          if (!available(original.deckId)) continue;
+          originals.set(entry.entityId, original);
+          notes.push(noteEditOverlay(editsByNote.get(entry.entityId), original));
+        }
         const noteIds = new Set(notes.map((note) => note.id));
         const cardRows = rows.cards;
         let parsedCards: Promise<Card[]> | undefined;
@@ -150,12 +203,16 @@ async function collection(includeCards = false): Promise<Collection> {
             }));
         if (offlineState().accountId !== id || accountEpoch() !== visit)
           throw new Error('collection_account_changed');
+        const liveDecks = decks.filter((deck) => available(deck.id));
         return {
-          decks: decks.filter((deck) => available(deck.id)),
+          decks: liveDecks,
           notes,
           cards,
           originals,
           positions: new Map(notes.map((note, index) => [note.id, index])),
+          pulled,
+          unsent,
+          liveDecks: new Set(liveDecks.map((deck) => deck.id)),
         };
       })();
       projection = { key, accountId: id, version, cards: includeCards, value };
@@ -218,8 +275,11 @@ export async function localNotes(
   query: NoteQuery,
   cursor?: string,
   pageSize = 1000,
-): Promise<{ items: Note[]; nextCursor?: string; local?: true }> {
-  const { notes, cards } = await collection(Boolean(query.cardState));
+  /** Learning pools leave out Notes the server has not acknowledged. */
+  sentOnly = false,
+): Promise<{ items: Note[]; nextCursor?: string; local?: true; unsent?: string[] }> {
+  const { notes: all, cards, unsent } = await collection(Boolean(query.cardState));
+  const notes = sentOnly ? all.filter((note) => !unsent.has(note.id)) : all;
   const byNote = new Set<string>();
   if (query.cardState)
     for (const card of await cards()) {
@@ -249,9 +309,11 @@ export async function localNotes(
   const offset = cursor?.startsWith('local:') ? Number(cursor.slice(6)) : 0;
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('collection_invalid_cursor');
   const items = filtered.slice(offset, offset + pageSize);
+  const waiting = items.filter((note) => unsent.has(note.id)).map((note) => note.id);
   return {
     items,
     local: true,
+    ...(waiting.length ? { unsent: waiting } : {}),
     ...(offset + items.length < filtered.length
       ? { nextCursor: `local:${offset + items.length}` }
       : {}),
@@ -261,10 +323,13 @@ export async function localNotes(
 /**
  * Triage from the downloaded collection, built by the same rules as the server's
  * answer: Notes under the Folder or Deck, in source order, without one answered
- * Card. Set aside and Draft Notes are counted and left out.
+ * Card. Set aside and Draft Notes are counted and left out. A Note saved on this
+ * device and not yet acknowledged is not in the server's list either: a decision
+ * about it would arrive before the Note and be refused as missing.
  */
 export async function localTriage(deckId: string): Promise<TriageList & { local: true }> {
-  const { decks, notes, cards } = await collection(true);
+  const { decks, notes: all, cards, unsent } = await collection(true);
+  const notes = all.filter((note) => !unsent.has(note.id));
   const parents = new Map(decks.map((deck) => [deck.id, deck.parentId]));
   if (!parents.has(deckId)) throw new Error('collection_deck_missing');
   const under = (id: string) => {

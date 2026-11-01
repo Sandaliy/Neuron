@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { termOf } from '@neuron/shared';
 import type {
   Card,
   Note,
@@ -12,12 +13,14 @@ import type {
   DeckNode,
 } from '@neuron/shared';
 
-import { request } from './api';
+import { ApiFailure, request } from './api';
 import { localNote, localNotes } from './collection-read';
 import { collectionRead } from './collection-transport';
 import { DECK_TREE_KEY, flatten } from './decks';
 import { writeEntities } from './entity-writes';
+import { creationNote, noteCreationFor, noteCreations, unsentCreation } from './note-creation';
 import { projectNotes } from './note-projection';
+import { offlineState } from './offline';
 import { DELETED_NOTES_KEY } from './recovery';
 
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
@@ -31,7 +34,12 @@ import type { InfiniteData, QueryClient } from '@tanstack/react-query';
  */
 
 export const NOTE_KEY = 'notes';
-type NotePages = InfiniteData<{ items: Note[]; nextCursor?: string }>;
+type NotePages = InfiniteData<{
+  items: Note[];
+  nextCursor?: string;
+  local?: true;
+  unsent?: string[];
+}>;
 const deletingNotes = new Map<string, Promise<{ deleted: boolean }>>();
 
 /** One note and the cards it currently has. */
@@ -43,22 +51,85 @@ export function useNote(id: string | undefined) {
   });
 }
 
+/**
+ * A Note saved on this device that the server has not acknowledged. The server
+ * has nothing to answer for it yet, so the device's copy is the answer.
+ */
+async function unsentNote(id: string) {
+  const accountId = offlineState().accountId;
+  if (!accountId) return undefined;
+  const entry = await noteCreationFor(accountId, id).catch(() => undefined);
+  return entry && unsentCreation(entry)
+    ? { note: creationNote(entry), cards: [] as Card[], local: true as const }
+    : undefined;
+}
+
 export function noteQuery(id: string | undefined) {
   return {
     queryKey: [NOTE_KEY, id],
     networkMode: 'always' as const,
-    queryFn: ({ signal, client }: { signal: AbortSignal; client: QueryClient }) =>
-      collectionRead(
-        `/notes/${id ?? ''}`,
-        signal,
-        () => localNote(id ?? ''),
-        (value) => {
-          if (!client.getQueryData([NOTE_KEY, id]))
-            client.setQueryData([NOTE_KEY, id], value, { updatedAt: 0 });
-        },
-        () => !client.getQueryData([NOTE_KEY, id]),
-      ),
+    queryFn: async ({ signal, client }: { signal: AbortSignal; client: QueryClient }) => {
+      // Only a complete download can have saved a new Note; a 404 still asks below.
+      const unsent = offlineState().available ? await unsentNote(id ?? '') : undefined;
+      if (unsent) return unsent;
+      try {
+        return await collectionRead(
+          `/notes/${id ?? ''}`,
+          signal,
+          () => localNote(id ?? ''),
+          (value) => {
+            if (!client.getQueryData([NOTE_KEY, id]))
+              client.setQueryData([NOTE_KEY, id], value, { updatedAt: 0 });
+          },
+          () => !client.getQueryData([NOTE_KEY, id]),
+        );
+      } catch (error) {
+        // Delivered and settled between the two reads: the device copy still answers.
+        const late =
+          error instanceof ApiFailure && error.code === 'not_found'
+            ? await unsentNote(id ?? '')
+            : undefined;
+        if (late) return late;
+        throw error;
+      }
+    },
   };
+}
+
+/** The same filters `localNotes` applies, for the few Notes only this device has. */
+function matches(query: NoteQuery, note: Note) {
+  const search = query.search?.toLocaleLowerCase();
+  return (
+    (!query.deckId || note.deckId === query.deckId) &&
+    (!query.status || note.status === query.status) &&
+    (!query.tag || note.tags.includes(query.tag)) &&
+    !query.source &&
+    !query.cardState &&
+    (!search ||
+      `${JSON.stringify(note.fields)} ${note.tags.join(' ')}`.toLocaleLowerCase().includes(search))
+  );
+}
+
+/**
+ * Adds unacknowledged Notes to the last server page. They carry no Cards, so
+ * the page names them and learning pools leave the page alone.
+ */
+async function withUnsent<T extends { items: Note[]; nextCursor?: string; local?: true }>(
+  query: NoteQuery,
+  page: T,
+): Promise<T & { unsent?: string[] }> {
+  const accountId = offlineState().accountId;
+  if (page.local || page.nextCursor !== undefined || !accountId) return page;
+  const waiting = (await noteCreations(accountId).catch(() => []))
+    .filter(unsentCreation)
+    .map(creationNote)
+    .filter((note) => matches(query, note) && !page.items.some((item) => item.id === note.id));
+  if (waiting.length === 0) return page;
+  const items = [...page.items, ...waiting];
+  if (query.sort === 'alpha')
+    items.sort((a, b) => termOf(a.fields).localeCompare(termOf(b.fields)));
+  else if (query.sort === 'rank') items.sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
+  return { ...page, items, unsent: waiting.map((note) => note.id) };
 }
 
 /** What the browse screen is asking the api for. */
@@ -102,7 +173,7 @@ export function noteListQuery(query: NoteQuery) {
     }) =>
       pageParam?.startsWith('local:')
         ? localNotes(query, pageParam)
-        : collectionRead(
+        : collectionRead<{ items: Note[]; nextCursor?: string; local?: true }>(
             `/notes?${noteQueryString(query, { limit: '1000', ...(pageParam === undefined ? {} : { cursor: pageParam }) })}`,
             signal,
             // Match the server page size. Local cursors are replaced by the
@@ -120,7 +191,7 @@ export function noteListQuery(query: NoteQuery) {
             () =>
               pageParam === undefined &&
               !client.getQueryData([NOTE_KEY, 'list', noteQueryString(query)]),
-          ),
+          ).then((page) => withUnsent(query, page)),
     getNextPageParam: (last: { nextCursor?: string }) => last.nextCursor,
   };
 }

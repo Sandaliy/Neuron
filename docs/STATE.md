@@ -9,7 +9,7 @@ Last updated: 2026-11-01.
 ## Release
 
 Phases 0 to 8.6, the 2026-10-30 quality pass, offline Practice and offline Import preparation are on
-protected `main`. The product has:
+protected `main`, with offline Note creation and Phase 9.0 triage. The product has:
 
 - Daily Study with deterministic time-based planning, explainable new-card admission, current-session
   Undo and durable answers that survive offline sittings, reload and lost responses.
@@ -19,17 +19,19 @@ protected `main`. The product has:
   locally. Answers, renames and Note edits travel through account-bound outboxes with exact retries and
   retained conflicts. Practice runs offline with durable ordered delivery and explicit two-device
   conflict choice. Import preparation works offline with account-local drafts and resumable delivery
-  checkpoints; creating Notes and applying an Import still require a connection. Settings > Offline &
-  sync shows saved work and recovery.
+  checkpoints; applying an Import still requires a connection. Settings > Offline & sync shows saved
+  work and recovery.
+- Offline Note creation: new Notes save into downloaded Decks through the normal
+  editor, keep one device-chosen id, and are delivered once; the server makes their Cards. A Deck deleted
+  meanwhile leaves the Note on the device for an explicit choice in Settings.
 
-In review, not merged: Phase 9.0 triage (`work/large-collection-triage`). A Deck with 20 or more Notes,
-or an import that just finished, offers a sweep: one tap marks a Note Known, Unsure or New, Undo
-walks back through the visit, a list finds any Note to change its decision, and progress resumes after a
-reload. Known is the existing `known` status; Unsure and New stay in Study with a mark (migration 0018).
-Triage never touches Cards or Reviews and skips any Note with an answered Card. It reads the download
-offline and sends decisions in batches when it can.
+Phase 9.0 triage: a Deck with 20 or more Notes, or an import that just finished, offers a sweep: one
+tap marks a Note Known, Unsure or New, Undo walks back through the visit, a list finds any Note to change
+its decision, and progress resumes after a reload. Known is the existing `known` status; Unsure and New
+stay in Study with a mark (migration 0018). Triage never touches Cards or Reviews and skips any Note with
+an answered Card. It reads the download offline and sends decisions in batches when it can.
 
-Not built: offline Note creation or Import application, Phase 9 waves and progressive directions,
+Not built: offline Import application, Phase 9 waves and progressive directions,
 Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
 Owner acceptance on the installed iPhone is the gate for interaction work. The last full acceptance was
@@ -56,7 +58,8 @@ and offline Import preparation still need installed-iPhone acceptance.
    and card motion, folders and disclosures, choice rows, Study start after a setup change, and
    reconnecting after an offline sitting; start and finish Practice offline, close and reopen, reconnect,
    and choose between runs after practicing one Deck on two devices; prepare and reopen an Import draft
-   offline, then connect to check duplicates and apply or resume it.
+   offline, then connect to check duplicates and apply or resume it; offline Note creation with the steps
+   in `offline-collection.md`.
 4. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
 5. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
@@ -111,3 +114,4 @@ and offline Import preparation still need installed-iPhone acceptance.
 | 2026-10-30 | Visual changes are shown to the owner before merging        | Two restyles in a row were rejected on sight               |
 | 2026-11-01 | Triage is a mark beside status; Known is the `known` status | No second status model, no change to Study admission       |
 | 2026-11-01 | Triage never classifies a Note with an answered Card        | Study's evidence outranks a pre-learning guess             |
+| 2026-11-01 | New Notes get their id on the device, Cards on the server   | One identity across retries; schedules stay authoritative  |

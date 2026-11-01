@@ -7,7 +7,9 @@ and virtualized Note rows. Phase 8.2 displays completed local content while auth
 and permits renaming existing Folders/Decks offline. Phase 8.3 uses the familiar Note Editor for existing
 Notes online and offline, with durable content drafts and safe authenticated delivery. Phase 8.5 adds
 qualified local Study planning as described in `offline-study.md`. Phase 8.7 runs Practice from the
-download with durable delivery (see Offline Practice below). Note creation, type conversion, moves, deletion/restoration, explicit direction changes and Import application remain online-only. Remote Note media is not
+download with durable delivery (see Offline Practice below). Offline Note creation saves new Notes into
+downloaded Decks (see Offline Note creation below). Type conversion, moves, deletion/restoration, explicit
+direction changes and Import application remain online-only. Remote Note media is not
 downloaded; its stored reference remains readable.
 
 ## Storage and initial download
@@ -143,9 +145,9 @@ pausing probes while hidden; observed server progress requests immediate validat
 navigation adds no probe or collection scan. The handover cancels pending reads and
 invalidates active collection observers without removing cached query entries or remounting Library
 and Deck screens. Complete snapshot reads replace those entries locally. Local capabilities permit only
-existing Folder/Deck rename, durable existing-Note content editing, qualified offline Study, Practice and Import
-preparation with local drafts;
-drag/drop, selection mutations, direct/swipe deletion, Note creation and Import application
+existing Folder/Deck rename, durable existing-Note content editing, new Notes in downloaded Decks,
+qualified offline Study, Practice and Import preparation with local drafts;
+drag/drop, selection mutations, direct/swipe deletion and Import application
 remain unavailable. Browsing completeness and learning-history readiness are separate Settings states.
 Control regions show deliberate unavailable states during the current visit and on re-entry.
 Search covers stored fields and
@@ -500,10 +502,77 @@ budget. The full serial phone/desktop interaction gate passed 472 tests with six
 skipped; the offline live PostgreSQL/browser path was separately run in Chromium and WebKit.
 All 66 Windows visual cases passed, with the gallery rerun after a Chromium resource-loading failure.
 
-Offline Note creation and its initial Card identity mapping remain later work.
+New Notes are saved offline without local Cards; the server creates their Cards on delivery.
 Phase 8.5 adds qualified local Study admission and retains [durable Review/Undo transport](offline-study.md);
 offline Import application remains absent. Current
 server authorization, immutable Review semantics and deletion/restoration ownership remain authoritative.
+
+## Offline Note creation
+
+A new Note can be saved into a downloaded Deck with or without a connection, through the same New note
+form. Saving needs a complete download and a live leaf Deck in it; the destination is checked inside the
+save transaction. With a complete download this is also the online path: the Note is saved on the device
+first and sent at once, like an edit. Without a complete download, or when the Deck is not on the device
+yet, an online save keeps the existing `POST /notes` contract; offline the form says the Deck is not on
+the device. Creating Decks, deleting, moving or converting Notes, and applying Imports stay online-only.
+
+Each saved Note is one record under `note-create:<noteId>` in the account's `meta` store. Earlier shells
+never enumerate `meta`, so a rollback ignores the records instead of failing on them; there is no
+IndexedDB version change. The Note id is chosen once, when the form is first typed in, and is the id the
+server writes. The record holds the command `{ accountId, operationId, noteId, deckId, noteType, fields,
+tags }`, the latest working fields and tags, a sequence from the shared outbox version, and its state:
+`draft`, `pending`, `conflict`, `rejected`, `synchronized` or `resolved`. The unsaved form is kept under
+`note-create-draft:<deck>` as the learner types, with the same Note id, and comes back after a restart.
+Leaving through the app still asks first, and Discard removes it. Saving deletes it in the same
+transaction that commits the Note.
+
+The Note appears at once in its Deck, in search and in the Note editor, marked "Saved on device". It has
+no Cards: the server makes every Card and schedule. Until the server acknowledges it, the Note has no
+server actions (status, restart, directions, type, delete, swipe, selection), and Study, offline Study
+and Practice pools leave it out. List pages that carry such Notes name them in `unsent`, so learning
+pools do not seed from those pages. The status row says Cards are made when it syncs.
+
+Edits before the first delivery attempt replace the command in place, so typing never creates more than
+one Note or more than one command. The first attempt freezes the command (`started`). Later edits wait in
+the record. An `applied` acknowledgement settles the record and, in the same transaction, turns any newer
+values into an ordinary `note-edit` based on the acknowledged revision, so it travels through the existing
+edit outbox, conflict rules and Card-removal refusal. Until the pull brings the server's row, the record
+projects the acknowledged Note and the edit outbox uses the acknowledged revision as its base.
+
+Delivery runs after renames and before Note edits, on reconnection, foreground, saved-work changes and
+Settings > Send now, and retries transport failures at 2, 5, 15, 30 and 60 seconds. It needs the
+validated, matching account; sign-out, expiry and account switches stop it and leave the record in its
+account's database. Every retry sends the identical command.
+
+`POST /notes/offline-create` validates the shared command and the session account. Inside the account
+write lock it looks up an immutable `sync_receipts` entry for `note-create:<operationId>`; an exact retry
+returns the first outcome, an altered one is refused. Invalid fields are refused before anything is
+written, receipt included. A deleted, purged, missing, foreign or Folder destination answers
+`conflict / deck_unavailable` and writes nothing. An id another row already holds, in any account, answers
+`rejected / note_exists`. Otherwise the Note and its opening Cards, from the shared planner, commit with
+the receipt. The receipt holds a digest and the outcome, never Note content. No SQL migration is needed.
+
+A Note whose Deck went away stays on the device and is listed in Settings > Offline & sync with a plain
+explanation. The learner can choose a Deck, which sends a new command with the same Note id and keeps the
+earlier command in `previous`; copy the Note; or stop syncing it, which archives it on the device. Nothing
+is placed in another Deck without that choice, and a refused Note never appears synchronized. Rebuild is
+blocked while any new Note is unsent.
+
+`collection-note-creation.test.ts` covers real PostgreSQL/RLS: the device id and server Cards, concurrent
+and lost-answer retries, altered retries, the acknowledged revision as the next edit's base, all cloze
+gaps, untouched existing schedules and Reviews, every unavailable destination with its remembered
+outcome, id collisions in this and another account, invalid content, and receipt isolation.
+`offline-note-creation.spec.ts` covers offline save, listing and restart, reconnection with server Cards,
+coalesced typing without Note or Card scans, a lost acknowledgement with edits during delivery, a deleted
+Deck and the learner's choice, refusal and archive, expiry and account switching, storage failure on
+save, the restarted form draft, online local-first creation and a Deck missing from the device, in
+Chromium and phone WebKit.
+
+Physical-iPhone acceptance: download completely; in airplane mode open a Deck, add a Word, a Question and
+a Cloze Note; check "Saved on device" in the editor and the Deck list; edit one of them; close and reopen
+the installed PWA offline and find all three; start typing a fourth and close the app before saving,
+then reopen New note in that Deck; reconnect and check each Note shows its Cards and can be studied after
+the next plan; delete a Deck on another device before reconnecting and recover its Note from Settings.
 
 ## Phase 8.4 production stabilization
 

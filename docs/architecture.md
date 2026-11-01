@@ -698,7 +698,8 @@ through the same shared deterministic planner as the API. A lazy worker owns col
 validation, replay and forecast work. Matching settings/revision and usable history permit conservative
 new admission; uncertainty restricts it and never grants override. Provisional browse/content overlays
 remain insufficient learning authority. Reload ends the visit-local Undo stack while retaining pending intents. Settings bounds optional synchronized receipt detail and keeps unresolved work visible.
-Offline Note creation, Practice synchronization and Import application remain unavailable. No new
+New Notes are saved on the device and delivered once by id; the server still creates every Card.
+Import application remains online-only. No new
 SQL migration, IndexedDB version or Review event protocol is introduced by local Study planning. See [offline collection contracts](offline-collection.md) and [durable Study transport](offline-study.md).
 
 **Preview data is separate and empty.** The long-lived Neon `preview` branch is schema-only, and its

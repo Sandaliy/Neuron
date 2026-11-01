@@ -127,12 +127,12 @@ export function DeckPractice({
   const client = useQueryClient();
   const listKey = [NOTE_KEY, 'list', noteQueryString({ deckId, sort: 'created' })];
   const listState = client.getQueryState<{
-    pages: { items: Note[]; nextCursor?: string; local?: true }[];
+    pages: { items: Note[]; nextCursor?: string; local?: true; unsent?: string[] }[];
   }>(listKey);
   const complete =
     !listState?.isInvalidated &&
     listState?.data &&
-    !listState.data.pages.some((page) => page.local) &&
+    !listState.data.pages.some((page) => page.local || page.unsent?.length) &&
     listState.data.pages.at(-1)?.nextCursor === undefined
       ? listState?.data?.pages.flatMap((page) => page.items)
       : undefined;

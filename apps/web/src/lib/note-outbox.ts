@@ -9,12 +9,13 @@ import {
 import type { EditOfflineNoteCommand, EditOfflineNoteResult, Note } from '@neuron/shared';
 
 import { ApiFailure, request } from './api';
-import { committed, openCollection, result } from './collection-db';
+import { NOTE_CREATION_PREFIX, committed, openCollection, result } from './collection-db';
+import { creationNote, unsentCreation, validateNoteCreations } from './note-creation';
 import { accountEpoch, offlineState } from './offline';
 
 import type { CollectionMeta, CollectionRow } from './collection-db';
 
-type NoteValues = { fields: Record<string, unknown>; tags: string[] };
+export type NoteValues = { fields: Record<string, unknown>; tags: string[] };
 export interface PendingNoteEdit {
   kind: 'note-edit';
   operationId: string;
@@ -37,7 +38,7 @@ const channel =
   typeof BroadcastChannel === 'undefined'
     ? undefined
     : new BroadcastChannel('neuron.notes.changed');
-function changed(change: NoteChange) {
+export function changed(change: NoteChange) {
   listeners.forEach((listener) => listener(change));
   channel?.postMessage(change);
 }
@@ -121,7 +122,7 @@ export function validateNoteEdits(input: unknown, accountId: string): PendingNot
     .sort((a, b) => a.sequence - b.sequence);
 }
 
-function nextVersion(meta: CollectionMeta) {
+export function nextVersion(meta: CollectionMeta) {
   const version = (meta.outboxVersion ?? 0) + 1;
   if (!Number.isSafeInteger(version) || version < 1) throw new Error('collection_invalid_outbox');
   return version;
@@ -201,6 +202,7 @@ export async function saveNoteEdit(
     const done = committed(tx);
     const metaRead = tx.objectStore('meta').get('sync');
     const noteRead = tx.objectStore('notes').get(id);
+    const creationRead = tx.objectStore('meta').get(`${NOTE_CREATION_PREFIX}${id}`);
     const outbox = tx.objectStore('outbox');
     const allRead = outbox.getAll();
     let failure: unknown;
@@ -211,13 +213,31 @@ export async function saveNoteEdit(
         const meta = metaRead.result as CollectionMeta | undefined;
         const stored = noteRead.result as CollectionRow | undefined;
         const entries = validateNoteEdits(allRead.result, accountId);
+        const creation =
+          creationRead.result === undefined
+            ? undefined
+            : validateNoteCreations([creationRead.result], accountId)[0];
         if (visit !== accountEpoch() || offlineState().accountId !== accountId)
           throw new Error('collection_account_changed');
+        // A Note the server has not acknowledged is edited through its creation.
+        if (unsentCreation(creation)) throw new Error('collection_note_unsent');
+        // Acknowledged but not yet pulled: the acknowledgement names its revision.
+        const created =
+          creation?.state === 'synchronized'
+            ? {
+                entity: 'notes' as const,
+                id,
+                rev: creation.outcome!.revision,
+                deleted: false,
+                purged: false,
+                row: creationNote(creation),
+              }
+            : undefined;
         if (
           !meta?.complete ||
           meta.format !== 1 ||
-          (!stored && !observed) ||
-          ((!stored || stored.deleted || stored.purged) && !observed)
+          (!stored && !observed && !created) ||
+          ((!stored || stored.deleted || stored.purged) && !observed && !created)
         )
           throw new Error('collection_incomplete');
         const active = entries
@@ -249,16 +269,20 @@ export async function saveNoteEdit(
             active.outcome?.status === 'applied' &&
             (!observed || observed.rev < active.outcome.revision)
               ? acknowledgedBase(active, active.outcome.revision)
-              : observed
-                ? {
-                    entity: 'notes' as const,
-                    id,
-                    rev: observed.rev,
-                    deleted: false,
-                    purged: false,
-                    row: noteSchema.parse(observed),
-                  }
-                : stored!;
+              : created &&
+                  (!observed || observed.rev < created.rev) &&
+                  (!stored || stored.rev < created.rev)
+                ? created
+                : observed
+                  ? {
+                      entity: 'notes' as const,
+                      id,
+                      rev: observed.rev,
+                      deleted: false,
+                      purged: false,
+                      row: noteSchema.parse(observed),
+                    }
+                  : stored!;
           const note = noteSchema.parse(base.row);
           const operationId = uuidV7();
           const payload = { accountId, operationId, baseRev: base.rev, ...values };
