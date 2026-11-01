@@ -1,12 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createSchedulerConfig, replay } from '@neuron/core';
+import { openingCards, possibleCards, resolveDeckSettings } from '@neuron/shared';
 
 import { createRepositories } from '../repositories/index.js';
 import { toSchedulingState } from '../repositories/mapping.js';
 import { appClient, rawOwnerPool, testDatabase } from '../testing/database.js';
 
-import { DEMO_USER_ID, runSeed } from './main.js';
+import { CLOZE_NOTES } from './data.js';
+import { DEMO_USER_ID, runSeed, seedId } from './main.js';
 
 import type { Repositories } from '../repositories/index.js';
 import type { Pool } from '@neondatabase/serverless';
@@ -23,6 +25,7 @@ import type { Pool } from '@neondatabase/serverless';
  */
 
 const database = testDatabase();
+const NOW = new Date('2026-10-31T12:00:00Z');
 
 interface Counts {
   readonly decks: number;
@@ -62,7 +65,7 @@ describe.skipIf(!database)('the seed', () => {
     owner = rawOwnerPool(database);
     repositories = createRepositories(appClient(database), DEMO_USER_ID);
 
-    await runSeed({ ownerUrl: database.ownerUrl, appUrl: database.appUrl, quiet: true });
+    await runSeed({ ownerUrl: database.ownerUrl, appUrl: database.appUrl, quiet: true, now: NOW });
     first = await countRows(owner);
   });
 
@@ -103,6 +106,7 @@ describe.skipIf(!database)('the seed', () => {
       ownerUrl: database?.ownerUrl ?? '',
       appUrl: database?.appUrl ?? '',
       quiet: true,
+      now: NOW,
     });
 
     const second = await countRows(owner);
@@ -148,5 +152,71 @@ describe.skipIf(!database)('the seed', () => {
       // a column ever starts rounding, this is where it shows.
       expect(rebuilt).toEqual(toSchedulingState(card!));
     }
+  });
+
+  it('seeds every canonical Cloze gap with a distinct stable identity and displayable face', async () => {
+    const allIds: string[] = [];
+    for (const [index, fields] of CLOZE_NOTES.entries()) {
+      const noteId = seedId(`note:cloze:${index}`);
+      const cards = await repositories.cards.forNote(noteId);
+      const planned = openingCards('cloze', fields, resolveDeckSettings([]).ladder);
+      expect(cards.map(({ direction, slot }) => ({ direction, slot }))).toEqual(
+        planned.map(({ direction, slot }) => ({ direction, slot })),
+      );
+      for (const card of cards) {
+        expect(card.id).toBe(seedId(`card:cloze:${index}:${card.direction}:${card.slot}`));
+        expect(card.slot).toBeGreaterThan(0);
+        const face = possibleCards('cloze', fields).find(
+          (candidate) => candidate.direction === card.direction && candidate.slot === card.slot,
+        );
+        expect(face?.front[0]?.value).toContain('[...]');
+        expect(face?.back[0]?.value).not.toContain('{{');
+        expect(face?.front).not.toEqual(face?.back);
+        allIds.push(card.id);
+      }
+    }
+    expect(allIds).toHaveLength(7);
+    expect(new Set(allIds).size).toBe(7);
+  });
+
+  it('replays every reviewed Cloze slot exactly and leaves unstudied slots new', async () => {
+    const config = createSchedulerConfig({ timezone: 'Europe/Moscow', dayCutoffHour: 4 });
+    for (const index of CLOZE_NOTES.keys()) {
+      for (const card of await repositories.cards.forNote(seedId(`note:cloze:${index}`))) {
+        const logs = await repositories.reviews.forCard(card.id);
+        if (index < 2) {
+          expect(logs.length).toBeGreaterThan(0);
+          expect(replay(logs, config)).toEqual(toSchedulingState(card));
+        } else {
+          expect(logs).toEqual([]);
+          expect(card.state).toBe('new');
+          expect(card.due).toEqual(NOW);
+        }
+      }
+    }
+  });
+
+  it('reproduces Card identities, schedules and Review values at a fixed history endpoint', async () => {
+    const snapshot = async () => {
+      const cards = await owner.query(
+        `select to_jsonb(c) - 'created_at' - 'updated_at' - 'rev' as value
+         from cards c where user_id = $1 order by id`,
+        [DEMO_USER_ID],
+      );
+      const reviews = await owner.query(
+        `select to_jsonb(r) - 'id' - 'created_at' - 'rev' as value
+         from reviews r where user_id = $1 order by card_id, reviewed_at`,
+        [DEMO_USER_ID],
+      );
+      return { cards: cards.rows, reviews: reviews.rows };
+    };
+    const before = await snapshot();
+    await runSeed({
+      ownerUrl: database!.ownerUrl,
+      appUrl: database!.appUrl,
+      quiet: true,
+      now: NOW,
+    });
+    expect(await snapshot()).toEqual(before);
   });
 });
