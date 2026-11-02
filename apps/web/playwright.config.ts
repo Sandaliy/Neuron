@@ -85,9 +85,10 @@ export default defineConfig({
     },
     {
       name: 'desktop-interaction',
-      // The frame rate budgets are phone measurements. Running them again at
-      // 1440 measures a different thing and calls it the same name.
-      testIgnore: /(?:gallery|screens|performance)\.spec\.ts/,
+      // This benchmark explicitly fixes its viewport at 375px. Keep its three
+      // glass modes in phone-interaction instead of repeating them under a
+      // desktop label. Ordinary motion and interaction cases still run here.
+      testIgnore: /(?:gallery|screens|performance|interaction-lifecycle)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },

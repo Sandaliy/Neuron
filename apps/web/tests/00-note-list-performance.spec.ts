@@ -14,6 +14,106 @@ const BUDGET = 55;
 const CPU_THROTTLE = 4;
 const FRAMES = 180;
 
+test('Deleted: 1000 collection rows and 5000 Notes keep bounded windows at 4x CPU', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark', glass: 'off' });
+  await useFixtures(page);
+  const decks = Array.from({ length: 1000 }, (_, i) => ({
+    id: `deleted-${i}`,
+    name: `Collection ${i}`,
+    kind: i % 5 === 0 ? 'folder' : 'deck',
+    parentId: i % 5 === 0 ? null : `deleted-${i - (i % 5)}`,
+    pathNames: i % 5 === 0 ? [] : [`Collection ${i - (i % 5)}`],
+    parentDeleted: i % 5 !== 0,
+  }));
+  const notes = manyNotes(5000).map((note) => ({
+    ...note,
+    deckPath: ['German', 'Lesson 3'],
+    deckLive: true,
+  }));
+  await page.route('**/api/decks/deleted', (route) => route.fulfill({ json: { decks } }));
+  await page.route('**/api/notes/deleted', (route) => route.fulfill({ json: { notes } }));
+  const session = await page.context().newCDPSession(page);
+  await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+  try {
+    await page.goto('/library/deleted');
+    await expect(page.getByText('Collection 0', { exact: true })).toBeVisible();
+    expect(await page.getByRole('listitem').count()).toBeLessThan(40);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect(page.getByText('Collection 999', { exact: true })).toBeVisible();
+    expect(await page.getByRole('listitem').count()).toBeLessThan(40);
+    await page.getByRole('searchbox').fill('Collection 999');
+    await expect(page.getByRole('status').filter({ hasText: '1 of 1000' })).toBeVisible();
+    const child = page
+      .getByRole('listitem')
+      .filter({ has: page.getByText('Collection 999', { exact: true }) });
+    await expect(child.getByRole('button', { name: 'Restore', exact: true })).toBeDisabled();
+    await expect(page.getByText('Collection 995', { exact: true })).toBeVisible();
+    await page.getByRole('radiogroup').getByText('Notes', { exact: true }).click();
+    await expect(page.getByText('Wort 1', { exact: true })).toBeVisible();
+    const mounted = await page.getByRole('listitem').count();
+    expect(mounted).toBeLessThan(40);
+    const samples: number[] = [];
+    for (let trial = 0; trial < 3; trial++) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      samples.push(
+        await page.evaluate(async () => {
+          const gaps: number[] = [];
+          let previous = await new Promise<number>((resolve) => requestAnimationFrame(resolve));
+          for (let i = 0; i < 90; i++) {
+            await new Promise<void>((resolve) =>
+              requestAnimationFrame((now) => {
+                gaps.push(now - previous);
+                previous = now;
+                window.scrollBy(0, 24);
+                resolve();
+              }),
+            );
+          }
+          return (1000 * gaps.length) / gaps.reduce((sum, gap) => sum + gap, 0);
+        }),
+      );
+    }
+    const visible = await page.getByRole('listitem').evaluateAll((rows) =>
+      rows
+        .filter((row) => {
+          const box = row.getBoundingClientRect();
+          return box.bottom > 0 && box.top < innerHeight;
+        })
+        .map((row) => row.textContent),
+    );
+    expect(visible.length).toBeGreaterThan(1);
+    expect(visible.every((text) => text?.includes('Wort'))).toBe(true);
+    const fps = [...samples].sort((a, b) => a - b)[1]!;
+    const started = Date.now();
+    await page.getByRole('searchbox').fill('Wort 4999');
+    await expect(page.getByRole('status').filter({ hasText: '1 of 5000' })).toBeVisible();
+    const filterMs = Date.now() - started;
+    await expect(page.getByText('Wort 4999', { exact: true })).toBeVisible();
+    expect(filterMs).toBeLessThan(1500);
+    const result = {
+      mounted,
+      fps,
+      samples,
+      filterMs,
+      cpu: CPU_THROTTLE,
+      notes: 5000,
+      collections: 1000,
+    };
+    console.log(`Deleted performance: ${JSON.stringify(result)}`);
+    writeFileSync(
+      test.info().outputPath('deleted-performance.json'),
+      JSON.stringify(result, null, 2),
+    );
+    if (process.env['PERFORMANCE_ENFORCE_THRESHOLD'] === 'true')
+      expect(fps).toBeGreaterThanOrEqual(BUDGET);
+  } finally {
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    await session.detach();
+  }
+});
+
 /**
  * The note list, at the size a real frequency list actually is.
  *
