@@ -232,6 +232,68 @@ describe.skipIf(!database)('browsing notes', () => {
   });
 });
 
+describe.skipIf(!database)('account-wide Note browsing', () => {
+  it('retains filters across Decks and cursor pages without exposing deleted or foreign Notes', async () => {
+    if (!database) return;
+    const owner = 'browse-library-owner';
+    const outsider = 'browse-library-outsider';
+    await createUser(database, owner);
+    await createUser(database, outsider);
+    const repo = repositoriesFor(database, owner);
+    const foreign = repositoriesFor(database, outsider);
+    const server = testServer(database, owner);
+    const folder = await repo.decks.create({ name: 'Languages', kind: 'folder' });
+    const nested = await repo.decks.create({ name: 'German', kind: 'folder', parentId: folder.id });
+    const left = await repo.decks.create({ name: 'Lesson', parentId: folder.id });
+    const right = await repo.decks.create({ name: 'Lesson', parentId: nested.id });
+    const input = {
+      noteType: 'vocab' as const,
+      fields: { term: 'Matching word', translation: 'Library marker' },
+      tags: ['shared'],
+      source: 'Library search',
+      status: 'active' as const,
+    };
+    const first = await repo.notes.create({ ...input, deckId: left.id, rank: 1 });
+    const second = await repo.notes.create({ ...input, deckId: right.id, rank: 2 });
+    for (const excluded of [
+      { tags: ['other'] },
+      { source: 'Another source' },
+      { status: 'known' as const },
+    ])
+      await repo.notes.create({ ...input, deckId: left.id, rank: 0, ...excluded });
+    const deleted = await repo.notes.create({ ...input, deckId: left.id, rank: 0 });
+    await repo.notes.softDelete(deleted.id);
+    const deletedFolder = await repo.decks.create({ name: 'Deleted', kind: 'folder' });
+    const deletedDeck = await repo.decks.create({ name: 'Lesson', parentId: deletedFolder.id });
+    await repo.notes.create({ ...input, deckId: deletedDeck.id, rank: 0 });
+    await repo.decks.softDelete(deletedFolder.id);
+    const foreignDeck = await foreign.decks.create({ name: 'Lesson' });
+    await foreign.notes.create({ ...input, deckId: foreignDeck.id, rank: 0 });
+
+    const query = new URLSearchParams({
+      search: 'library marker',
+      tag: 'shared',
+      source: 'Library search',
+      status: 'active',
+      sort: 'rank',
+      limit: '1',
+    });
+    const firstPage = await json<{ items: Note[]; nextCursor?: string }>(
+      await server.request(`/api/notes?${query}`),
+      200,
+    );
+    expect(firstPage.items.map((note) => [note.id, note.deckId])).toEqual([[first.id, left.id]]);
+    expect(firstPage.nextCursor).toBeTruthy();
+    query.set('cursor', firstPage.nextCursor!);
+    const secondPage = await json<{ items: Note[]; nextCursor?: string }>(
+      await server.request(`/api/notes?${query}`),
+      200,
+    );
+    expect(secondPage.items.map((note) => [note.id, note.deckId])).toEqual([[second.id, right.id]]);
+    expect(secondPage.nextCursor).toBeUndefined();
+  });
+});
+
 describe.skipIf(!database)('changing many notes at once', () => {
   let repositories: Repositories;
   let server: Hono;
