@@ -6,16 +6,29 @@ export type Overrides = Readonly<Record<number, Resolution>>;
 
 export function groupMatches(matches: readonly DuplicateMatch[]) {
   const groups = new Map<string, DuplicateMatch[]>();
+  const seen = new Map<string, Set<string>>();
 
   for (const match of matches) {
     const group = groups.get(match.term) ?? [];
 
     // A term repeated across lookup chunks can return the same note twice.
-    if (!group.some((entry) => entry.noteId === match.noteId)) group.push(match);
+    const ids = seen.get(match.term) ?? new Set<string>();
+    if (!ids.has(match.noteId)) group.push(match);
+    ids.add(match.noteId);
+    seen.set(match.term, ids);
     groups.set(match.term, group);
   }
 
   return groups;
+}
+
+/** Field diagnostics depend on source rows, never on duplicate choices or save status. */
+export function analyseImport(parsed: ParseResult) {
+  const counts = termCounts(parsed.rows);
+  return parsed.rows.map((row) => ({
+    key: noteTermKey(row.fields),
+    problems: rowProblems(row, parsed.noteType, counts),
+  }));
 }
 
 export function resolveDuplicate(
@@ -39,21 +52,18 @@ export function planRows(
   duplicates: readonly DuplicateMatch[],
   resolution: Resolution,
   overrides: Overrides = {},
+  analysis = analyseImport(parsed),
 ) {
   const known = groupMatches(duplicates);
-  const counts = termCounts(parsed.rows);
   const seen = new Set<string>();
   const create: ParsedRow[] = [];
   const merge: { noteId: string; fields: Record<string, unknown> }[] = [];
   let skipped = 0;
 
-  for (const row of parsed.rows) {
-    const key = noteTermKey(row.fields);
+  for (const [index, row] of parsed.rows.entries()) {
+    const { key, problems } = analysis[index]!;
 
-    if (
-      rowProblems(row, parsed.noteType, counts).missing.length > 0 ||
-      (key !== '' && seen.has(key))
-    ) {
+    if (problems.missing.length > 0 || (key !== '' && seen.has(key))) {
       skipped += 1;
       continue;
     }

@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { RATING } from '@neuron/core';
-import { IMPORT_CHUNK_SIZE, normaliseTerm, uuidV7 } from '@neuron/shared';
-import type { ImportBatch } from '@neuron/shared';
+import { IMPORT_CHUNK_SIZE, normaliseTerm, openingCards, uuidV7 } from '@neuron/shared';
+import type { NoteFields, NoteTypeName, ImportBatch } from '@neuron/shared';
 
 import {
   countingRepositories,
@@ -136,6 +136,260 @@ describe.skipIf(!database)('importing', () => {
     const batch = await repositories.importBatches.byId(started.import.id);
 
     expect(batch?.noteCount).toBe(3);
+  });
+
+  it('refuses further chunks after another tab has undone the batch', async () => {
+    const started = await startBatch('Already undone');
+    await sendChunk(started.import.id, [note('Before Undo')]);
+    await json(
+      await server.request(`/api/imports/${started.import.id}/undo`, { method: 'POST' }),
+      200,
+    );
+    const response = await server.request(`/api/imports/${started.import.id}/notes`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ notes: [note('After Undo')] }),
+    });
+    expect(response.status).toBe(409);
+    expect((await repositories.importBatches.contents(started.import.id)).notes).toBe(0);
+  });
+
+  it('refuses IDs from a different batch instead of acknowledging missing additions', async () => {
+    const first = await startBatch('ID owner');
+    const second = await startBatch('ID collision');
+    const row = note('Same ID');
+    await sendChunk(first.import.id, [row]);
+    const response = await server.request(`/api/imports/${second.import.id}/notes`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ notes: [row] }),
+    });
+    expect(response.status).toBe(409);
+    expect((await repositories.importBatches.contents(second.import.id)).notes).toBe(0);
+  });
+
+  it('retains exact mixed Note/Card identities, ranks and Review history across concurrent retries, merge and Undo', async () => {
+    if (!database) return;
+    const ladder = [
+      { direction: 'recognition' as const, opensAtStability: 0 },
+      { direction: 'recall' as const, opensAtStability: 0 },
+      { direction: 'listening' as const, opensAtStability: 0 },
+    ];
+    const folder = await repositories.decks.create({
+      name: 'Inherited Import settings',
+      kind: 'folder',
+      settings: { ladder },
+    });
+    const target = await repositories.decks.create({ name: 'Mixed import', parentId: folder.id });
+    const batchId = uuidV7();
+    await json(
+      await server.request('/api/imports', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: batchId,
+          deckId: target.id,
+          source: 'Mixed source',
+          format: 'json',
+        }),
+      }),
+      201,
+    );
+    const rows: {
+      id: string;
+      noteType: NoteTypeName;
+      fields: NoteFields;
+      rank: number;
+      tags: string[];
+    }[] = [];
+    for (let index = 0; index < 500; index++) {
+      for (const [noteType, fields] of [
+        [
+          'vocab',
+          { term: `Mixed ${index}`, translation: `Meaning ${index}`, grammar: { article: 'das' } },
+        ],
+        ['basic', { front: `Question ${index}`, back: `Answer ${index}` }],
+        ['cloze', { text: `Row ${index}: {{c1::one}} {{c3::three}} {{c7::seven}} {{c1::again}}` }],
+      ] as [NoteTypeName, NoteFields][])
+        rows.push({ id: uuidV7(), noteType, fields, rank: rows.length + 1, tags: ['mixed'] });
+    }
+    const send = (notes: typeof rows) =>
+      server.request(`/api/imports/${batchId}/notes`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      });
+    const first = rows.slice(0, 500);
+    const concurrent = await Promise.all([send(first), send(first)]);
+    const replies = await Promise.all(
+      concurrent.map((reply) => json<{ notes: number }>(reply, 200)),
+    );
+    expect(replies.map((reply) => reply.notes).sort((a, b) => a - b)).toEqual([0, 500]);
+    for (let at = 500; at < rows.length; at += 500)
+      await json(await send(rows.slice(at, at + 500)), 200);
+    const pool = rawOwnerPool(database);
+    try {
+      const stored = await pool.query(
+        'select id, fields, rank, tags, source, deck_id, import_batch_id, rev from notes where import_batch_id=$1 order by rank',
+        [batchId],
+      );
+      expect(stored.rows.map((row) => row.id)).toEqual(rows.map((row) => row.id));
+      for (const [index, row] of stored.rows.entries())
+        expect(row).toMatchObject({
+          fields: rows[index]!.fields,
+          rank: index + 1,
+          tags: ['mixed'],
+          source: 'Mixed source',
+          deck_id: target.id,
+          import_batch_id: batchId,
+        });
+      const cards = (
+        await pool.query(
+          'select c.* from cards c join notes n on n.id=c.note_id where n.import_batch_id=$1 order by c.id',
+          [batchId],
+        )
+      ).rows;
+      expect(cards).toHaveLength(4000);
+      const byNote = new Map<string, typeof cards>();
+      for (const card of cards)
+        byNote.set(card.note_id, [...(byNote.get(card.note_id) ?? []), card]);
+      for (const row of rows) {
+        const expected = openingCards(row.noteType, row.fields, ladder)
+          .map(({ direction, slot }) => `${direction}:${slot}`)
+          .sort();
+        expect(
+          byNote
+            .get(row.id)!
+            .map((card) => `${card.direction}:${card.slot}`)
+            .sort(),
+        ).toEqual(expected);
+        expect(
+          byNote
+            .get(row.id)!
+            .every(
+              (card) =>
+                card.deck_id === target.id &&
+                Number(card.rev) === Number(stored.rows.find((note) => note.id === row.id)!.rev),
+            ),
+        ).toBe(true);
+      }
+      const cardId = byNote.get(rows[0]!.id)![0]!.id as string;
+      await repositories.reviews.record({ cardId, rating: RATING.good, now: new Date() });
+      const reviewsBefore = (
+        await pool.query('select * from reviews where card_id=$1 order by id', [cardId])
+      ).rows;
+      const cardsBefore = (
+        await pool.query('select * from cards where note_id=$1 order by id', [rows[0]!.id])
+      ).rows;
+      await json(await send(first.map((row) => ({ ...row, id: row.id.toUpperCase() }))), 200);
+      await json(
+        await server.request(`/api/notes/${rows[0]!.id}`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            merge: true,
+            noteType: 'vocab',
+            fields: {
+              term: 'Mixed 0',
+              translation: 'Never overwrite',
+              note: 'Added',
+              grammar: { article: 'der', plural: 'Added plural' },
+            },
+          }),
+        }),
+        200,
+      );
+      expect((await repositories.notes.byId(rows[0]!.id))?.fields).toMatchObject({
+        term: 'Mixed 0',
+        translation: 'Meaning 0',
+        note: 'Added',
+        grammar: { article: 'das', plural: 'Added plural' },
+      });
+      expect(
+        (await pool.query('select * from cards where note_id=$1 order by id', [rows[0]!.id])).rows,
+      ).toEqual(cardsBefore);
+      expect((await repositories.importBatches.byId(batchId))?.noteCount).toBe(1500);
+      expect(await repositories.importBatches.contents(batchId)).toMatchObject({
+        notes: 1500,
+        cards: 4000,
+        reviewedCards: 1,
+      });
+      await json(await server.request(`/api/imports/${batchId}/undo`, { method: 'POST' }), 200);
+      expect(
+        (await pool.query('select * from reviews where card_id=$1 order by id', [cardId])).rows,
+      ).toEqual(reviewsBefore);
+      expect(
+        (
+          await pool.query(
+            'select count(*) from cards c join notes n on n.id=c.note_id where n.import_batch_id=$1 and c.deleted_at is null',
+            [batchId],
+          )
+        ).rows[0]!.count,
+      ).toBe('0');
+    } finally {
+      await pool.end();
+    }
+  }, 180_000);
+
+  it('rejects malformed chunks atomically, unavailable destinations and changed batch metadata', async () => {
+    const batch = await startBatch('Validation boundary');
+    const request = (body: unknown, path = `/api/imports/${batch.import.id}/notes`) =>
+      server.request(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    const good = note('Valid first row');
+    expect(
+      (
+        await request({
+          notes: [good, { ...note('Bad last row'), fields: { term: 'Missing meaning' } }],
+        })
+      ).status,
+    ).toBe(400);
+    expect((await repositories.importBatches.contents(batch.import.id)).notes).toBe(0);
+    expect((await request({ notes: [good, good] })).status).toBe(409);
+    expect(
+      (
+        await request(
+          { id: batch.import.id, deckId, source: 'Changed metadata', format: 'json' },
+          '/api/imports',
+        )
+      ).status,
+    ).toBe(409);
+    const missing = await repositories.decks.create({ name: 'Deleted import target' });
+    const deletedBatch = await repositories.importBatches.create({
+      deckId: missing.id,
+      source: 'Unavailable',
+    });
+    await repositories.decks.softDelete(missing.id);
+    expect((await request({ notes: [good] }, `/api/imports/${deletedBatch.id}/notes`)).status).toBe(
+      409,
+    );
+    expect((await repositories.importBatches.contents(deletedBatch.id)).notes).toBe(0);
+  });
+
+  it('isolates batch ownership and rolls back a chunk containing a foreign Note ID', async () => {
+    if (!database) return;
+    const ownerBatch = await startBatch('Private IDs');
+    const privateRow = note('Private row');
+    await sendChunk(ownerBatch.import.id, [privateRow]);
+    const otherId = `${OWNER}-foreign`;
+    await createUser(database, otherId);
+    const other = repositoriesFor(database, otherId);
+    const otherServer = testServer(database, otherId);
+    const target = await other.decks.create({ name: 'Other import' });
+    const otherBatch = await other.importBatches.create({ deckId: target.id, source: 'Other' });
+    const send = (id: string, rows: unknown[]) =>
+      otherServer.request(`/api/imports/${id}/notes`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ notes: rows }),
+      });
+    expect((await send(ownerBatch.import.id, [note('Cannot cross accounts')])).status).toBe(404);
+    expect((await send(otherBatch.id, [note('Must roll back'), privateRow])).status).toBe(409);
+    expect((await other.importBatches.contents(otherBatch.id)).notes).toBe(0);
+    expect((await repositories.importBatches.contents(ownerBatch.import.id)).notes).toBe(1);
   });
 
   it('finds a word only when it is live in the destination deck', async () => {

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { termOf } from '@neuron/shared';
+import { normaliseTerm, termOf } from '@neuron/shared';
 import type {
   Card,
   Note,
@@ -627,24 +627,32 @@ export function useNoteActions() {
 export async function findDuplicates(
   deckId: string,
   terms: readonly string[],
+  signal?: AbortSignal,
 ): Promise<DuplicateMatch[]> {
-  const found: DuplicateMatch[] = [];
+  // The wire needs comparable keys, including for long Basic fronts and Cloze texts.
+  // Normalization also prevents repeated source terms from multiplying requests.
+  const keys = [...new Set(terms.map(normaliseTerm))].filter(Boolean);
+  const found: DuplicateMatch[][] = [];
+  let next = 0;
 
   // The duplicate endpoint deliberately rejects an empty list. Imports whose
   // identity field is not comparable yet (for example an invalid/empty row)
   // still have a valid preview and must not enter the connection/retry state.
-  if (terms.length === 0) return found;
-
-  for (let start = 0; start < terms.length; start += 1000) {
-    const body = await request<{ matches: DuplicateMatch[] }>('/notes/duplicates', {
-      method: 'POST',
-      body: { deckId, terms: terms.slice(start, start + 1000) },
-    });
-
-    found.push(...body.matches);
+  async function lookup() {
+    while (next < keys.length) {
+      signal?.throwIfAborted();
+      const start = next;
+      next += 1000;
+      const body = await request<{ matches: DuplicateMatch[] }>('/notes/duplicates', {
+        method: 'POST',
+        body: { deckId, terms: keys.slice(start, start + 1000) },
+        ...(signal ? { signal } : {}),
+      });
+      found[start / 1000] = body.matches;
+    }
   }
-
-  return found;
+  await Promise.all([lookup(), lookup()]);
+  return found.flat();
 }
 
 function resetCard(card: Card): Card {

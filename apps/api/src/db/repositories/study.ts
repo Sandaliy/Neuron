@@ -4,9 +4,11 @@ import { uuidV7 } from '@neuron/shared';
 
 import { cards, importBatches, notes, studyPresets } from '../schema/index.js';
 
+import { appendImport, ImportConflict } from './import-write.js';
 import { requireLiveDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
+import type { ImportWriteNote } from './import-write.js';
 import type { Runner } from './session.js';
 
 /**
@@ -63,6 +65,7 @@ export interface ImportBatchRepository {
    * half the notes attached to each and neither undo working.
    */
   create: (input: CreateImportBatch) => Promise<ImportBatchRow>;
+  append: (id: string, notes: readonly ImportWriteNote[]) => ReturnType<typeof appendImport>;
   byId: (id: string) => Promise<ImportBatchRow | undefined>;
   list: () => Promise<ImportBatchRow[]>;
   /** Adds to the running count as chunks land. */
@@ -183,6 +186,7 @@ export function presetRepository(userId: string, run: Runner): PresetRepository 
 
 export function importBatchRepository(userId: string, run: Runner): ImportBatchRepository {
   return {
+    append: (id, notes) => appendImport(userId, run, id, notes),
     async create(input) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
@@ -216,9 +220,15 @@ export function importBatchRepository(userId: string, run: Runner): ImportBatchR
           .where(and(eq(importBatches.userId, userId), eq(importBatches.id, id)))
           .limit(1);
 
-        if (!existing) {
-          throw new Error('the import batch was not written');
-        }
+        if (
+          !existing ||
+          existing.deckId !== input.deckId.toLowerCase() ||
+          existing.source !== input.source ||
+          existing.format !== (input.format ?? 'json') ||
+          existing.undoneAt ||
+          existing.deletedAt
+        )
+          throw new ImportConflict();
 
         return existing;
       });

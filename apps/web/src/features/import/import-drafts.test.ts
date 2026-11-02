@@ -94,4 +94,25 @@ describe('local Import preparation envelopes', () => {
       parseImport(reopened.preparation.raw, detectFormat(reopened.preparation.raw)).rows,
     ).toHaveLength(5000);
   });
+
+  it('freezes validated identities deeply and still refuses invalid progress on cached plans', () => {
+    const deck = '01900000-0000-7000-8000-000000000011';
+    const draft = { ...newImportDraft('account-a', deck), revision: 1 };
+    const attempt = createAttempt(parseImport('one — first', 'text'), [], 'skip', {}, deck);
+    Object.freeze(attempt); // A shallowly frozen input must not make nested values mutable.
+    const saved = validateImportDraft({ ...draft, delivery: { attempt, done: 0 } }, 'account-a');
+    expect(Object.isFrozen(saved.delivery!.attempt.create[0]!.fields)).toBe(true);
+    expect(() =>
+      validateImportDraft({ ...saved, delivery: { attempt, done: 2 } }, 'account-a'),
+    ).toThrow();
+    expect(() =>
+      validateImportDraft({ ...saved, delivery: { attempt, done: 1, merged: 1 } }, 'account-a'),
+    ).toThrow();
+    expect(() =>
+      validateImportDraft(
+        { ...saved, preparation: { ...saved.preparation, deck: 'another' } },
+        'account-a',
+      ),
+    ).toThrow();
+  });
 });

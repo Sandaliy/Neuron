@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
+import { vocabularyFixture } from '../../../scripts/import-fixture';
+
 import {
   useFixtures as installBaseFixtures,
   usePreferences as installPreferences,
@@ -459,19 +461,360 @@ async function storedDrafts(page: Page, accountId = 'user_1') {
       opened.onerror = () => reject(opened.error);
     });
     try {
-      const read = db
-        .transaction('meta')
-        .objectStore('meta')
-        .getAll(IDBKeyRange.bound('import-draft:', 'import-draft:\uffff'));
-      return await new Promise<ImportDraft[]>((resolve, reject) => {
+      const store = db.transaction('meta').objectStore('meta');
+      const read = store.getAll(IDBKeyRange.bound('import-draft:', 'import-draft:\uffff'));
+      const headers = await new Promise<(ImportDraft & { format: number })[]>((resolve, reject) => {
         read.onsuccess = () => resolve(read.result);
         read.onerror = () => reject(read.error);
       });
+      return await Promise.all(
+        headers.map(async (head) => {
+          if (head.format === 1) return head;
+          const get = <T>(key: string) =>
+            new Promise<T>((resolve, reject) => {
+              const request = store.get(key);
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+          const [preparation, attempt] = await Promise.all([
+            get<ImportDraft['preparation']>(`import-preparation:${head.id}`),
+            head.delivery
+              ? get<NonNullable<ImportDraft['delivery']>['attempt']>(`import-attempt:${head.id}`)
+              : undefined,
+          ]);
+          return {
+            ...head,
+            format: 1 as const,
+            preparation,
+            ...(head.delivery ? { delivery: { ...head.delivery, attempt: attempt! } } : {}),
+          };
+        }),
+      );
     } finally {
       db.close();
     }
   }, accountId);
 }
+
+test('large Import performance and interrupted checkpoint measurements', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(process.env['IMPORT_BENCHMARK'] !== 'true' || browserName !== 'chromium');
+  test.setTimeout(180_000);
+  await installPreferences(page, { theme: 'dark', locale: 'en', glass: 'off' });
+  await installFixtures(page);
+  const session = await page.context().newCDPSession(page);
+  await session.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await page.addInitScript(() => {
+    const spans: number[] = [];
+    new PerformanceObserver((list) =>
+      spans.push(...list.getEntries().map((entry) => entry.duration)),
+    ).observe({ type: 'longtask', buffered: true });
+    Object.assign(window, { importLongTasks: spans });
+    const writes: string[] = [];
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.name === 'meta' && /^import-(preparation|attempt):/.test(String(args[1])))
+        writes.push(String(args[1]));
+      return put.apply(this, args);
+    };
+    Object.assign(window, { importPayloadWrites: writes });
+  });
+  const rows = vocabularyFixture(5000);
+  // Bad rows remain visible and excluded; existing terms are skipped.
+  const raw = JSON.stringify({
+    noteType: 'vocab',
+    notes: rows.map((row, i) => (i >= 4995 ? { ...row, translation: '' } : row)),
+  });
+  let lookups = 0;
+  await page.route('**/api/notes/duplicates', async (route) => {
+    lookups++;
+    const terms = route.request().postDataJSON().terms as string[];
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    await route.fulfill({
+      json: {
+        matches: terms
+          .filter((term) => Number(term.split(' ')[1]) < 500)
+          .map((term) => ({
+            term: term.toLowerCase(),
+            written: term,
+            noteType: 'vocab',
+            deckId: IMPORT_DECK_ID,
+            noteId: `01900000-0000-7000-8000-${Number(term.split(' ')[1]).toString().padStart(12, '0')}`,
+          })),
+      },
+    });
+  });
+  const accepted = new Set<string>();
+  const chunks: string[][] = [];
+  let loseResponse = true;
+  await page.route('**/api/imports**', async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith('/notes')) {
+      const notes = route.request().postDataJSON().notes as { id: string }[];
+      chunks.push(notes.map((note) => note.id));
+      notes.forEach((note) => accepted.add(note.id));
+      if (loseResponse) {
+        loseResponse = false;
+        return route.abort('failed');
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    await route.fulfill({ json: { notes: accepted.size, cards: accepted.size } });
+  });
+  await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
+  await page.locator('textarea').fill(raw);
+  const start = await page.evaluate(() => performance.now());
+  await page.getByRole('button', { name: 'Preview import', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Import 4495/ })).toBeEnabled();
+  const previewMs = (await page.evaluate(() => performance.now())) - start;
+  await expect(page.locator('[data-import-row]')).toHaveCount(200);
+  const previewHeap = await session.send('Runtime.getHeapUsage');
+  const applyingAt = await page.evaluate(() => performance.now());
+  await page.getByRole('button', { name: /^Import 4495/ }).click();
+  await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible();
+  const freezeAndFailedChunkMs = (await page.evaluate(() => performance.now())) - applyingAt;
+  const checkpoint = (await storedDrafts(page))[0]!;
+  expect(checkpoint.delivery?.done).toBe(0);
+  const reopeningAt = Date.now();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible();
+  const reopenMs = Date.now() - reopeningAt;
+  const resumingAt = await page.evaluate(() => performance.now());
+  await page.evaluate(() => {
+    (window as unknown as { importLongTasks: number[] }).importLongTasks.length = 0;
+  });
+  await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+  // This is a measurement, not the ordinary interaction latency budget.
+  await expect(page.getByText('Import complete', { exact: true })).toBeVisible({ timeout: 30_000 });
+  const resumeMs = (await page.evaluate(() => performance.now())) - resumingAt;
+  const completed = (await storedDrafts(page))[0]!;
+  const payloadWrites = await page.evaluate(
+    () => (window as unknown as { importPayloadWrites: string[] }).importPayloadWrites.length,
+  );
+  expect(payloadWrites).toBe(0);
+  const checkpointHeaderBytes = await page.evaluate(async (id) => {
+    const open = indexedDB.open('neuron.collection:user_1');
+    const db = await new Promise<IDBDatabase>((resolve) => {
+      open.onsuccess = () => resolve(open.result);
+    });
+    try {
+      const get = db.transaction('meta').objectStore('meta').get(`import-draft:${id}`);
+      return await new Promise<number>((resolve) => {
+        get.onsuccess = () => resolve(JSON.stringify(get.result).length);
+      });
+    } finally {
+      db.close();
+    }
+  }, completed.id);
+  expect(accepted.size).toBe(4495);
+  expect(chunks[1]).toEqual(chunks[0]);
+  expect(completed.delivery?.attempt).toEqual(checkpoint.delivery?.attempt);
+  expect(completed.delivery).toMatchObject({ done: 9, summary: { notes: 4495, cards: 4495 } });
+  const longTasks = await page.evaluate(
+    () => (window as unknown as { importLongTasks: number[] }).importLongTasks,
+  );
+  console.log(
+    JSON.stringify({
+      dataset: '5000 rich vocab, 500 existing, 5 invalid; 4495 additions',
+      cpuThrottle: 4,
+      responseDelayMs: 30,
+      previewMs,
+      freezeAndFailedChunkMs,
+      reopenMs,
+      resumeMs,
+      lookupRequests: lookups,
+      chunkRequests: chunks.length,
+      previewHeapBytes: previewHeap.usedSize,
+      longestResumeTaskMs: Math.max(0, ...longTasks),
+      checkpointBytes: JSON.stringify(completed).length,
+      checkpointHeaderBytes,
+    }),
+  );
+});
+
+test('failed acknowledgement persistence retains the frozen plan and stops before the next chunk', async ({
+  page,
+}) => {
+  await installPreferences(page, { theme: 'dark', locale: 'en' });
+  await installFixtures(page);
+  const accepted = new Set<string>();
+  const attempts: string[][] = [];
+  await page.route('**/api/notes/duplicates', (route) => route.fulfill({ json: { matches: [] } }));
+  await page.route('**/api/imports**', async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith('/notes')) {
+      const rows = route.request().postDataJSON().notes as { id: string }[];
+      attempts.push(rows.map((row) => row.id));
+      rows.forEach((row) => accepted.add(row.id));
+    }
+    await route.fulfill({ json: { notes: accepted.size, cards: accepted.size } });
+  });
+  await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
+  await page
+    .locator('textarea')
+    .fill(Array.from({ length: 1001 }, (_, i) => `term ${i}\tmeaning ${i}`).join('\n'));
+  await page.getByRole('button', { name: 'Preview import', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Import 1001/ })).toBeEnabled();
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      const value = args[0] as { delivery?: { done: number } };
+      if (String(args[1]).startsWith('import-draft:') && value.delivery && value.delivery.done > 0)
+        throw new DOMException('Full', 'QuotaExceededError');
+      return put.apply(this, args);
+    };
+  });
+  await page.getByRole('button', { name: /^Import 1001/ }).click();
+  await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible();
+  expect(attempts).toHaveLength(1);
+  const before = (await storedDrafts(page))[0]!;
+  expect(before.delivery?.done).toBe(0);
+  await page.reload();
+  await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+  await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
+  expect(attempts).toHaveLength(4);
+  expect(attempts[1]).toEqual(attempts[0]);
+  expect(accepted.size).toBe(1001);
+  expect((await storedDrafts(page))[0]!.delivery).toMatchObject({
+    attempt: before.delivery!.attempt,
+    done: 3,
+    summary: { notes: 1001, cards: 1001 },
+  });
+});
+
+test('merge-only delivery checkpoints confirmed groups and resumes the unconfirmed suffix', async ({
+  page,
+}) => {
+  await installPreferences(page, { theme: 'dark', locale: 'en' });
+  await installFixtures(page);
+  const terms = Array.from({ length: 41 }, (_, i) => `merge ${i}`);
+  const ids = terms.map((_, i) => `01900000-0000-7000-8000-${String(i).padStart(12, '0')}`);
+  let checks = 0;
+  await page.route('**/api/notes/duplicates', (route) => {
+    checks++;
+    return route.fulfill({
+      json: {
+        matches: terms.map((term, i) => ({
+          term,
+          written: term,
+          noteId: ids[i],
+          deckId: IMPORT_DECK_ID,
+          noteType: 'vocab',
+        })),
+      },
+    });
+  });
+  let fail = true;
+  const patches: string[] = [];
+  const accepted = new Set<string>();
+  await page.route('**/api/notes/*', async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback();
+    const id = new URL(route.request().url()).pathname.split('/').at(-1)!;
+    patches.push(id);
+    accepted.add(id);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    if (fail && id === ids[25]) {
+      fail = false;
+      return route.abort('failed');
+    }
+    await route.fulfill({ json: {} });
+  });
+  await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
+  await page.locator('textarea').fill(terms.map((term) => `${term}\tmeaning`).join('\n'));
+  await page.getByRole('button', { name: 'Preview import', exact: true }).click();
+  await page.getByLabel('Default for duplicates', { exact: true }).selectOption('merge');
+  await page.getByRole('button', { name: /^Import 41/ }).click();
+  await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible();
+  const frozen = (await storedDrafts(page))[0]!;
+  expect(frozen.delivery).toMatchObject({ merged: 20, done: 0 });
+  const checksBeforeResume = checks;
+  const at = patches.length;
+  await page.reload();
+  await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+  await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
+  await expect(page.getByText('Existing notes processed: 41.', { exact: true })).toBeVisible();
+  expect(patches.slice(at).every((id) => !ids.slice(0, 20).includes(id))).toBe(true);
+  expect(accepted.size).toBe(41);
+  expect(checks).toBe(checksBeforeResume);
+  expect((await storedDrafts(page))[0]!.delivery).toMatchObject({
+    attempt: frozen.delivery!.attempt,
+    done: 0,
+    merged: 41,
+    summary: { notes: 0, cards: 0 },
+  });
+});
+
+test('a mismatched server summary retains recovery and completion does not wait for cache warming', async ({
+  page,
+}) => {
+  await installPreferences(page, { theme: 'dark', locale: 'en' });
+  await installFixtures(page);
+  let complete = false;
+  let summaryNotes = 0;
+  let release!: () => void;
+  const warmed = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/notes/duplicates', (route) => route.fulfill({ json: { matches: [] } }));
+  await page.route('**/api/imports**', (route) => {
+    if (route.request().method() === 'GET') complete = summaryNotes === 1;
+    return route.fulfill({ json: { notes: summaryNotes, cards: summaryNotes } });
+  });
+  await page.route('**/api/notes?*', async (route) => {
+    if (complete) await warmed;
+    await route.fulfill({ json: { items: [] } });
+  });
+  await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
+  await page.locator('textarea').fill('one\tmeaning');
+  await page.getByRole('button', { name: 'Preview import', exact: true }).click();
+  await page.getByRole('button', { name: /^Import 1/ }).click();
+  await expect(page.getByRole('alert')).toContainText(
+    'The saved plan and the server result differ',
+  );
+  expect((await storedDrafts(page))[0]!.delivery?.summary).toBeUndefined();
+  summaryNotes = 1;
+  await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+  try {
+    await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
+    expect((await storedDrafts(page))[0]!.delivery?.summary).toEqual({ notes: 1, cards: 1 });
+  } finally {
+    release();
+  }
+});
+
+test('changing preparation during final duplicate validation cannot freeze the old source', async ({
+  page,
+}) => {
+  await installPreferences(page, { theme: 'dark', locale: 'en' });
+  await installFixtures(page);
+  let release!: () => void;
+  const validated = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let checks = 0;
+  let writes = 0;
+  await page.route('**/api/notes/duplicates', async (route) => {
+    if (++checks === 2) await validated;
+    await route.fulfill({ json: { matches: [] } }).catch(() => undefined);
+  });
+  await page.route('**/api/imports**', (route) => {
+    writes++;
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
+  await page.locator('textarea').fill('old\tmeaning');
+  await page.getByRole('button', { name: 'Preview import', exact: true }).click();
+  await page.getByRole('button', { name: /^Import 1/ }).click();
+  await expect.poll(() => checks).toBe(2);
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.locator('textarea').fill('replacement\tmeaning');
+  release();
+  await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
+  expect(writes).toBe(0);
+  expect((await storedDrafts(page))[0]!.preparation.raw).toBe('replacement\tmeaning');
+  expect((await storedDrafts(page))[0]!.delivery).toBeUndefined();
+});
 
 async function installOfflineImportFixtures(page: Page, complete = true) {
   await installPreferences(page, { theme: 'dark', locale: 'en' });
