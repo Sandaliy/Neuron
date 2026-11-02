@@ -77,6 +77,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Test browser verification commands
+        run: node --test apps/web/scripts/screens-ci.test.mjs
+
       - name: Check formatting
         run: pnpm format:check
 

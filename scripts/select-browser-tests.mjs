@@ -13,7 +13,13 @@ const surfaceSpecs = {
     'rich-study.spec.ts',
   ],
   settings: ['motion.spec.ts', 'keyboard.spec.ts'],
-  today: ['study.spec.ts', 'stabilization.spec.ts', 'rich-study.spec.ts'],
+  today: [
+    'today-setup.spec.ts',
+    'study-language.spec.ts',
+    'study.spec.ts',
+    'stabilization.spec.ts',
+    'rich-study.spec.ts',
+  ],
 };
 
 export function selectBrowserTests(paths, forcedFull = false) {
