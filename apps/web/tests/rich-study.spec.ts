@@ -975,16 +975,16 @@ for (const screen of ['Study', 'Practice'] as const)
     await expect(page.getByLabel('Type your answer', { exact: true })).toBeFocused();
   });
 
-for (const submitted of [
-  'Sorgfalt',
-  'sorgfalt',
-  'Sorgfaltx',
-  'Sorgfat',
-  'Sorgfelt',
-  'Banane',
-  'Genauigkeit',
-])
-  test(`typed feedback remains local: ${submitted}`, async ({ page }, info) => {
+for (const [scenario, submitted] of [
+  ['exact spelling', 'Sorgfalt'],
+  ['letter case', 'sorgfalt'],
+  ['extra letter', 'Sorgfaltx'],
+  ['missing letter', 'Sorgfat'],
+  ['changed letter', 'Sorgfelt'],
+  ['wrong word', 'Banane'],
+  ['accepted alternative', 'Genauigkeit'],
+] as const)
+  test(`typed feedback remains local: ${scenario}`, async ({ page }, info) => {
     await usePreferences(page, { locale: 'en', theme: 'dark' });
     await useFixtures(page, { decks: [deck], notes: [note] });
     await page.route('**/api/study/session', (route) =>
