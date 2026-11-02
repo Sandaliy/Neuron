@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   Settings2,
+  Search,
   Trash2,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -187,6 +188,15 @@ export function LibraryScreen() {
             </>
           }
         />
+
+        <Button
+          variant="quiet"
+          className="self-start"
+          onClick={() => void navigate({ to: '/notes' })}
+        >
+          <Search size={16} strokeWidth={1.5} aria-hidden="true" />
+          {t('notes.find')}
+        </Button>
 
         {folder?.rev === 0 && (
           <p role="status" className="text-14 text-secondary">

@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-import { manyNotes, useFixtures, usePreferences } from './fixtures';
+import {
+  manyDecks,
+  manyNotes,
+  useFixtures as installFixtures,
+  usePreferences as installPreferences,
+} from './fixtures';
+
+import type { Page, Route } from '@playwright/test';
 
 for (const theme of ['dark', 'light']) {
   test(`virtual notes keep selection and refresh content in ${theme}`, async ({ page }) => {
@@ -15,8 +22,8 @@ for (const theme of ['dark', 'light']) {
       statusRequested = resolve;
     });
 
-    await usePreferences(page, { theme, locale: 'en', glassScope: 'floating' });
-    await useFixtures(page, { notes });
+    await installPreferences(page, { theme, locale: 'en', glassScope: 'floating' });
+    await installFixtures(page, { notes });
     await page.route('**/api/notes/status', async (route) => {
       expect(route.request().postDataJSON()).toEqual({ ids: ['note_0'], status: 'known' });
       statusRequested();
@@ -99,8 +106,8 @@ test('source filtering and card summaries stay bounded', async ({ page }) => {
   };
   const requests: URL[] = [];
 
-  await usePreferences(page, { theme: 'dark', locale: 'en', glassScope: 'floating' });
-  await useFixtures(page, { notes: [] });
+  await installPreferences(page, { theme: 'dark', locale: 'en', glassScope: 'floating' });
+  await installFixtures(page, { notes: [] });
   await page.route('**/api/notes?*', async (route) => {
     const url = new URL(route.request().url());
     requests.push(url);
@@ -155,4 +162,192 @@ test('source filtering and card summaries stay bounded', async ({ page }) => {
   expect(requests.some((request) => request.searchParams.get('source') === null)).toBe(true);
   expect(requests.every((request) => request.pathname === '/api/notes')).toBe(true);
   expect(requests.length).toBeLessThan(8);
+});
+
+/** A paginated account, with identical Deck names under different Folders. */
+async function installFindNotesFixture(page: Page, count = 6000) {
+  const leaves = manyDecks(60).map((deck, index) => ({
+    ...deck,
+    name: `Lesson ${index + 1}`,
+    parentId: index % 2 ? 'nested' : 'root',
+    path: index % 2 ? ['root', 'nested'] : ['root'],
+  }));
+  const root = {
+    ...leaves[0],
+    id: 'root',
+    kind: 'folder',
+    name: 'Languages',
+    parentId: null,
+    path: [],
+    children: [
+      {
+        ...leaves[0],
+        id: 'nested',
+        kind: 'folder',
+        name: 'German',
+        parentId: 'root',
+        path: ['root'],
+        children: leaves.filter((_, at) => at % 2),
+      },
+      ...leaves.filter((_, at) => at % 2 === 0),
+    ],
+  };
+  const notes = manyNotes(count).map((note, index) => ({
+    ...note,
+    deckId: `deck_${index % 60}`,
+    rank: index,
+    tags: ['lesson'],
+    source: 'Frequency list',
+  }));
+  await installPreferences(page, { theme: 'dark', locale: 'en', glass: 'off' });
+  await installFixtures(page, { notes: [], decks: [root] });
+  const requests: URL[] = [];
+  const state = { hold: false, held: undefined as Route | undefined };
+  await page.route('**/api/notes?*', async (route) => {
+    const url = new URL(route.request().url());
+    requests.push(url);
+    if (state.hold) {
+      state.held = route;
+      return;
+    }
+    const query = url.searchParams;
+    const matching = notes.filter((note) => {
+      const search = query.get('search')?.toLowerCase();
+      return (
+        (!search || JSON.stringify(note.fields).toLowerCase().includes(search)) &&
+        (!query.has('tag') || query.get('tag') === 'lesson') &&
+        (!query.has('source') || query.get('source') === 'Frequency list') &&
+        (!query.has('status') || query.get('status') === 'active')
+      );
+    });
+    const offset = Number(query.get('cursor') ?? 0);
+    await route.fulfill({
+      json: {
+        items: matching.slice(offset, offset + 1000),
+        ...(offset + 1000 < matching.length ? { nextCursor: String(offset + 1000) } : {}),
+      },
+    });
+  });
+  await page.route(/\/api\/notes\/note_\d+$/, (route) => {
+    const note = notes.find((note) => route.request().url().endsWith(`/${note.id}`));
+    return route.fulfill({ json: { note, cards: [] } });
+  });
+  return { requests, state };
+}
+
+test('Find Notes searches every Deck and returns with filters, sorting and list position intact', async ({
+  page,
+}, info) => {
+  const { requests } = await installFindNotesFixture(page);
+  await page.goto('/library?folderId=nested');
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Find Notes', exact: true })).toBeVisible();
+  const search = page.getByRole('searchbox', { name: 'Search', exact: true });
+  await search.fill('word');
+  await expect.poll(() => requests.at(-1)?.searchParams.get('search')).toBe('word');
+  await expect(
+    page.getByRole('button', { name: /^Wort 1 word 1 · Lesson 1 · Languages/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /^Wort 2 word 2 · Lesson 2 · Languages \/ German/ }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath('find-notes-results.png'),
+    animations: 'disabled',
+  });
+  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByRole('combobox', { name: 'Study participation' }).selectOption('active');
+  await page.getByRole('combobox', { name: 'Card progress' }).selectOption('new');
+  await page.getByRole('combobox', { name: 'Order' }).selectOption('rank');
+  await page.getByRole('combobox', { name: 'Tag or topic', exact: true }).fill('lesson');
+  await page
+    .getByRole('textbox', { name: 'Import source name', exact: true })
+    .fill('Frequency list');
+  await expect.poll(() => requests.at(-1)?.searchParams.get('source')).toBe('Frequency list');
+  expect(requests.at(-1)?.searchParams.get('deckId')).toBeNull();
+  expect(requests.every((url) => url.searchParams.get('limit') === '1000')).toBe(true);
+  await page.screenshot({ path: info.outputPath('find-notes.png'), animations: 'disabled' });
+  await expect(search).not.toHaveAttribute('aria-busy', 'true');
+  await page.evaluate(() => window.scrollTo(0, 4000));
+  const visibleTerm = () =>
+    page.locator('[data-rows] [data-row]').evaluateAll((rows) => {
+      const row = rows.find((node) => {
+        const box = node.getBoundingClientRect();
+        return box.top >= 0 && box.bottom < innerHeight - 120;
+      });
+      return row?.querySelector('span span')?.textContent;
+    });
+  await expect.poll(visibleTerm).not.toBe('Wort 1');
+  await expect.poll(visibleTerm).toBeTruthy();
+  const term = await visibleTerm();
+  expect(term).toBeTruthy();
+  const position = await page.evaluate(() => scrollY);
+  await page.getByRole('button', { name: new RegExp(`^${term} word`) }).click();
+  await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await expect(search).toHaveValue('word');
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'lesson',
+  );
+  await expect(page.getByRole('textbox', { name: 'Import source name', exact: true })).toHaveValue(
+    'Frequency list',
+  );
+  await expect(page.getByRole('combobox', { name: 'Study participation' })).toHaveValue('active');
+  await expect(page.getByRole('combobox', { name: 'Card progress' })).toHaveValue('new');
+  await expect(page.getByRole('combobox', { name: 'Order' })).toHaveValue('rank');
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(position, 0);
+  const reopened = page.getByRole('button', { name: new RegExp(`^${term} word`) });
+  await reopened.click({ trial: true });
+  const secondPosition = await page.evaluate(() => scrollY);
+  await reopened.click();
+  await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(search).toHaveValue('word');
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(secondPosition, 0);
+  expect(await page.locator('[data-rows] [data-row]').count()).toBeLessThan(60);
+  // Fetch further pages only as the learner reaches the existing boundary.
+  await page.evaluate(() => window.scrollTo(0, 75_000));
+  await expect
+    .poll(() => requests.some((url) => url.searchParams.get('cursor') === '1000'))
+    .toBe(true);
+});
+
+test('Find Notes stays usable during slow and empty searches and supports the phone keyboard', async ({
+  page,
+}) => {
+  const { requests, state } = await installFindNotesFixture(page, 3);
+  state.hold = true;
+  await page.goto('/notes');
+  const search = page.getByRole('searchbox', { name: 'Search', exact: true });
+  await expect(search).toBeVisible();
+  await search.focus();
+  expect(await search.evaluate((node) => getComputedStyle(node).fontSize)).toBe('16px');
+  await expect(search).toHaveAttribute('enterkeyhint', 'search');
+  await expect(search).toHaveAttribute('maxlength', '100');
+  await search.pressSequentially('absent', { delay: 25 });
+  await expect(search).toHaveValue('absent');
+  await expect.poll(() => requests.at(-1)?.searchParams.get('search')).toBe('absent');
+  expect(
+    requests
+      .filter((url) => url.searchParams.has('search'))
+      .map((url) => url.searchParams.get('search')),
+  ).toEqual(['absent']);
+  await expect(search).toBeFocused();
+  await expect(page.getByRole('status').filter({ hasText: 'Updating' })).toBeVisible();
+  state.hold = false;
+  await state.held!.fulfill({ json: { items: [] } });
+  await expect(page.getByText('Nothing matches', { exact: true })).toBeVisible();
+  await expect(search).toBeFocused();
+  await page.setViewportSize({ width: 375, height: 420 });
+  await search.fill('word 2');
+  await search.press('Enter');
+  await expect(search).not.toBeFocused();
+  await expect(page.getByRole('button', { name: /^Wort 2 word 2/ })).toBeVisible();
+  await search.focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('combobox', { name: 'Order' })).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: /^Clear/ }).click();
+  await expect(search).toHaveValue('');
+  await expect(page.getByRole('button', { name: /^Wort 1 word 1/ })).toBeVisible();
 });

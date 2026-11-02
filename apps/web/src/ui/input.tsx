@@ -15,7 +15,7 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   readonly busy?: boolean;
 }
 
-export function Input({ invalid = false, busy = false, className = '', ...rest }: InputProps) {
+export function Input({ invalid = false, busy, className = '', ...rest }: InputProps) {
   const field = (
     <input
       aria-invalid={invalid || undefined}
@@ -34,17 +34,21 @@ export function Input({ invalid = false, busy = false, className = '', ...rest }
     />
   );
 
-  if (!busy) {
+  // A field that reports busy state keeps the same DOM parent as it changes.
+  // Reparenting it dismisses the phone keyboard and loses focus/selection.
+  if (busy === undefined) {
     return field;
   }
 
   return (
     <span className="relative block">
       {field}
-      <span
-        aria-hidden="true"
-        className="neu-spin absolute top-1/2 right-16 block size-16 -translate-y-1/2 rounded-full border-2 border-subtle border-t-accent"
-      />
+      {busy && (
+        <span
+          aria-hidden="true"
+          className="neu-spin absolute top-1/2 right-16 block size-16 -translate-y-1/2 rounded-full border-2 border-subtle border-t-accent"
+        />
+      )}
     </span>
   );
 }

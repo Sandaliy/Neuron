@@ -686,3 +686,36 @@ import, when Neon's buffers were cold. The response is 973 KiB before compressio
 decisions took 7.9 to 10.4 s, about a second each, almost all of it round trips from this machine to
 Frankfurt. Production functions run in `fra1`, next to the database, and report `triage_read` in
 `Server-Timing`. A sweep sends small batches as it goes, so none of this is on the tap path.
+
+## Find Notes across the Library
+
+The account-wide view reuses Note browsing, its 300 ms text debounce, 1,000-Note server pages and
+window virtualization. The Deck name precedes Folder ancestry on a secondary location line. No Note
+or Card detail request is needed to label a result. The input retains its DOM parent while its busy
+indicator changes, preserving focus and the phone keyboard through responses.
+
+Measured on 2026-11-02 with the built app in Windows Chromium, a 375 by 812 viewport at 2x device
+scale and 4x CPU slowdown: 6,000 Notes across 60 Decks scrolled at a 60.0 fps median over three
+180-frame samples, with 28 mounted rows. Typing `word` sent one debounced search request and recorded
+no long tasks. The first page contains 1,000 Notes; further pages are requested at the existing scroll
+boundary. `00-note-list-performance.spec.ts` retains the machine-readable measurements and requests.
+
+`note-list.spec.ts` covers location labels, all existing filters/sorting, slow responses, empty results,
+keyboard focus, narrowed viewport, direct editing and returning to the same query and scroll position.
+`offline.spec.ts` searches a complete 6,000-Note download across 60 Decks, paginates all matches and
+records zero additional Notes or Cards store scans during repeated searches/filtering/pagination.
+It also covers same-account reconnection, account switching and excluded tombstones, purged Notes and
+deleted ancestry.
+Unit tests check cached ordering reuse and invalidation after edits, pulls and account changes.
+
+These are routed-fixture browser measurements, not production database search latency or physical
+iPhone evidence. Query/filter state lasts for the account visit; loaded query pages stay cached for
+30 minutes after leaving the browser. App restarts do not persist the search presentation. Offline
+results reflect the last complete download plus supported local edits, not other devices' unsynced work.
+
+Installed-iPhone acceptance: open Find Notes from Library and from a nested Folder; type a translation
+with the keyboard open, change filters and order, scroll well into results, open a Note and return by
+both the in-app action and system Back. Confirm the query, filters and position survive and location
+labels distinguish Decks. Repeat in airplane mode after a complete download, then reconnect and check
+that authoritative results replace downloaded provenance. Check long names, VoiceOver labels, text
+selection, the keyboard Search key and scrolling near the bottom navigation.

@@ -756,6 +756,11 @@ export const ru = {
   'card.direction.listening': 'Услышать и сказать',
 
   'notes.title': 'Записи',
+  'notes.find': 'Найти записи',
+  'notes.findHint': 'Поиск по всем папкам и колодам.',
+  'notes.locationUnavailable': 'Расположение колоды недоступно',
+  'notes.downloadedResults':
+    'Результаты из загрузки на этом устройстве. Подключитесь, чтобы проверить изменения.',
   'notes.allDecks': 'Все наборы',
   'notes.count': 'Записей: {count}',
   'notes.countMore': 'Записей: {count} и ещё',

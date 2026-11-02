@@ -173,6 +173,17 @@ Card validation yields between bounded batches to let input and paint proceed. L
 the server's 1,000-row page size; next-page reads wait for reconciliation and cannot cancel its first page.
 DOM virtualization, search/filter semantics and scroll restoration remain intact.
 
+Library's Find Notes action opens the existing unscoped Note browser. Each result names its Deck and
+Folder ancestry. A complete download supports the same account-wide search offline, with downloaded
+provenance shown until the server answers. Partial downloads never supply a result list. Query and
+filter presentation is passive account-visit state in the existing query cache, retained on reconnect;
+returning from a Note uses the
+original history entry and its scroll restoration. This state is not persisted across app restarts.
+The collection projection retains only its most recent filtered/sorted browse result so subsequent
+cursor pages do not repeat the scan or sort. Searchable text is memoized by projected Note identity;
+filtering yields between bounded batches. Content edits, creations, pulls and account boundaries
+invalidate affected derived results. None of these browse caches grants mutation authority.
+
 The Phase 8.1 first-entry network path awaited the Notes API. Transport failure then awaited a shared
 account probe before reading IndexedDB. Consequently a slow/dead Notes request and its authentication
 probe could form a serial delay even with a completed download. Phase 8.2 makes local content usable
