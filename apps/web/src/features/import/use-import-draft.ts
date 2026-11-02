@@ -12,6 +12,7 @@ export function useImportDraft(initial: ImportDraft) {
   const savedVersion = useRef(0);
   const saving = useRef<Promise<boolean> | undefined>(undefined);
   const guard = useRef(importDraftVisit(initial.accountId));
+  const committedAttempt = useRef(initial.delivery?.attempt.batchId);
   const [draft, setDraft] = useState(initial);
   const [status, setStatus] = useState<'idle' | 'saved' | 'dirty' | 'saving' | 'failed'>(
     initial.revision > 0 ? 'saved' : 'idle',
@@ -28,6 +29,7 @@ export function useImportDraft(initial: ImportDraft) {
           const at = version.current;
           const saved = await saveImportDraft(current.current);
           guard.current();
+          committedAttempt.current = saved.delivery?.attempt.batchId;
           current.current = { ...current.current, revision: saved.revision };
           savedVersion.current = at;
         } while (savedVersion.current !== version.current);
@@ -36,6 +38,13 @@ export function useImportDraft(initial: ImportDraft) {
         setConflict(false);
         return true;
       } catch (error) {
+        console.warn(
+          'Import draft persistence failed',
+          error instanceof Error ? error.name : 'unknown',
+          error instanceof Error && /^[a-z][a-z_]{0,80}$/.test(error.message)
+            ? error.message
+            : undefined,
+        );
         setStatus('failed');
         setConflict(error instanceof Error && error.message === 'import_draft_conflict');
         return false;
@@ -91,5 +100,15 @@ export function useImportDraft(initial: ImportDraft) {
     enableBeforeUnload: unsaved,
   });
 
-  return { draft, edit, delivery, persist, status, conflict, navigation, current };
+  return {
+    draft,
+    edit,
+    delivery,
+    persist,
+    status,
+    conflict,
+    navigation,
+    current,
+    committedAttempt,
+  };
 }

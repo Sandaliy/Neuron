@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { uuidV7 } from '@neuron/shared';
 
-import { cards, importBatches, notes, studyPresets } from '../schema/index.js';
+import { cards, importBatches, notes, studyPresets, user } from '../schema/index.js';
 
 import { appendImport, ImportConflict } from './import-write.js';
 import { requireLiveDeck } from './restoration.js';
@@ -252,23 +252,33 @@ export function importBatchRepository(userId: string, run: Runner): ImportBatchR
 
     async contents(id) {
       return run(async (tx) => {
-        const [row] = await tx
-          .select({
-            notes: sql<number>`count(distinct ${notes.id})`,
-            cards: sql<number>`count(${cards.id})`,
-            reviewedCards: sql<number>`count(${cards.id}) filter (where ${cards.reps} > 0)`,
-          })
+        // Keep both reads consistent with Undo and other writes. Binding the live
+        // IDs avoids a cold-statistics RLS join that rescans all Cards per Note.
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('share');
+        const members = await tx
+          .select({ id: notes.id })
           .from(notes)
-          .leftJoin(
-            cards,
-            and(eq(cards.noteId, notes.id), eq(cards.userId, userId), isNull(cards.deletedAt)),
-          )
           .where(
             and(eq(notes.userId, userId), eq(notes.importBatchId, id), isNull(notes.deletedAt)),
           );
+        if (!members.length) return { notes: 0, cards: 0, reviewedCards: 0 };
+        const [row] = await tx
+          .select({
+            cards: sql<number>`count(*)`,
+            reviewedCards: sql<number>`count(*) filter (where ${cards.reps} > 0)`,
+          })
+          .from(cards)
+          .where(
+            and(
+              eq(cards.userId, userId),
+              isNull(cards.deletedAt),
+              // One UUID-array parameter also avoids PostgreSQL's bind-parameter limit.
+              sql`${cards.noteId} = any(${sql.param(members.map((note) => note.id))}::uuid[])`,
+            ),
+          );
 
         return {
-          notes: Number(row?.notes ?? 0),
+          notes: members.length,
           cards: Number(row?.cards ?? 0),
           reviewedCards: Number(row?.reviewedCards ?? 0),
         };

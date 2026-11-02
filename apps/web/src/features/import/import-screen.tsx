@@ -28,6 +28,7 @@ import type {
 import { useTranslate } from '../../i18n/locale';
 import { ApiFailure, describe, request } from '../../lib/api';
 import { hasServerAuthority, useCapabilities } from '../../lib/capabilities';
+import { metadata, openCollection } from '../../lib/collection-db';
 import { localNotes } from '../../lib/collection-read';
 import { DECK_TREE_KEY, findDeck, settingsFor, useDeckTree } from '../../lib/decks';
 import { findDuplicates, NOTE_KEY, noteQueryString } from '../../lib/notes';
@@ -223,6 +224,7 @@ function ImportEditor({
   const [checking, setChecking] = useState(false);
   const checkSequence = useRef(0);
   const duplicateRequest = useRef<AbortController | undefined>(undefined);
+  const finalDuplicateRequest = useRef<AbortController | undefined>(undefined);
   const [failure, setFailure] = useState<unknown>();
   const [prompt, setPrompt] = useState(false);
   const applying = useRef(false);
@@ -232,6 +234,7 @@ function ImportEditor({
     mounted.current = true;
     return () => {
       mounted.current = false;
+      finalDuplicateRequest.current?.abort();
     };
   }, []);
   const switchingDraft = useRef(false);
@@ -241,7 +244,7 @@ function ImportEditor({
   >();
 
   const tree = decks.data ?? [];
-  const chosenFormat = format === '' ? detectFormat(raw) : format;
+  const chosenFormat = useMemo(() => format || detectFormat(raw), [format, raw]);
 
   async function chooseDraft(next?: ImportDraft, separate = false) {
     if (switchingDraft.current) return;
@@ -278,6 +281,7 @@ function ImportEditor({
 
   const checkParsed = useCallback(
     async (parsed: ParseResult) => {
+      if (applying.current) return;
       duplicateRequest.current?.abort();
       const controller = new AbortController();
       duplicateRequest.current = controller;
@@ -292,8 +296,21 @@ function ImportEditor({
       try {
         const terms = parsed.rows.map((row) => termOf(row.fields)).filter((term) => term !== '');
         let found: DuplicateMatch[] = [];
+        let localAvailable = offline.available;
+        if (!capability.server && !localAvailable && deck) {
+          // Loss can interrupt the downloader after committing its final page,
+          // before publishing availability. Trust the durable boundary for local
+          // preview only; application still requires fresh server validation.
+          const db = await openCollection(initialDraft.accountId);
+          try {
+            localAvailable = (await metadata(db)).complete;
+          } finally {
+            db.close();
+          }
+          current();
+        }
         if (capability.server && deck) found = await findDuplicates(deck, terms, controller.signal);
-        else if (offline.available && deck) {
+        else if (localAvailable && deck) {
           const keys = new Set(parsed.rows.map((row) => noteTermKey(row.fields)));
           let cursor: string | undefined;
           do {
@@ -318,7 +335,7 @@ function ImportEditor({
           setDuplicateStatus(
             capability.server && deck
               ? 'confirmed'
-              : offline.available && deck
+              : localAvailable && deck
                 ? 'local'
                 : 'unavailable',
           );
@@ -360,10 +377,10 @@ function ImportEditor({
       visit();
       if (!mounted.current) throw new Error('import_visit_ended');
     };
-    const sequence = ++checkSequence.current;
+    checkSequence.current++;
     duplicateRequest.current?.abort();
     const controller = new AbortController();
-    duplicateRequest.current = controller;
+    finalDuplicateRequest.current = controller;
     const preparation = draft.current.current.preparation;
     try {
       const found = await findDuplicates(
@@ -372,12 +389,7 @@ function ImportEditor({
         controller.signal,
       );
       current();
-      if (
-        !hasServerAuthority() ||
-        sequence !== checkSequence.current ||
-        preparation !== draft.current.current.preparation
-      )
-        return;
+      if (!hasServerAuthority() || preparation !== draft.current.current.preparation) return;
       setFailure(undefined);
       setDuplicates(found);
       setDuplicateStatus('confirmed');
@@ -394,9 +406,10 @@ function ImportEditor({
       const choices = draft.current.current.preparation;
       await upload(createAttempt(parsed, found, choices.resolution, choices.overrides, deck));
     } catch (error) {
-      setFailure(error);
+      if (!controller.signal.aborted && mounted.current) setFailure(error);
     } finally {
       applying.current = false;
+      finalDuplicateRequest.current = undefined;
       setChecking(false);
     }
   }
@@ -555,6 +568,7 @@ function ImportEditor({
         summary: { notes: summary.notes, cards: summary.cards },
       });
       if (!(await draft.persist())) throw new Error('import_draft_storage');
+      current();
 
       // The list and tree are intentionally fresh for five minutes between
       // collection screens. This write happened outside the normal note
@@ -637,7 +651,9 @@ function ImportEditor({
                 ? 'import.draftConflict'
                 : 'import.draftFailed'
               : draft.status === 'saved'
-                ? 'import.draftSaved'
+                ? draft.draft.delivery
+                  ? 'import.checkpointSaved'
+                  : 'import.draftSaved'
                 : 'import.draftPending',
           )}
         </p>
@@ -674,7 +690,9 @@ function ImportEditor({
           >
             {t('import.newDraft')}
           </Button>
-          {draft.conflict && !draft.draft.delivery ? (
+          {draft.conflict &&
+          (!draft.draft.delivery ||
+            draft.draft.delivery.attempt.batchId !== draft.committedAttempt.current) ? (
             <Button
               variant="quiet"
               disabled={switching}
@@ -773,6 +791,7 @@ function ImportEditor({
             onResolution={(resolution) => draft.edit({ resolution })}
             onBack={() => {
               checkSequence.current++;
+              finalDuplicateRequest.current?.abort();
               draft.edit({ preview: false });
               setStage({ kind: 'source' });
             }}
@@ -794,8 +813,9 @@ function ImportEditor({
 
             <Progress
               value={
-                (stage.done * IMPORT_CHUNK_SIZE + stage.merged) /
-                Math.max(1, stage.total * IMPORT_CHUNK_SIZE + stage.attempt.merge.length)
+                (Math.min(stage.done * IMPORT_CHUNK_SIZE, stage.attempt.create.length) +
+                  stage.merged) /
+                Math.max(1, stage.attempt.create.length + stage.attempt.merge.length)
               }
               label={t('import.importing')}
             />

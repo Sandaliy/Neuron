@@ -862,6 +862,7 @@ export const en = {
   'import.draftName': 'Draft {number} · {deck}',
   'import.draftSaved':
     'Draft saved on this device. Preparation is local; nothing is imported until you apply it online.',
+  'import.checkpointSaved': 'Recovery checkpoint saved on this device.',
   'import.draftPending':
     'Import preparation stays on this device. Changes are saved automatically.',
   'import.draftFailed':
@@ -928,10 +929,10 @@ export const en = {
   'import.reconcileFailed':
     'The saved plan and the server result differ. Your checkpoint is kept. Check whether Notes were moved or deleted before resuming.',
   'error.import_conflict':
-    'This import was undone or its saved IDs belong to different work. The checkpoint is kept; check the destination before continuing.',
+    'This import was undone or conflicts with other work. Your saved import is kept. Check the destination before continuing.',
   'import.progress': '{done} of {total}',
   'import.merging': 'Merging into the notes you already have',
-  'import.failed': 'Import paused after {done} of {total} chunks. Your saved plan is kept.',
+  'import.failed': 'Import paused after {done} of {total} chunks. Try continuing below.',
   'import.resume': 'Carry on from where it stopped',
   'import.doneTitle': 'Import complete',
   'import.doneMerged': 'Existing notes processed: {count}.',

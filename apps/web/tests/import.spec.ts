@@ -463,10 +463,12 @@ async function storedDrafts(page: Page, accountId = 'user_1') {
     try {
       const store = db.transaction('meta').objectStore('meta');
       const read = store.getAll(IDBKeyRange.bound('import-draft:', 'import-draft:\uffff'));
-      const headers = await new Promise<(ImportDraft & { format: number })[]>((resolve, reject) => {
-        read.onsuccess = () => resolve(read.result);
-        read.onerror = () => reject(read.error);
-      });
+      const headers = await new Promise<(Omit<ImportDraft, 'format'> & { format: number })[]>(
+        (resolve, reject) => {
+          read.onsuccess = () => resolve(read.result);
+          read.onerror = () => reject(read.error);
+        },
+      );
       return await Promise.all(
         headers.map(async (head) => {
           if (head.format === 1) return head;
@@ -507,9 +509,9 @@ test('large Import performance and interrupted checkpoint measurements', async (
   const session = await page.context().newCDPSession(page);
   await session.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await page.addInitScript(() => {
-    const spans: number[] = [];
+    const spans: { startTime: number; duration: number }[] = [];
     new PerformanceObserver((list) =>
-      spans.push(...list.getEntries().map((entry) => entry.duration)),
+      spans.push(...list.getEntries().map(({ startTime, duration }) => ({ startTime, duration }))),
     ).observe({ type: 'longtask', buffered: true });
     Object.assign(window, { importLongTasks: spans });
     const writes: string[] = [];
@@ -581,13 +583,11 @@ test('large Import performance and interrupted checkpoint measurements', async (
   await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible();
   const reopenMs = Date.now() - reopeningAt;
   const resumingAt = await page.evaluate(() => performance.now());
-  await page.evaluate(() => {
-    (window as unknown as { importLongTasks: number[] }).importLongTasks.length = 0;
-  });
   await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
   // This is a measurement, not the ordinary interaction latency budget.
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible({ timeout: 30_000 });
-  const resumeMs = (await page.evaluate(() => performance.now())) - resumingAt;
+  const resumedAt = await page.evaluate(() => performance.now());
+  const resumeMs = resumedAt - resumingAt;
   const completed = (await storedDrafts(page))[0]!;
   const payloadWrites = await page.evaluate(
     () => (window as unknown as { importPayloadWrites: string[] }).importPayloadWrites.length,
@@ -612,7 +612,13 @@ test('large Import performance and interrupted checkpoint measurements', async (
   expect(completed.delivery?.attempt).toEqual(checkpoint.delivery?.attempt);
   expect(completed.delivery).toMatchObject({ done: 9, summary: { notes: 4495, cards: 4495 } });
   const longTasks = await page.evaluate(
-    () => (window as unknown as { importLongTasks: number[] }).importLongTasks,
+    ({ after, until }) =>
+      (
+        window as unknown as { importLongTasks: { startTime: number; duration: number }[] }
+      ).importLongTasks
+        .filter((entry) => entry.startTime >= after && entry.startTime < until)
+        .map((entry) => Math.min(entry.duration, until - entry.startTime)),
+    { after: resumingAt, until: resumedAt },
   );
   console.log(
     JSON.stringify({
@@ -791,10 +797,13 @@ test('changing preparation during final duplicate validation cannot freeze the o
   const validated = new Promise<void>((resolve) => {
     release = resolve;
   });
-  let checks = 0;
+  let heldChecks = 0;
   let writes = 0;
   await page.route('**/api/notes/duplicates', async (route) => {
-    if (++checks === 2) await validated;
+    if (await page.evaluate(() => document.documentElement.dataset['importClicked'] === 'true')) {
+      heldChecks++;
+      await validated;
+    }
     await route.fulfill({ json: { matches: [] } }).catch(() => undefined);
   });
   await page.route('**/api/imports**', (route) => {
@@ -804,8 +813,17 @@ test('changing preparation during final duplicate validation cannot freeze the o
   await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
   await page.locator('textarea').fill('old\tmeaning');
   await page.getByRole('button', { name: 'Preview import', exact: true }).click();
+  await page.getByRole('button', { name: /^Import 1/ }).evaluate((button) => {
+    button.addEventListener(
+      'click',
+      () => {
+        document.documentElement.dataset['importClicked'] = 'true';
+      },
+      { capture: true, once: true },
+    );
+  });
   await page.getByRole('button', { name: /^Import 1/ }).click();
-  await expect.poll(() => checks).toBe(2);
+  await expect.poll(() => heldChecks).toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await page.locator('textarea').fill('replacement\tmeaning');
   release();
@@ -816,7 +834,263 @@ test('changing preparation during final duplicate validation cannot freeze the o
   expect((await storedDrafts(page))[0]!.delivery).toBeUndefined();
 });
 
-async function installOfflineImportFixtures(page: Page, complete = true) {
+test('live PostgreSQL Import reopens a committed lost response and reconciles exact recovery records', async ({
+  page,
+  context,
+}, info) => {
+  test.skip(
+    process.env['IMPORT_DATABASE_E2E'] !== 'true',
+    'Requires the guarded throwaway database',
+  );
+  test.setTimeout(180_000);
+  const { serve } = await import('../../api/node_modules/@hono/node-server/dist/index.mjs');
+  const { testDatabase, createUser, appClient, rawOwnerPool } =
+    await import('../../api/src/db/testing/database.js');
+  const { createRepositories } = await import('../../api/src/db/repositories/index.js');
+  const { testServer } = await import('../../api/src/testing/server.js');
+  const database = testDatabase();
+  if (!database) throw new Error('Throwaway database required');
+  const account = `import-browser-${info.project.name}-${Date.now()}`;
+  await createUser(database, account);
+  const client = appClient(database);
+  const repo = createRepositories(client, account);
+  const app = testServer(database, account, client);
+  const target = await repo.decks.create({
+    name: 'Live Import',
+    settings: {
+      ladder: [
+        { direction: 'recognition', opensAtStability: 0 },
+        { direction: 'recall', opensAtStability: 0 },
+        { direction: 'listening', opensAtStability: 0 },
+      ],
+    },
+  });
+  const source = vocabularyFixture(5000);
+  const seeded = await app.request('/api/imports', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      deckId: target.id,
+      source: 'Existing collection',
+      notes: source
+        .slice(0, 500)
+        .map(({ tags, rank, ...fields }) => ({ noteType: 'vocab', fields, tags, rank })),
+    }),
+  });
+  expect(seeded.status).toBe(201);
+  const existing = (await repo.notes.list({ deckId: target.id, limit: 1 })).items[0]!;
+  const oldCard = (await repo.cards.forNote(existing.id))[0]!;
+  await repo.reviews.record({ cardId: oldCard.id, rating: 3, now: new Date() });
+  const pool = rawOwnerPool(database);
+  const reviews = (
+    await pool.query('select * from reviews where card_id=$1 order by id', [oldCard.id])
+  ).rows;
+  const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port: 0 });
+  await new Promise<void>((resolve) =>
+    server.listening ? resolve() : server.once('listening', resolve),
+  );
+  const address = server.address() as { port: number };
+  let lost = true;
+  const chunks: string[][] = [];
+  const pendingRoutes = new WeakMap<Page, Set<Promise<void>>>();
+  const closeTab = async (tab: Page) => {
+    const pending = new Set(pendingRoutes.get(tab));
+    // Playwright's route-handled promise can remain unresolved after navigation
+    // cancels a response. Stop interception, then drain our actual HTTP work,
+    // checking errors ourselves before closing any database connections.
+    await tab.unrouteAll({ behavior: 'ignoreErrors' });
+    await tab.goto('about:blank');
+    for (const work of pendingRoutes.get(tab) ?? []) pending.add(work);
+    for (const outcome of await Promise.allSettled(pending)) {
+      if (
+        outcome.status === 'rejected' &&
+        (!(outcome.reason instanceof Error) ||
+          !/Route is already handled|Target page, context or browser has been closed/.test(
+            outcome.reason.message,
+          ))
+      )
+        throw outcome.reason;
+    }
+    await tab.close();
+  };
+  const routeApi = async (tab: Page) => {
+    if (process.env['IMPORT_STORAGE_DIAGNOSTICS'] === 'true')
+      await tab.addInitScript(() => {
+        const transactions = new WeakMap<
+          IDBTransaction,
+          { at: number; first?: number; reads: number; writes: number; kind: string }
+        >();
+        const original = IDBDatabase.prototype.transaction;
+        IDBDatabase.prototype.transaction = function (...args) {
+          const tx = original.apply(this, args);
+          const state: { at: number; first?: number; reads: number; writes: number; kind: string } =
+            { at: performance.now(), reads: 0, writes: 0, kind: String(args[0]) };
+          transactions.set(tx, state);
+          const report = (result: string) => {
+            const elapsed = performance.now() - state.at;
+            if (elapsed > 500 || result === 'abort')
+              console.log(
+                'Import IndexedDB',
+                JSON.stringify({ ...state, elapsed, result, mode: tx.mode, error: tx.error?.name }),
+              );
+          };
+          tx.addEventListener('complete', () => report('complete'));
+          tx.addEventListener('abort', () => report('abort'));
+          return tx;
+        };
+        const get = IDBObjectStore.prototype.get;
+        IDBObjectStore.prototype.get = function (...args) {
+          const state = transactions.get(this.transaction);
+          if (state) {
+            state.reads++;
+            if (String(args[0]).startsWith('import-')) state.kind = 'import';
+          }
+          const request = get.apply(this, args);
+          request.addEventListener('success', () => {
+            if (state && !state.first) state.first = performance.now() - state.at;
+          });
+          return request;
+        };
+        const put = IDBObjectStore.prototype.put;
+        IDBObjectStore.prototype.put = function (...args) {
+          const state = transactions.get(this.transaction);
+          if (state) state.writes++;
+          return put.apply(this, args);
+        };
+      });
+    tab.on('console', (message) => {
+      if (
+        message.text().startsWith('Import draft persistence failed') ||
+        message.text().startsWith('Import IndexedDB')
+      )
+        console.log(message.text());
+    });
+    await installPreferences(tab, { locale: 'en', theme: 'dark', glass: 'off' });
+    const pending = new Set<Promise<void>>();
+    pendingRoutes.set(tab, pending);
+    await tab.route(
+      (url) => url.pathname.startsWith('/api/'),
+      async (route) => {
+        const work = (async () => {
+          const url = new URL(route.request().url());
+          const response = await route.fetch({
+            url: `http://127.0.0.1:${address.port}${url.pathname}${url.search}`,
+          });
+          if (
+            route.request().method() === 'POST' &&
+            /^\/api\/imports\/[^/]+\/notes$/.test(url.pathname)
+          ) {
+            chunks.push(
+              (route.request().postDataJSON().notes as { id: string }[]).map((row) => row.id),
+            );
+            expect(response.status()).toBe(200);
+            if (lost) {
+              lost = false;
+              return route.abort('failed');
+            }
+          }
+          await route.fulfill({ response });
+        })();
+        pending.add(work);
+        try {
+          await work;
+        } finally {
+          pending.delete(work);
+        }
+      },
+    );
+  };
+  try {
+    await routeApi(page);
+    await page.goto(`/import?deckId=${target.id}`);
+    await page.locator('textarea').fill(
+      JSON.stringify({
+        noteType: 'vocab',
+        notes: source.map((row, i) => (i >= 4995 ? { ...row, translation: '' } : row)),
+      }),
+    );
+    await page.getByRole('button', { name: 'Preview import', exact: true }).click();
+    await page.getByRole('button', { name: /^Import 4495/ }).click();
+    await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible({
+      timeout: 30_000,
+    });
+    const interrupted = (await storedDrafts(page, account))[0]!;
+    expect(interrupted, `Server chunks sent: ${chunks.length}`).toBeDefined();
+    expect(interrupted.delivery?.done).toBe(0);
+    const batch = interrupted.delivery!.attempt.batchId;
+    expect(await repo.importBatches.contents(batch)).toMatchObject({ notes: 500, cards: 1500 });
+    const initialCards = (
+      await pool.query(
+        'select c.* from cards c join notes n on n.id=c.note_id where n.import_batch_id=$1 order by c.id',
+        [batch],
+      )
+    ).rows;
+    await closeTab(page);
+    const resumed = await context.newPage();
+    await routeApi(resumed);
+    await resumed.goto(`/import?deckId=${target.id}`);
+    await resumed.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+    await expect(resumed.getByText('Import complete', { exact: true })).toBeVisible({
+      timeout: 45_000,
+    });
+    await expect(
+      resumed.getByText('Recovery checkpoint saved on this device.', { exact: true }),
+    ).toBeVisible();
+    const completed = (await storedDrafts(resumed, account))[0]!;
+    expect(completed.delivery).toMatchObject({
+      attempt: interrupted.delivery!.attempt,
+      done: 9,
+      merged: 0,
+      summary: { notes: 4495, cards: 13485 },
+    });
+    expect(chunks).toHaveLength(10);
+    expect(chunks[1]).toEqual(chunks[0]);
+    const savedNotes = (
+      await pool.query(
+        'select id, rank, fields, tags from notes where import_batch_id=$1 order by rank',
+        [batch],
+      )
+    ).rows;
+    expect(savedNotes.map((note) => note.id)).toEqual(
+      completed.delivery!.attempt.create.map((note) => note.id),
+    );
+    expect(savedNotes.map((note) => note.rank)).toEqual(
+      source.slice(500, 4995).map((note) => note.rank),
+    );
+    expect(
+      savedNotes.every((note) => note.fields.grammar.article === 'das' && note.tags.length === 2),
+    ).toBe(true);
+    const allCards = (
+      await pool.query(
+        'select c.* from cards c join notes n on n.id=c.note_id where n.import_batch_id=$1 order by c.id',
+        [batch],
+      )
+    ).rows;
+    expect(allCards).toHaveLength(13485);
+    const oldIds = new Set(initialCards.map((card) => card.id));
+    expect(allCards.filter((card) => oldIds.has(card.id))).toEqual(initialCards);
+    expect(
+      allCards.every(
+        (card) =>
+          card.deck_id === target.id &&
+          card.slot === 0 &&
+          ['recognition', 'recall', 'listening'].includes(card.direction),
+      ),
+    ).toBe(true);
+    expect((await repo.importBatches.byId(batch))?.noteCount).toBe(4495);
+    expect(
+      (await pool.query('select * from reviews where card_id=$1 order by id', [oldCard.id])).rows,
+    ).toEqual(reviews);
+    await resumed.screenshot({ path: info.outputPath('live-import-completed.png') });
+  } finally {
+    await Promise.all(context.pages().map(closeTab));
+    server.close();
+    await client.$client.end();
+    await pool.end();
+  }
+});
+
+async function installOfflineImportFixtures(page: Page, complete = true, preview = false) {
   await installPreferences(page, { theme: 'dark', locale: 'en' });
   await installFixtures(page);
   const control = { online: true, who: draftAccount };
@@ -836,7 +1110,9 @@ async function installOfflineImportFixtures(page: Page, complete = true) {
     control.online ? route.fallback() : route.abort('internetdisconnected'),
   );
   await page.goto(`/import?deckId=${offlineDeckId}`);
-  await expect(page.getByRole('button', { name: 'Preview import', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: preview ? 'Back' : 'Preview import', exact: true }),
+  ).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(async () => {
@@ -895,6 +1171,70 @@ for (const source of [
     expect(drafts[0]?.preparation.raw).toBe(source.raw);
     expect(drafts[0]?.delivery).toBeUndefined();
   });
+
+test('offline preview trusts the completed durable page when loss interrupts its availability update', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const held = { waiting: false, release: () => {} };
+    Object.assign(window, { importReadback: held });
+    let sawComplete = false;
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      if (
+        this.name === 'meta' &&
+        args[1] === 'sync' &&
+        (args[0] as { complete?: boolean })?.complete
+      )
+        sawComplete = true;
+      return put.apply(this, args);
+    };
+    const get = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function (key) {
+      const request = get.call(this, key);
+      if (
+        this.name === 'meta' &&
+        key === 'sync' &&
+        sawComplete &&
+        !held.waiting &&
+        new Error().stack?.includes('/assets/')
+      ) {
+        request.addEventListener(
+          'success',
+          (event) => {
+            if (!request.result?.complete) return;
+            event.stopImmediatePropagation();
+            held.waiting = true;
+            held.release = () => {
+              request.onsuccess?.call(request, event);
+            };
+          },
+          { once: true },
+        );
+      }
+      return request;
+    };
+  });
+  const fixture = await installOfflineImportFixtures(page);
+  type Readback = Window & { importReadback: { waiting: boolean; release: () => void } };
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as Readback).importReadback.waiting))
+    .toBe(true);
+  try {
+    await fixture.disconnect();
+    await page.locator('textarea').fill('Haus — house');
+    await page.getByRole('button', { name: 'Preview import', exact: true }).click();
+    await expect(page.getByText(/^Preliminary matches from/)).toBeVisible();
+    await expect(
+      page.getByText('Will be created: 0 · Will be skipped: 1 · Will be merged: 0', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Import 0/ })).toBeDisabled();
+  } finally {
+    await page.evaluate(() => (window as unknown as Readback).importReadback.release());
+  }
+});
 
 test('offline saved mapping, choices and incomplete single-row input survive a reload', async ({
   page,
@@ -1183,6 +1523,58 @@ test('a newer tab wins safely and the other tab can save its changes as a separa
     'Retained — this tab',
   ]);
   await other.close();
+});
+
+test('a tab that loses its first frozen checkpoint can preserve its preparation separately', async ({
+  page,
+  context,
+}) => {
+  await installOfflineImportFixtures(page);
+  await page.locator('textarea').fill('Original — shared draft');
+  await page.getByRole('button', { name: 'Preview import', exact: true }).click();
+  await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
+  const other = await context.newPage();
+  await installOfflineImportFixtures(other, true, true);
+  await expect(other.getByRole('button', { name: /^Import 1/ })).toBeEnabled();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let checking = false;
+  let writes = 0;
+  await page.route('**/api/notes/duplicates', async (route) => {
+    checking = true;
+    await held;
+    await route.fulfill({ json: { matches: [] } }).catch(() => undefined);
+  });
+  await page.route('**/api/imports**', (route) => {
+    writes++;
+    return route.fulfill({ json: {} });
+  });
+  try {
+    await page.getByRole('button', { name: /^Import 1/ }).click();
+    await expect.poll(() => checking).toBe(true);
+    await other.getByRole('button', { name: 'Back', exact: true }).click();
+    await other.locator('textarea').fill('Newer — another tab');
+    await other.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+    await expect(other.getByText(/^Draft saved on this device/)).toBeVisible();
+    release();
+    await expect(page.getByText(/^Another window saved a newer version/)).toBeVisible();
+    expect(writes).toBe(0);
+    await page
+      .getByRole('button', { name: 'Save these changes as a separate draft', exact: true })
+      .click();
+    const saved = await storedDrafts(page);
+    expect(saved.map((draft) => draft.preparation.raw).sort()).toEqual([
+      'Newer — another tab',
+      'Original — shared draft',
+    ]);
+    expect(saved.every((draft) => !draft.delivery)).toBe(true);
+  } finally {
+    release();
+    await other.close();
+  }
 });
 
 test('a compatible collection upgrade preserves Import metadata and the synchronization stores', async ({

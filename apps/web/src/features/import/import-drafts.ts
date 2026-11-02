@@ -54,8 +54,9 @@ type DraftHeader = Omit<ImportDraft, 'format' | 'preparation' | 'delivery'> & {
   delivery?: Omit<NonNullable<ImportDraft['delivery']>, 'attempt'>;
 };
 const validatedAttempts = new WeakSet<ImportAttempt>();
-const storedPreparations = new WeakMap<ImportPreparation, string>();
-const storedAttempts = new WeakMap<ImportAttempt, string>();
+type StoredVersion = { key: string; revision: number };
+const storedPreparations = new WeakMap<ImportPreparation, StoredVersion>();
+const storedAttempts = new WeakMap<ImportAttempt, StoredVersion>();
 const frozen = new WeakSet<object>();
 function freeze(value: unknown): void {
   if (!value || typeof value !== 'object' || frozen.has(value)) return;
@@ -150,8 +151,8 @@ export function validateImportDraft(input: unknown, accountId: string): ImportDr
         noteFieldsSchemas[attempt.noteType].parse(merge.fields);
       }
       if (
-        new Set(attempt.create.map((row) => row.id)).size !== attempt.create.length ||
-        new Set(attempt.merge.map((row) => row.noteId)).size !== attempt.merge.length
+        new Set(attempt.create.map((row) => row.id.toLowerCase())).size !== attempt.create.length ||
+        new Set(attempt.merge.map((row) => row.noteId.toLowerCase())).size !== attempt.merge.length
       )
         throw new Error('import_draft_invalid');
       freeze(attempt);
@@ -268,9 +269,9 @@ export async function importDrafts(accountId: string): Promise<ImportDraft[]> {
     return loaded
       .map((row) => validateImportDraft(row, accountId))
       .map((draft) => {
-        const key = `${accountId}:${draft.id}`;
-        storedPreparations.set(draft.preparation, key);
-        if (draft.delivery) storedAttempts.set(draft.delivery.attempt, key);
+        const version = { key: `${accountId}:${draft.id}`, revision: draft.revision };
+        storedPreparations.set(draft.preparation, version);
+        if (draft.delivery) storedAttempts.set(draft.delivery.attempt, version);
         return draft;
       })
       .sort(
@@ -292,6 +293,7 @@ export async function saveImportDraft(draft: ImportDraft): Promise<ImportDraft> 
     const tx = db.transaction('meta', 'readwrite');
     const done = committed(tx);
     let conflict = false;
+    let writeError: unknown;
     const store = tx.objectStore('meta');
     const read = store.get(`${IMPORT_DRAFT_PREFIX}${draft.id}`);
     read.onsuccess = () => {
@@ -309,13 +311,15 @@ export async function saveImportDraft(draft: ImportDraft): Promise<ImportDraft> 
           if (previous.id !== draft.id) throw new Error('import_draft_invalid');
         }
         const key = `${draft.accountId}:${draft.id}`;
+        const unchanged = (version: StoredVersion | undefined) =>
+          version?.key === key && version.revision === draft.revision;
         // The header is the compare-and-save boundary. Large immutable values stay
         // in separate records; every acknowledgement commits only a small header.
-        if (previous?.format !== 2 || storedPreparations.get(next.preparation) !== key)
+        if (previous?.format !== 2 || !unchanged(storedPreparations.get(next.preparation)))
           store.put(next.preparation, preparationKey(draft.id));
         if (
           next.delivery &&
-          (previous?.format !== 2 || storedAttempts.get(next.delivery.attempt) !== key)
+          (previous?.format !== 2 || !unchanged(storedAttempts.get(next.delivery.attempt)))
         )
           store.put(next.delivery.attempt, attemptKey(draft.id));
         if (!next.delivery) store.delete(attemptKey(draft.id));
@@ -335,7 +339,8 @@ export async function saveImportDraft(draft: ImportDraft): Promise<ImportDraft> 
         };
         store.put(head, `${IMPORT_DRAFT_PREFIX}${draft.id}`);
         store.put(draft.id, ACTIVE_DRAFT_KEY);
-      } catch {
+      } catch (error) {
+        writeError = error;
         tx.abort();
       }
     };
@@ -343,12 +348,12 @@ export async function saveImportDraft(draft: ImportDraft): Promise<ImportDraft> 
       await done;
     } catch (error) {
       if (conflict) throw new Error('import_draft_conflict', { cause: error });
-      throw error;
+      throw writeError ?? error;
     }
     current();
-    const key = `${draft.accountId}:${draft.id}`;
-    storedPreparations.set(next.preparation, key);
-    if (next.delivery) storedAttempts.set(next.delivery.attempt, key);
+    const version = { key: `${draft.accountId}:${draft.id}`, revision: next.revision };
+    storedPreparations.set(next.preparation, version);
+    if (next.delivery) storedAttempts.set(next.delivery.attempt, version);
     return next;
   } finally {
     db.close();

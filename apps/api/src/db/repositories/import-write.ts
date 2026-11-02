@@ -3,12 +3,14 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { openingCards, parseNoteFields, resolveDeckSettings, uuidV7 } from '@neuron/shared';
 import type { DeckSettings, NoteFields, NoteStatus, NoteTypeName } from '@neuron/shared';
 
-import { decks, importBatches, notes, noteTypes } from '../schema/index.js';
+import { decks, importBatches, notes, noteTypes, user } from '../schema/index.js';
 
 import { requireLiveDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
 import type { Runner } from './session.js';
+
+const REVISION_ROWS = 200;
 
 export class ImportConflict extends Error {
   override readonly name = 'ImportConflict';
@@ -94,25 +96,6 @@ export async function appendImport(
         ),
       );
     const typeIds = new Map(types.map((type) => [type.name, type.id]));
-    const values = pending.map((note) => ({
-      ...note,
-      noteTypeId: typeIds.get(note.noteType),
-      tags: note.tags ?? [],
-      source: note.source ?? batch.source,
-      rank: note.rank ?? null,
-      status: note.status ?? 'active',
-    }));
-    if (values.some((note) => !note.noteTypeId)) throw new ImportConflict();
-    // One bound JSON value avoids thousands of SQL fragments/parameters and full-row return allocations.
-    const inserted = await tx.execute<{ id: string }>(sql`
-      insert into notes (id, user_id, deck_id, note_type_id, fields, tags, source, rank, status, import_batch_id, rev)
-      select r.id, ${userId}, ${batch.deckId}::uuid, r."noteTypeId", r.fields, r.tags, r.source, r.rank, r.status, ${id}::uuid, ${rev}
-      from jsonb_to_recordset(${JSON.stringify(values)}::jsonb)
-        as r(id uuid, "noteTypeId" uuid, fields jsonb, tags text[], source text, rank integer, status text)
-      on conflict do nothing returning id
-    `);
-    // RLS may hide a conflicting foreign ID. Never turn that into a successful missing row.
-    if (inserted.rows.length !== pending.length) throw new ImportConflict();
     const ancestors = await tx
       .select({ id: decks.id, settings: decks.settings })
       .from(decks)
@@ -121,34 +104,64 @@ export async function appendImport(
     const settings = resolveDeckSettings(
       chain.map((deckId) => byId.get(deckId) as DeckSettings | null),
     );
+    const planned = pending.flatMap((note) =>
+      openingCards(note.noteType, note.fields, settings.ladder).map(({ direction, slot }) => ({
+        id: uuidV7(),
+        noteId: note.id,
+        direction,
+        slot,
+      })),
+    );
+    const noteRevisions = Math.ceil(pending.length / REVISION_ROWS);
+    const revisions = noteRevisions + Math.ceil(planned.length / REVISION_ROWS);
+    // nextRev already owns the user lock. Reserve the remaining contiguous range
+    // in one statement, so bounded pull revisions do not add a request waterfall.
+    const batchRev = rev + revisions - 1;
+    if (revisions > 1)
+      await tx
+        .update(user)
+        .set({ currentRev: batchRev, updatedAt: new Date() })
+        .where(eq(user.id, userId));
+    const values = pending.map((note, index) => ({
+      ...note,
+      noteTypeId: typeIds.get(note.noteType),
+      tags: note.tags ?? [],
+      source: note.source ?? batch.source,
+      rank: note.rank ?? null,
+      status: note.status ?? 'active',
+      rev: rev + Math.floor(index / REVISION_ROWS),
+    }));
+    if (values.some((note) => !note.noteTypeId)) throw new ImportConflict();
+    // One bound JSON value avoids thousands of SQL fragments/parameters and full-row return allocations.
+    const inserted = await tx.execute<{ id: string }>(sql`
+      insert into notes (id, user_id, deck_id, note_type_id, fields, tags, source, rank, status, import_batch_id, rev)
+      select r.id, ${userId}, ${batch.deckId}::uuid, r."noteTypeId", r.fields, r.tags, r.source, r.rank, r.status, ${id}::uuid, r.rev
+      from jsonb_to_recordset(${JSON.stringify(values)}::jsonb)
+        as r(id uuid, "noteTypeId" uuid, fields jsonb, tags text[], source text, rank integer, status text, rev bigint)
+      on conflict do nothing returning id
+    `);
+    // RLS may hide a conflicting foreign ID. Never turn that into a successful missing row.
+    if (inserted.rows.length !== pending.length) throw new ImportConflict();
     const now = new Date().toISOString();
-    let cardCount = 0;
-    let planned: { id: string; noteId: string; direction: string; slot: number }[] = [];
-    async function flushCards() {
-      if (!planned.length) return;
+    for (let start = 0; start < planned.length; start += 2000) {
+      const rows = planned.slice(start, start + 2000).map((card, index) => ({
+        ...card,
+        rev: rev + noteRevisions + Math.floor((start + index) / REVISION_ROWS),
+      }));
       await tx.execute(sql`
         insert into cards (id, user_id, note_id, deck_id, direction, slot, due, unlocked_at, rev)
-        select r.id, ${userId}, r."noteId", ${batch!.deckId}::uuid, r.direction, r.slot, ${now}::timestamptz, ${now}::timestamptz, ${rev}
-        from jsonb_to_recordset(${JSON.stringify(planned)}::jsonb) as r(id uuid, "noteId" uuid, direction text, slot integer)
+        select r.id, ${userId}, r."noteId", ${batch.deckId}::uuid, r.direction, r.slot, ${now}::timestamptz, ${now}::timestamptz, r.rev
+        from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as r(id uuid, "noteId" uuid, direction text, slot integer, rev bigint)
       `);
-      cardCount += planned.length;
-      planned = [];
     }
-    for (const note of pending) {
-      for (const card of openingCards(note.noteType, note.fields, settings.ladder)) {
-        planned.push({ id: uuidV7(), noteId: note.id, direction: card.direction, slot: card.slot });
-        if (planned.length === 2000) await flushCards();
-      }
-    }
-    await flushCards();
     await tx
       .update(importBatches)
       .set({
         noteCount: sql`${importBatches.noteCount} + ${pending.length}`,
         updatedAt: new Date(now),
-        rev,
+        rev: batchRev,
       })
       .where(and(eq(importBatches.userId, userId), eq(importBatches.id, id)));
-    return { notes: pending.length, cards: cardCount, skipped: existing.length };
+    return { notes: pending.length, cards: planned.length, skipped: existing.length };
   });
 }

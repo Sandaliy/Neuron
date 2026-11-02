@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import { RATING } from '@neuron/core';
 import { IMPORT_CHUNK_SIZE, normaliseTerm, openingCards, uuidV7 } from '@neuron/shared';
-import type { NoteFields, NoteTypeName, ImportBatch } from '@neuron/shared';
+import type { DailyStudySession, NoteFields, NoteTypeName, ImportBatch } from '@neuron/shared';
 
 import {
   countingRepositories,
@@ -138,6 +138,36 @@ describe.skipIf(!database)('importing', () => {
     expect(batch?.noteCount).toBe(3);
   });
 
+  it('counts live Notes without Cards independently of Card and reviewed-Card totals', async () => {
+    const batch = await startBatch('Sparse legacy Cards');
+    const empty = await repositories.notes.create({
+      deckId,
+      importBatchId: batch.import.id,
+      noteType: 'vocab',
+      fields: { term: 'No Card yet', translation: 'Still a Note' },
+    });
+    const row = note('With a Card');
+    await sendChunk(batch.import.id, [row]);
+    expect(await repositories.importBatches.contents(batch.import.id)).toEqual({
+      notes: 2,
+      cards: 1,
+      reviewedCards: 0,
+    });
+    const card = (await repositories.cards.forNote(row.id))[0]!;
+    await repositories.reviews.record({ cardId: card.id, rating: RATING.good, now: new Date() });
+    expect(await repositories.importBatches.contents(batch.import.id)).toEqual({
+      notes: 2,
+      cards: 1,
+      reviewedCards: 1,
+    });
+    await repositories.notes.softDelete(empty.id);
+    expect(await repositories.importBatches.contents(batch.import.id)).toEqual({
+      notes: 1,
+      cards: 1,
+      reviewedCards: 1,
+    });
+  });
+
   it('refuses further chunks after another tab has undone the batch', async () => {
     const started = await startBatch('Already undone');
     await sendChunk(started.import.id, [note('Before Undo')]);
@@ -220,11 +250,41 @@ describe.skipIf(!database)('importing', () => {
         body: JSON.stringify({ notes }),
       });
     const first = rows.slice(0, 500);
+    const since = (await repositories.importBatches.byId(batchId))!.rev;
     const concurrent = await Promise.all([send(first), send(first)]);
     const replies = await Promise.all(
       concurrent.map((reply) => json<{ notes: number }>(reply, 200)),
     );
     expect(replies.map((reply) => reply.notes).sort((a, b) => a - b)).toEqual([0, 500]);
+    const pulled: { entity: string; id: string; rev: number; row: { noteCount?: number } }[] = [];
+    let cursor = since;
+    for (;;) {
+      const pull = await json<{ revision: number; hasMore: boolean; changes: typeof pulled }>(
+        await server.request(`/api/sync?since=${cursor}&limit=1`),
+        200,
+      );
+      expect(pull.changes.length).toBeLessThanOrEqual(201);
+      if (pull.changes.length)
+        expect(new Set(pull.changes.map((change) => change.rev)).size).toBe(1);
+      else expect(pull.hasMore).toBe(false);
+      pulled.push(...pull.changes);
+      if (!pull.hasMore) break;
+      expect(pull.revision).toBeGreaterThan(cursor);
+      cursor = pull.revision;
+    }
+    expect(
+      pulled
+        .filter((change) => change.entity === 'notes')
+        .map((change) => change.id)
+        .sort(),
+    ).toEqual(first.map((note) => note.id).sort());
+    expect(pulled.filter((change) => change.entity === 'cards')).toHaveLength(
+      first.reduce(
+        (count, note) => count + openingCards(note.noteType, note.fields, ladder).length,
+        0,
+      ),
+    );
+    expect(pulled.find((change) => change.entity === 'importBatches')?.row.noteCount).toBe(500);
     for (let at = 500; at < rows.length; at += 500)
       await json(await send(rows.slice(at, at + 500)), 200);
     const pool = rawOwnerPool(database);
@@ -250,6 +310,27 @@ describe.skipIf(!database)('importing', () => {
         )
       ).rows;
       expect(cards).toHaveLength(4000);
+      const session = await json<DailyStudySession>(
+        await server.request('/api/study/session', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ deckId: target.id }),
+        }),
+        200,
+      );
+      expect(session.waves.find((wave) => wave.deckId === target.id)).toMatchObject({
+        number: 1,
+        count: 30,
+        size: 50,
+        later: 1450,
+      });
+      const firstWave = new Set(rows.slice(0, 50).map((note) => note.id));
+      expect(session.newCount).toBeGreaterThan(0);
+      expect(
+        session.cards
+          .filter((card) => card.state === 'new')
+          .every((card) => firstWave.has(card.noteId)),
+      ).toBe(true);
       const byNote = new Map<string, typeof cards>();
       for (const card of cards)
         byNote.set(card.note_id, [...(byNote.get(card.note_id) ?? []), card]);
@@ -269,7 +350,7 @@ describe.skipIf(!database)('importing', () => {
             .every(
               (card) =>
                 card.deck_id === target.id &&
-                Number(card.rev) === Number(stored.rows.find((note) => note.id === row.id)!.rev),
+                Number(card.rev) > Number(stored.rows.find((note) => note.id === row.id)!.rev),
             ),
         ).toBe(true);
       }

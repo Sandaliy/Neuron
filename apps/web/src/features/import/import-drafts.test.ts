@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { detectFormat, parseImport } from '@neuron/shared';
 
-import { newImportDraft, validateImportDraft, importDraftVisit } from './import-drafts';
+import * as collectionDb from '../../lib/collection-db';
+
+import {
+  newImportDraft,
+  validateImportDraft,
+  importDraftVisit,
+  saveImportDraft,
+} from './import-drafts';
 import { createAttempt } from './import-plan';
 
 const visit = vi.hoisted(() => ({ accountId: 'account-a', signedOut: false, epoch: 1 }));
@@ -114,5 +121,72 @@ describe('local Import preparation envelopes', () => {
         'account-a',
       ),
     ).toThrow();
+  });
+
+  it('restores previously saved object references after replacement, then checkpoints only the header', async () => {
+    const values = new Map<string, unknown>();
+    const writes: string[] = [];
+    // Exercise the serialization cache independently of native transaction timing,
+    // which the quota, upgrade and competing-tab browser journeys cover.
+    const store = {
+      get(key: string) {
+        const request = {
+          result: structuredClone(values.get(key)),
+          onsuccess: undefined as (() => void) | undefined,
+        };
+        queueMicrotask(() => {
+          request.onsuccess?.();
+          queueMicrotask(() => tx.oncomplete?.());
+        });
+        return request;
+      },
+      put(value: unknown, key: string) {
+        writes.push(key);
+        values.set(key, structuredClone(value));
+      },
+      delete(key: string) {
+        values.delete(key);
+      },
+    };
+    const tx = { objectStore: () => store, oncomplete: undefined as (() => void) | undefined };
+    const opened = vi.spyOn(collectionDb, 'openCollection').mockResolvedValue({
+      transaction: () => tx,
+      close() {},
+    } as unknown as IDBDatabase);
+    try {
+      const deck = '01900000-0000-7000-8000-000000000011';
+      const initial = newImportDraft('account-a', deck);
+      initial.preparation.raw = 'one — first';
+      const attempt = createAttempt(
+        parseImport(initial.preparation.raw, 'text'),
+        [],
+        'skip',
+        {},
+        deck,
+      );
+      const first = await saveImportDraft({ ...initial, delivery: { attempt, done: 0 } });
+      const { delivery: _delivery, ...preparationOnly } = first;
+      const replaced = await saveImportDraft({
+        ...preparationOnly,
+        preparation: { ...first.preparation, raw: 'replacement' },
+      });
+      const restored = await saveImportDraft({
+        ...replaced,
+        preparation: first.preparation,
+        delivery: first.delivery!,
+      });
+      expect(values.get(`import-preparation:${initial.id}`)).toEqual(first.preparation);
+      expect(values.get(`import-attempt:${initial.id}`)).toEqual(attempt);
+      const payloadWrites = writes.filter((key) =>
+        /import-(preparation|attempt):/.test(key),
+      ).length;
+      await saveImportDraft({ ...restored, delivery: { attempt, done: 1 } });
+      expect(writes.filter((key) => /import-(preparation|attempt):/.test(key))).toHaveLength(
+        payloadWrites,
+      );
+      expect(values.get(`import-draft:${initial.id}`)).toMatchObject({ delivery: { done: 1 } });
+    } finally {
+      opened.mockRestore();
+    }
   });
 });
