@@ -856,11 +856,34 @@ for (const malformed of [false, true])
     await editOffline(page, state);
     state.reject = !malformed;
     state.badAck = malformed;
+    const saved = (await stored(page))[0]!;
+    let acknowledge!: () => void;
+    state.hold = new Promise<void>((resolve) => {
+      acknowledge = resolve;
+    });
+    const acknowledgement = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/notes/${id}/offline-edit`) &&
+        response.request().method() === 'POST',
+    );
     await reconnect(page, state);
-    await expect.poll(() => state.deliveries.length).toBe(1);
+    try {
+      // Observe the first attempt before a fast invalid response permits an exact retry.
+      await expect.poll(() => state.deliveries.length).toBe(1);
+      expect(state.deliveries[0]).toEqual(saved.payload);
+    } finally {
+      acknowledge();
+    }
+    const response = await acknowledgement;
+    await response.finished();
+    expect(response.status()).toBe(malformed ? 200 : 403);
     await expect
       .poll(async () => (await stored(page))[0]?.state)
       .toBe(malformed ? 'pending' : 'rejected');
+    const retained = await stored(page);
+    expect(retained).toHaveLength(1);
+    expect(retained[0]!.payload).toEqual(saved.payload);
+    for (const attempt of state.deliveries) expect(attempt).toEqual(saved.payload);
     await expect(page.getByRole('textbox', { name: 'Translation', exact: true })).toHaveValue(
       'Local meaning',
     );
