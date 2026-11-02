@@ -21,7 +21,8 @@ test.describe('component gallery', () => {
     await page.evaluate(() => document.fonts.ready);
     await expect(page.getByRole('heading', { name: 'Components and every state' })).toBeVisible();
     const specimenStyle = await page.addStyleTag({
-      content: '[data-learning-specimen] { display: none !important; }',
+      content:
+        '[data-learning-specimen], [data-triage-specimen], [data-wave-specimen] { display: none !important; }',
     });
 
     // A full-page shot asks Chromium to lay out nearly seventeen thousand
@@ -52,5 +53,7 @@ test.describe('component gallery', () => {
     );
     await specimenStyle.evaluate((style) => style.remove());
     await expect(page.locator('[data-learning-specimen]')).toHaveScreenshot('learning-card.png');
+    await expect(page.locator('[data-triage-specimen]')).toHaveScreenshot('triage.png');
+    await expect(page.locator('[data-wave-specimen]')).toHaveScreenshot('learning-wave.png');
   });
 });

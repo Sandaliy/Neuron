@@ -54,7 +54,7 @@ export function DeckNameDialog({
   function submit(event: FormEvent) {
     event.preventDefault();
 
-    if (name.trim() !== '') {
+    if (!busy && name.trim() !== '') {
       void Promise.resolve(onSubmit(name.trim())).catch(() => undefined);
     }
   }
@@ -71,6 +71,7 @@ export function DeckNameDialog({
               <Input
                 {...props}
                 value={name}
+                maxLength={200}
                 autoComplete="off"
                 enterKeyHint="done"
                 onChange={(event) => setName(event.target.value)}

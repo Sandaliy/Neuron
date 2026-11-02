@@ -29,10 +29,12 @@ import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
 import { DeckPractice } from '../today/practice';
 
+import { LearningWave } from './learning-wave';
 import { NoteProgressSummary } from './note-progress';
 import { NoteSelectionBar } from './note-selection';
 import { PracticeEntry } from './practice-entry';
 import { RestartLearning } from './restart-learning';
+import { DeckTriage, TriageEntry } from './triage';
 
 import type { NoteQuery } from '../../lib/notes';
 
@@ -54,8 +56,9 @@ const ROW_HEIGHT = 52;
  */
 export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const learning = useLearningNavigation('practice');
+  const triage = useLearningNavigation('triage');
   const practicing = learning.active;
-  const rememberScroll = useReturnScroll(practicing);
+  const rememberScroll = useReturnScroll(practicing || triage.active);
   const t = useTranslate();
   const offline = useOffline();
   const toast = useToast();
@@ -175,6 +178,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
     return (
       <DeckPractice deckId={deckId} entry={learning.entry ?? 'resume'} onFinish={learning.exit} />
     );
+  if (triage.active && deckId) return <DeckTriage deckId={deckId} onFinish={triage.exit} />;
   return (
     <section data-screen="" className="flex flex-col gap-16">
       <CollectionHeader
@@ -224,6 +228,17 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           }}
         />
       )}
+      {deckId && (
+        <TriageEntry
+          deckId={deckId}
+          noteCount={deck?.noteCount}
+          onOpen={() => {
+            rememberScroll();
+            void triage.open();
+          }}
+        />
+      )}
+      {deckId && <LearningWave deckId={deckId} />}
 
       {!unavailable && (rows.length > 0 || filtered || typed !== '') && !selecting ? (
         <div className="flex flex-col gap-12">

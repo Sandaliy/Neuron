@@ -2,7 +2,7 @@ import { appendFileSync, writeFileSync } from 'node:fs';
 
 import { expect, test } from '@playwright/test';
 
-import { manyDecks, useFixtures, usePreferences } from './fixtures';
+import { manyDecks, triageNotes, useFixtures, usePreferences } from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -226,5 +226,97 @@ test.describe('scroll performance', () => {
     expect(measured.sharedBackdrops).toBe(1);
     if (process.env['PERFORMANCE_ENFORCE_THRESHOLD'] === 'true')
       expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
+  });
+});
+
+/**
+ * Triage at the size of a real frequency list.
+ *
+ * A sweep is thousands of taps in a row, so the number that matters is how
+ * long one tap takes to put the next Note on screen: from the press to the
+ * frame after the new word has been drawn, with the processor at a quarter of
+ * this machine's speed. Every decision also recounts the whole sweep and is
+ * written to the device, so this measures the real cost of both.
+ */
+test.describe('triage at five thousand Notes', () => {
+  /** Under this a tap reads as instant; the median should be far below it. */
+  const LATENCY_BUDGET_MS = 100;
+  const TAPS = 40;
+
+  test(`one tap shows the next Note within ${LATENCY_BUDGET_MS} ms`, async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'CPU throttling needs the Chrome DevTools Protocol');
+    await usePreferences(page, {
+      theme: 'dark',
+      locale: 'en',
+      glass: 'full',
+      glassScope: 'floating',
+    });
+    await useFixtures(page, { notes: triageNotes(5000) });
+    await page.goto('/notes?deckId=d5&learning=triage');
+    await expect(page.getByText('Wort 1', { exact: true })).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+    let durations: number[];
+    try {
+      durations = await page.evaluate(async (taps) => {
+        const frame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
+        const prompt = () =>
+          document.querySelector('[data-triage-screen] .neu-learning-prompt')?.textContent;
+        const results: number[] = [];
+        for (let tap = 0; tap < taps; tap++) {
+          const before = prompt();
+          const name = ['Known', 'Unsure', 'New'][tap % 3]!;
+          const button = [...document.querySelectorAll('button')].find((element) =>
+            element.textContent?.startsWith(name),
+          )!;
+          const started = performance.now();
+          button.click();
+          while (prompt() === before) await frame();
+          await frame();
+          results.push(performance.now() - started);
+          await frame();
+        }
+        return results;
+      }, TAPS);
+    } finally {
+      await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+      await session.detach();
+    }
+
+    const sorted = [...durations].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)]!;
+    const p95 = sorted[Math.floor(sorted.length * 0.95)]!;
+    const line =
+      `triage, 5000 Notes, ${CPU_THROTTLE}x cpu: tap to next Note median ${median.toFixed(1)} ms,` +
+      ` p95 ${p95.toFixed(1)} ms, worst ${sorted.at(-1)!.toFixed(1)} ms over ${TAPS} taps`;
+    console.log(line);
+    test.info().annotations.push({ type: 'latency', description: line });
+    if (process.env['GITHUB_STEP_SUMMARY'])
+      appendFileSync(process.env['GITHUB_STEP_SUMMARY'], `\n### Triage\n\n${line}\n`);
+    await expect(page.getByText(`Left: ${5000 - TAPS}`, { exact: true })).toBeVisible();
+    expect(p95).toBeLessThan(LATENCY_BUDGET_MS);
+  });
+
+  test('the decisions list keeps a bounded mounted window over five thousand rows', async ({
+    page,
+  }) => {
+    await usePreferences(page, { theme: 'dark', locale: 'en' });
+    await useFixtures(page, { notes: triageNotes(5000) });
+    await page.goto('/notes?deckId=d5&learning=triage');
+    await page.getByRole('button', { name: 'All Notes in triage', exact: true }).click();
+    await expect(page.getByText('Notes: 5000', { exact: true })).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollHeight))
+      .toBeGreaterThan(250_000);
+    await page.evaluate(() => window.scrollTo(0, 52 * 2500));
+    await expect(page.getByText('Wort 2500', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.querySelectorAll('[data-row]').length)).toBeLessThan(
+      60,
+    );
   });
 });

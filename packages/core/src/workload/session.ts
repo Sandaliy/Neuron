@@ -236,13 +236,19 @@ function fill(candidates: readonly Candidate[], minutes: number): Candidate[] {
   return taken;
 }
 
-/** Stable creation order for new cards, independent of collection traversal order. */
+/**
+ * Stable admission order for new cards, independent of collection traversal
+ * order: admission rank first, then creation order.
+ */
 function orderNewCards(
   cards: readonly WorkloadCard[],
   introductions: ReadonlyMap<string, number>,
 ): WorkloadCard[] {
   const ordered = [...cards].sort(
-    (a, b) => a.scheduling.due.getTime() - b.scheduling.due.getTime() || a.id.localeCompare(b.id),
+    (a, b) =>
+      (a.admissionRank ?? 0) - (b.admissionRank ?? 0) ||
+      a.scheduling.due.getTime() - b.scheduling.due.getTime() ||
+      a.id.localeCompare(b.id),
   );
   const offsets = new Map<string, number>();
   // Virtual introduction counts merge stable within-deck streams. A large deck

@@ -178,12 +178,24 @@ chosen.
 Make sources such as Oxford 3000/5000, TOEFL vocabulary, professional terminology, and large theory sets
 manageable after import.
 
+**Status**
+
+Phase 9.0, the triage sweep, is on `main` (PR #69) and waits for installed-iPhone acceptance. Known is
+the existing `known` status; Unsure and New stay in Study with a recorded mark.
+
+Phase 9.1, visible learning waves, is implemented on `work/learning-waves`. A Deck's Notes in Study are
+cut into waves of 50 in source order; Unsure Notes start first inside their wave (owner decision,
+2026-11-01); the time-based throttle still decides how many start. The Deck screen shows the current
+wave, what Study lets in today or why it lets in none, when the next wave starts and how much waits after
+it. Today names the wave instead of every new Note. Rank order for waves, progressive directions and the
+problem-card area remain.
+
 **Core deliverables**
 
-- Add a fast triage sweep for Known, Unsure, and New decisions.
-- Admit new material in visible finite waves ordered by rank or source order.
+- Add a fast triage sweep for Known, Unsure, and New decisions. (Phase 9.0)
+- Admit new material in visible finite waves ordered by rank or source order. (Phase 9.1, source order)
 - Release additional card directions progressively from demonstrated stability and deck policy.
-- Explain when new material is paused and when capacity is likely to return.
+- Explain when new material is paused and when capacity is likely to return. (Phase 9.1, per Deck)
 - Build a problem-card review area from lapse history, with editing, mnemonic/context improvements, splitting,
   and temporary suspension.
 - Preserve a useful manual alternative for every automated decision.

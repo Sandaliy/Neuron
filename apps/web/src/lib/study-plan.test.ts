@@ -30,6 +30,7 @@ const plan: DailyStudySession = {
   notes: [],
   scopeDeckIds: [],
   deckSummaries: [],
+  waves: [],
   nextDue: null,
   availableCount: 0,
   estimatedMinutes: 0,

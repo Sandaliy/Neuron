@@ -82,7 +82,10 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
               .map((deck) => deck.id),
         ),
       ].sort();
-      const rows = await repositories.cards.forSession({ deckIds: scopeDeckIds });
+      const [rows, unsure] = await Promise.all([
+        repositories.cards.forSession({ deckIds: scopeDeckIds }),
+        repositories.notes.unsureIn(scopeDeckIds),
+      ]);
       const cards: WorkloadCard[] = rows.map((row) => ({
         id: row.id,
         deckId: row.deckId,
@@ -97,6 +100,7 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
         scopeDeckIds,
         settings,
         cards,
+        unsureNoteIds: new Set(unsure),
         allLogs,
         body,
         now,

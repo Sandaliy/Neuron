@@ -7,12 +7,14 @@ import { accountQuery } from './lib/account';
 import { ApiFailure } from './lib/api';
 import { deckTreeQuery } from './lib/decks';
 import { trackModality, trackPresses } from './lib/interactions';
+import { watchWavePlans } from './lib/learning-waves';
 import { lifecycle } from './lib/lifecycle';
 import { noteListQuery, noteQuery } from './lib/notes';
 import { confirmConnection, initializeOffline, offlineState } from './lib/offline';
 import { practiceQuery } from './lib/practice';
 import { registerShell } from './lib/pwa';
 import { initialStudyQuery } from './lib/study-plan';
+import { initializeTriage } from './lib/triage';
 import { trackViewport } from './lib/viewport';
 import { watchFrameRate } from './preferences/frame-rate';
 import { router } from './router';
@@ -122,6 +124,8 @@ function warmUp(path = window.location.pathname, search = window.location.search
 }
 
 initializeOffline(queryClient);
+initializeTriage(queryClient);
+watchWavePlans(queryClient);
 lifecycle('module');
 registerShell();
 warmUp();

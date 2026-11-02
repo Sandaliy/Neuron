@@ -57,23 +57,25 @@ This is the part the project exists for. FSRS decides _when_, this decides _how 
 
 Zod schemas and types used by both sides of the wire.
 
-| File                   | Holds                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------ |
-| `src/rating.ts`        | `ratingSchema`, the four ratings                                                           |
-| `src/uuid.ts`          | UUID v7 generation and parsing. Time sortable ids                                          |
-| `src/note-types.ts`    | The three built in note types (`vocab`, `basic`, `cloze`), their fields and card templates |
-| `src/note-fields.ts`   | Conditional editor sections and field access for all three note types                      |
-| `src/study-planner.ts` | Shared deterministic Daily Study planning over core workload/FSRS inputs                   |
-| `src/card-plan.ts`     | The one note-to-card planner used by creation, import, preview and reconciliation          |
-| `src/import-parse.ts`  | JSON, CSV, TSV, text and Anki-text parsing, mapping and row diagnostics                    |
-| `src/prompt.ts`        | Reads and fills the three canonical card-generation prompt variants                        |
-| `src/text.ts`          | Term normalization, note identity and example-word checks                                  |
-| `src/languages.ts`     | Supported language codes and CEFR levels                                                   |
-| `src/deck-settings.ts` | Collection settings schema, defaults, and inheritance from ancestor folders                |
-| `src/preferences.ts`   | Locale, theme, plan, time zone, day cutoff hour                                            |
-| `src/password.ts`      | The password policy: ten character floor, the small list of the worst ones                 |
-| `src/recovery-code.ts` | The recovery code alphabet, grouping, and how a typed one is read back                     |
-| `src/i18n/`            | `en.ts`, `ru.ts` and `translate`. Every user visible string, in both languages             |
+| File                    | Holds                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| `src/rating.ts`         | `ratingSchema`, the four ratings                                                           |
+| `src/uuid.ts`           | UUID v7 generation and parsing. Time sortable ids                                          |
+| `src/note-types.ts`     | The three built in note types (`vocab`, `basic`, `cloze`), their fields and card templates |
+| `src/note-fields.ts`    | Conditional editor sections and field access for all three note types                      |
+| `src/study-planner.ts`  | Shared deterministic Daily Study planning over core workload/FSRS inputs                   |
+| `src/card-plan.ts`      | The one note-to-card planner used by creation, import, preview and reconciliation          |
+| `src/triage.ts`         | Triage choices over Note status, card faces, sweep order and next position, wire schemas   |
+| `src/learning-waves.ts` | Waves of 50 Notes per Deck, Unsure first inside a wave, as admission ranks and summaries   |
+| `src/import-parse.ts`   | JSON, CSV, TSV, text and Anki-text parsing, mapping and row diagnostics                    |
+| `src/prompt.ts`         | Reads and fills the three canonical card-generation prompt variants                        |
+| `src/text.ts`           | Term normalization, note identity and example-word checks                                  |
+| `src/languages.ts`      | Supported language codes and CEFR levels                                                   |
+| `src/deck-settings.ts`  | Collection settings schema, defaults, and inheritance from ancestor folders                |
+| `src/preferences.ts`    | Locale, theme, plan, time zone, day cutoff hour                                            |
+| `src/password.ts`       | The password policy: ten character floor, the small list of the worst ones                 |
+| `src/recovery-code.ts`  | The recovery code alphabet, grouping, and how a typed one is read back                     |
+| `src/i18n/`             | `en.ts`, `ru.ts` and `translate`. Every user visible string, in both languages             |
 
 ### The wire contract (`src/api/`)
 
@@ -148,15 +150,15 @@ The tests next to these are the only ones that do not stub the session: `registr
 One file per resource. Every handler reaches the database only through the repositories the session
 middleware put on the request, and answers only in the shape `src/errors.ts` decides.
 
-| File         | Endpoints                                                                                                  |
-| ------------ | ---------------------------------------------------------------------------------------------------------- |
-| `decks.ts`   | The tree with its counts, create, rename, settings, move, reorder, soft delete, restore                    |
-| `notes.ts`   | Browse with filters and a cursor, create (also `offline-create`), edit, move, bulk status, delete, restore |
-| `cards.ts`   | What is due, suspend, unsuspend, reset, and opening a direction under `/notes/:id/cards`                   |
-| `study.ts`   | Daily Study session construction, presets, and imports that can be taken back whole                        |
-| `reviews.ts` | Answers, batches and append-only recent Undo. Recomputes rather than believing the client                  |
-| `sync.ts`    | `GET /sync` by revision, `POST /sync` as one transaction                                                   |
-| `account.ts` | Who is signed in, preferences, and leaving                                                                 |
+| File         | Endpoints                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `decks.ts`   | The tree with its counts, create, rename, settings, move, reorder, soft delete, restore                            |
+| `notes.ts`   | Browse with filters and a cursor, create (also `offline-create`), edit, move, bulk status, triage, delete, restore |
+| `cards.ts`   | What is due, suspend, unsuspend, reset, and opening a direction under `/notes/:id/cards`                           |
+| `study.ts`   | Daily Study session construction, presets, and imports that can be taken back whole                                |
+| `reviews.ts` | Answers, batches and append-only recent Undo. Recomputes rather than believing the client                          |
+| `sync.ts`    | `GET /sync` by revision, `POST /sync` as one transaction                                                           |
+| `account.ts` | Who is signed in, preferences, and leaving                                                                         |
 
 ### Schema (`src/db/schema/`)
 
@@ -194,6 +196,7 @@ The user is supplied once when the set is built. Do not write ad hoc queries in 
 | `cards.ts`              | Card reads including the due query, the per deck counts, suspend, reset                                   |
 | `reviews.ts`            | Recording a review, idempotent by id, and reading a log that respects a reset                             |
 | `study.ts`              | Presets, retry-safe import batches, summaries and batch undo                                              |
+| `triage.ts`             | Triage list under a Folder or Deck, and decisions applied under the write lock, never on studied Notes    |
 | `sync.ts`               | The revision stream out, and the merge coming in                                                          |
 | `account.ts`            | The user's own row: preferences, and soft deleting a collection                                           |
 | `mapping.ts`            | Converts between database rows and `packages/core` types (`toReviewLog`, rating words)                    |
@@ -271,6 +274,8 @@ the api anywhere in browser code would cost the session cookie.
 | `notes/read-only-note.tsx`                      | Conditional read-only field/header composition                                                  |
 | `notes/note-selection.tsx`                      | Bulk known, move, tag and delete actions                                                        |
 | `notes/card-preview.tsx`                        | The cards a note will keep, add or remove                                                       |
+| `notes/triage.tsx`                              | Triage sweep, Undo, decisions list, completion and the Deck entry                               |
+| `notes/learning-wave.tsx`                       | The Deck's current wave from the default plan, and the `showsWave` rule Today shares            |
 | `import/import-screen.tsx`                      | Parse, map, preview, deduplicate, chunk, resume, finish and undo an import                      |
 | `import/import-drafts.ts`                       | Local drafts/checkpoints; `use-import-draft.ts` owns autosave and navigation                    |
 | `import/prompt-dialog.tsx`                      | Prompt variant, substituted deck context, example and clipboard action                          |
@@ -326,6 +331,8 @@ every one of these in every state.
 | `lib/review-outbox.ts`                            | Durable immutable answer/cancellation intents, batched causal exact delivery and session recovery |
 | `lib/review-intent.ts`                            | Pure validation of existing immutable Review/Undo intents, shared with local planning             |
 | `lib/practice-outbox.ts`                          | Per-Deck Practice records in `meta`, exact delivery, refusal settling and the learner's choice    |
+| `lib/triage.ts`                                   | Triage list read with offline fallback, device-saved decisions in `meta`, batched delivery        |
+| `lib/learning-waves.ts`                           | The waves of the last plan made in this visit, kept per account; the Deck card never plans itself |
 | `lib/offline-study.ts`, `offline-study-worker.ts` | Account/visit-bound local planning worker and atomic reads of the existing stores                 |
 | `lib/offline-study-snapshot.ts`                   | Download authority, pending event replay, conservative admission and shared planner inputs        |
 | `lib/collection-transport.ts`                     | Collection GET fallback, confirmed transport loss and cancellation/account guards                 |
@@ -357,6 +364,8 @@ every one of these in every state.
 | `tests/motion.spec.ts`                   | Computed durations under reduced motion, and what may be transitioned         |
 | `tests/00-note-list-performance.spec.ts` | Note-list and library scroll budgets under a throttled phone-sized browser    |
 | `tests/fixtures.ts`                      | The api answers and the device preferences the browser tests run against      |
+| `tests/triage.spec.ts`                   | Triage flows: batching, Undo, reload, list, keyboard, completion, offline     |
+| `tests/learning-waves.spec.ts`           | Wave card states on the Deck screen and the wave label in Today's rows        |
 
 ## Documentation
 

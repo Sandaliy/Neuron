@@ -20,6 +20,8 @@ import {
   studyDecks,
   timeZoneSchema,
   dayCutoffHourSchema,
+  triageChoiceSchema,
+  triageWrite,
 } from '@neuron/shared';
 import type {
   Card,
@@ -28,6 +30,7 @@ import type {
   Me,
   ReviewHistoryRow,
   PullSyncResult,
+  TriageChoice,
 } from '@neuron/shared';
 
 import { validateReviewIntent } from './review-intent.js';
@@ -62,6 +65,8 @@ export interface StudySnapshot {
   reviews: CollectionRow[];
   edits: unknown[];
   events: unknown[];
+  /** Triage decisions saved on this device and not yet delivered. Absent reads as none. */
+  triage?: unknown[];
 }
 
 const ratings = ['again', 'hard', 'good', 'easy'] as const;
@@ -152,6 +157,31 @@ function checkedRows(rows: CollectionRow[], cursor: number) {
   return rows;
 }
 
+/**
+ * The latest decision per Note among this account's saved triage records.
+ * Anything that does not read as one is ignored, as the triage screen does.
+ */
+function pendingTriage(records: readonly unknown[], accountId: string) {
+  const latest = new Map<string, { choice: TriageChoice; sequence: number }>();
+  for (const value of records) {
+    const row = value as Record<string, unknown> | null;
+    const choice = triageChoiceSchema.safeParse(row?.['choice']);
+    if (
+      !row ||
+      row['kind'] !== 'triage' ||
+      row['accountId'] !== accountId ||
+      typeof row['noteId'] !== 'string' ||
+      typeof row['sequence'] !== 'number' ||
+      !choice.success
+    )
+      continue;
+    const seen = latest.get(row['noteId']);
+    if (!seen || seen.sequence < row['sequence'])
+      latest.set(row['noteId'], { choice: choice.data, sequence: row['sequence'] });
+  }
+  return [...latest].map(([noteId, entry]) => [noteId, entry.choice] as const);
+}
+
 /** Read-only projection of existing records. No provisional browse overlays or Card generation. */
 export function planDownloadedStudy(
   snapshot: StudySnapshot,
@@ -199,6 +229,15 @@ export function planDownloadedStudy(
         return [note.id, note] as const;
       }),
   );
+  for (const [noteId, choice] of pendingTriage(snapshot.triage ?? [], accountId)) {
+    const note = notes.get(noteId);
+    // Only what keeps admission conservative is applied before the server has it:
+    // Known takes a Note out and a mark orders it, but a Known Note returning to
+    // Study waits for the server, which may refuse it.
+    if (!note || note.status !== 'active') continue;
+    const written = triageWrite(choice);
+    notes.set(noteId, { ...note, status: written.status, triage: written.triage });
+  }
   const blocked = new Set<string>();
   const blockedNotes = new Set<string>();
   const cards = new Map<string, Card>();
@@ -545,6 +584,11 @@ export function planDownloadedStudy(
     scopeDeckIds,
     explicitScope: scope !== undefined,
     settings: resolveDeckSettings([account.settings, ...chain.map((deck) => deck.settings)]),
+    unsureNoteIds: new Set(
+      [...notes.values()]
+        .filter((note) => note.status === 'active' && note.triage === 'unsure')
+        .map((note) => note.id),
+    ),
     cards: pool.map((card) => ({
       id: card.id,
       noteId: card.noteId,

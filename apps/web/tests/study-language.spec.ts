@@ -251,23 +251,26 @@ test('a confirmed language change continuously resizes expanded Study setup', as
         'change',
         () => {
           const heights = [content.getBoundingClientRect().height];
-          const times = [performance.now()];
-          const start = performance.now();
-          // Read each frame after it is drawn. A layout read inside
-          // requestAnimationFrame runs before resize observation in the same
-          // frame, so it can see an intermediate size that is never painted.
-          const frame = () =>
-            setTimeout(() => {
-              const height = content.getBoundingClientRect().height;
-              const time = performance.now();
-              if (height !== heights.at(-1) || time !== times.at(-1)) {
-                heights.push(height);
-                times.push(time);
-              }
-              if (performance.now() - start > 600) resolve({ heights, times });
-              else requestAnimationFrame(frame);
-            });
-          requestAnimationFrame(frame);
+          const times = [Number(document.timeline.currentTime)];
+          // A timer queued in rAF can run after a React commit but before its
+          // resize observation. It then reads the new intrinsic height before
+          // the disclosure's animation restores the previous height for paint.
+          // Observe layout after that earlier, component-owned observer instead.
+          const observer = new ResizeObserver(() => {
+            const height = content.getBoundingClientRect().height;
+            // All resize deliveries in a rendering update share the frame clock;
+            // callback execution time is not elapsed animation time.
+            const time = Number(document.timeline.currentTime);
+            if (height !== heights.at(-1) || time !== times.at(-1)) {
+              heights.push(height);
+              times.push(time);
+            }
+          });
+          observer.observe(content);
+          setTimeout(() => {
+            observer.disconnect();
+            resolve({ heights, times });
+          }, 600);
         },
         { once: true, capture: true },
       );
@@ -290,6 +293,9 @@ test('a confirmed language change continuously resizes expanded Study setup', as
   const min = Math.min(...heights),
     max = Math.max(...heights);
   expect(max - min).toBeGreaterThan(100);
+  expect(heights[0]).toBe(max);
+  expect(heights.at(-1)).toBe(min);
+  expect(heights.slice(1).every((height, index) => height <= heights[index]!)).toBe(true);
   expect(heights.filter((height) => height > min + 1 && height < max - 1).length).toBeGreaterThan(
     3,
   );

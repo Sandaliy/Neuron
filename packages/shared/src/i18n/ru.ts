@@ -6,6 +6,30 @@ import type { Messages } from './en.js';
  * Maintained alongside English; the shared catalogue supplies a fallback.
  */
 export const ru = {
+  'offline.collection.saved':
+    'Сохранено на устройстве. Синхронизируется после подтверждения подключения.',
+  'offline.collection.local': 'Сохранено на устройстве',
+  'offline.collection.waiting':
+    'Синхронизируй сохранённые папки и колоды или разреши конфликты перед изменением Библиотеки.',
+  'offline.collection.notSaved':
+    'Не удалось сохранить на устройстве. Сохрани название и повтори попытку.',
+  'offline.collection.parentRequired': 'Выбери скачанную папку или создай в корне Библиотеки.',
+  'offline.collection.dependencies':
+    'Папка или колода должна синхронизироваться, прежде чем в неё можно будет добавлять данные или менять её.',
+  'offline.collection.parent_unavailable':
+    'Исходная папка недоступна. Создаваемый элемент сохранён на устройстве. Выбери, где его создать.',
+  'offline.collection.parent_changed':
+    'Исходная папка или унаследованные настройки изменились. Проверь, где создать сохранённый элемент.',
+  'offline.collection.identity_exists':
+    'Этот идентификатор уже занят другим элементом. Название сохранено: скопируй его и создай новый элемент.',
+  'offline.collection.name_exists':
+    'Такое название здесь уже используется. Выбери другое название или расположение.',
+  'offline.collection.rejected':
+    'Сервер не принял создание. Название и исходное расположение сохранены на устройстве.',
+  'offline.collection.originalParent': 'Исходное расположение: {name}',
+  'offline.collection.chooseParent': 'Создать внутри',
+  'offline.collection.saveHere': 'Создать здесь',
+  'offline.collection.archive': 'Не синхронизировать и сохранить в архиве',
   'offline.connectionUncertain':
     'Сервер отвечает дольше обычного. Скачанная коллекция доступна, проверка продолжается.',
   'offline.study.waitingDownload': 'Для Учёбы офлайн нужна полностью скачанная коллекция.',
@@ -153,7 +177,7 @@ export const ru = {
     'Они хранятся на этом устройстве, пока ты не решишь, что оставить.',
   'offline.works': 'Что работает без сети',
   'offline.works.available':
-    'Без сети можно просматривать библиотеку и заметки, переименовывать папки и колоды, изменять существующие заметки, учиться, практиковаться и готовить черновики импорта.',
+    'Без сети можно просматривать библиотеку и заметки, создавать и переименовывать папки и колоды, изменять существующие заметки, учиться, практиковаться и готовить черновики импорта. Новая папка или колода должна синхронизироваться, прежде чем в неё можно будет что-то добавить.',
   'offline.works.needsConnection': 'Для новых заметок и применения импорта нужен интернет.',
   'offline.diagnostics': 'Сохранить диагностику запуска',
   'offline.practiceUnavailable': 'Для практики нужно подключение.',
@@ -560,6 +584,7 @@ export const ru = {
   'today.waitingLabel': 'карточки на повтор',
   'today.newLabel': 'новых',
   'today.deckCounts': '{due} на повтор · {fresh} новых',
+  'today.deckWave': '{due} на повтор · волна {number}: {waiting} новых',
   'today.waiting': 'Карточек к повторению: {count}',
   'today.newAvailable': 'Новых карточек готово: {count}',
   'today.newAvailableHint':
@@ -915,7 +940,60 @@ export const ru = {
     'На эти карточки уже дано ответов: {count}. Карточки уйдут из повторений, но ответы останутся в истории.',
   'import.undoConfirm': 'Понимаю, откатить',
   'import.undone': 'Импорт отменён',
-  'import.triageLater': 'Разбор того, что из этого ты уже знаешь, появится на девятом этапе.',
+  'triage.title': 'Разбор',
+  'triage.exit': 'Закрыть разбор',
+  'triage.known': 'Знаю',
+  'triage.unsure': 'Сомневаюсь',
+  'triage.new': 'Новое',
+  'triage.unsorted': 'Не разобрано',
+  'triage.progress': 'Разобранные записи',
+  'triage.left': 'Осталось: {count}',
+  'triage.position': '{position} из {total}',
+  'triage.rank': 'Ранг {rank}',
+  'triage.current': 'Отмечено: {choice}',
+  'triage.showMeaning': 'Показать значение',
+  'triage.openNote': 'Открыть запись',
+  'triage.undo': 'Отменить последнее решение',
+  'triage.list': 'Все записи разбора',
+  'triage.listTitle': 'Решения',
+  'triage.backToCards': 'Вернуться к карточкам',
+  'triage.search': 'Поиск в разборе',
+  'triage.searchPlaceholder': 'Слово или значение',
+  'triage.filter': 'Показать',
+  'triage.filter.unsorted': 'Не разобрано',
+  'triage.filter.known': 'Знаю',
+  'triage.filter.unsure': 'Сомневаюсь',
+  'triage.filter.new': 'Новое',
+  'triage.filter.all': 'Все',
+  'triage.order': 'Порядок',
+  'triage.order.created': 'Как в источнике',
+  'triage.order.rank': 'Сначала частые слова',
+  'triage.order.alpha': 'По алфавиту',
+  'triage.count': 'Записей: {count}',
+  'triage.noMatchTitle': 'Здесь нет записей',
+  'triage.noMatchBody': 'Попробуй другой фильтр или поиск.',
+  'triage.waiting': 'Сохранено на устройстве. Отправится само.',
+  'triage.skipped':
+    'Не применено: {count}. Эти записи начали изучать, отложили или удалили на другом устройстве.',
+  'triage.doneTitle': 'Всё разобрано',
+  'triage.unsureDoneTitle': 'Записей «Сомневаюсь» не осталось',
+  'triage.doneBody': 'Знаю {known} · Сомневаюсь {unsure} · Новое {new}',
+  'triage.doneHint':
+    'Записи «Знаю» не попадают в Учёбу. «Сомневаюсь» и «Новое» входят в Учёбу волнами по {size}, в каждой волне первыми идут «Сомневаюсь». Любое решение можно изменить позже.',
+  'triage.reviewUnsure': 'Пройти «Сомневаюсь» ({count})',
+  'triage.reviewAll': 'Посмотреть решения',
+  'triage.done': 'Готово',
+  'triage.emptyTitle': 'Разбирать нечего',
+  'triage.emptyBody': 'Все записи здесь уже изучаются или отложены, либо их пока нет.',
+  'triage.excludedStudied': 'Уже изучаются, не включены: {count}',
+  'triage.excludedAside': 'Отложены или черновики, не включены: {count}',
+  'triage.entryHint': 'Отметь то, что уже знаешь, чтобы Учёба тратила время на новое.',
+  'triage.sorted': 'Разобрано {count} / {total}',
+  'triage.open': 'Открыть разбор',
+  'triage.start': 'Начать разбор',
+  'triage.continue': 'Продолжить разбор',
+  'triage.review': 'Посмотреть разбор',
+  'import.triage': 'Разобрать эти записи',
   'import.nothingToImport': 'Пока нечего импортировать.',
   'import.tooManyProblems':
     'Строки без обязательных полей не импортируются. Поправь их в файле и прочитай список заново.',
@@ -1065,4 +1143,23 @@ export const ru = {
   'error.unexpected': 'Что-то пошло не так. Попробуй ещё раз.',
   'error.internal_error':
     'Что-то сломалось на нашей стороне. Попробуй ещё раз, а если повторится, назови этот номер: {correlationId}',
+
+  'waves.title': 'Волна {number} из {count}',
+  'waves.started': 'Начато {started} из {size}',
+  'waves.progress': 'Начатые записи этой волны',
+  'waves.waiting': 'Ждут в этой волне: {count}.',
+  'waves.unsure': 'Первыми идут «Сомневаюсь»: {count}.',
+  'waves.today': 'Сегодня Учёба впустит: {count}.',
+  'waves.paused.backlogActive':
+    'Сегодня ни одной: повторы отстают, и новое ждёт, пока они не догонят.',
+  'waves.paused.forecastOverBudget':
+    'Сегодня ни одной: повторы уже занимают твои минуты в день. Новое войдёт, когда освободится время.',
+  'waves.paused.dailyCapReached': 'Сегодня ни одной: дневной предел новых карточек набран.',
+  'waves.paused.withinBudget': 'Сегодня больше ни одной: место для нового на сегодня занято.',
+  'waves.next': 'Следующая волна начнётся, когда начнутся все записи этой.',
+  'waves.nextDay': 'При нынешнем темпе следующая волна начнётся завтра.',
+  'waves.nextDays': 'При нынешнем темпе следующая волна начнётся примерно через {count} дн.',
+  'waves.later':
+    'Ещё {count} ждут в следующих волнах. Пока они не начаты, времени они не занимают.',
+  'waves.last': 'Это последняя волна.',
 } satisfies Partial<Messages>;

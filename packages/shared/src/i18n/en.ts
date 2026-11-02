@@ -2,6 +2,29 @@
  * English is the presentation catalogue. Retained Russian entries fall back here for new keys.
  */
 export const en = {
+  'offline.collection.saved':
+    'Saved on this device. It will sync when your connection is confirmed.',
+  'offline.collection.local': 'Saved on device',
+  'offline.collection.waiting':
+    'Sync or resolve saved Folders and Decks before changing the Library.',
+  'offline.collection.notSaved': 'Could not save on this device. Keep this name and try again.',
+  'offline.collection.parentRequired': 'Choose a downloaded Folder, or create at the Library root.',
+  'offline.collection.dependencies':
+    'This Folder or Deck must sync before you can add to it or change it.',
+  'offline.collection.parent_unavailable':
+    'The original Folder is unavailable. This creation is still saved on this device. Choose where to create it.',
+  'offline.collection.parent_changed':
+    'The original Folder or its inherited settings changed. Review where to create this saved item.',
+  'offline.collection.identity_exists':
+    'This identity already belongs to another item. The saved name is retained; copy it and create a new item.',
+  'offline.collection.name_exists':
+    'This name is already used here. Choose a different name or location.',
+  'offline.collection.rejected':
+    'The server did not accept this creation. Its name and original location remain saved on this device.',
+  'offline.collection.originalParent': 'Original location: {name}',
+  'offline.collection.chooseParent': 'Create inside',
+  'offline.collection.saveHere': 'Create here',
+  'offline.collection.archive': 'Stop syncing and archive',
   'offline.connectionUncertain':
     'The server is taking longer to respond. Your download is available while checking continues.',
   'offline.study.waitingDownload': 'Offline Study needs a complete download.',
@@ -145,7 +168,7 @@ export const en = {
   'offline.status.attentionDetail': 'They stay on this device until you choose what to keep.',
   'offline.works': 'What works offline',
   'offline.works.available':
-    'Without a connection you can browse your Library and Notes, rename Folders and Decks, edit existing Notes, study, practice and prepare Import drafts.',
+    'Without a connection you can browse your Library and Notes, create or rename Folders and Decks, edit existing Notes, study, practice and prepare Import drafts. New Folders and Decks must sync before you can add to them.',
   'offline.works.needsConnection': 'New Notes and applying an Import need a connection.',
   'offline.diagnostics': 'Save startup diagnostics',
   'offline.practiceUnavailable': 'Practice requires a connection.',
@@ -564,6 +587,7 @@ export const en = {
   'today.waitingLabel': 'cards to review',
   'today.newLabel': 'new',
   'today.deckCounts': '{due} to review · {fresh} new',
+  'today.deckWave': '{due} to review · wave {number}: {waiting} new',
   'today.waiting': 'Cards waiting: {count}',
   'today.newAvailable': 'New cards ready to start: {count}',
   'today.newAvailableHint':
@@ -914,7 +938,61 @@ export const en = {
     'These cards have been answered {count} times between them. They stop being studied, but the answers remain in history.',
   'import.undoConfirm': 'I understand, take it back',
   'import.undone': 'Import undone',
-  'import.triageLater': 'Sorting out which of these you already know arrives in phase 9.',
+  'triage.title': 'Triage',
+  'triage.exit': 'Close triage',
+  'triage.known': 'Known',
+  'triage.unsure': 'Unsure',
+  'triage.new': 'New',
+  'triage.unsorted': 'Not sorted',
+  'triage.progress': 'Sorted Notes',
+  'triage.left': 'Left: {count}',
+  'triage.position': '{position} of {total}',
+  'triage.rank': 'Rank {rank}',
+  'triage.current': 'Marked: {choice}',
+  'triage.showMeaning': 'Show meaning',
+  'triage.openNote': 'Open Note',
+  'triage.undo': 'Undo last decision',
+  'triage.list': 'All Notes in triage',
+  'triage.listTitle': 'Decisions',
+  'triage.backToCards': 'Back to cards',
+  'triage.search': 'Search triage',
+  'triage.searchPlaceholder': 'Word or meaning',
+  'triage.filter': 'Show',
+  'triage.filter.unsorted': 'Not sorted',
+  'triage.filter.known': 'Known',
+  'triage.filter.unsure': 'Unsure',
+  'triage.filter.new': 'New',
+  'triage.filter.all': 'All',
+  'triage.order': 'Order',
+  'triage.order.created': 'Source order',
+  'triage.order.rank': 'Most frequent first',
+  'triage.order.alpha': 'Alphabetical',
+  'triage.count': 'Notes: {count}',
+  'triage.noMatchTitle': 'No Notes here',
+  'triage.noMatchBody': 'Try another filter or search.',
+  'triage.waiting': 'Saved on this device. Sends by itself.',
+  'triage.skipped':
+    'Not applied: {count}. Those Notes were studied, set aside or deleted elsewhere.',
+  'triage.doneTitle': 'All sorted',
+  'triage.unsureDoneTitle': 'No Unsure Notes left',
+  'triage.doneBody': 'Known {known} · Unsure {unsure} · New {new}',
+  'triage.doneHint':
+    'Known Notes sit out of Study. Unsure and New Notes enter Study in waves of {size}, Unsure first in each wave. Any decision can be changed later.',
+  'triage.reviewUnsure': 'Go through Unsure ({count})',
+  'triage.reviewAll': 'Review decisions',
+  'triage.done': 'Done',
+  'triage.emptyTitle': 'Nothing to sort',
+  'triage.emptyBody':
+    'Every Note here is already being studied or set aside, or there are none yet.',
+  'triage.excludedStudied': 'Already studied, not included: {count}',
+  'triage.excludedAside': 'Set aside or draft, not included: {count}',
+  'triage.entryHint': 'Mark what you already know, so Study spends its time on what is new.',
+  'triage.sorted': '{count} / {total} sorted',
+  'triage.open': 'Open triage',
+  'triage.start': 'Start triage',
+  'triage.continue': 'Continue triage',
+  'triage.review': 'Review triage',
+  'import.triage': 'Triage these Notes',
   'import.nothingToImport': 'Nothing here to import yet.',
   'import.tooManyProblems':
     'Rows missing a required field are not imported. Fix them in the file and read it again.',
@@ -1074,6 +1152,24 @@ export const en = {
   'error.unexpected': 'Something went wrong. Try again in a moment.',
   'error.internal_error':
     'Something went wrong at our end. Try again in a moment, and quote this if it keeps happening: {correlationId}',
+
+  'waves.title': 'Wave {number} of {count}',
+  'waves.started': '{started} / {size} started',
+  'waves.progress': 'Notes started in this wave',
+  'waves.waiting': 'Waiting in this wave: {count}.',
+  'waves.unsure': 'Unsure go first: {count}.',
+  'waves.today': 'Study lets in {count} today.',
+  'waves.paused.backlogActive':
+    'None today: reviews are behind, and new Notes wait until they catch up.',
+  'waves.paused.forecastOverBudget':
+    'None today: reviews already fill your minutes a day. New Notes come in as time frees up.',
+  'waves.paused.dailyCapReached': 'None today: the daily limit for new cards is reached.',
+  'waves.paused.withinBudget': 'None more today: today’s room for new material is used.',
+  'waves.next': 'The next wave starts when every Note in this one has started.',
+  'waves.nextDay': 'At today’s pace, the next wave starts tomorrow.',
+  'waves.nextDays': 'At today’s pace, the next wave starts in about {count} days.',
+  'waves.later': '{count} more wait in later waves. They take no time until they start.',
+  'waves.last': 'This is the last wave.',
 } as const;
 
 /** Every key the interface can ask for. */

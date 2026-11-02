@@ -58,6 +58,7 @@ export function serialiseNote(row: NoteRow, typeNames: Map<string, string>): Not
     source: row.source,
     rank: row.rank,
     status: row.status as Note['status'],
+    triage: row.triage as Note['triage'],
     importBatchId: row.importBatchId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

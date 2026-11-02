@@ -139,6 +139,17 @@ export {
 export type { ApiError, ApiErrorCode } from './api/errors.js';
 
 export {
+  createOfflineDeckCommandSchema,
+  createOfflineDeckResultSchema,
+  savedDeckCreationSchema,
+} from './api/deck-creation.js';
+export type {
+  CreateOfflineDeckCommand,
+  CreateOfflineDeckResult,
+  SavedDeckCreation,
+} from './api/deck-creation.js';
+
+export {
   createDeckSchema,
   deckNodeSchema,
   deletedDeckListSchema,
@@ -361,10 +372,13 @@ export { CATALOGUES, en, ru, translate } from './i18n/index.js';
 export type { MessageKey, MessageValues, Messages } from './i18n/index.js';
 
 export * from './practice.js';
+export * from './triage.js';
 
 export { studyDecks } from './study-scope.js';
 export type { ReviewHistoryRow } from './api/reviews.js';
 export * from './typed-answer.js';
 
 export { planDailyStudy } from './study-planner.js';
+export { WAVE_SIZE, deckWaveSchema, learningWaves, waveRank } from './learning-waves.js';
+export type { DeckWave } from './learning-waves.js';
 export type { PlanningDeck } from './study-planner.js';

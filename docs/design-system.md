@@ -528,6 +528,8 @@ uses ты everywhere; the app belongs to one person.
 | streak            | 6 days in a row                | 6 дней подряд                      | серия, стрик                          |
 | daily time budget | minutes a day                  | минут в день                       | лимит, бюджет времени                 |
 | wave              | wave, 8 new words let in       | волна, впустили 8 новых слов       | батч, партия                          |
+| triage            | triage                         | разбор                             | сортировка, триаж                     |
+| unsure (triage)   | Unsure                         | Сомневаюсь                         | не уверен, неизвестно                 |
 | two-factor auth   | 2FA                            | двухфакторная аутентификация (2FA) | вход в два шага, двухэтапная проверка |
 | recovery code     | recovery code                  | резервный код                      | код доступа, код восстановления       |
 | direction         | ask both ways                  | спрашивать с двух сторон           | направление, реверс                   |
@@ -650,6 +652,25 @@ membership reconciliation update the same ratio. The Deck entry retains its sepa
 summary; completion retains its Known ring. The compact label/count row retains identical anchors during Typing. They do not
 imply SRS mastery. Never invent
 language pairs, grammar, streaks, or statistics not provided by the current model/presentation recipe.
+
+Triage reuses the same composition. The Note's word is the prompt, its meaning waits behind Show
+meaning, and Open Note sits beside it. Known, Unsure and New are three equal stacked quiet actions in
+the action band with their running counts, shaped like the Study grades. None is filled: no decision is
+the expected one. Undo and the decisions list are header icons. The list is a Note-list screen of dense
+rows with the decision as quiet trailing text. The Deck entry is a quiet card for a Deck of 20 or more
+Notes. It fetches nothing, so it never arrives late or moves with connectivity; it shows progress once
+a sweep has been opened in the visit.
+
+The learning wave is a quiet card beside the triage entry on a Deck larger than one wave: the wave as
+the heading, started out of size as the 12 px count with the shared progress line, then four short
+lines in reading order. What waits in this wave, Unsure first. What Study lets in today, the only line
+in primary text, or the plain reason none comes in. When the next wave starts. How much waits after it,
+and that it costs no time until it starts. It has no action: triage, Mark as known and the one-off
+"Include more new material" in Study setup are the controls. Like the triage entry it requests nothing:
+it shows the waves of the last plan Today made in this visit, so it never arrives late, moves with
+connectivity or costs a plan. Before Today has planned there is no card, and neither is there for a Deck
+no larger than one wave or with every Note started. Today's Deck rows name the
+wave, `wave 3: 32 new`, instead of every new Note a large Deck will ever hold.
 
 Standalone meaningful actions such as Practice and Undo have a bounded neutral control. Lightweight
 utilities such as the Practice entry settings may use text treatment when the surrounding group makes

@@ -97,6 +97,12 @@ export class ApiFailure extends Error {
  * @returns the key and the values its placeholders need
  */
 export function describe(error: unknown): { key: MessageKey; values: MessageValues } {
+  if (error instanceof Error && error.message === 'collection_create_storage')
+    return { key: 'offline.collection.notSaved', values: {} };
+  if (error instanceof Error && error.message === 'collection_create_parent')
+    return { key: 'offline.collection.parentRequired', values: {} };
+  if (error instanceof Error && error.message === 'collection_create_name')
+    return { key: 'offline.collection.name_exists', values: {} };
   if (error instanceof Error && error.message.startsWith('offline_study_')) {
     const keys: Record<string, MessageKey> = {
       offline_study_incomplete: 'offline.study.incomplete',
@@ -112,7 +118,8 @@ export function describe(error: unknown): { key: MessageKey; values: MessageValu
     return { key: 'offline.note.notSaved', values: {} };
   if (error instanceof Error && error.message === 'collection_create_deck')
     return { key: 'offline.create.deckMissing', values: {} };
-  if (error instanceof Error && error.message === 'collection_create_storage')
+  // Distinct from `collection_create_storage`, which is a Folder or Deck the device could not keep.
+  if (error instanceof Error && error.message === 'collection_note_create_storage')
     return { key: 'offline.create.notSaved', values: {} };
   if (error instanceof Error && error.message === 'practice_storage')
     return { key: 'practice.storageFailed', values: {} };
