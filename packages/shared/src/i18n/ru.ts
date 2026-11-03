@@ -779,6 +779,22 @@ export const ru = {
 
   'notes.title': 'Записи',
   'notes.find': 'Найти записи',
+  'categories.title': 'Теги и источники',
+  'categories.hint': 'Записи по сохранённым тегам и источникам.',
+  'categories.tags': 'Теги',
+  'categories.sources': 'Источники',
+  'categories.search': 'Поиск тегов и источников',
+  'categories.online':
+    'Счётчики учитывают синхронизированные записи. Изменения только на этом устройстве могут отличаться.',
+  'categories.downloaded':
+    'Из полной загрузки на этом устройстве, включая локальные изменения. Они могут быть ещё не синхронизированы.',
+  'categories.results': 'Показано: {count} из {total}',
+  'categories.notes': 'Записей: {count}',
+  'categories.more': 'Показать ещё',
+  'categories.empty': 'Категорий пока нет',
+  'categories.emptyHint': 'Здесь появятся сохранённые теги и непустые источники доступных записей.',
+  'categories.noMatches': 'Категории не найдены',
+  'categories.trySearch': 'Попробуй другое название или очисти поиск.',
   'notes.findHint': 'Поиск по всем папкам и колодам.',
   'notes.locationUnavailable': 'Расположение колоды недоступно',
   'notes.downloadedResults':

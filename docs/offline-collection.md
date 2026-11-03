@@ -184,6 +184,29 @@ cursor pages do not repeat the scan or sort. Searchable text is memoized by proj
 filtering yields between bounded batches. Content edits, creations, pulls and account boundaries
 invalidate affected derived results. None of these browse caches grants mutation authority.
 
+Library Tags & Sources derives distinct non-blank tags and sources from these same live Note rows.
+Values retain their exact saved spelling, case and surrounding whitespace; blank-only values are omitted.
+Repeated copies of a tag on one Note count once. Each category opens the existing exact Note filter,
+with normal content search, ordering and compatible filters. A new category selection starts a new
+browse entry; Note editor return and reconnection retain that entry's filters and scroll state.
+
+Online `GET /notes/categories` aggregates only authenticated, synchronized live Notes under live parent
+links. It does not fetch Note fields or Cards into the browser. Category search is literal and case
+insensitive; grouping and cursor ordering preserve distinct saved values. Pages default to 100 values
+and are capped at 200, with exact per-value Note counts and a total matching-value count. Counts can
+change between pages as the collection changes. Device-only changes may differ from these server counts.
+
+A complete download supplies offline counts, including the same pending creations and content/tag
+overlays as offline Note browsing. The screen labels their downloaded/device provenance rather than
+claiming delivery. It reads the existing account-scoped projection without Cards and derives counts in
+memory with bounded yielding; no new persistent index, store or mutation protocol is introduced.
+An unfinished local tag draft may exceed the server's filter/write limits. Its category still opens
+an exact downloaded Note list, including after reconnection; it stays explicitly local until corrected.
+The server's validation and mutation authority are unchanged.
+Incomplete or unavailable downloads hide cached online counts and explain the missing offline data.
+Account/visit guards discard late reads. Reconnection replaces local pages with authoritative pages
+without changing the active category, and saved values cannot collide with local pagination cursors.
+
 The Phase 8.1 first-entry network path awaited the Notes API. Transport failure then awaited a shared
 account probe before reading IndexedDB. Consequently a slow/dead Notes request and its authentication
 probe could form a serial delay even with a completed download. Phase 8.2 makes local content usable

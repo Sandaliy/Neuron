@@ -12,6 +12,7 @@ import {
   duplicateCheckSchema,
   idParamSchema,
   listNotesSchema,
+  noteCategoryQuerySchema,
   normaliseTerm,
   noteTermKey,
   purgeConfirmationSchema,
@@ -74,6 +75,11 @@ export function noteRoutes(): Hono<RequestBindings> {
       })),
       ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
     });
+  });
+
+  routes.get('/categories', async (context) => {
+    const query = readQuery(context, noteCategoryQuerySchema);
+    return context.json(await repositoriesOf(context).notes.categories(query));
   });
 
   routes.get('/deleted', async (context) => {

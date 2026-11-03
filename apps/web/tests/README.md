@@ -32,6 +32,12 @@ and the separate opt-in mobile WebKit coverage remain selected.
 full paths, keyboard focus and Back/scroll return over 2,500 collections. `offline-collections.spec.ts`
 covers downloaded search, pending identities, reconnection and account boundaries. `performance.spec.ts`
 measures collection search and virtual scrolling over 5,050 nested collections at 4x CPU slowdown.
+Tags & Sources is covered in `note-list.spec.ts` (exact filters, long values, category pagination and
+keyboard return), `offline-notes.spec.ts`, `offline-note-creation.spec.ts` and `offline.spec.ts`
+(pending local work, reconnection, account changes and incomplete downloads). `performance.spec.ts`
+keeps its measured category window within the existing 55 FPS budget at 4x CPU over 5,000 values.
+`apps/api/src/routes/browse.test.ts` checks real PostgreSQL aggregation, account isolation, live
+ancestry and production-statement EXPLAIN plans over 6,000 heavily tagged Notes across 80 Decks.
 
 Live files need the throwaway database (`DATABASE_URL_TEST`) and an opt-in variable named at the top of
 each file. They skip otherwise, and a skip is not a pass.

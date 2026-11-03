@@ -9,6 +9,8 @@ import type {
   NoteStatus,
   NoteTypeName,
   RestoreNoteResult,
+  NoteCategoryQuery,
+  NoteCategoryPage,
 } from '@neuron/shared';
 
 import { cards, decks, noteTypes, notes, user } from '../schema/index.js';
@@ -110,6 +112,7 @@ export interface NoteRepository {
    * the cursor is just the last id seen.
    */
   list: (query: ListNotes) => Promise<NotePage>;
+  categories: (query: NoteCategoryQuery) => Promise<NoteCategoryPage>;
   /** Soft-deleted notes only, for the recovery screen. */
   listDeleted: () => Promise<NoteRow[]>;
   /** Every note in a deck and, when asked, in the decks under it. */
@@ -221,7 +224,50 @@ function after(sort: NoteSort, cursor: string) {
 
 /** Makes a search term literal, so a typed `%` matches a `%`. */
 function escapeLike(value: string): string {
-  return value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
+  return value.replaceAll('!', '!!').replaceAll('%', '!%').replaceAll('_', '!_');
+}
+
+/** Browse and metadata counts share the same live parent-link boundary. */
+function liveNoteConditions(userId: string) {
+  return [
+    eq(notes.userId, userId),
+    isNull(notes.deletedAt),
+    isNull(notes.purgedAt),
+    sql`${notes.deckId} in (
+      with recursive live_decks(id) as (
+        select id from decks where user_id = ${userId} and parent_id is null
+          and deleted_at is null and purged_at is null
+        union
+        select child.id from decks child join live_decks parent on child.parent_id = parent.id
+        where child.user_id = ${userId} and child.deleted_at is null and child.purged_at is null
+      ) select id from live_decks
+    )`,
+  ];
+}
+
+/** String.trim() whitespace, used only to omit blank values, never to rewrite saved names. */
+const CATEGORY_WHITESPACE =
+  ' \t\n\r\f\v\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+
+/** Exported so representative EXPLAIN checks execute the production statement. */
+export function noteCategoryStatement(userId: string, query: NoteCategoryQuery) {
+  const values =
+    query.kind === 'tag'
+      ? sql`lateral (select distinct unnest(${notes.tags}) collate "C" as value) category`
+      : sql`lateral (select ${notes.source} collate "C" as value) category`;
+  return sql`with grouped as (
+    select category.value, count(*)::integer as count
+    from ${notes} cross join ${values}
+    where ${and(...liveNoteConditions(userId))}
+      and btrim(category.value, ${CATEGORY_WHITESPACE}) <> ''
+      ${query.search ? sql`and category.value collate "default" ilike ${`%${escapeLike(query.search)}%`} escape '!'` : sql``}
+    group by category.value
+  ), counted as (
+    select value, count, count(*) over ()::integer as total from grouped
+  )
+  select value, count, total from counted
+  ${query.cursor === undefined ? sql`` : sql`where value > ${query.cursor} collate "C"`}
+  order by value collate "C" limit ${Math.min(query.limit, 200) + 1}`;
 }
 
 /** The note type named on a write does not exist, or is not readable. */
@@ -433,26 +479,27 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       });
     },
 
+    async categories(query) {
+      return run(async (tx) => {
+        const limit = Math.min(query.limit, 200);
+        const result = await tx.execute<{ value: string; count: number; total: number }>(
+          noteCategoryStatement(userId, query),
+        );
+        const items = result.rows.slice(0, limit).map(({ value, count }) => ({ value, count }));
+        return {
+          items,
+          total: result.rows[0]?.total ?? 0,
+          ...(result.rows.length > limit ? { nextCursor: items.at(-1)!.value } : {}),
+        };
+      });
+    },
+
     async list(query) {
       return run(async (tx) => {
         const limit = Math.min(query.limit ?? 50, MAX_NOTE_PAGE_SIZE);
         // Deleting a collection retains its Notes for recovery. Browse only the
         // live hierarchy, following parent links rather than legacy cached paths.
-        const conditions = [
-          eq(notes.userId, userId),
-          isNull(notes.deletedAt),
-          sql`${notes.deckId} in (
-            with recursive live_decks(id) as (
-              select id from decks
-              where user_id = ${userId} and parent_id is null
-                and deleted_at is null and purged_at is null
-              union
-              select child.id from decks child join live_decks parent on child.parent_id = parent.id
-              where child.user_id = ${userId}
-                and child.deleted_at is null and child.purged_at is null
-            ) select id from live_decks
-          )`,
-        ];
+        const conditions = liveNoteConditions(userId);
 
         if (query.deckId !== undefined) {
           if (query.includeSubtree === false) {
@@ -503,7 +550,7 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
           // It is a scan, and at the size a person's own collection reaches
           // that is cheaper than the index it would take to avoid one.
           conditions.push(
-            sql`(${notes.fields}::text ilike ${pattern} escape '\' or array_to_string(${notes.tags}, ' ') ilike ${pattern} escape '\')`,
+            sql`(${notes.fields}::text ilike ${pattern} escape '!' or array_to_string(${notes.tags}, ' ') ilike ${pattern} escape '!')`,
           );
         }
 

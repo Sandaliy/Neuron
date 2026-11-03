@@ -640,6 +640,7 @@ type ListPages = InfiniteData<{
  * read or a refetch while the learner types.
  */
 function patchCreation(creation: PendingNoteCreate) {
+  void client?.invalidateQueries({ queryKey: ['notes', 'categories'] });
   const noteId = creation.entityId;
   void client?.invalidateQueries({ queryKey: ['note-creation', creation.accountId] });
   const unsent = unsentCreation(creation);
@@ -774,6 +775,7 @@ export function initializeOffline(queryClient: QueryClient) {
           projectCollectionCreation(id, creation, entry, change.version);
           patchCreation(creation);
         } else projectCollectionNote(id, change.entityId, entry, change.version);
+        void client?.invalidateQueries({ queryKey: ['notes', 'categories'] });
         // Patch cached content only. No cancelled request, tree notification or
         // full collection read competes with the editor's next keystroke.
         client?.setQueryData<{ note: Note; cards: Card[]; local?: true }>(

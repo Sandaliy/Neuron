@@ -369,6 +369,42 @@ async function createOffline(page: Page, state: Server, term = 'Haus', translati
   return created!;
 }
 
+test('Tags & Sources includes a device-only creation once and labels its synchronization state', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  const created = await createOffline(page, state);
+  const unfinished = 'unfinished tag '.repeat(10);
+  await page
+    .getByRole('textbox', { name: 'Tags', exact: true })
+    .fill(`new category, ${unfinished}`);
+  await expect
+    .poll(async () => (await records(page)).creations[0]?.working.tags)
+    .toEqual(['new category', unfinished.trim()]);
+  await page.goto('/library/categories');
+  await expect(page.getByText(/including saved local changes/)).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'new category Notes: 1', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: `${unfinished.trim()} Notes: 1`, exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    unfinished.trim(),
+  );
+  const row = page.getByRole('button', { name: /Haus house.*Saved on device/ });
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page).toHaveURL(new RegExp(`/notes/${created.entityId}$`));
+  expect(state.creates).toEqual([]);
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await reconnect(page, state);
+  await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    unfinished.trim(),
+  );
+  await expect(row).toBeVisible();
+  expect(state.creates).toEqual([]);
+});
+
 test('a Note saved offline keeps its identity, is listed at once and gets server Cards on reconnect', async ({
   page,
 }) => {
