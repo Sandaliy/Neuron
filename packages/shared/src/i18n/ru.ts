@@ -631,6 +631,19 @@ export const ru = {
   'import.partOfSpeechHelp':
     'partOfSpeech: noun, verb, adjective, adverb, phrase или other. В таблицах поддерживаются article и plural.',
   'library.title': 'Библиотека',
+  'library.search.title': 'Найти папки и колоды',
+  'library.search.back': 'Результаты поиска',
+  'library.search.label': 'Поиск по названиям',
+  'library.search.hint': 'Найди папку или колоду в любом месте библиотеки.',
+  'library.search.results': '{count} из {total} папок и колод',
+  'library.search.downloaded':
+    'Поиск в загруженной библиотеке. Изменения с других устройств появятся после подключения.',
+  'library.search.stale':
+    'Не удалось обновить сведения о папках и колодах. Результаты могут быть устаревшими.',
+  'library.search.pendingUnavailable':
+    'Не удалось прочитать папки и колоды, сохранённые на этом устройстве. Некоторые результаты могут отсутствовать.',
+  'library.search.emptyTitle': 'Ничего не найдено',
+  'library.search.emptyBody': 'Попробуй другое название или очисти поиск.',
   'library.dueLabel': 'Карточек к повторению',
   'library.newLabel': 'Карточек, которых ты ещё не видел',
   'library.expand': 'Показать, что внутри',

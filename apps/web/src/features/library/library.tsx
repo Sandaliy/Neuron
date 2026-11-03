@@ -37,9 +37,9 @@ import { TreeChildren, Row } from '../../ui/row';
 import { ServerControls } from '../../ui/server-controls';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
-import { CollectionPath } from '../library/collection-path';
 
 import { CollectionDrag, CollectionHandle, CollectionDrop } from './collection-drag';
+import { CollectionSearchPath } from './collection-search-path';
 import { DeckNameDialog, DeckSettingsDialog, MoveDeckDialog } from './deck-dialogs';
 
 /**
@@ -142,7 +142,7 @@ export function LibraryScreen() {
         <CollectionHeader
           readOnly={offline.offline}
           title={folder?.name ?? t('library.title')}
-          path={folder && <CollectionPath tree={tree} id={folder.id} trail />}
+          path={folder && <CollectionSearchPath tree={tree} id={folder.id} />}
           actions={
             <>
               <ServerControls available={capability.server}>
@@ -189,14 +189,30 @@ export function LibraryScreen() {
           }
         />
 
-        <Button
-          variant="quiet"
-          className="self-start"
-          onClick={() => void navigate({ to: '/notes' })}
-        >
-          <Search size={16} strokeWidth={1.5} aria-hidden="true" />
-          {t('notes.find')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-x-12 gap-y-4">
+          <Button
+            variant="quiet"
+            onClick={() =>
+              void navigate({
+                to: '/library/find',
+                state: {
+                  collectionSearchEntry: { accountId: offline.accountId, visit: accountEpoch() },
+                },
+              })
+            }
+          >
+            <Search size={16} strokeWidth={1.5} aria-hidden="true" />
+            {t('library.search.title')}
+          </Button>
+          <Button
+            variant="quiet"
+            className="self-start"
+            onClick={() => void navigate({ to: '/notes' })}
+          >
+            <Search size={16} strokeWidth={1.5} aria-hidden="true" />
+            {t('notes.find')}
+          </Button>
+        </div>
 
         {folder?.rev === 0 && (
           <p role="status" className="text-14 text-secondary">

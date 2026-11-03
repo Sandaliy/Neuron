@@ -262,6 +262,7 @@ the api anywhere in browser code would cost the session cookie.
 | `settings/offline-access.tsx`, `saved-work.tsx` | Offline & sync: one status, decisions only, what works offline; when work counts as settled     |
 | `settings/totp.tsx`                             | Enrollment in three steps that cannot be skipped, and removal                                   |
 | `library/library.tsx`                           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
+| `library/collection-search*.ts(x)`              | Collection name search, flat path index, measured results and history return                    |
 | `library/deck-dialogs.tsx`                      | Deck naming, safe move picker and inherited language/level settings                             |
 | `library/collection-picker.tsx`                 | Hierarchy-aware deck destination picker                                                         |
 | `library/collection-path.tsx`                   | Navigable folder/deck path chips on collection-scoped screens                                   |

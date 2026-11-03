@@ -21,6 +21,10 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
 - Library Find Notes searches across live Decks and names their locations. Search, filters, sort and
   list position survive a visit to the Note editor. Complete downloaded collections support local
   search, with the same query retained when the account reconnects.
+- Library Find Folders & Decks searches collection names at every depth, including collapsed Folders.
+  Results show kind and full location; opening a collection and returning keeps the query, measured
+  list position and keyboard focus. A complete download supports immediate offline search. Pending
+  creations keep their saved-on-device identity and cannot open dependencies before synchronization.
 - Deleted searches Note content and original locations or collection names and hierarchy. Recovery
   retains supporting ancestors, parent requirements and permanent-deletion confirmation. Large lists
   use measured virtual rows with keyboard and dialog continuity.
@@ -75,6 +79,7 @@ installed-iPhone acceptance.
    disclosures, Study start after a setup change, offline Practice on two devices, offline Import drafts).
    Include Deleted search, category choices, long-list scrolling, parent-dependent restore and purge
    confirmation. Include Find Notes filters, editor return, downloaded results and reconnection.
+   Include collection search with duplicate names, long paths, collection return and offline results.
 2. Rank order for waves. Waves follow file order today; a frequency list imported out of order would
    need waves by its rank column, which is a per-Deck choice for the owner.
 3. Phase 9 continues: progressive directions from demonstrated stability, then the problem-card area.
