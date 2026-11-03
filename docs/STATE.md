@@ -12,12 +12,15 @@ Phases 0 to 8.6, the 2026-10-30 quality pass, offline Practice, offline Import p
 Note and Folder/Deck creation, Phase 9.0 triage and Phase 9.1 learning waves are on protected `main`.
 Browser verification (#70) preserves literal focused filters and removes only the three duplicate
 desktop swipe executions. Deleted browsing (#75) adds search, sorting and bounded recovery windows.
-Find Notes (#76) remains outside this release because of the integrity blocker below. The product has:
+Find Notes (#76) adds account-wide Library search with live collection visibility. The product has:
 
 - Daily Study with deterministic time-based planning, explainable new-card admission, current-session
   Undo and durable answers that survive offline sittings, reload and lost responses.
 - Practice: configurable, schedule-free, persistent per Deck.
 - Writable Folders/Decks/Notes, import with resume and undo, soft deletion with Deleted/Restore.
+- Library Find Notes searches across live Decks and names their locations. Search, filters, sort and
+  list position survive a visit to the Note editor. Complete downloaded collections support local
+  search, with the same query retained when the account reconnects.
 - Deleted searches Note content and original locations or collection names and hierarchy. Recovery
   retains supporting ancestors, parent requirements and permanent-deletion confirmation. Large lists
   use measured virtual rows with keyboard and dialog continuity.
@@ -71,7 +74,7 @@ installed-iPhone acceptance.
    below, then the quality pass and earlier offline features (screen and card motion, folders and
    disclosures, Study start after a setup change, offline Practice on two devices, offline Import drafts).
    Include Deleted search, category choices, long-list scrolling, parent-dependent restore and purge
-   confirmation. Find Notes acceptance follows its API visibility correction and protected release.
+   confirmation. Include Find Notes filters, editor return, downloaded results and reconnection.
 2. Rank order for waves. Waves follow file order today; a frequency list imported out of order would
    need waves by its rank column, which is a per-Deck choice for the owner.
 3. Phase 9 continues: progressive directions from demonstrated stability, then the problem-card area.
@@ -94,11 +97,8 @@ installed-iPhone acceptance.
 
 ## Open threads
 
-- PR #76 is blocked: unscoped `/api/notes` reads can return a live Note under a soft-deleted Deck and
-  Folder because the live Deck condition is only applied with `deckId`. Downloaded browsing excludes
-  this ancestry. A real PostgreSQL regression is retained in #76; the API visibility correction needs
-  integrity review before merging. PR #71 User Data Export and PR #74 Large Import Hardening remain
-  outside this integration pass for separate critical review.
+- PR #71 User Data Export and PR #74 Large Import Hardening remain outside this integration pass for
+  separate critical review.
 - Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.
   Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue.
 - Local new-card admission offline is conservative over the last complete download and this device's

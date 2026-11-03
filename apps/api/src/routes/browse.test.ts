@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from '@neondatabase/serverless';
 
 import { RATING } from '@neuron/core';
 import { normaliseTerm } from '@neuron/shared';
@@ -233,6 +234,36 @@ describe.skipIf(!database)('browsing notes', () => {
 });
 
 describe.skipIf(!database)('account-wide Note browsing', () => {
+  it('checks live parent links even when a legacy Deck has an incomplete cached path', async () => {
+    if (!database) return;
+    const owner = 'browse-library-parent-links';
+    await createUser(database, owner);
+    const repo = repositoriesFor(database, owner);
+    const folder = await repo.decks.create({ name: 'Hidden folder', kind: 'folder' });
+    const deck = await repo.decks.create({ name: 'Legacy Deck', parentId: folder.id });
+    const note = await repo.notes.create({
+      deckId: deck.id,
+      noteType: 'basic',
+      fields: { front: 'Legacy marker', back: 'Retained for recovery' },
+    });
+    const pool = new Pool({ connectionString: database.ownerUrl });
+    try {
+      // Model a legacy live child below a deleted parent without trusting path.
+      await pool.query('update decks set deleted_at = now() where id = $1', [folder.id]);
+      await pool.query("update decks set path = '{}'::uuid[] where id = $1", [deck.id]);
+    } finally {
+      await pool.end();
+    }
+    const server = testServer(database, owner);
+    const page = await json<{ items: Note[] }>(
+      await server.request('/api/notes?search=Legacy%20marker'),
+      200,
+    );
+    expect(page.items).toEqual([]);
+    expect((await repo.notes.list({ deckId: deck.id, includeSubtree: false })).items).toEqual([]);
+    expect(await repo.notes.byId(note.id)).toBeDefined();
+  });
+
   it('retains filters across Decks and cursor pages without exposing deleted or foreign Notes', async () => {
     if (!database) return;
     const owner = 'browse-library-owner';
@@ -259,14 +290,18 @@ describe.skipIf(!database)('account-wide Note browsing', () => {
       { tags: ['other'] },
       { source: 'Another source' },
       { status: 'known' as const },
+      { fields: { term: 'Another word', translation: 'No match' } },
     ])
       await repo.notes.create({ ...input, deckId: left.id, rank: 0, ...excluded });
     const deleted = await repo.notes.create({ ...input, deckId: left.id, rank: 0 });
     await repo.notes.softDelete(deleted.id);
     const deletedFolder = await repo.decks.create({ name: 'Deleted', kind: 'folder' });
     const deletedDeck = await repo.decks.create({ name: 'Lesson', parentId: deletedFolder.id });
-    await repo.notes.create({ ...input, deckId: deletedDeck.id, rank: 0 });
+    const hidden = await repo.notes.create({ ...input, deckId: deletedDeck.id, rank: 0 });
     await repo.decks.softDelete(deletedFolder.id);
+    // Collection deletion retains the Note itself for recovery.
+    expect(await repo.notes.byId(hidden.id)).toBeDefined();
+    expect((await repo.decks.listDeleted()).map((deck) => deck.id)).toContain(deletedDeck.id);
     const foreignDeck = await foreign.decks.create({ name: 'Lesson' });
     await foreign.notes.create({ ...input, deckId: foreignDeck.id, rank: 0 });
 
@@ -291,7 +326,62 @@ describe.skipIf(!database)('account-wide Note browsing', () => {
     );
     expect(secondPage.items.map((note) => [note.id, note.deckId])).toEqual([[second.id, right.id]]);
     expect(secondPage.nextCursor).toBeUndefined();
+    for (const deckId of [deletedDeck.id, deletedFolder.id]) {
+      query.delete('cursor');
+      query.set('deckId', deckId);
+      const page = await json<{ items: Note[] }>(await server.request(`/api/notes?${query}`), 200);
+      expect(page.items).toEqual([]);
+      expect((await repo.notes.list({ deckId, includeSubtree: false })).items).toEqual([]);
+    }
   });
+
+  it.each(['created', 'alpha', 'rank'] as const)(
+    'pages tied %s keys by id and retains a soft-deleted cursor',
+    async (sort) => {
+      if (!database) return;
+      const owner = `browse-library-ties-${sort}`;
+      await createUser(database, owner);
+      const repo = repositoriesFor(database, owner);
+      const server = testServer(database, owner);
+      const left = await repo.decks.create({ name: 'Left' });
+      const right = await repo.decks.create({ name: 'Right' });
+      const ids = [1, 2, 3, 4, 5].map(
+        (value) =>
+          `01900000-0000-7000-8000-${sort === 'created' ? '1' : sort === 'alpha' ? '2' : '3'}${String(value).padStart(11, '0')}`,
+      );
+      const inserted = await repo.notes.createMany(
+        [...ids].reverse().map((id, index) => ({
+          id,
+          deckId: index % 2 ? left.id : right.id,
+          noteType: 'vocab' as const,
+          fields: { term: 'Same term', translation: 'Tied library marker' },
+          tags: ['ties'],
+          source: 'Tied search',
+          rank: ids.indexOf(id) < 3 ? 7 : null,
+        })),
+      );
+      expect(new Set(inserted.map((note) => note.createdAt.toISOString())).size).toBe(1);
+      const query = new URLSearchParams({
+        search: 'tied library marker',
+        tag: 'ties',
+        source: 'Tied search',
+        status: 'active',
+        sort,
+        limit: '1',
+      });
+      for (const [index, id] of ids.entries()) {
+        const page = await json<{ items: Note[]; nextCursor?: string }>(
+          await server.request(`/api/notes?${query}`),
+          200,
+        );
+        expect(page.items.map((note) => note.id)).toEqual([id]);
+        expect(page.nextCursor).toBe(index < ids.length - 1 ? id : undefined);
+        if (page.nextCursor) query.set('cursor', page.nextCursor);
+        // Recovery keeps the sort key available even after the cursor leaves browsing.
+        await repo.notes.softDelete(id!);
+      }
+    },
+  );
 });
 
 describe.skipIf(!database)('changing many notes at once', () => {
