@@ -410,14 +410,34 @@ test('Study rewinds a repeated learning card and keeps future planned work order
   );
   const answers: { id: string; cardId: string }[] = [];
   const cancellations: string[] = [];
-  await page.route('**/api/reviews', (route) => {
-    const answer = route.request().postDataJSON();
-    answers.push(answer);
+  const batches: string[][] = [];
+  let releaseFirst!: () => void;
+  const held = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  const acknowledge = (answer: { id: string; cardId: string }) => {
+    const existing = answers.find((entry) => entry.id === answer.id);
+    if (existing) expect(answer).toEqual(existing);
+    else answers.push(answer);
+    return {
+      id: answer.id,
+      cardId: answer.cardId,
+      applied: true,
+      resync: false,
+      clamped: false,
+      card: cards.find((card) => card.id === answer.cardId),
+    };
+  };
+  await page.route('**/api/reviews', async (route) => {
+    const acknowledgement = acknowledge(route.request().postDataJSON());
+    if (answers.length === 1) await held;
+    return route.fulfill({ json: acknowledgement });
+  });
+  await page.route('**/api/reviews/batch', (route) => {
+    const body = route.request().postDataJSON() as { reviews: typeof answers };
+    batches.push(body.reviews.map((answer) => answer.id));
     return route.fulfill({
-      json: {
-        ...reviewAcknowledgement(route),
-        card: cards.find((card) => card.id === answer.cardId),
-      },
+      json: { results: body.reviews.map(acknowledge), skipped: [], revision: 1 },
     });
   });
   await page.route('**/api/reviews/undo', (route) => {
@@ -438,12 +458,16 @@ test('Study rewinds a repeated learning card and keeps future planned work order
   await page.getByRole('button', { name: 'Show answer' }).click();
   await page.getByRole('button', { name: /^Again / }).click();
   await expect(page.getByText('Question 2', { exact: true })).toBeVisible();
+  await expect.poll(() => answers.length).toBe(1);
+  // Advancing past the learning step also expires the held HTTP request. Its
+  // exact retry can join later answers in a batch before any Undo is delivered.
   await page.clock.fastForward(2 * 60_000);
   await page.getByRole('button', { name: 'Show answer' }).click();
   await page.getByRole('button', { name: /^Good / }).click();
   await expect(page.getByText('Question 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Show answer' }).click();
   await page.getByRole('button', { name: /^Good / }).click();
+  releaseFirst();
   await page.getByRole('button', { name: 'Undo last answer' }).click();
   await expect(page.getByText('Question 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Undo last answer' }).click();
@@ -462,21 +486,27 @@ test('Study rewinds a repeated learning card and keeps future planned work order
         (await storedStudyEvents(page)).filter((entry) => entry.event.type === 'answer').length,
     )
     .toBe(4);
+  // Local acceptance advances the sitting before its causal delivery reaches HTTP.
+  const storedAnswers = (await storedStudyEvents(page)).flatMap((entry) =>
+    entry.event.type === 'answer' ? [entry.event.payload] : [],
+  );
+  await expect
+    .poll(() => answers.map((answer) => answer.id))
+    .toEqual(storedAnswers.map((a) => a.id));
   await expect
     .poll(() => cancellations)
     .toEqual(
-      answers
+      storedAnswers
         .slice(0, 3)
         .reverse()
         .map((answer) => answer.id),
     );
-  // Local acceptance advances the sitting before its causal delivery reaches HTTP.
-  await expect.poll(() => answers.length).toBe(4);
   await expect
     .poll(async () => (await storedStudyEvents(page)).map((entry) => entry.state))
     .toEqual(Array(7).fill('synchronized'));
   expect(answers[0]!.cardId).toBe(answers[2]!.cardId);
   expect(answers[3]!.id).not.toBe(answers[0]!.id);
+  expect(batches.some((batch) => batch.length > 1)).toBe(true);
 });
 
 test('Study passes over a Card its Note no longer produces without answering it', async ({
