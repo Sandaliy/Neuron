@@ -306,6 +306,8 @@ test('Find Notes searches a downloaded 6000-Note library offline without repeate
   await search.press('Enter');
   await page.getByRole('button', { name: /^Filters/ }).click();
   await page.getByRole('combobox', { name: 'Tag or topic', exact: true }).fill('cached');
+  // Commit the filters before paging; a later debounce would reset these pages.
+  await search.press('Enter');
   await expect(search).not.toHaveAttribute('aria-busy', 'true');
   for (let pageNumber = 1; pageNumber < 6; pageNumber++) {
     await page.evaluate(() =>
