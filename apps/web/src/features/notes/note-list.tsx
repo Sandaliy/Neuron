@@ -252,6 +252,15 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         )}
       </CollectionHeader>
       {deckId && (
+        <Button
+          variant="text"
+          className="self-start"
+          onClick={() => void navigate({ to: '/library/duplicates', search: { deckId } })}
+        >
+          {t('duplicates.title')}
+        </Button>
+      )}
+      {deckId && (
         <PracticeEntry
           deckId={deckId}
           onOpen={(entry) => {

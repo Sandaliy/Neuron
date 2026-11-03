@@ -102,6 +102,10 @@ installed-iPhone acceptance.
 
 ## Open threads
 
+- Possible duplicates is implemented on `work/possible-duplicate-notes` for independent review, not
+  released. Exact normalized-term groups support bounded server reads and complete downloaded
+  inspection. See `possible-duplicates.md` for contracts, evidence and physical-iPhone acceptance.
+  Preserve both Library entries and editor return behaviors when integrating Tags & Sources (#79).
 - PR #71 User Data Export and PR #74 Large Import Hardening remain outside this integration pass for
   separate critical review.
 - Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.

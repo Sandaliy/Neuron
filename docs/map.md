@@ -184,22 +184,23 @@ the checks that prove isolation works.
 The only way into the database. No exported function takes a bare handle, no method takes a user id.
 The user is supplied once when the set is built. Do not write ad hoc queries in route handlers.
 
-| File                    | Holds                                                                                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `index.ts`              | `createRepositories(db, userId)`, the `Repositories` interface, `transaction`                             |
-| `session.ts`            | `nameUser`, `transactionRunner`, `nextRev`. Names the user on the transaction so the policies can compare |
-| `decks.ts`              | Deck tree operations, reorder, restore, `DeckCycle` and `DeckNotFound`                                    |
-| `collection-renames.ts` | Entity-revision rename commands, account write lock and immutable exact-delivery receipts                 |
-| `notes.ts`              | Note create/edit, browse, duplicates, bulk actions, moves and restore, `UnknownNoteType`                  |
-| `collection-notes.ts`   | Note content commands and device-created Notes: immutable retries, safe Card reconciliation               |
-| `note-types.ts`         | The built in types, and turning a type id into the name the wire carries                                  |
-| `cards.ts`              | Card reads including the due query, the per deck counts, suspend, reset                                   |
-| `reviews.ts`            | Recording a review, idempotent by id, and reading a log that respects a reset                             |
-| `study.ts`              | Presets, retry-safe import batches, summaries and batch undo                                              |
-| `triage.ts`             | Triage list under a Folder or Deck, and decisions applied under the write lock, never on studied Notes    |
-| `sync.ts`               | The revision stream out, and the merge coming in                                                          |
-| `account.ts`            | The user's own row: preferences, and soft deleting a collection                                           |
-| `mapping.ts`            | Converts between database rows and `packages/core` types (`toReviewLog`, rating words)                    |
+| File                     | Holds                                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `index.ts`               | `createRepositories(db, userId)`, the `Repositories` interface, `transaction`                             |
+| `session.ts`             | `nameUser`, `transactionRunner`, `nextRev`. Names the user on the transaction so the policies can compare |
+| `decks.ts`               | Deck tree operations, reorder, restore, `DeckCycle` and `DeckNotFound`                                    |
+| `collection-renames.ts`  | Entity-revision rename commands, account write lock and immutable exact-delivery receipts                 |
+| `notes.ts`               | Note create/edit, browse, duplicates, bulk actions, moves and restore, `UnknownNoteType`                  |
+| `possible-duplicates.ts` | Read-only normalized-term groups and member pages over live account-owned collection ancestry             |
+| `collection-notes.ts`    | Note content commands and device-created Notes: immutable retries, safe Card reconciliation               |
+| `note-types.ts`          | The built in types, and turning a type id into the name the wire carries                                  |
+| `cards.ts`               | Card reads including the due query, the per deck counts, suspend, reset                                   |
+| `reviews.ts`             | Recording a review, idempotent by id, and reading a log that respects a reset                             |
+| `study.ts`               | Presets, retry-safe import batches, summaries and batch undo                                              |
+| `triage.ts`              | Triage list under a Folder or Deck, and decisions applied under the write lock, never on studied Notes    |
+| `sync.ts`                | The revision stream out, and the merge coming in                                                          |
+| `account.ts`             | The user's own row: preferences, and soft deleting a collection                                           |
+| `mapping.ts`             | Converts between database rows and `packages/core` types (`toReviewLog`, rating words)                    |
 
 ### Database plumbing (`src/db/`)
 
@@ -270,6 +271,7 @@ the api anywhere in browser code would cost the session cookie.
 | `today/study.tsx`                               | Local Daily Study reveal/advance, interval previews, verified answers, Undo, and completion     |
 | `today/practice.tsx`                            | Schedule-free configurable field practice with repeated learning rounds                         |
 | `notes/note-list.tsx`                           | Virtualized note browse, search, filters, sorts and selection                                   |
+| `notes/possible-duplicates.tsx`                 | Scoped duplicate inspection, account-visit return state and measured virtual rows               |
 | `notes/note-editor.tsx`                         | Online creation, durable existing-Note content autosave and Card preview                        |
 | `notes/note-field.tsx`, `notes/note-header.tsx` | Shared field labels/value presentation and Note header/breadcrumbs for editing and reading      |
 | `notes/read-only-note.tsx`                      | Conditional read-only field/header composition                                                  |
@@ -319,6 +321,7 @@ every one of these in every state.
 | `lib/account.ts`                                  | Who is signed in. One query, and the session check for the whole app                              |
 | `lib/decks.ts`                                    | The tree in one request, and adding up the roots                                                  |
 | `lib/notes.ts`                                    | Note queries, writes, bulk actions and batched duplicate lookup                                   |
+| `lib/possible-duplicates.ts`                      | Bounded duplicate reads and conservative complete-download term index                             |
 | `lib/study-plan.ts`                               | Early authoritative default plan and account/revision/time compatibility for reuse                |
 | `lib/prompt.ts`                                   | Build-time import of `docs/card-generation-prompt.md`                                             |
 | `lib/dialog-state.ts`                             | Resets dialog-local state whenever the dialog opens                                               |
@@ -370,20 +373,21 @@ every one of these in every state.
 
 ## Documentation
 
-| File                              | Holds                                                                                     |
-| --------------------------------- | ----------------------------------------------------------------------------------------- |
-| `docs/STATE.md`                   | Current phase, open threads, decision log. Read this first                                |
-| `docs/ROADMAP.md`                 | Product direction, committed milestone order, backlog and maintenance policy              |
-| `docs/architecture.md`            | Why the structure is what it is, and the known limitations                                |
-| `docs/algorithm.md`               | FSRS and the workload manager explained in full, with the simulator results               |
-| `docs/design-system.md`           | The visual system: tokens, inventory, motion, glass, the words, the checklist             |
-| `docs/card-generation-prompt.md`  | Canonical prompt and import output contract used by the web build                         |
-| `docs/design-principles.md`       | A pointer to the file above. The phase 5 values in it are all wrong now                   |
-| `docs/copy-audit.md`              | Every interface string in both languages, and what looks wrong with it                    |
-| `docs/offline-collection.md`      | Local-first reads, durable renames/Note edits, account/shell boundaries and safe recovery |
-| `docs/offline-study.md`           | Admitted offline Study, durable Review/Undo guarantees, recovery and physical acceptance  |
-| `docs/interaction-performance.md` | Stabilization diagnosis, matched browser measurements and device acceptance limits        |
-| `docs/assets/*.svg`               | Charts produced by `sim/main.ts`                                                          |
+| File                              | Holds                                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `docs/STATE.md`                   | Current phase, open threads, decision log. Read this first                                 |
+| `docs/ROADMAP.md`                 | Product direction, committed milestone order, backlog and maintenance policy               |
+| `docs/architecture.md`            | Why the structure is what it is, and the known limitations                                 |
+| `docs/algorithm.md`               | FSRS and the workload manager explained in full, with the simulator results                |
+| `docs/design-system.md`           | The visual system: tokens, inventory, motion, glass, the words, the checklist              |
+| `docs/card-generation-prompt.md`  | Canonical prompt and import output contract used by the web build                          |
+| `docs/design-principles.md`       | A pointer to the file above. The phase 5 values in it are all wrong now                    |
+| `docs/copy-audit.md`              | Every interface string in both languages, and what looks wrong with it                     |
+| `docs/offline-collection.md`      | Local-first reads, durable renames/Note edits, account/shell boundaries and safe recovery  |
+| `docs/possible-duplicates.md`     | Read-only duplicate equality, visibility, pagination, downloaded provenance and acceptance |
+| `docs/offline-study.md`           | Admitted offline Study, durable Review/Undo guarantees, recovery and physical acceptance   |
+| `docs/interaction-performance.md` | Stabilization diagnosis, matched browser measurements and device acceptance limits         |
+| `docs/assets/*.svg`               | Charts produced by `sim/main.ts`                                                           |
 
 Collection recovery additions: `apps/api/src/db/repositories/purge.ts` owns irreversible deletion and
 server impact counts; `restoration.ts` owns operation-scoped subtree restoration. In the web Library,

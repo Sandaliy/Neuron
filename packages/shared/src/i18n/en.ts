@@ -778,6 +778,23 @@ export const en = {
   'card.direction.listening': 'Listen and say',
 
   'notes.title': 'Notes',
+  'duplicates.title': 'Possible duplicates',
+  'duplicates.groups': 'All groups',
+  'duplicates.hint':
+    'Matching terms may have different meanings, uses or sources. Inspect each Note before deciding what to change in its editor. Nothing is combined or classified here.',
+  'duplicates.scope': 'Collection scope',
+  'duplicates.library': 'Whole Library',
+  'duplicates.search': 'Search duplicate groups',
+  'duplicates.count': '{count} Notes with this term',
+  'duplicates.noSource': 'No source recorded',
+  'duplicates.downloaded':
+    'Complete downloaded collection, including saved local changes and Notes awaiting synchronization. Other devices may have newer changes.',
+  'duplicates.online':
+    'Server results. Notes and edits awaiting synchronization may appear after they are delivered.',
+  'duplicates.empty': 'No matching groups',
+  'duplicates.emptyHint':
+    'Only terms shared by at least two available Notes in this scope appear. Case and whitespace are normalized; accents are preserved. Only the first 200 characters are compared.',
+  'duplicates.more': 'Load more',
   'notes.find': 'Find Notes',
   'notes.findHint': 'Search across all Folders and Decks.',
   'notes.locationUnavailable': 'Deck location unavailable',
