@@ -286,30 +286,47 @@ describe.skipIf(!database)('account-wide Note browsing', () => {
     };
     const first = await repo.notes.create({ ...input, deckId: left.id, rank: 1 });
     const second = await repo.notes.create({ ...input, deckId: right.id, rank: 2 });
+    const cardFor = (noteId: string) =>
+      repo.cards.create({ noteId, direction: 'recognition', due: new Date() });
+    await cardFor(first.id);
+    await cardFor(second.id);
+    await repo.cards.create({ noteId: first.id, direction: 'recall', due: new Date() });
     for (const excluded of [
       { tags: ['other'] },
       { source: 'Another source' },
       { status: 'known' as const },
       { fields: { term: 'Another word', translation: 'No match' } },
-    ])
-      await repo.notes.create({ ...input, deckId: left.id, rank: 0, ...excluded });
+    ]) {
+      const note = await repo.notes.create({ ...input, deckId: left.id, rank: 0, ...excluded });
+      await cardFor(note.id);
+    }
+    // A matching Note without a new Card must not enter a card-state search.
+    await repo.notes.create({ ...input, deckId: left.id, rank: 0 });
     const deleted = await repo.notes.create({ ...input, deckId: left.id, rank: 0 });
+    await cardFor(deleted.id);
     await repo.notes.softDelete(deleted.id);
     const deletedFolder = await repo.decks.create({ name: 'Deleted', kind: 'folder' });
     const deletedDeck = await repo.decks.create({ name: 'Lesson', parentId: deletedFolder.id });
     const hidden = await repo.notes.create({ ...input, deckId: deletedDeck.id, rank: 0 });
+    await cardFor(hidden.id);
     await repo.decks.softDelete(deletedFolder.id);
     // Collection deletion retains the Note itself for recovery.
     expect(await repo.notes.byId(hidden.id)).toBeDefined();
     expect((await repo.decks.listDeleted()).map((deck) => deck.id)).toContain(deletedDeck.id);
     const foreignDeck = await foreign.decks.create({ name: 'Lesson' });
-    await foreign.notes.create({ ...input, deckId: foreignDeck.id, rank: 0 });
+    const foreignNote = await foreign.notes.create({ ...input, deckId: foreignDeck.id, rank: 0 });
+    await foreign.cards.create({
+      noteId: foreignNote.id,
+      direction: 'recognition',
+      due: new Date(),
+    });
 
     const query = new URLSearchParams({
       search: 'library marker',
       tag: 'shared',
       source: 'Library search',
       status: 'active',
+      cardState: 'new',
       sort: 'rank',
       limit: '1',
     });
@@ -333,6 +350,13 @@ describe.skipIf(!database)('account-wide Note browsing', () => {
       expect(page.items).toEqual([]);
       expect((await repo.notes.list({ deckId, includeSubtree: false })).items).toEqual([]);
     }
+    await repo.decks.restore(deletedFolder.id);
+    query.delete('deckId');
+    const restored = await json<{ items: Note[] }>(
+      await server.request(`/api/notes?${query}`),
+      200,
+    );
+    expect(restored.items.map((note) => note.id)).toEqual([hidden.id]);
   });
 
   it.each(['created', 'alpha', 'rank'] as const)(
