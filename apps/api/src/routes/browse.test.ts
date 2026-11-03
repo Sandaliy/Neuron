@@ -1,5 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from '@neondatabase/serverless';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { RATING } from '@neuron/core';
 import { normaliseTerm } from '@neuron/shared';
