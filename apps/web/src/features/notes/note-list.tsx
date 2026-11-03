@@ -10,10 +10,10 @@ import type { MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
 import { useCapabilities } from '../../lib/capabilities';
-import { findDeck, useDeckTree } from '../../lib/decks';
+import { findDeck, flatten, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
 import { noteListQuery, useNoteActions } from '../../lib/notes';
-import { useOffline } from '../../lib/offline';
+import { accountEpoch, useOffline } from '../../lib/offline';
 import { useReturnScroll } from '../../lib/return-scroll';
 import { Button } from '../../ui/button';
 import { Chip } from '../../ui/chip';
@@ -30,6 +30,7 @@ import { CollectionPath } from '../library/collection-path';
 import { DeckPractice } from '../today/practice';
 
 import { LearningWave } from './learning-wave';
+import { useNoteBrowse } from './note-browse';
 import { NoteProgressSummary } from './note-progress';
 import { NoteSelectionBar } from './note-selection';
 import { PracticeEntry } from './practice-entry';
@@ -50,9 +51,8 @@ const ROW_HEIGHT = 52;
  * scrollbar is the right length because the container is given the full height
  * in pixels. The measurement is in `tests/performance.spec.ts`.
  *
- * Searching and filtering happen on the server, because the client does not
- * hold the whole collection and will not until sync lands in phase 8. The
- * search is sent a beat after the typing stops rather than on every keystroke.
+ * Online search retains server pagination; a complete download uses the same
+ * browse query locally. Text filters run a beat after typing stops.
  */
 export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const learning = useLearningNavigation('practice');
@@ -82,16 +82,19 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const navigate = useNavigate();
   const decks = useDeckTree();
 
-  const [search, setSearch] = useState('');
-  const [typed, setTyped] = useState('');
-  const [sort, setSort] = useState<NoteSort>('created');
-  const [status, setStatus] = useState<NoteStatus | ''>('');
-  const [cardState, setCardState] = useState('');
-  const [tag, setTag] = useState('');
-  const [tagFilter, setTagFilter] = useState('');
-  const [source, setSource] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('');
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const { state, update } = useNoteBrowse(deckId);
+  const {
+    search,
+    typed,
+    sort,
+    status,
+    cardState,
+    tag,
+    tagFilter,
+    source,
+    sourceFilter,
+    filtersOpen,
+  } = state;
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
@@ -99,13 +102,11 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   // request per letter over a table scan.
   useEffect(() => {
     const timer = setTimeout(() => {
-      setSearch(typed);
-      setTagFilter(tag.trim());
-      setSourceFilter(source.trim());
+      update({ search: typed.trim(), tagFilter: tag.trim(), sourceFilter: source.trim() });
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [typed, source, tag]);
+  }, [typed, source, tag, update]);
 
   const query: NoteQuery = {
     ...(deckId === undefined ? {} : { deckId }),
@@ -120,6 +121,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const notes = useInfiniteQuery({
     ...noteListQuery(query),
     placeholderData: keepPreviousData,
+    gcTime: 30 * 60_000,
   });
   const capability = useCapabilities(
     !decks.local &&
@@ -145,6 +147,26 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
     [unavailable, notes.data],
   );
   const deck = deckId === undefined ? undefined : findDeck(decks.data ?? [], deckId);
+  // Build once per tree, never flatten the hierarchy for each virtual row.
+  const locations = useMemo(() => {
+    if (deckId !== undefined) return undefined;
+    const all = flatten(decks.data ?? []);
+    const names = new Map(all.map((item) => [item.id, item.name]));
+    return new Map(
+      all.map((item) => [
+        item.id,
+        [
+          item.name,
+          item.path
+            .map((id) => names.get(id))
+            .filter(Boolean)
+            .join(' / '),
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      ]),
+    );
+  }, [deckId, decks.data]);
   const filtered =
     search !== '' || status !== '' || cardState !== '' || tagFilter !== '' || sourceFilter !== '';
 
@@ -152,14 +174,16 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const tags = useMemo(() => [...new Set(rows.flatMap((note) => note.tags))].sort(), [rows]);
 
   function clearFilters() {
-    setTyped('');
-    setSearch('');
-    setStatus('');
-    setCardState('');
-    setTag('');
-    setTagFilter('');
-    setSource('');
-    setSourceFilter('');
+    update({
+      typed: '',
+      search: '',
+      status: '',
+      cardState: '',
+      tag: '',
+      tagFilter: '',
+      source: '',
+      sourceFilter: '',
+    });
   }
 
   function toggle(id: string) {
@@ -183,7 +207,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
     <section data-screen="" className="flex flex-col gap-16">
       <CollectionHeader
         readOnly={offline.offline}
-        title={deck?.name ?? t('notes.title')}
+        title={deck?.name ?? t(deckId === undefined ? 'notes.find' : 'notes.title')}
         path={<CollectionPath tree={decks.data ?? []} id={deckId ?? ''} trail />}
         actions={
           <>
@@ -209,6 +233,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           </>
         }
       >
+        {deckId === undefined && <p className="text-14 text-secondary">{t('notes.findHint')}</p>}
         {deck && (
           <div className="flex min-h-44 items-center">
             <ReadOnlySlot readOnly={false} inline>
@@ -240,23 +265,43 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       )}
       {deckId && <LearningWave deckId={deckId} />}
 
-      {!unavailable && (rows.length > 0 || filtered || typed !== '') && !selecting ? (
+      {(deckId === undefined || (!unavailable && (rows.length > 0 || filtered || typed !== ''))) &&
+      !selecting ? (
         <div className="flex flex-col gap-12">
           <div className="relative">
             <Search
               aria-hidden="true"
               size={16}
-              className="pointer-events-none absolute left-12 top-16 text-secondary"
+              className="pointer-events-none absolute left-12 top-16 z-10 text-secondary"
             />
             <Input
               className="pl-40"
               type="search"
-              busy={notes.isFetching || typed !== search || source.trim() !== sourceFilter}
+              busy={
+                notes.isFetching ||
+                typed.trim() !== search ||
+                source.trim() !== sourceFilter ||
+                tag.trim() !== tagFilter
+              }
               value={typed}
               aria-label={t('notes.search')}
               placeholder={t('notes.searchPlaceholder')}
               enterKeyHint="search"
-              onChange={(event) => setTyped(event.target.value)}
+              maxLength={100}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                  update({
+                    search: typed.trim(),
+                    tagFilter: tag.trim(),
+                    sourceFilter: source.trim(),
+                  });
+                  event.currentTarget.blur();
+                }
+              }}
+              onChange={(event) => update({ typed: event.target.value })}
             />
           </div>
           <div className="flex flex-wrap items-center gap-8">
@@ -264,7 +309,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
               <Select
                 value={sort}
                 aria-label={t('notes.sort')}
-                onChange={(event) => setSort(event.target.value as NoteSort)}
+                onChange={(event) => update({ sort: event.target.value as NoteSort })}
               >
                 {NOTE_SORTS.map((option) => (
                   <option key={option} value={option}>
@@ -276,7 +321,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
             <Button
               variant="quiet"
               aria-expanded={filtersOpen}
-              onClick={() => setFiltersOpen(!filtersOpen)}
+              onClick={() => update({ filtersOpen: !filtersOpen })}
             >
               {t('notes.filters')}
               {filtered ? ' ·' : ''}
@@ -302,7 +347,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
                 <Select
                   value={status}
                   aria-label={t('notes.filterStatus')}
-                  onChange={(event) => setStatus(event.target.value as NoteStatus | '')}
+                  onChange={(event) => update({ status: event.target.value as NoteStatus | '' })}
                 >
                   <option value="">{t('notes.filterStatus')}</option>
                   {NOTE_STATUSES.map((option) => (
@@ -314,7 +359,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
                 <Select
                   value={cardState}
                   aria-label={t('notes.filterCardState')}
-                  onChange={(event) => setCardState(event.target.value)}
+                  onChange={(event) => update({ cardState: event.target.value })}
                 >
                   <option value="">{t('notes.filterCardState')}</option>
                   {(['new', 'learning', 'review', 'relearning'] as const).map((option) => (
@@ -330,7 +375,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
                   list="note-tags"
                   aria-label={t('notes.filterTag')}
                   placeholder={t('notes.filterTag')}
-                  onChange={(event) => setTag(event.target.value)}
+                  maxLength={60}
+                  onChange={(event) => update({ tag: event.target.value })}
                 />
                 <datalist id="note-tags">
                   {tags.map((option) => (
@@ -341,7 +387,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
                   value={source}
                   aria-label={t('notes.filterSource')}
                   placeholder={t('notes.filterSource')}
-                  onChange={(event) => setSource(event.target.value)}
+                  maxLength={200}
+                  onChange={(event) => update({ source: event.target.value })}
                 />
               </div>
             </div>
@@ -352,13 +399,21 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
             </Button>
           )}
           <p role="status" className="sr-only">
-            {notes.isFetching || typed !== search || source.trim() !== sourceFilter
+            {notes.isFetching ||
+            typed.trim() !== search ||
+            source.trim() !== sourceFilter ||
+            tag.trim() !== tagFilter
               ? t('notes.updating')
               : ''}
           </p>
         </div>
       ) : undefined}
 
+      {deckId === undefined && !unavailable && notes.data?.pages.some((page) => page.local) && (
+        <p role="status" className="text-13 text-secondary">
+          {t('notes.downloadedResults')}
+        </p>
+      )}
       {unavailable && (
         <p role="status" className="text-14 text-secondary">
           {t('offline.incomplete')}
@@ -438,6 +493,7 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         <VirtualNotes
           key={deckId ?? 'all'}
           rows={rows}
+          locations={locations}
           unsent={unsent}
           onRemove={removeNote}
           selecting={selecting}
@@ -445,7 +501,19 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           layoutKey={`${selecting}:${filtersOpen}:${filtered}`}
           selected={selected}
           onToggle={toggle}
-          onOpen={(id) => void navigate({ to: '/notes/$noteId', params: { noteId: id } })}
+          onOpen={(id) =>
+            void navigate({
+              to: '/notes/$noteId',
+              params: { noteId: id },
+              ...(deckId === undefined
+                ? {
+                    state: {
+                      noteSearchOrigin: { accountId: offline.accountId, visit: accountEpoch() },
+                    },
+                  }
+                : {}),
+            })
+          }
           hasMore={notes.hasNextPage}
           onNeedMore={() => {
             if (notes.hasNextPage && !notes.isFetching) {
@@ -469,6 +537,7 @@ function VirtualNotes({
   readOnly,
   unsent,
   rows,
+  locations,
   selecting,
   layoutKey,
   selected,
@@ -481,6 +550,7 @@ function VirtualNotes({
   readonly readOnly: boolean;
   readonly unsent: ReadonlySet<string>;
   readonly rows: readonly Note[];
+  readonly locations: ReadonlyMap<string, string> | undefined;
   readonly selecting: boolean;
   readonly selected: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
@@ -513,7 +583,7 @@ function VirtualNotes({
 
   const virtual = useWindowVirtualizer({
     count: rows.length,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => ROW_HEIGHT + (locations ? 24 : 0),
     overscan: 8,
     scrollMargin: offset,
   });
@@ -552,6 +622,7 @@ function VirtualNotes({
             >
               <NoteRow
                 note={note}
+                location={locations ? (locations.get(note.deckId) ?? '') : undefined}
                 readOnly={readOnly || unsent.has(note.id)}
                 unsent={unsent.has(note.id)}
                 selecting={selecting}
@@ -575,6 +646,7 @@ const NoteRow = memo(function NoteRow({
   readOnly,
   unsent,
   note,
+  location,
   selecting,
   selected,
   onToggle,
@@ -586,6 +658,7 @@ const NoteRow = memo(function NoteRow({
   readonly readOnly: boolean;
   readonly unsent: boolean;
   readonly note: Note;
+  readonly location: string | undefined;
   readonly selecting: boolean;
   readonly selected: boolean;
   readonly onToggle: (id: string) => void;
@@ -602,73 +675,86 @@ const NoteRow = memo(function NoteRow({
       : typeof note.fields['back'] === 'string'
         ? note.fields['back']
         : note.tags.join(', ');
+  const path = location === '' ? t('notes.locationUnavailable') : location;
   return (
-    <SwipeDelete
-      label={t('note.delete')}
-      disabled={selecting || readOnly}
-      open={revealed}
-      onOpen={(open) => onReveal(open ? note.id : null)}
-      onDelete={() => {
-        onReveal(null);
-        return onRemove(note.id);
-      }}
-    >
-      <DenseRow
-        selected={selecting ? selected : undefined}
-        word={termOf(note.fields)}
-        meaning={meaning}
-        onClick={() =>
-          revealed
-            ? onReveal(null)
-            : selecting
-              ? unsent
-                ? toast.show(t('offline.serverRequired'))
-                : onToggle(note.id)
-              : onOpen(note.id)
-        }
-        trailing={
-          <>
-            {unsent ? (
-              <span className="shrink-0 text-12 text-secondary">{t('offline.note.saved')}</span>
-            ) : note.status !== 'active' ? (
-              <Chip tone="new">{t(`note.status.${note.status}`)}</Chip>
-            ) : (
-              <NoteProgressSummary counts={note.cardStates} />
-            )}
-            {selecting && (
-              <span
-                aria-hidden="true"
-                data-selected={selected ? '' : undefined}
-                className={[
-                  'flex size-20 shrink-0 items-center justify-center rounded-8 border',
-                  selected ? 'border-accent bg-fill-accent' : 'border-default',
-                ].join(' ')}
-              />
-            )}
-          </>
-        }
-      />
-      {!selecting && (
-        <button
-          type="button"
-          aria-label={t('note.delete')}
-          data-direct-delete=""
-          aria-disabled={readOnly || undefined}
-          style={{ visibility: revealed ? 'hidden' : undefined }}
-          title={t('note.delete')}
-          className="flex size-44 shrink-0 items-center justify-center self-center rounded-12 text-tertiary hover:text-error active:bg-fill-error-quiet active:scale-95"
-          onClick={() => {
-            if (readOnly) {
-              toast.show(t('offline.serverRequired'));
-              return;
-            }
-            onReveal(null);
-            onRemove(note.id);
-          }}
-        >
-          <Trash2 size={16} aria-hidden="true" />
-        </button>
+    <>
+      <SwipeDelete
+        label={t('note.delete')}
+        disabled={selecting || readOnly}
+        open={revealed}
+        onOpen={(open) => onReveal(open ? note.id : null)}
+        onDelete={() => {
+          onReveal(null);
+          return onRemove(note.id);
+        }}
+      >
+        <DenseRow
+          selected={selecting ? selected : undefined}
+          word={termOf(note.fields)}
+          meaning={
+            <>
+              {meaning}
+              {path !== undefined && <span className="sr-only"> · {path}</span>}
+            </>
+          }
+          onClick={() =>
+            revealed
+              ? onReveal(null)
+              : selecting
+                ? unsent
+                  ? toast.show(t('offline.serverRequired'))
+                  : onToggle(note.id)
+                : onOpen(note.id)
+          }
+          trailing={
+            <>
+              {unsent ? (
+                <span className="shrink-0 text-12 text-secondary">{t('offline.note.saved')}</span>
+              ) : note.status !== 'active' ? (
+                <Chip tone="new">{t(`note.status.${note.status}`)}</Chip>
+              ) : (
+                <NoteProgressSummary counts={note.cardStates} />
+              )}
+              {selecting && (
+                <span
+                  aria-hidden="true"
+                  data-selected={selected ? '' : undefined}
+                  className={[
+                    'flex size-20 shrink-0 items-center justify-center rounded-8 border',
+                    selected ? 'border-accent bg-fill-accent' : 'border-default',
+                  ].join(' ')}
+                />
+              )}
+            </>
+          }
+        />
+        {!selecting && (
+          <button
+            type="button"
+            aria-label={t('note.delete')}
+            data-direct-delete=""
+            aria-disabled={readOnly || undefined}
+            style={{ visibility: revealed ? 'hidden' : undefined }}
+            title={t('note.delete')}
+            className="flex size-44 shrink-0 items-center justify-center self-center rounded-12 text-tertiary hover:text-error active:bg-fill-error-quiet active:scale-95"
+            onClick={() => {
+              if (readOnly) {
+                toast.show(t('offline.serverRequired'));
+                return;
+              }
+              onReveal(null);
+              onRemove(note.id);
+            }}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+          </button>
+        )}
+      </SwipeDelete>
+      {path !== undefined && (
+        <p aria-hidden="true" title={path} className="h-24 truncate px-16 text-12 text-secondary">
+          {path}
+        </p>
       )}
-    </SwipeDelete>
+    </>
   );
 });

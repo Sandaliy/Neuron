@@ -765,6 +765,10 @@ export const en = {
   'card.direction.listening': 'Listen and say',
 
   'notes.title': 'Notes',
+  'notes.find': 'Find Notes',
+  'notes.findHint': 'Search across all Folders and Decks.',
+  'notes.locationUnavailable': 'Deck location unavailable',
+  'notes.downloadedResults': 'Results from this device’s download. Connect to check for changes.',
   'notes.allDecks': 'Every deck',
   'notes.count': 'Notes: {count}',
   'notes.countMore': 'Notes: {count} and more',

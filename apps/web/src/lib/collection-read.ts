@@ -14,7 +14,6 @@ import { creationNote, unsentCreation, validateNoteCreations } from './note-crea
 import { noteEditOverlay, validateNoteEdits } from './note-outbox';
 import { accountEpoch, offlineReadFailed, offlineState } from './offline';
 
-import type { CollectionRow } from './collection-db';
 import type { PendingNoteCreate } from './note-creation';
 import type { PendingNoteEdit } from './note-outbox';
 import type { NoteQuery } from './notes';
@@ -30,11 +29,15 @@ type Collection = {
   /** Saved on this device and not yet acknowledged: no Cards and no learning. */
   unsent: Set<string>;
   liveDecks: Set<string>;
+  /** One bounded browse result; cursor pages reuse its filtering and ordering. */
+  browse?: { key: string; items: Note[] } | undefined;
+  searchText: WeakMap<Note, string>;
+  browseVersion: number;
 };
 /** Validation stays on the read boundary, but large snapshots must yield to input and paint. */
-async function projectRows<T>(
-  rows: CollectionRow[],
-  project: (row: CollectionRow) => T | undefined,
+async function projectRows<Row, T>(
+  rows: Row[],
+  project: (row: Row) => T | undefined,
 ): Promise<T[]> {
   const values: T[] = [];
   let started = performance.now();
@@ -74,6 +77,8 @@ export function projectCollectionCreation(
   if (!cached || cached.accountId !== accountId || cached.version !== version - 1) return;
   cached.version = version;
   cached.value = cached.value.then((rows) => {
+    rows.browse = undefined;
+    rows.browseVersion++;
     const id = entry.entityId;
     if (rows.pulled.has(id)) return rows;
     if (unsentCreation(entry)) rows.unsent.add(id);
@@ -110,6 +115,8 @@ export function projectCollectionNote(
   if (!cached || cached.accountId !== accountId || cached.version !== version - 1) return;
   cached.version = version;
   cached.value = cached.value.then((rows) => {
+    rows.browse = undefined;
+    rows.browseVersion++;
     const original = rows.originals.get(id);
     const at = rows.positions.get(id);
     if (original && at !== undefined) rows.notes[at] = noteEditOverlay(edit, original);
@@ -213,6 +220,8 @@ async function collection(includeCards = false): Promise<Collection> {
           pulled,
           unsent,
           liveDecks: new Set(liveDecks.map((deck) => deck.id)),
+          searchText: new WeakMap<Note, string>(),
+          browseVersion: 0,
         };
       })();
       projection = { key, accountId: id, version, cards: includeCards, value };
@@ -278,34 +287,61 @@ export async function localNotes(
   /** Learning pools leave out Notes the server has not acknowledged. */
   sentOnly = false,
 ): Promise<{ items: Note[]; nextCursor?: string; local?: true; unsent?: string[] }> {
-  const { notes: all, cards, unsent } = await collection(Boolean(query.cardState));
-  const notes = sentOnly ? all.filter((note) => !unsent.has(note.id)) : all;
-  const byNote = new Set<string>();
-  if (query.cardState)
-    for (const card of await cards()) {
-      if (card.state === query.cardState) byNote.add(card.noteId);
-    }
-  const search = query.search?.toLocaleLowerCase();
-  const filtered = notes.filter(
-    (note) =>
+  const visit = accountEpoch();
+  const accountId = offlineState().accountId;
+  const projected = await collection(Boolean(query.cardState));
+  const version = projected.browseVersion;
+  const { notes: all, cards, unsent, searchText } = projected;
+  const key = JSON.stringify([
+    query.deckId,
+    query.status,
+    query.tag,
+    query.source,
+    query.cardState,
+    query.search,
+    query.sort,
+    sentOnly,
+  ]);
+  let filtered = projected.browse?.key === key ? projected.browse.items : undefined;
+  if (!filtered) {
+    const notes = sentOnly ? all.filter((note) => !unsent.has(note.id)) : all;
+    const byNote = new Set<string>();
+    if (query.cardState)
+      for (const card of await cards()) {
+        if (card.state === query.cardState) byNote.add(card.noteId);
+      }
+    const search = query.search?.toLocaleLowerCase();
+    const searchable = (note: Note) => {
+      let text = searchText.get(note);
+      if (text === undefined) {
+        text = `${JSON.stringify(note.fields)} ${note.tags.join(' ')}`.toLocaleLowerCase();
+        searchText.set(note, text);
+      }
+      return text;
+    };
+    filtered = await projectRows(notes, (note) =>
       (!query.deckId || note.deckId === query.deckId) &&
       (!query.status || note.status === query.status) &&
       (!query.tag || note.tags.includes(query.tag)) &&
       (!query.source || note.source === query.source) &&
-      (!search ||
-        `${JSON.stringify(note.fields)} ${note.tags.join(' ')}`
-          .toLocaleLowerCase()
-          .includes(search)) &&
-      (!query.cardState || byNote.has(note.id)),
-  );
-  filtered.sort(
-    (a, b) =>
-      (query.sort === 'alpha'
-        ? termOf(a.fields).localeCompare(termOf(b.fields))
-        : query.sort === 'rank'
-          ? (a.rank ?? Infinity) - (b.rank ?? Infinity)
-          : a.createdAt.localeCompare(b.createdAt)) || a.id.localeCompare(b.id),
-  );
+      (!search || searchable(note).includes(search)) &&
+      (!query.cardState || byNote.has(note.id))
+        ? note
+        : undefined,
+    );
+    filtered.sort(
+      (a, b) =>
+        (query.sort === 'alpha'
+          ? termOf(a.fields).localeCompare(termOf(b.fields))
+          : query.sort === 'rank'
+            ? (a.rank ?? Infinity) - (b.rank ?? Infinity)
+            : a.createdAt.localeCompare(b.createdAt)) || a.id.localeCompare(b.id),
+    );
+    if (accountEpoch() !== visit || offlineState().accountId !== accountId)
+      throw new Error('collection_account_changed');
+    if (projected.browseVersion !== version) return localNotes(query, cursor, pageSize, sentOnly);
+    projected.browse = { key, items: filtered };
+  }
   const offset = cursor?.startsWith('local:') ? Number(cursor.slice(6)) : 0;
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('collection_invalid_cursor');
   const items = filtered.slice(offset, offset + pageSize);

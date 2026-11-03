@@ -436,7 +436,23 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
     async list(query) {
       return run(async (tx) => {
         const limit = Math.min(query.limit ?? 50, MAX_NOTE_PAGE_SIZE);
-        const conditions = [eq(notes.userId, userId), isNull(notes.deletedAt)];
+        // Deleting a collection retains its Notes for recovery. Browse only the
+        // live hierarchy, following parent links rather than legacy cached paths.
+        const conditions = [
+          eq(notes.userId, userId),
+          isNull(notes.deletedAt),
+          sql`${notes.deckId} in (
+            with recursive live_decks(id) as (
+              select id from decks
+              where user_id = ${userId} and parent_id is null
+                and deleted_at is null and purged_at is null
+              union
+              select child.id from decks child join live_decks parent on child.parent_id = parent.id
+              where child.user_id = ${userId}
+                and child.deleted_at is null and child.purged_at is null
+            ) select id from live_decks
+          )`,
+        ];
 
         if (query.deckId !== undefined) {
           if (query.includeSubtree === false) {
