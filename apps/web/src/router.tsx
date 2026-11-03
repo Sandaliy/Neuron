@@ -63,6 +63,10 @@ const LibraryScreen = lazyRouteComponent(
   () => import('./features/library/library'),
   'LibraryScreen',
 );
+const CollectionSearchScreen = lazyRouteComponent(
+  () => import('./features/library/collection-search'),
+  'CollectionSearchScreen',
+);
 const NoteEditorScreen = lazyRouteComponent(
   () => import('./features/notes/note-editor'),
   'NoteEditorScreen',
@@ -186,6 +190,13 @@ const deletedRoute = createRoute({
   path: '/library/deleted',
   staticData: { navTab: '/library' },
   component: DeletedScreen,
+});
+
+const collectionSearchRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/find',
+  staticData: { navTab: '/library' },
+  component: CollectionSearchScreen,
 });
 
 /**
@@ -316,6 +327,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     todayRoute,
     libraryRoute,
+    collectionSearchRoute,
     deletedRoute,
     noteListRoute,
     // Before the parameter route, or a new note is read as a note whose id is

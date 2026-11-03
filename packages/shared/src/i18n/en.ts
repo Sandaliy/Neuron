@@ -633,6 +633,19 @@ export const en = {
     'partOfSpeech: noun, verb, adjective, adverb, preposition, phrase or other. Tables support article and plural; JSON supports all grammar fields.',
 
   'library.title': 'Library',
+  'library.search.title': 'Find Folders & Decks',
+  'library.search.back': 'Search results',
+  'library.search.label': 'Search collection names',
+  'library.search.hint': 'Find a Folder or Deck anywhere in your Library.',
+  'library.search.results': '{count} of {total} collections',
+  'library.search.downloaded':
+    'Searching the downloaded Library. Changes from other devices appear after reconnecting.',
+  'library.search.stale':
+    'Collection information could not be refreshed. These results may be out of date.',
+  'library.search.pendingUnavailable':
+    'Collections saved on this device could not be read. Some results may be missing.',
+  'library.search.emptyTitle': 'No collections match',
+  'library.search.emptyBody': 'Try another name or clear the search.',
   'library.dueLabel': 'Cards waiting',
   'library.newLabel': 'Cards never answered',
   'library.expand': 'Show what is inside',

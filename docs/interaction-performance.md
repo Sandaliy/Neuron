@@ -719,3 +719,25 @@ both the in-app action and system Back. Confirm the query, filters and position 
 labels distinguish Decks. Repeat in airplane mode after a complete download, then reconnect and check
 that authoritative results replace downloaded provenance. Check long names, VoiceOver labels, text
 selection, the keyboard Search key and scrolling near the bottom navigation.
+
+## Library collection search
+
+Find Folders & Decks uses the existing account-bound Library tree and pending-creation overlay. A single
+preorder pass builds normalized names and current ancestor paths per tree change; 150ms input batching
+scans that flat index. There are no search endpoints, persistent search store or per-result tree walks.
+Measured window virtualization wraps full paths, retains keyboard neighbours and saves row measurements
+for history restoration. Search presentation belongs to the account visit and clears on account change.
+
+The routed-fixture phone check in `performance.spec.ts` uses 5,050 collections (50 Folders with 100 Decks
+each), two device pixels per CSS pixel and 4x CPU slowdown. Completed searches took 195–209ms including
+the 150ms batching delay; the first Deck opened in 210ms. A 180-frame scroll
+held 60.0 fps, with a 16.8ms worst frame and 21 mounted rows, above the unchanged 55 fps budget.
+Existing 500-row Library checks held 59.3 fps for panels-only, all-glass and mixed collection modes.
+The index unit check also exercises repeated searches over 10,100 nested collections.
+
+`library-polish.spec.ts` covers collapsed descendants, duplicate names, complete Cyrillic paths,
+query/scroll/focus return, empty results and loading/retry. `offline-collections.spec.ts` covers the
+complete download, reopening offline, pending Folder/Deck restrictions, renamed/deleted results,
+reconnection and account switching. These are browser fixtures, not installed-iPhone acceptance.
+On the installed iPhone, repeat typing with the keyboard open, scrolling deep into results, opening
+both kinds and returning by Search results and system Back; repeat after downloading in airplane mode.

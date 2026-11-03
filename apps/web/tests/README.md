@@ -28,6 +28,11 @@ file named after the change.
 budgets run in `phone-interaction`; desktop excludes that duplicate. Ordinary desktop motion cases
 and the separate opt-in mobile WebKit coverage remain selected.
 
+`library-polish.spec.ts` also covers collection name search, collapsed descendants, duplicate names,
+full paths, keyboard focus and Back/scroll return over 2,500 collections. `offline-collections.spec.ts`
+covers downloaded search, pending identities, reconnection and account boundaries. `performance.spec.ts`
+measures collection search and virtual scrolling over 5,050 nested collections at 4x CPU slowdown.
+
 Live files need the throwaway database (`DATABASE_URL_TEST`) and an opt-in variable named at the top of
 each file. They skip otherwise, and a skip is not a pass.
 

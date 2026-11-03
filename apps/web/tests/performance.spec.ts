@@ -36,6 +36,115 @@ const CPU_THROTTLE = 4;
 
 const FRAMES = 180;
 
+test.describe('collection search performance', () => {
+  test.use({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 });
+  test('collection search stays responsive over 5050 nested collections on a throttled phone', async ({
+    page,
+  }) => {
+    await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'full', glassScope: 'all' });
+    const roots = manyDecks(50).map((row, group) => ({
+      ...row,
+      kind: 'folder',
+      name: `Folder ${group}`,
+      children: manyDecks(100).map((child, at) => ({
+        ...child,
+        id: `child-${group}-${at}`,
+        name: `Lesson ${at}`,
+        parentId: row['id'],
+        path: [row['id']],
+      })),
+    }));
+    await useFixtures(page, { decks: roots, notes: [] });
+    await page.goto('/library/find');
+    await expect(
+      page.getByRole('status').filter({ hasText: '5050 of 5050 collections' }),
+    ).toBeVisible();
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await Promise.all(
+        document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+      );
+    });
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+    const measured = await page.evaluate(async (count) => {
+      const frame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
+      const input = document.querySelector<HTMLInputElement>('input[type="search"]')!;
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      const searches: number[] = [];
+      for (const [term, expected] of [
+        ['Lesson 17', 50],
+        ['Folder', 50],
+        ['absent', 0],
+        ['Lesson 3', 550],
+        ['Lesson', 5000],
+      ] as const) {
+        const start = performance.now();
+        setter.call(input, term);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await frame();
+        while (
+          input.getAttribute('aria-busy') === 'true' ||
+          !document
+            .querySelector('[role="status"][aria-busy]')
+            ?.textContent?.startsWith(`${expected} of`) ||
+          (expected > 0 &&
+            !document.querySelector('[role="list"] button')?.textContent?.startsWith(term))
+        ) {
+          if (performance.now() - start > 5000) throw new Error('Search did not finish');
+          await frame();
+        }
+        await frame();
+        searches.push(performance.now() - start);
+      }
+      const gaps: number[] = [];
+      let previous = await frame();
+      for (let at = 0; at < count; at++) {
+        window.scrollTo(0, at * 24);
+        const now = await frame();
+        gaps.push(now - previous);
+        previous = now;
+      }
+      return {
+        searches,
+        fps: (gaps.length / gaps.reduce((sum, gap) => sum + gap, 0)) * 1000,
+        worst: Math.max(...gaps),
+        mounted: document.querySelectorAll('[role="listitem"]').length,
+      };
+    }, FRAMES);
+    const openMs = await page.evaluate(async () => {
+      const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const button = [...document.querySelectorAll<HTMLButtonElement>('[role="list"] button')].find(
+        (node) => {
+          const box = node.getBoundingClientRect();
+          return box.top >= 0 && box.bottom < innerHeight - 100;
+        },
+      )!;
+      const name = button.textContent!.match(/^Lesson \d+/)![0];
+      const start = performance.now();
+      button.click();
+      while (document.querySelector('h1')?.textContent !== name) {
+        if (performance.now() - start > 5000) throw new Error('Collection did not open');
+        await frame();
+      }
+      await frame();
+      return performance.now() - start;
+    });
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    await session.detach();
+    const line = `5050 collections, 4x CPU: search including 150ms batching ${measured.searches.map((value) => value.toFixed(1)).join(', ')} ms; scroll ${measured.fps.toFixed(1)} fps, worst ${measured.worst.toFixed(1)} ms; ${measured.mounted} mounted rows; first Deck open ${openMs.toFixed(1)} ms`;
+    console.log(line);
+    await test.info().attach('collection-search-performance', {
+      body: JSON.stringify({ ...measured, openMs }),
+      contentType: 'application/json',
+    });
+    expect(Math.max(...measured.searches)).toBeLessThan(300);
+    expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
+    expect(measured.mounted).toBeLessThan(40);
+    expect(openMs).toBeLessThan(300);
+  });
+});
+
 interface Measurement {
   readonly fps: number;
   readonly worst: number;

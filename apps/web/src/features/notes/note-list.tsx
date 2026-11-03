@@ -27,6 +27,7 @@ import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { SwipeDelete } from '../../ui/swipe-delete';
 import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
+import { CollectionSearchPath } from '../library/collection-search-path';
 import { DeckPractice } from '../today/practice';
 
 import { LearningWave } from './learning-wave';
@@ -208,7 +209,13 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
       <CollectionHeader
         readOnly={offline.offline}
         title={deck?.name ?? t(deckId === undefined ? 'notes.find' : 'notes.title')}
-        path={<CollectionPath tree={decks.data ?? []} id={deckId ?? ''} trail />}
+        path={
+          deckId ? (
+            <CollectionSearchPath tree={decks.data ?? []} id={deckId} />
+          ) : (
+            <CollectionPath tree={decks.data ?? []} id="" trail />
+          )
+        }
         actions={
           <>
             <ServerControls available={serverReady}>
