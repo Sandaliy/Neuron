@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { defaultRangeExtractor, useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ChevronLeft, Search } from 'lucide-react';
@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
+import { useBrowseState } from '../../lib/browse-state';
 import { noteCategoriesQuery } from '../../lib/note-categories';
 import { accountEpoch, useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
@@ -28,18 +29,8 @@ export function NoteCategoriesScreen() {
   const t = useTranslate();
   const offline = useOffline();
   const navigate = useNavigate();
-  const client = useQueryClient();
   const key = ['note-category-browse', offline.accountId, accountEpoch()];
-  const browse = useQuery({
-    queryKey: key,
-    queryFn: () => initial,
-    initialData: initial,
-    enabled: false,
-    staleTime: Infinity,
-    gcTime: Infinity,
-  }).data;
-  const update = (patch: Partial<Browse>) =>
-    client.setQueryData<Browse>(key, (old) => ({ ...initial, ...old, ...patch }));
+  const [browse, update] = useBrowseState(key, initial);
   const [search, setSearch] = useState(browse.typed.trim());
   useEffect(() => {
     const timer = setTimeout(() => setSearch(browse.typed.trim()), 200);

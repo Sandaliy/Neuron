@@ -1,9 +1,9 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import type { NoteSort, NoteStatus } from '@neuron/shared';
 
+import { useBrowseState } from '../../lib/browse-state';
 import { accountEpoch, useOffline } from '../../lib/offline';
 
 import type { NoteCategory } from '../../lib/note-categories';
@@ -36,7 +36,6 @@ const initial: BrowseState = {
 
 /** Small visit state lives beside the paginated query, and is cleared with the account. */
 export function useNoteBrowse(deckId: string | undefined, category?: NoteCategory) {
-  const client = useQueryClient();
   const offline = useOffline();
   const visit = accountEpoch();
   const kind = category?.kind;
@@ -55,19 +54,6 @@ export function useNoteBrowse(deckId: string | undefined, category?: NoteCategor
     () => ['note-browse', offline.accountId, visit, deckId ?? 'all', kind, value, entry],
     [offline.accountId, visit, deckId, kind, value, entry],
   );
-  const state = useQuery({
-    queryKey: key,
-    queryFn: () => defaults,
-    initialData: defaults,
-    enabled: false,
-    staleTime: Infinity,
-    gcTime: Infinity,
-  }).data;
-  const update = useCallback(
-    (patch: Partial<BrowseState>) => {
-      client.setQueryData<BrowseState>(key, (current) => ({ ...defaults, ...current, ...patch }));
-    },
-    [client, key, defaults],
-  );
+  const [state, update] = useBrowseState(key, defaults);
   return { state, update };
 }

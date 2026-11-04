@@ -5,6 +5,47 @@ implementation. Phase 7 (`703890b`) and the accepted PR #47 continuity implement
 provide the interaction references. Disclosure, dialog, scroll restoration, motion tokens and glass
 rules were unchanged between Phase 7 and PR #48. Swipe changed only its disabled-state guards.
 
+## Search and Practice interaction repair, 2026-11-04
+
+The report concerns the iPhone Home Screen application, multiple search fields and jumping during
+search. Built-app probes start at `1a8cf6f` (merged #80), with Chromium phone/desktop and mobile WebKit.
+
+- Find Notes, Deck Notes, collection search, categories and duplicates drove controlled text directly
+  from asynchronous query observers. All five reproduced a caret reset to the end during mid-string
+  editing; Deleted's immediate local state passed. Editing now updates synchronously while preserving
+  the account/visit/scope cache used for navigation return. No focus-restoration loop is involved.
+- A shortened result list plus independently panned keyboard viewport reproduced 63 px displacement.
+  A focused search retains its current document scroll floor until blur or unmount. It neither scrolls
+  the document nor follows keyboard geometry; native panning and the existing viewport observer remain.
+- Practice repeatedly scanned eligibility across the whole pool during each typed character. Memoized
+  pool/recipe derivation reduced a matched 5,000-Note, 4x CPU input-to-paint sequence from 41-49 ms to
+  21-28 ms. This is a local rendering improvement, not evidence that all reported interface lag had
+  the same cause.
+- Rapid Practice actions exposed an acknowledgement race against the local transaction's expected
+  record. One retry retains the identical command only when the stored run and logical version are
+  exactly unchanged. Changed progress retains reconciliation; tests cover both outcomes and command
+  identity. UI actions are disabled while their local transaction commits.
+
+The unmodified #80 built app passed all 11 established controlled performance cases at 4x CPU.
+Large Note/category/collection lists measured about 60 FPS, collection search 197-212 ms including
+150 ms batching, and first Deck opening 192 ms. The 55 FPS budgets remain unchanged. These observations
+do not reproduce a general application-wide slowdown or establish production network latency.
+
+A separate matched navigation probe compares #78 (`49d9a49`) with this repair: 6,000 Notes across
+60 Decks, phone Chromium, 4x CPU and 250 ms cold transport. It measures from the click inside the
+browser through two frames after the destination content appears. Each build makes one collection
+read and one Note-list read across three navigation cycles. Warm Note opening was 63-67 ms before
+and 67-68 ms after; Library return 183-201 ms before and 196-200 ms after; Today 64-75 ms before and
+61-65 ms after. Cold Note search was 475 ms before and 457 ms after. The unchanged 500 ms warm-navigation
+bound passes. These short controlled samples establish neither an application-wide regression from
+#79/#80 nor a broad speedup from this repair.
+
+Browser automation checks persistent DOM identity, focus, caret, updated results, superseded responses,
+offline/reconnection and staged keyboard panning. It cannot raise an iPhone keyboard or exercise native
+VoiceOver. Physical acceptance must repeat continuous and mid-string search, clear/no-result queries,
+slow transport, downloaded mode and editor return in the Home Screen app, then Practice with keyboard,
+VoiceOver, Listening audio, Undo/completion, settings cancellation and reduced motion.
+
 ## Contract for later Phase 8 work
 
 PR #49's measured zero reconciliation displacement and zero warm/background navigation snapshot scans

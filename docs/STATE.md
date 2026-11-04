@@ -112,6 +112,12 @@ installed-iPhone acceptance.
 
 ## Open threads
 
+- Practice/search interaction repair is on `work/practice-interaction-repair`, based on `1a8cf6f`.
+  It retains synchronous search drafts and search scroll position, adds Practice keyboard/focus support
+  and guards the local intent/acknowledgement race. It is unmerged while Recent Notes #81 integrates.
+  Browser keyboard geometry cannot replace Home Screen iPhone/VoiceOver acceptance; performance
+  evidence and remaining limits are in `interaction-performance.md`.
+
 - Preliminary offline duplicate keys retain the inherited UTF-16 prefix difference from PostgreSQL
   for very long supplementary-Unicode terms. Server groups remain authoritative; see
   `possible-duplicates.md`. The existing normalization and Import contract are unchanged.

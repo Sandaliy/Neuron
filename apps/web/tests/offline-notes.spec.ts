@@ -6,6 +6,7 @@ import {
   startInteractionMetrics,
   readInteractionMetrics,
 } from './interaction-metrics';
+import { continuousSearch } from './search-interaction';
 
 import type { PendingNoteEdit } from '../src/lib/note-outbox';
 import type { Page, Route } from '@playwright/test';
@@ -1003,4 +1004,21 @@ test('small and large synchronized Note histories stay on the device without bei
   await expect(page.getByRole('button', { name: 'Recent activity' })).toHaveCount(0);
   expect(await stored(page)).toHaveLength(250);
   await page.screenshot({ path: info.outputPath('settled-note-history.png') });
+});
+
+test('downloaded search keeps continuous editing and caret across result updates and reconnect', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await disconnect(page, state);
+  await page.goto('/notes');
+  const input = page.getByRole('searchbox');
+  await continuousSearch(page, input, 'Original');
+  await expect(page.getByRole('button', { name: /Original word Original meaning/ })).toBeVisible();
+  await reconnect(page, state);
+  await expect(input).toHaveValue('Original');
+  await expect(input).toBeFocused();
+  await page.keyboard.type(' word');
+  await expect(input).toHaveValue('Original word');
+  await expect(input).toBeFocused();
 });

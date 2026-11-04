@@ -6,6 +6,7 @@ import {
   useFixtures as installFixtures,
   usePreferences as installPreferences,
 } from './fixtures';
+import { continuousSearch } from './search-interaction';
 
 import type { Page, Route } from '@playwright/test';
 
@@ -542,4 +543,109 @@ test('Find Notes stays usable during slow and empty searches and supports the ph
   await page.getByRole('button', { name: /^Clear/ }).click();
   await expect(search).toHaveValue('');
   await expect(page.getByRole('button', { name: /^Wort 1 word 1/ })).toBeVisible();
+});
+
+for (const path of [
+  '/notes',
+  '/notes?deckId=d3',
+  '/library/find',
+  '/library/categories',
+  '/library/duplicates',
+  '/library/deleted',
+]) {
+  test(`continuous search keeps focus and the screen at ${path}`, async ({ page }) => {
+    await installPreferences(page, { locale: 'en', theme: 'dark' });
+    await installFixtures(page, { notes: manyNotes(1000) });
+    await page.route('**/api/notes/categories?*', (route) =>
+      route.fulfill({ json: { items: [], total: 0 } }),
+    );
+    await continuousSearch(
+      page,
+      await (async () => {
+        await page.goto(path);
+        return page.getByRole('searchbox').first();
+      })(),
+      'Wort',
+    );
+  });
+}
+
+test('slow superseded search responses never interrupt editing or replace the newer results', async ({
+  page,
+}) => {
+  await installPreferences(page, { locale: 'en', theme: 'dark' });
+  const notes = manyNotes(6000);
+  await installFixtures(page, { notes: [], collectionDownload: false });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/notes?*', async (route) => {
+    const search = new URL(route.request().url()).searchParams.get('search') ?? '';
+    if (search === 'Wort') await held;
+    const matches = notes.filter((note) =>
+      String((note.fields as Record<string, unknown>).term).includes(search),
+    );
+    await route.fulfill({ json: { items: matches.slice(0, 50) } }).catch(() => {});
+  });
+  await page.goto('/notes');
+  const input = page.getByRole('searchbox');
+  const pending = page.waitForRequest(
+    (request) => new URL(request.url()).searchParams.get('search') === 'Wort',
+  );
+  await continuousSearch(page, input, 'Wort');
+  await pending;
+  await page.keyboard.type(' 2999');
+  await expect(page.getByRole('button', { name: /^Wort 2999 word 2999/ })).toBeVisible();
+  release();
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue('Wort 2999');
+  await expect(page.getByRole('button', { name: /^Wort 1 word 1/ })).toHaveCount(0);
+  await input.press('ControlOrMeta+A');
+  await input.press('Backspace');
+  await page.keyboard.type('Wort 12');
+  await expect(input).toBeFocused();
+  await expect(page.getByRole('button', { name: /^Wort 12 word 12/ })).toBeVisible();
+});
+
+test('empty search results preserve the focused field position after native focus scrolling', async ({
+  page,
+}) => {
+  await installPreferences(page, { locale: 'en', theme: 'dark' });
+  await installFixtures(page, { notes: manyNotes(1000), collectionDownload: false });
+  await page.route('**/api/notes?*', (route) =>
+    route.fulfill({
+      json: {
+        items: new URL(route.request().url()).searchParams.has('search') ? [] : manyNotes(1000),
+      },
+    }),
+  );
+  await page.goto('/notes?deckId=d3');
+  const input = page.getByRole('searchbox');
+  await input.click();
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--keyboard-inset', '336px');
+    document.documentElement.dataset['keyboard'] = 'open';
+  });
+  await input.evaluate((node) =>
+    window.scrollTo(0, node.getBoundingClientRect().top + scrollY - 24),
+  );
+  const top = (await input.boundingBox())!.y;
+  await page.keyboard.type('no matches');
+  await expect(page.getByText('Nothing matches', { exact: true })).toBeVisible();
+  await expect(input).toBeFocused();
+  // Safari pans its visual viewport independently while the keyboard remains open.
+  await page.evaluate(() => {
+    Object.defineProperty(window.visualViewport!, 'height', {
+      configurable: true,
+      value: innerHeight - 336,
+    });
+    Object.defineProperty(window.visualViewport!, 'offsetTop', { configurable: true, value: 200 });
+    window.visualViewport!.dispatchEvent(new Event('resize'));
+  });
+  await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'open');
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  expect(Math.abs((await input.boundingBox())!.y - top)).toBeLessThan(2);
 });

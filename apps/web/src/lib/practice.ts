@@ -278,13 +278,32 @@ function createStore(
         return 'busy';
       }
       publish({ committing: true });
-      void savePracticeCommand(
-        accountId,
-        deckId,
-        { version: current.confirmed.version, pending: current.pending.map((entry) => entry.id) },
-        command,
-        next,
-      )
+      const save = (base: PracticeRecord) =>
+        savePracticeCommand(
+          accountId,
+          deckId,
+          { version: base.confirmed.version, pending: base.pending.map((entry) => entry.id) },
+          command,
+          next,
+        );
+      void save(current)
+        .catch(async (error: unknown) => {
+          if (!(error instanceof Error) || error.message !== 'practice_changed') throw error;
+          const fresh = await readPractice(accountId, deckId);
+          // Delivery may acknowledge an earlier command between the press and
+          // this transaction. Retry the same intent only if its exact run and
+          // logical version are unchanged. Another device's progress still wins
+          // the existing reconciliation/conflict path; it is never overwritten.
+          if (
+            !fresh ||
+            fresh.conflict ||
+            nextPracticeVersion(fresh) !== command.expectedVersion ||
+            JSON.stringify(fresh.device ?? fresh.confirmed.run) !==
+              JSON.stringify(current.device ?? current.confirmed.run)
+          )
+            throw error;
+          return save(fresh);
+        })
         .then((written) => {
           onCommit?.();
           record = written;
