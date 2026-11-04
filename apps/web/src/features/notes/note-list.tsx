@@ -1,5 +1,5 @@
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Plus, Upload, Trash2, Search } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -28,6 +28,7 @@ import { SwipeDelete } from '../../ui/swipe-delete';
 import { useToast } from '../../ui/toast';
 import { CollectionPath } from '../library/collection-path';
 import { CollectionSearchPath } from '../library/collection-search-path';
+import { NoteCategoryBack } from '../library/note-categories';
 import { DeckPractice } from '../today/practice';
 
 import { LearningWave } from './learning-wave';
@@ -38,6 +39,7 @@ import { PracticeEntry } from './practice-entry';
 import { RestartLearning } from './restart-learning';
 import { DeckTriage, TriageEntry } from './triage';
 
+import type { NoteCategory } from '../../lib/note-categories';
 import type { NoteQuery } from '../../lib/notes';
 
 /** How tall a row is. The virtualiser needs a number before it can measure. */
@@ -55,7 +57,13 @@ const ROW_HEIGHT = 52;
  * Online search retains server pagination; a complete download uses the same
  * browse query locally. Text filters run a beat after typing stops.
  */
-export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
+export function NoteListScreen({
+  deckId,
+  category,
+}: {
+  readonly deckId?: string;
+  readonly category?: NoteCategory;
+}) {
   const learning = useLearningNavigation('practice');
   const triage = useLearningNavigation('triage');
   const practicing = learning.active;
@@ -83,7 +91,14 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   const navigate = useNavigate();
   const decks = useDeckTree();
 
-  const { state, update } = useNoteBrowse(deckId);
+  const { state, update } = useNoteBrowse(deckId, category);
+  const origin = useRouterState({ select: (state) => state.location.state.noteCategoryOrigin });
+  const categoryReturn =
+    category && origin?.accountId === offline.accountId && origin.visit === accountEpoch();
+  const exactTag = (value: string) =>
+    category?.kind === 'tag' && category.value === value ? value : value.trim();
+  const exactSource = (value: string) =>
+    category?.kind === 'source' && category.value === value ? value : value.trim();
   const {
     search,
     typed,
@@ -103,11 +118,16 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
   // request per letter over a table scan.
   useEffect(() => {
     const timer = setTimeout(() => {
-      update({ search: typed.trim(), tagFilter: tag.trim(), sourceFilter: source.trim() });
+      update({
+        search: typed.trim(),
+        tagFilter: category?.kind === 'tag' && category.value === tag ? tag : tag.trim(),
+        sourceFilter:
+          category?.kind === 'source' && category.value === source ? source : source.trim(),
+      });
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [typed, source, tag, update]);
+  }, [typed, source, tag, update, category?.kind, category?.value]);
 
   const query: NoteQuery = {
     ...(deckId === undefined ? {} : { deckId }),
@@ -210,7 +230,9 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
         readOnly={offline.offline}
         title={deck?.name ?? t(deckId === undefined ? 'notes.find' : 'notes.title')}
         path={
-          deckId ? (
+          categoryReturn ? (
+            <NoteCategoryBack />
+          ) : deckId ? (
             <CollectionSearchPath tree={decks.data ?? []} id={deckId} />
           ) : (
             <CollectionPath tree={decks.data ?? []} id="" trail />
@@ -311,8 +333,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
                 if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
                   update({
                     search: typed.trim(),
-                    tagFilter: tag.trim(),
-                    sourceFilter: source.trim(),
+                    tagFilter: exactTag(tag),
+                    sourceFilter: exactSource(source),
                   });
                   event.currentTarget.blur();
                 }
@@ -417,8 +439,8 @@ export function NoteListScreen({ deckId }: { readonly deckId?: string }) {
           <p role="status" className="sr-only">
             {notes.isFetching ||
             typed.trim() !== search ||
-            source.trim() !== sourceFilter ||
-            tag.trim() !== tagFilter
+            exactSource(source) !== sourceFilter ||
+            exactTag(tag) !== tagFilter
               ? t('notes.updating')
               : ''}
           </p>

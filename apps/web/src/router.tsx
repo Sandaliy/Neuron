@@ -67,6 +67,10 @@ const CollectionSearchScreen = lazyRouteComponent(
   () => import('./features/library/collection-search'),
   'CollectionSearchScreen',
 );
+const NoteCategoriesScreen = lazyRouteComponent(
+  () => import('./features/library/note-categories'),
+  'NoteCategoriesScreen',
+);
 const NoteEditorScreen = lazyRouteComponent(
   () => import('./features/notes/note-editor'),
   'NoteEditorScreen',
@@ -211,6 +215,12 @@ const collectionSearchRoute = createRoute({
   staticData: { navTab: '/library' },
   component: CollectionSearchScreen,
 });
+const noteCategoriesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/categories',
+  staticData: { navTab: '/library' },
+  component: NoteCategoriesScreen,
+});
 
 /**
  * The notes: a list, one being written, and one being edited.
@@ -227,10 +237,18 @@ const noteListRoute = createRoute({
     search: Record<string, unknown>,
   ): {
     deckId?: string;
+    tag?: string;
+    source?: string;
     learning?: 'practice' | 'triage';
     entry?: 'resume' | 'setup';
   } => ({
     ...(typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {}),
+    ...(typeof search['tag'] === 'string' && search['tag'].length > 0
+      ? { tag: search['tag'] }
+      : {}),
+    ...(typeof search['source'] === 'string' && search['source'].length > 0
+      ? { source: search['source'] }
+      : {}),
     ...(search['learning'] === 'practice' || search['learning'] === 'triage'
       ? { learning: search['learning'] }
       : {}),
@@ -242,9 +260,20 @@ const noteListRoute = createRoute({
 });
 
 function NoteListRoute() {
-  const { deckId } = useSearch({ from: noteListRoute.id });
+  const { deckId, tag, source } = useSearch({ from: noteListRoute.id });
+  const category = tag
+    ? { kind: 'tag' as const, value: tag }
+    : source
+      ? { kind: 'source' as const, value: source }
+      : undefined;
 
-  return <NoteListScreen key={deckId ?? 'all'} {...(deckId === undefined ? {} : { deckId })} />;
+  return (
+    <NoteListScreen
+      key={`${deckId ?? 'all'}:${category?.kind ?? ''}:${category?.value ?? ''}`}
+      {...(deckId === undefined ? {} : { deckId })}
+      {...(category ? { category } : {})}
+    />
+  );
 }
 // Expose the lazy screen's preload through its search-parameter wrapper so
 // the module is ready before the route commits, avoiding a nested suspension.
@@ -341,6 +370,7 @@ const routeTree = rootRoute.addChildren([
     todayRoute,
     libraryRoute,
     collectionSearchRoute,
+    noteCategoriesRoute,
     deletedRoute,
     possibleDuplicatesRoute,
     noteListRoute,

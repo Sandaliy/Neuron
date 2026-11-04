@@ -44,7 +44,7 @@ function note(at: number, term: string) {
       term,
       translation: at % 2 ? 'Берег реки / river edge' : 'Financial institution / банк',
     },
-    tags: [],
+    tags: ['shared', 'shared', `topic ${at % 320}`],
     source: at % 2 ? 'River lesson' : 'Oxford source',
     rank: null,
     status: 'active',
@@ -202,8 +202,48 @@ async function fixture(page: Page, size = 6500, download = true) {
         },
       });
     }
-    if (url.pathname === '/api/notes')
-      return route.fulfill({ json: { items: visible.slice(0, 100) } });
+    if (url.pathname === '/api/notes/categories') {
+      const counts = new Map<string, number>();
+      for (const note of visible)
+        for (const value of url.searchParams.get('kind') === 'tag'
+          ? new Set(note.tags)
+          : [note.source])
+          if (value.toLowerCase().includes(url.searchParams.get('search')?.toLowerCase() ?? ''))
+            counts.set(value, (counts.get(value) ?? 0) + 1);
+      const all = [...counts]
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([value, count]) => ({ value, count }));
+      const after = all.filter(
+        (row) => !url.searchParams.has('cursor') || row.value > url.searchParams.get('cursor')!,
+      );
+      const items = after.slice(0, 100);
+      return route.fulfill({
+        json: {
+          items,
+          total: all.length,
+          ...(after.length > 100 ? { nextCursor: items.at(-1)!.value } : {}),
+        },
+      });
+    }
+    if (url.pathname === '/api/notes') {
+      const matching = visible.filter(
+        (note) =>
+          (!url.searchParams.has('deckId') || note.deckId === url.searchParams.get('deckId')) &&
+          (!url.searchParams.has('tag') || note.tags.includes(url.searchParams.get('tag')!)) &&
+          (!url.searchParams.has('source') || note.source === url.searchParams.get('source')) &&
+          (!url.searchParams.has('search') ||
+            JSON.stringify(note.fields)
+              .toLowerCase()
+              .includes(url.searchParams.get('search')!.toLowerCase())),
+      );
+      const offset = Number(url.searchParams.get('cursor') ?? 0);
+      return route.fulfill({
+        json: {
+          items: matching.slice(offset, offset + 1000),
+          ...(matching.length > offset + 1000 ? { nextCursor: String(offset + 1000) } : {}),
+        },
+      });
+    }
     const found = visible.find((note) => `/api/notes/${note.id}` === url.pathname);
     if (found) return route.fulfill({ json: { note: found, cards: [] } });
     return route.fulfill({ json: {} });
@@ -218,6 +258,60 @@ async function downloaded(page: Page) {
   ).toBeVisible({ timeout: 180_000 });
   await page.goBack();
 }
+
+test('Tags & Sources and duplicate inspection retain independent editor return and browse state', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto('/library');
+  await expect(
+    page.getByRole('button', { name: 'Possible duplicates', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(page.getByText('Shown: 100 of 321', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Show more', exact: true }).click();
+  await expect(page.getByText('Shown: 200 of 321', { exact: true })).toBeVisible();
+  await page.getByText('Sources', { exact: true }).click();
+  await page.getByRole('button', { name: 'Oxford source Notes: 3250', exact: true }).click();
+  const search = page.getByRole('searchbox', { name: 'Search', exact: true });
+  await search.fill('Bank');
+  await search.press('Enter');
+  await page.getByRole('combobox', { name: 'Order', exact: true }).selectOption('alpha');
+  await page
+    .getByRole('button', { name: /^Bank Financial institution/ })
+    .first()
+    .click();
+  await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await expect(search).toHaveValue('Bank');
+  await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue('alpha');
+  await expect(page.getByRole('textbox', { name: 'Import source name', exact: true })).toHaveValue(
+    'Oxford source',
+  );
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: 'Possible duplicates', exact: true }).click();
+  await page.getByRole('searchbox', { name: 'Search duplicate groups' }).fill('River');
+  await page.getByRole('button', { name: 'bank 1500 Notes with this term' }).click();
+  await page.locator('[data-duplicate-id] button').first().click();
+  await expect(
+    page.getByRole('button', { name: 'Possible duplicates', exact: true }),
+  ).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'bank', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'All groups', exact: true }).click();
+  await expect(page.getByRole('searchbox', { name: 'Search duplicate groups' })).toHaveValue(
+    'River',
+  );
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'Sources', exact: true })).toBeChecked();
+  await expect(
+    page.getByRole('button', { name: 'Oxford source Notes: 3250', exact: true }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(state.writes).toBe(0);
+});
 
 test('Library and Deck entries inspect groups with bounded pages and editor return', async ({
   page,
@@ -307,7 +401,10 @@ test('group pagination and large member lists stay virtual with long mobile cont
   const state = await fixture(page);
   state.notes[0]!.fields = { term: 'Bank', translation: 'Очень длинный перевод '.repeat(40) };
   await page.goto('/library/duplicates');
-  await page.getByRole('button', { name: 'Load more', exact: true }).click();
+  const more = page.getByRole('button', { name: 'Load more', exact: true });
+  // Let newly visible virtual rows measure after scrolling, before aiming the tap.
+  await more.scrollIntoViewIfNeeded();
+  await more.click();
   await expect
     .poll(() =>
       state.requests.some(
@@ -351,13 +448,51 @@ test('complete downloads support offline inspection, local edits, pending Notes 
   await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
   const term = page.getByRole('textbox', { name: 'Word', exact: true });
   await term.fill('Unique edited term');
+  await page.getByRole('textbox', { name: 'Tags', exact: true }).fill('local category');
   await page.getByRole('button', { name: 'Possible duplicates', exact: true }).click();
   await page.getByRole('button', { name: 'All groups', exact: true }).click();
   await expect(page.getByRole('button', { name: 'bank 1499 Notes with this term' })).toBeVisible();
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'shared Notes: 6499', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'local category Notes: 1', exact: true }).click();
+  await page.getByRole('button', { name: /^Unique edited term/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Word', exact: true })).toHaveValue(
+    'Unique edited term',
+  );
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'local category',
+  );
   state.offline = false;
   await page.evaluate(() => dispatchEvent(new Event('online')));
+  // This fixture does not accept local writes: reconnection must restore server counts.
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'local category',
+  );
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'shared Notes: 6500', exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(
+    page.getByRole('button', { name: 'local category Notes: 1', exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: 'Possible duplicates', exact: true }).click();
   await expect(page.getByText(/^Server results/)).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole('button', { name: 'bank 1500 Notes with this term' })).toBeVisible();
+  state.offline = true;
+  await page.evaluate(() => dispatchEvent(new Event('offline')));
+  await expect(page.getByText(/Complete downloaded collection/)).toBeVisible();
+  state.who = 'second-account';
+  state.offline = false;
+  await page.evaluate(() => dispatchEvent(new Event('online')));
+  await expect(page.getByText('No matching groups', { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(page.getByText('No categories yet', { exact: true })).toBeVisible();
 });
 
 test('incomplete downloads cannot supply offline groups and account switching clears results', async ({
@@ -397,5 +532,14 @@ test('device-only Notes are labeled in complete downloaded groups', async ({ pag
   await page.getByRole('button', { name: 'bank 3 Notes with this term' }).click();
   const pending = page.getByRole('button', { name: /Bank Device-only meaning/ });
   await expect(pending).toContainText('Saved on device');
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await page.getByText('Sources', { exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'River lesson Notes: 1', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Oxford source Notes: 1', exact: true }),
+  ).toBeVisible();
   expect(state.writes).toBe(0);
 });

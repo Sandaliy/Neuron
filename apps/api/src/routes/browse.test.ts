@@ -1,11 +1,14 @@
 import { Pool } from '@neondatabase/serverless';
+import { sql } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { RATING } from '@neuron/core';
 import { normaliseTerm } from '@neuron/shared';
-import type { Deck, Note } from '@neuron/shared';
+import type { Deck, Note, NoteCategoryPage } from '@neuron/shared';
 
-import { createUser, repositoriesFor, testDatabase } from '../db/testing/database.js';
+import { noteCategoryStatement } from '../db/repositories/notes.js';
+import { nameUser } from '../db/repositories/session.js';
+import { appClient, createUser, repositoriesFor, testDatabase } from '../db/testing/database.js';
 import { json, testServer } from '../testing/server.js';
 
 import type { Repositories } from '../db/repositories/index.js';
@@ -29,6 +32,155 @@ const WORDS = [
   { term: 'Zaun', translation: 'fence', rank: 100, tags: ['house'] },
   { term: 'Sorgfalt', translation: 'care', rank: null, tags: ['work'] },
 ];
+
+describe.skipIf(!database)('Tags and Sources discovery', () => {
+  const owner = 'metadata-browser';
+  const foreignId = 'metadata-outsider';
+  let server: Hono;
+  let repo: Repositories;
+  beforeAll(async () => {
+    if (!database) return;
+    await createUser(database, owner);
+    await createUser(database, foreignId);
+    repo = repositoriesFor(database, owner);
+    server = testServer(database, owner);
+    const pool = new Pool({ connectionString: database.ownerUrl });
+    try {
+      await pool.query(
+        `insert into decks (id, user_id, name, position)
+        select gen_random_uuid(), $1, 'Deck ' || n, n from generate_series(1,80) n`,
+        [owner],
+      );
+      await pool.query(
+        `with destinations as (select array_agg(id order by position) ids from decks where user_id = $1)
+        insert into notes (id, user_id, deck_id, note_type_id, fields, tags, source)
+        select gen_random_uuid(), $1, ids[1 + (n % 80)],
+          (select id from note_types where name = 'basic' and user_id is null),
+          jsonb_build_object('front', 'Word ' || n, 'back', 'Meaning'),
+          array['shared', 'shared', 'unique ' || lpad(n::text, 5, '0')] || array(select 'topic ' || t from generate_series(1,47) t),
+          case when n % 5 = 0 then '' when n % 2 = 0 then 'Course' else 'course' end
+        from generate_series(1,6000) n cross join destinations`,
+        [owner],
+      );
+    } finally {
+      await pool.end();
+    }
+  });
+
+  async function categories(params: Record<string, string>) {
+    return json<NoteCategoryPage>(
+      await server.request(`/api/notes/categories?${new URLSearchParams(params)}`),
+      200,
+    );
+  }
+
+  it('aggregates several thousand heavily tagged Notes without loading Cards and bounds each page', async () => {
+    const page = await categories({ kind: 'tag' });
+    expect(page.items).toHaveLength(100);
+    expect(page.total).toBe(6048);
+    expect((await categories({ kind: 'tag', limit: '200' })).items).toHaveLength(200);
+    expect(page.items.find((row) => row.value === 'shared')?.count).toBe(6000);
+    const next = await categories({ kind: 'tag', cursor: page.nextCursor! });
+    expect(next.total).toBe(page.total);
+    expect(new Set([...page.items, ...next.items].map((row) => row.value)).size).toBe(200);
+    const filtered = await json<{ items: Note[] }>(
+      await server.request('/api/notes?tag=shared&limit=1000'),
+      200,
+    );
+    expect(filtered.items).toHaveLength(1000);
+    expect(new Set(filtered.items.map((row) => row.id)).size).toBe(1000);
+    expect(filtered.items.every((row) => row.cardStates?.new === 0)).toBe(true);
+    expect(await categories({ kind: 'source' })).toEqual({
+      items: [
+        { value: 'Course', count: 2400 },
+        { value: 'course', count: 2400 },
+      ],
+      total: 2,
+    });
+    expect((await server.request('/api/notes/categories?kind=tag&limit=201')).status).toBe(400);
+  });
+
+  it('keeps values exact, searches literally, and follows live parent links independently of cached paths', async () => {
+    if (!database) return;
+    const root = await repo.decks.create({ name: 'Metadata folder', kind: 'folder' });
+    const deck = await repo.decks.create({ name: 'Metadata leaf', parentId: root.id });
+    const exact = ' percent%_\\ tag ';
+    const source = ' S'.repeat(100);
+    const input = {
+      deckId: deck.id,
+      noteType: 'basic' as const,
+      fields: { front: 'Exact', back: 'Value' },
+      tags: ['', ' ', '\t\n', '\u00a0', exact, exact, 'Русский'],
+      source,
+    };
+    const live = await repo.notes.create(input);
+    const deleted = await repo.notes.create(input);
+    await repo.notes.softDelete(deleted.id);
+    expect((await categories({ kind: 'tag', search: 'РУССКИЙ' })).items).toEqual([
+      { value: 'Русский', count: 1 },
+    ]);
+    expect((await categories({ kind: 'tag', search: '%_\\' })).items).toEqual([
+      { value: exact, count: 1 },
+    ]);
+    expect((await categories({ kind: 'source', search: source.slice(0, 20) })).items).toEqual([
+      { value: source, count: 1 },
+    ]);
+    const page = await json<{ items: Note[] }>(
+      await server.request(`/api/notes?${new URLSearchParams({ tag: exact, source })}`),
+      200,
+    );
+    expect(page.items.map((row) => row.id)).toEqual([live.id]);
+    const foreign = repositoriesFor(database, foreignId);
+    const foreignDeck = await foreign.decks.create({ name: 'Foreign' });
+    await foreign.notes.create({ ...input, deckId: foreignDeck.id });
+    expect((await categories({ kind: 'tag', search: '%_\\' })).items).toEqual([
+      { value: exact, count: 1 },
+    ]);
+    const pool = new Pool({ connectionString: database.ownerUrl });
+    try {
+      await pool.query('update decks set deleted_at = now() where id = $1', [root.id]);
+      await pool.query("update decks set path = '{}'::uuid[] where id = $1", [deck.id]);
+    } finally {
+      await pool.end();
+    }
+    expect((await categories({ kind: 'tag', search: '%_\\' })).items).toEqual([]);
+    expect((await categories({ kind: 'source', search: source.slice(0, 20) })).items).toEqual([]);
+    // The query's explicit account scope cannot overrule the restricted role's RLS context.
+    const rows = await appClient(database).transaction(async (tx) => {
+      await nameUser(tx, foreignId);
+      return tx.execute(noteCategoryStatement(owner, { kind: 'tag', limit: 100 }));
+    });
+    expect(rows.rows).toEqual([]);
+  });
+
+  it.each(['tag', 'source'] as const)(
+    'explains the production %s aggregation under restricted-role RLS',
+    async (kind) => {
+      if (!database) return;
+      const result = await appClient(database).transaction(async (tx) => {
+        await nameUser(tx, owner);
+        return tx.execute<{ 'QUERY PLAN': Array<Record<string, unknown>> }>(
+          sql`explain (analyze, buffers, format json) ${noteCategoryStatement(owner, { kind, limit: 100 })}`,
+        );
+      });
+      const plan = result.rows[0]!['QUERY PLAN'][0]!;
+      const nodes: unknown[] = [];
+      const inspect = (node: Record<string, unknown>) => {
+        nodes.push({
+          node: node['Node Type'],
+          relation: node['Relation Name'],
+          rows: node['Actual Rows'],
+          loops: node['Actual Loops'],
+        });
+        for (const child of (node['Plans'] ?? []) as Record<string, unknown>[]) inspect(child);
+      };
+      inspect(plan['Plan'] as Record<string, unknown>);
+      console.info(JSON.stringify({ kind, executionMs: plan['Execution Time'], nodes }));
+      expect(JSON.stringify(nodes)).not.toContain('"relation":"cards"');
+      expect((plan['Plan'] as Record<string, unknown>)['Actual Rows']).toBeLessThanOrEqual(101);
+    },
+  );
+});
 
 describe.skipIf(!database)('browsing notes', () => {
   let repositories: Repositories;

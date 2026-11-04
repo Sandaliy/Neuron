@@ -6,7 +6,15 @@ import {
   triageChoiceOf,
   triageFace,
 } from '@neuron/shared';
-import type { Card, DeckNode, Note, TriageItem, TriageList } from '@neuron/shared';
+import type {
+  Card,
+  DeckNode,
+  Note,
+  TriageItem,
+  TriageList,
+  NoteCategoryQuery,
+  NoteCategoryPage,
+} from '@neuron/shared';
 
 import { metadata, openCollection, snapshot } from './collection-db';
 import { renameOverlay, validateRenames } from './collection-outbox';
@@ -358,6 +366,38 @@ export async function localNotes(
     ...(offset + items.length < filtered.length
       ? { nextCursor: `local:${offset + items.length}` }
       : {}),
+  };
+}
+
+/** Derived from the same live rows and draft overlays as offline Note browsing, never persisted. */
+export async function localNoteCategories(
+  query: NoteCategoryQuery,
+): Promise<NoteCategoryPage & { local: true }> {
+  if (!offlineState().available) throw new Error('collection_incomplete');
+  const visit = accountEpoch();
+  const projected = await collection();
+  const version = projected.browseVersion;
+  const counts = new Map<string, number>();
+  const search = query.search?.toLocaleLowerCase() ?? '';
+  await projectRows(projected.notes, (note) => {
+    const values = query.kind === 'tag' ? new Set(note.tags) : [note.source];
+    for (const value of values) {
+      if (value && value.trim() && value.toLocaleLowerCase().includes(search))
+        counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+    return undefined;
+  });
+  if (visit !== accountEpoch()) throw new Error('collection_account_changed');
+  if (version !== projected.browseVersion) return localNoteCategories(query);
+  const all = [...counts].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const after = query.cursor?.startsWith('local:') ? Number(query.cursor.slice(6)) : 0;
+  if (!Number.isSafeInteger(after) || after < 0) throw new Error('collection_invalid_cursor');
+  const items = all.slice(after, after + query.limit).map(([value, count]) => ({ value, count }));
+  return {
+    items,
+    total: all.length,
+    local: true,
+    ...(after + items.length < all.length ? { nextCursor: `local:${after + items.length}` } : {}),
   };
 }
 

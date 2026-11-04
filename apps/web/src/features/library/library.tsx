@@ -212,6 +212,9 @@ export function LibraryScreen() {
             <Search size={16} strokeWidth={1.5} aria-hidden="true" />
             {t('notes.find')}
           </Button>
+          <Button variant="quiet" onClick={() => void navigate({ to: '/library/categories' })}>
+            {t('categories.title')}
+          </Button>
           <Button variant="quiet" onClick={() => void navigate({ to: '/library/duplicates' })}>
             {t('duplicates.title')}
           </Button>

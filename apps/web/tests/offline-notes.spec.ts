@@ -249,6 +249,57 @@ async function reconnect(page: Page, state: Awaited<ReturnType<typeof fixture>>)
   state.offline = false;
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
 }
+
+test('Tags & Sources counts local tag edits, preserves selection through reconnect and clears another account', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.route('**/api/notes/categories?*', (route) => {
+    if (state.offline) return route.abort('internetdisconnected');
+    const values = state.who === account.id && !state.deleted ? state.note.tags : [];
+    const items = [...new Set(values)].sort().map((value) => ({ value, count: 1 }));
+    return route.fulfill({ json: { items, total: items.length } });
+  });
+  await editOffline(page, state);
+  await page.getByRole('textbox', { name: 'Tags', exact: true }).fill('local category, repeated');
+  await expect
+    .poll(async () => (await stored(page))[0]?.working.tags)
+    .toEqual(['local category', 'repeated']);
+  await page.goto('/library/categories');
+  await expect(page.getByText(/From this device’s complete download/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'original Notes: 1', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'local category Notes: 1', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'local category',
+  );
+  const row = page.getByRole('button', { name: /Original word Local meaning/ });
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page.getByRole('textbox', { name: 'Tags', exact: true })).toHaveValue(
+    'local category, repeated',
+  );
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await reconnect(page, state);
+  await expect.poll(() => state.note.tags).toEqual(['local category', 'repeated']);
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'local category',
+  );
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(page.getByText(/Counts include synchronized Notes/)).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'local category Notes: 1', exact: true }),
+  ).toBeVisible();
+  state.who = 'other-metadata-reader';
+  await page.reload();
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('neuron.offline.account')))
+    .toBe(state.who);
+  await expect(page.getByText('No categories yet', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'local category Notes: 1', exact: true }),
+  ).toHaveCount(0);
+});
 async function editOffline(
   page: Page,
   state: Awaited<ReturnType<typeof fixture>>,

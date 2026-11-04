@@ -1,11 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { clearCollectionProjection, localNotes, projectCollectionNote } from './collection-read';
+import {
+  clearCollectionProjection,
+  localNotes,
+  localNoteCategories,
+  projectCollectionNote,
+} from './collection-read';
+import { localDuplicateGroups, localDuplicateNotes } from './possible-duplicates';
 
 import type { CollectionRow } from './collection-db';
 import type { PendingNoteEdit } from './note-outbox';
 
-const state = vi.hoisted(() => ({ accountId: 'reader', visit: 1, version: 0, cursor: 2 }));
+const state = vi.hoisted(() => ({
+  accountId: 'reader',
+  visit: 1,
+  version: 0,
+  cursor: 2,
+  available: true,
+}));
 const storage = vi.hoisted(() => ({
   snapshot: vi.fn(),
   openCollection: vi.fn(async () => ({ close: vi.fn() })),
@@ -17,7 +29,7 @@ vi.mock('./collection-db', () => ({
 }));
 vi.mock('./offline', () => ({
   accountEpoch: () => state.visit,
-  offlineState: () => ({ accountId: state.accountId }),
+  offlineState: () => ({ accountId: state.accountId, available: state.available }),
   offlineReadFailed: vi.fn(),
 }));
 
@@ -66,12 +78,141 @@ function fixture(notes = [note(10), note(11, id(4))]) {
 }
 beforeEach(() => {
   clearCollectionProjection();
-  Object.assign(state, { accountId: 'reader', visit: 1, version: 0, cursor: 2 });
+  Object.assign(state, { accountId: 'reader', visit: 1, version: 0, cursor: 2, available: true });
   storage.snapshot.mockReset();
   storage.snapshot.mockResolvedValue(fixture());
 });
 
 describe('downloaded account-wide Note browsing', () => {
+  it('shares live rows and edit invalidation between category browsing and duplicate inspection', async () => {
+    const rows = fixture();
+    rows.notes[0]!.row['fields'] = { term: ' BANK ', translation: 'River' };
+    rows.notes[1]!.row['fields'] = { term: 'bank', translation: 'Finance' };
+    rows.decks.push({ ...deck(5, null, 'folder'), deleted: true }, deck(6, id(5)));
+    const hidden = note(12, id(6));
+    hidden.row['fields'] = { term: 'Bank', translation: 'Hidden' };
+    rows.notes.push(hidden, { ...note(13), deleted: true });
+    storage.snapshot.mockResolvedValue(rows);
+    expect((await localDuplicateGroups(undefined, '')).items).toEqual([{ key: 'bank', count: 2 }]);
+    expect((await localNoteCategories({ kind: 'tag', limit: 100 })).items).toEqual([
+      { value: 'saved', count: 2 },
+    ]);
+    expect((await localNotes({ tag: 'saved' })).items.map((row) => row.id)).toEqual([
+      id(10),
+      id(11),
+    ]);
+    expect((await localDuplicateNotes(undefined, 'bank')).items.map((row) => row.id)).toEqual([
+      id(10),
+      id(11),
+    ]);
+    state.version++;
+    projectCollectionNote(
+      'reader',
+      id(10),
+      {
+        kind: 'note-edit',
+        operationId: id(99),
+        sequence: 1,
+        accountId: 'reader',
+        entityId: id(10),
+        payload: { accountId: 'reader', operationId: id(99), baseRev: 2, fields: {}, tags: [] },
+        base: rows.notes[0]!,
+        working: { fields: { term: 'Updated', translation: 'River' }, tags: ['local'] },
+        started: false,
+        state: 'draft',
+      },
+      state.version,
+    );
+    expect((await localNoteCategories({ kind: 'tag', limit: 100 })).items).toEqual([
+      { value: 'local', count: 1 },
+      { value: 'saved', count: 1 },
+    ]);
+    expect((await localDuplicateGroups(undefined, '')).items).toEqual([]);
+    expect((await localDuplicateNotes(undefined, 'bank')).items).toEqual([]);
+    expect((await localNotes({ tag: 'local' })).items[0]?.fields['term']).toBe('Updated');
+    expect(storage.snapshot).toHaveBeenCalledTimes(1);
+    expect(storage.snapshot.mock.calls[0]?.[1]).toBe(false);
+    state.visit++;
+    state.accountId = 'other';
+    storage.snapshot.mockResolvedValue(fixture([]));
+    expect((await localDuplicateGroups(undefined, '')).items).toEqual([]);
+    expect((await localNoteCategories({ kind: 'tag', limit: 100 })).items).toEqual([]);
+  });
+
+  it('counts exact metadata over 6000 Notes, de-duplicates tags and omits unavailable ancestry', async () => {
+    const rows = fixture(
+      Array.from({ length: 6000 }, (_, at) => {
+        const row = note(100 + at, id(at % 2 ? 3 : 4));
+        row.row['tags'] = ['shared', 'shared', '', ' ', `tag ${at % 500}`];
+        row.row['source'] = at % 2 ? 'Course' : 'course';
+        return row;
+      }),
+    );
+    rows.decks.push({ ...deck(5, null, 'folder'), deleted: true }, deck(6, id(5)));
+    rows.notes.push(
+      note(7000, id(6)),
+      { ...note(7001), deleted: true },
+      { ...note(7002), purged: true },
+    );
+    storage.snapshot.mockResolvedValue(rows);
+    const first = await localNoteCategories({ kind: 'tag', limit: 100 });
+    expect(first.total).toBe(501);
+    expect(first.items.find((row) => row.value === 'shared')?.count).toBe(6000);
+    expect(first.items.every((row) => row.value === 'shared' || row.count === 12)).toBe(true);
+    expect(first.items).toHaveLength(100);
+    const second = await localNoteCategories({ kind: 'tag', limit: 100, cursor: first.nextCursor });
+    expect(new Set([...first.items, ...second.items].map((row) => row.value)).size).toBe(200);
+    expect((await localNotes({ tag: 'shared' })).items).toHaveLength(1000);
+    expect(await localNoteCategories({ kind: 'source', limit: 100 })).toMatchObject({
+      items: [
+        { value: 'Course', count: 3000 },
+        { value: 'course', count: 3000 },
+      ],
+      total: 2,
+      local: true,
+    });
+    expect(storage.snapshot).toHaveBeenCalledTimes(1);
+    state.available = false;
+    await expect(localNoteCategories({ kind: 'tag', limit: 100 })).rejects.toThrow(
+      'collection_incomplete',
+    );
+  });
+
+  it('recomputes categories after a local edit, pull and account switch without persisting an index', async () => {
+    expect((await localNoteCategories({ kind: 'tag', limit: 100 })).items).toEqual([
+      { value: 'saved', count: 2 },
+    ]);
+    state.version++;
+    const edit: PendingNoteEdit = {
+      kind: 'note-edit',
+      operationId: id(99),
+      sequence: 1,
+      accountId: 'reader',
+      entityId: id(10),
+      payload: { accountId: 'reader', operationId: id(99), baseRev: 2, fields: {}, tags: [] },
+      base: note(10),
+      working: {
+        fields: { term: 'Changed', translation: 'Meaning' },
+        tags: [' changed ', 'changed'],
+      },
+      started: false,
+      state: 'draft',
+    };
+    projectCollectionNote('reader', id(10), edit, state.version);
+    expect((await localNoteCategories({ kind: 'tag', limit: 100 })).items).toEqual([
+      { value: ' changed ', count: 1 },
+      { value: 'changed', count: 1 },
+      { value: 'saved', count: 1 },
+    ]);
+    expect((await localNotes({ tag: ' changed ' })).items.map((row) => row.id)).toEqual([id(10)]);
+    expect(storage.snapshot).toHaveBeenCalledTimes(1);
+    state.cursor++;
+    storage.snapshot.mockResolvedValue(fixture([]));
+    expect((await localNoteCategories({ kind: 'tag', limit: 100 })).items).toEqual([]);
+    state.accountId = 'other';
+    state.visit++;
+    expect((await localNoteCategories({ kind: 'source', limit: 100 })).items).toEqual([]);
+  });
   it('finds translations and tags across nested Decks, excluding tombstones and missing ancestry', async () => {
     const rows = fixture();
     rows.decks.push({ ...deck(5, null, 'folder'), deleted: true }, deck(6, id(5)));

@@ -1,4 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterContextProvider,
+} from '@tanstack/react-router';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -13,11 +20,27 @@ vi.mock('../../lib/offline', () => ({
 }));
 afterEach(() => Object.assign(account, { id: 'first', visit: 1 }));
 
-it('retains filters on return and reconnect, separates Deck browsing and revokes state across account visits', async () => {
+function browseHarness() {
   const client = new QueryClient();
+  const root = createRootRoute();
+  const router = createRouter({
+    routeTree: root.addChildren([
+      createRoute({ getParentRoute: () => root, path: '/notes' }),
+      createRoute({ getParentRoute: () => root, path: '/notes/$noteId' }),
+      createRoute({ getParentRoute: () => root, path: '/library/categories' }),
+    ]),
+    history: createMemoryHistory({ initialEntries: ['/notes'] }),
+  });
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    <QueryClientProvider client={client}>
+      <RouterContextProvider router={router}>{children}</RouterContextProvider>
+    </QueryClientProvider>
   );
+  return { client, router, wrapper };
+}
+
+it('retains filters on return and reconnect, separates Deck browsing and revokes state across account visits', async () => {
+  const { client, wrapper } = browseHarness();
   const first = renderHook(() => useNoteBrowse(undefined), { wrapper });
   act(() =>
     first.result.current.update({
@@ -60,3 +83,54 @@ it('retains filters on return and reconnect, separates Deck browsing and revokes
   newVisit.unmount();
   client.clear();
 });
+
+it.each(['tag', 'source'] as const)(
+  'preserves an exact %s entry on editor Back and starts fresh when the category is selected again',
+  async (kind) => {
+    const { client, router, wrapper } = browseHarness();
+    const category = { kind, value: ` saved ${kind} ` };
+    const first = renderHook(() => useNoteBrowse(undefined, category), { wrapper });
+    expect(first.result.current.state).toMatchObject({
+      [kind]: category.value,
+      [`${kind}Filter`]: category.value,
+      filtersOpen: true,
+    });
+    act(() => first.result.current.update({ typed: 'meaning', search: 'meaning', sort: 'alpha' }));
+    await waitFor(() => expect(first.result.current.state.search).toBe('meaning'));
+    await act(async () => {
+      await client.invalidateQueries();
+    });
+    first.unmount();
+    await act(async () => {
+      router.history.push('/notes/one-note');
+      await router.load();
+      router.history.back();
+      await router.load();
+    });
+    const returned = renderHook(() => useNoteBrowse(undefined, category), { wrapper });
+    expect(returned.result.current.state).toMatchObject({
+      [kind]: category.value,
+      [`${kind}Filter`]: category.value,
+      typed: 'meaning',
+      search: 'meaning',
+      sort: 'alpha',
+    });
+    returned.unmount();
+    await act(async () => {
+      router.history.push('/library/categories');
+      await router.load();
+      router.history.push('/notes');
+      await router.load();
+    });
+    const selectedAgain = renderHook(() => useNoteBrowse(undefined, category), { wrapper });
+    expect(selectedAgain.result.current.state).toMatchObject({
+      [kind]: category.value,
+      [`${kind}Filter`]: category.value,
+      typed: '',
+      search: '',
+      sort: 'created',
+    });
+    selectedAgain.unmount();
+    client.clear();
+  },
+);

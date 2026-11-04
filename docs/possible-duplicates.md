@@ -103,15 +103,17 @@ Physical-iPhone acceptance is still outstanding.
 
 ## Integration and physical acceptance
 
-This branch is independently based on protected main. Tags & Sources (#79) is independent pending
-work. Integrating both should preserve its browsing/filter entries and the Possible duplicates entry,
-both localized catalogs, existing Note editor return behavior, and cache invalidation. No #79
-implementation or Import Hardening change is included. Keep auto-merge disabled for integration review.
+PR #80 integrates with Tags & Sources (#79) on protected main. Library keeps both quiet actions in
+the existing wrapping action row. Categories keep exact saved-value filters; duplicate groups keep
+the established normalized-term key. Both reuse the account-bound downloaded Note projection and
+ordinary editor, with independent browse/return state and bounded server pages. No persistent index,
+mutation protocol or learning behavior is added by the integration. Account Export (#71) and Import
+Hardening (#74) remain outside this release.
 
 On an installed iPhone, use a fully downloaded large collection with repeated terms in different
 Decks, sources and meanings. Inspect long terms/translations/paths in both themes; search and select a
 Deck; open/edit a Note and return using both the in-app control and browser Back; confirm the group,
 position and keyboard behavior. Repeat offline, including a new device-only Note, then reconnect.
 Check an incomplete download and switch accounts. Confirm the workspace exposes only inspection and
-that ordinary Note editing retains the existing permissions. Record this acceptance separately from
-browser fixtures before releasing the interaction change.
+that ordinary Note editing retains the existing permissions. Installed-iPhone acceptance remains
+outstanding and must be recorded separately from browser verification.

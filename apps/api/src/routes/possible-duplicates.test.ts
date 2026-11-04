@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
+  noteCategoryPageSchema,
   possibleDuplicateGroupsPageSchema,
   possibleDuplicateNotesPageSchema,
 } from '@neuron/shared';
@@ -61,18 +62,21 @@ describe.skipIf(!database)('possible duplicate inspection through PostgreSQL and
         noteType: 'vocab',
         fields: { term: '  Bank\t ', translation: 'financial institution' },
         source: 'Oxford',
+        tags: ['shared', 'shared'],
       },
       {
         deckId,
         noteType: 'vocab',
         fields: { term: 'BANK', translation: 'river edge' },
         source: 'River',
+        tags: ['shared'],
       },
       {
         deckId: otherDeck,
         noteType: 'basic',
         fields: { front: 'bank', back: 'a seat' },
         source: 'Lesson',
+        tags: ['shared'],
       },
       { deckId: otherDeck, noteType: 'cloze', fields: { text: '{{bank}}', note: 'context' } },
       { deckId: otherDeck, noteType: 'basic', fields: { front: '{{bank}}', back: 'context' } },
@@ -90,6 +94,8 @@ describe.skipIf(!database)('possible duplicate inspection through PostgreSQL and
         deckId: hiddenDeck,
         noteType: 'vocab',
         fields: { term: 'only once', translation: 'hidden' },
+        source: 'Hidden source',
+        tags: ['shared'],
       },
       {
         deckId: hiddenDeck,
@@ -135,6 +141,36 @@ describe.skipIf(!database)('possible duplicate inspection through PostgreSQL and
     ]);
     expect(notes.items.some((note) => note.fields['translation'] === 'river edge')).toBe(true);
     expect((await groups(`deckId=${deckId}`)).items).toEqual([{ key: 'bank', count: 2 }]);
+  });
+
+  it('keeps category counts and exact Note filters consistent with duplicate members', async () => {
+    const categories = async (kind: 'tag' | 'source') =>
+      noteCategoryPageSchema.parse(
+        await json(await server().request(`/api/notes/categories?kind=${kind}`), 200),
+      );
+    expect((await categories('tag')).items).toEqual([{ value: 'shared', count: 3 }]);
+    const filtered = await json<{ items: { id: string }[] }>(
+      await server().request('/api/notes?tag=shared'),
+      200,
+    );
+    expect(filtered.items.map((note) => note.id).sort()).toEqual(
+      (await members('bank')).items.map((note) => note.id).sort(),
+    );
+    const sources = await categories('source');
+    expect(sources.items).toEqual([
+      { value: 'Lesson', count: 1 },
+      { value: 'Oxford', count: 1 },
+      { value: 'River', count: 1 },
+    ]);
+    const oxford = await json<{ items: { id: string }[] }>(
+      await server().request('/api/notes?source=Oxford'),
+      200,
+    );
+    expect(oxford.items.map((note) => note.id)).toEqual(
+      (await members('bank')).items
+        .filter((note) => note.source === 'Oxford')
+        .map((note) => note.id),
+    );
   });
 
   it('searches full groups by member meaning, source, path and literal wildcard', async () => {
