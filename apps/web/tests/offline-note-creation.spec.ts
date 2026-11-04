@@ -369,6 +369,28 @@ async function createOffline(page: Page, state: Server, term = 'Haus', translati
   return created!;
 }
 
+test('Recent Notes includes device-created Notes in both views with device dates and synchronization status', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  const created = await createOffline(page, state);
+  for (const recent of ['added', 'changed']) {
+    await page.goto(`/notes?recent=${recent}`);
+    const row = page.getByRole('button', { name: /Haus house.*Saved on device/ });
+    await expect(row).toBeVisible();
+    await expect(page.locator('time').first()).toHaveAttribute(
+      'datetime',
+      recent === 'added' ? created.createdAt : created.updatedAt,
+    );
+    await row.click();
+    await page.getByRole('button', { name: 'Recent Notes', exact: true }).click();
+    await expect(row).toBeVisible();
+  }
+  await reconnect(page, state);
+  await expect.poll(() => state.creates.length).toBe(1);
+  await expect(page.getByRole('button', { name: /Haus house/ })).toBeVisible();
+});
+
 test('Tags & Sources includes a device-only creation once and labels its synchronization state', async ({
   page,
 }) => {

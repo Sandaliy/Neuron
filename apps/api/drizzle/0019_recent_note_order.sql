@@ -1,0 +1,2 @@
+CREATE INDEX "notes_user_created_recent_idx" ON "notes" USING btree ("user_id","created_at","id") WHERE "notes"."deleted_at" is null and "notes"."purged_at" is null;--> statement-breakpoint
+CREATE INDEX "notes_user_updated_recent_idx" ON "notes" USING btree ("user_id","updated_at","id") WHERE "notes"."deleted_at" is null and "notes"."purged_at" is null;

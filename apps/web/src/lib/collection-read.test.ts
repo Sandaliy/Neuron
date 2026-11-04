@@ -84,6 +84,39 @@ beforeEach(() => {
 });
 
 describe('downloaded account-wide Note browsing', () => {
+  it.each(['created-desc', 'updated-desc'] as const)(
+    'pages %s timestamps and ties across Decks without a mutable row lookup',
+    async (sort) => {
+      const rows = fixture([note(10), note(11, id(4)), note(12), note(13)]);
+      rows.notes[0]!.row['createdAt'] = '2026-11-02T00:00:00.000001Z';
+      rows.notes[0]!.row['updatedAt'] = '2026-11-02T00:00:00.000001Z';
+      storage.snapshot.mockResolvedValue(rows);
+      const first = await localNotes({ sort }, undefined, 2);
+      expect(first.items.map((row) => row.id)).toEqual([id(10), id(13)]);
+      // Rebuild the projection after a pull changes the boundary row and removes a seen Note.
+      rows.notes[0]!.deleted = true;
+      rows.notes[3]!.row['createdAt'] = '2026-11-03T00:00:00.000000Z';
+      rows.notes[3]!.row['updatedAt'] = '2026-11-03T00:00:00.000000Z';
+      state.cursor++;
+      const second = await localNotes({ sort }, first.nextCursor, 2);
+      expect(second.items.map((row) => row.id)).toEqual([id(12), id(11)]);
+      expect(
+        (
+          await localNotes({
+            sort,
+            tag: 'saved',
+            source: 'Lesson',
+            search: 'meaning',
+            status: 'active',
+          })
+        ).items.map((row) => row.id),
+      ).toEqual([id(13), id(12), id(11)]);
+      state.accountId = 'other';
+      state.visit++;
+      storage.snapshot.mockResolvedValue(fixture([]));
+      expect((await localNotes({ sort })).items).toEqual([]);
+    },
+  );
   it('shares live rows and edit invalidation between category browsing and duplicate inspection', async () => {
     const rows = fixture();
     rows.notes[0]!.row['fields'] = { term: ' BANK ', translation: 'River' };
@@ -259,6 +292,28 @@ describe('downloaded account-wide Note browsing', () => {
       compare.mockRestore();
     }
   });
+
+  it.each(['created-desc', 'updated-desc'] as const)(
+    'reuses the sorted download for bounded %s pages',
+    async (sort) => {
+      storage.snapshot.mockResolvedValue(
+        fixture(Array.from({ length: 6000 }, (_, at) => note(100 + at, id(at % 2 ? 3 : 4)))),
+      );
+      const compare = vi.spyOn(String.prototype, 'localeCompare');
+      try {
+        const first = await localNotes({ sort });
+        const comparisons = compare.mock.calls.length;
+        const second = await localNotes({ sort }, first.nextCursor);
+        expect(first.items).toHaveLength(1000);
+        expect(second.items).toHaveLength(1000);
+        expect(new Set([...first.items, ...second.items].map((row) => row.id)).size).toBe(2000);
+        expect(compare.mock.calls.length - comparisons).toBeLessThan(16);
+        expect(storage.snapshot).toHaveBeenCalledTimes(1);
+      } finally {
+        compare.mockRestore();
+      }
+    },
+  );
 
   it('invalidates cached matches after an edit, a pull and an account switch', async () => {
     expect((await localNotes({ search: 'changed' })).items).toEqual([]);

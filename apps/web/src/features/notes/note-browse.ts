@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
 import { useCallback, useMemo } from 'react';
 
-import type { NoteSort, NoteStatus } from '@neuron/shared';
+import type { NoteBrowseSort as NoteSort, NoteStatus } from '@neuron/shared';
 
 import { accountEpoch, useOffline } from '../../lib/offline';
 
@@ -35,7 +35,11 @@ const initial: BrowseState = {
 };
 
 /** Small visit state lives beside the paginated query, and is cleared with the account. */
-export function useNoteBrowse(deckId: string | undefined, category?: NoteCategory) {
+export function useNoteBrowse(
+  deckId: string | undefined,
+  category?: NoteCategory,
+  recent?: 'added' | 'changed',
+) {
   const client = useQueryClient();
   const offline = useOffline();
   const visit = accountEpoch();
@@ -47,13 +51,16 @@ export function useNoteBrowse(deckId: string | undefined, category?: NoteCategor
   const defaults = useMemo(
     () => ({
       ...initial,
+      ...(recent
+        ? { sort: (recent === 'added' ? 'created-desc' : 'updated-desc') as NoteSort }
+        : {}),
       ...(kind && value ? { [kind]: value, [`${kind}Filter`]: value, filtersOpen: true } : {}),
     }),
-    [kind, value],
+    [kind, value, recent],
   );
   const key = useMemo(
-    () => ['note-browse', offline.accountId, visit, deckId ?? 'all', kind, value, entry],
-    [offline.accountId, visit, deckId, kind, value, entry],
+    () => ['note-browse', offline.accountId, visit, deckId ?? 'all', kind, value, entry, recent],
+    [offline.accountId, visit, deckId, kind, value, entry, recent],
   );
   const state = useQuery({
     queryKey: key,

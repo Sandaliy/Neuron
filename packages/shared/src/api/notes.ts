@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { isRecentNoteSort, readRecentNoteCursor } from '../note-recency.js';
 import { noteStatusSchema, noteTypeSchema } from '../note-types.js';
 import { triageMarkSchema } from '../triage.js';
 
@@ -77,10 +78,13 @@ export const deletedNoteListSchema = z.object({ notes: z.array(deletedNoteSchema
  * hundred.
  */
 export const NOTE_SORTS = ['created', 'alpha', 'rank'] as const;
+export const NOTE_BROWSE_SORTS = [...NOTE_SORTS, 'created-desc', 'updated-desc'] as const;
 
 export const noteSortSchema = z.enum(NOTE_SORTS);
 
 export type NoteSort = z.infer<typeof noteSortSchema>;
+export const noteBrowseSortSchema = z.enum(NOTE_BROWSE_SORTS);
+export type NoteBrowseSort = z.infer<typeof noteBrowseSortSchema>;
 
 /**
  * How many notes one page may hold.
@@ -94,25 +98,35 @@ export const MAX_NOTE_PAGE_SIZE = 1000;
 
 export const noteLimitSchema = z.coerce.number().int().min(1).max(MAX_NOTE_PAGE_SIZE);
 
-export const listNotesSchema = z.strictObject({
-  deckId: idSchema.optional(),
-  /** Whether the decks under `deckId` count as well. Default is that they do. */
-  subtree: z
-    .enum(['true', 'false'])
-    .default('true')
-    .transform((value) => value === 'true'),
-  status: noteStatusSchema.optional(),
-  tag: z.string().min(1).max(60).optional(),
-  /** Where the notes came from, as it was recorded on the import. */
-  source: z.string().min(1).max(200).optional(),
-  /** Notes that have at least one card in this state. */
-  cardState: cardStateSchema.optional(),
-  /** Matches the term, the translation and the tags, case insensitively. */
-  search: z.string().trim().min(1).max(100).optional(),
-  sort: noteSortSchema.default('created'),
-  limit: noteLimitSchema.optional(),
-  cursor: cursorSchema.optional(),
-});
+export const listNotesSchema = z
+  .strictObject({
+    deckId: idSchema.optional(),
+    /** Whether the decks under `deckId` count as well. Default is that they do. */
+    subtree: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    status: noteStatusSchema.optional(),
+    tag: z.string().min(1).max(60).optional(),
+    /** Where the notes came from, as it was recorded on the import. */
+    source: z.string().min(1).max(200).optional(),
+    /** Notes that have at least one card in this state. */
+    cardState: cardStateSchema.optional(),
+    /** Matches the term, the translation and the tags, case insensitively. */
+    search: z.string().trim().min(1).max(100).optional(),
+    sort: noteBrowseSortSchema.default('created'),
+    limit: noteLimitSchema.optional(),
+    cursor: cursorSchema.optional(),
+  })
+  .superRefine((query, context) => {
+    if (
+      query.cursor !== undefined &&
+      isRecentNoteSort(query.sort) &&
+      readRecentNoteCursor(query.cursor)?.sort !== query.sort
+    ) {
+      context.addIssue({ code: 'custom', path: ['cursor'], message: 'Invalid recent Note cursor' });
+    }
+  });
 
 /** Read-only discovery of exact saved metadata, bounded independently of Note pages. */
 export const noteCategoryQuerySchema = z.strictObject({

@@ -51,6 +51,12 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   current wave, what Study lets in today or why it lets in none, when the next wave starts and what waits
   after it; Today's rows name the wave instead of every new Note.
 
+Recent Notes is implemented on `work/recent-notes`, pending protected PR checks, merge, production
+deployment and installed-iPhone acceptance. Library opens Recently added (`createdAt`) or Recently
+changed (`updatedAt`) in the existing Note browser with dates, locations, filters and editor return.
+Migration 0019 adds read indexes only. See `recent-notes.md` for timestamp/pagination semantics,
+downloaded and device-saved work, verification and physical acceptance steps.
+
 Not built: offline Import application, rank-ordered waves, Phase 9 progressive directions and the
 problem-card area, Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
