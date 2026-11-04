@@ -263,6 +263,33 @@ test('Tags & Sources and duplicate inspection retain independent editor return a
   page,
 }) => {
   const state = await fixture(page);
+  let releaseSearch!: () => void;
+  let searchRequested!: () => void;
+  let releaseMembers!: () => void;
+  let membersRequested!: () => void;
+  const searchResponse = new Promise<void>((resolve) => {
+    releaseSearch = resolve;
+  });
+  const searching = new Promise<void>((resolve) => {
+    searchRequested = resolve;
+  });
+  const memberResponse = new Promise<void>((resolve) => {
+    releaseMembers = resolve;
+  });
+  const loadingMembers = new Promise<void>((resolve) => {
+    membersRequested = resolve;
+  });
+  await page.route('**/api/notes/possible-duplicates**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/notes')) {
+      membersRequested();
+      await memberResponse;
+    } else if (url.searchParams.get('search') === 'River') {
+      searchRequested();
+      await searchResponse;
+    }
+    await route.fallback();
+  });
   await page.goto('/library');
   await expect(
     page.getByRole('button', { name: 'Possible duplicates', exact: true }),
@@ -291,9 +318,25 @@ test('Tags & Sources and duplicate inspection retain independent editor return a
   await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await page.getByRole('button', { name: 'Possible duplicates', exact: true }).click();
-  await page.getByRole('searchbox', { name: 'Search duplicate groups' }).fill('River');
+  const duplicateSearch = page.getByRole('searchbox', { name: 'Search duplicate groups' });
+  await duplicateSearch.fill('River');
+  await duplicateSearch.press('Enter');
+  await searching;
+  await expect(duplicateSearch).not.toBeFocused();
+  await expect(page.getByRole('status', { name: 'Loading', exact: true })).toBeVisible();
+  releaseSearch();
   await page.getByRole('button', { name: 'bank 1500 Notes with this term' }).click();
-  await page.locator('[data-duplicate-id] button').first().click();
+  await loadingMembers;
+  await expect(page.getByRole('heading', { name: 'bank', exact: true })).toBeVisible();
+  await expect(page.getByRole('status', { name: 'Loading', exact: true })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Possible duplicates', exact: true })).toHaveCount(0);
+  releaseMembers();
+  await page
+    .getByRole('list', { name: 'Possible duplicates', exact: true })
+    .getByRole('button', { name: /^Bank Financial institution/ })
+    .first()
+    .click();
+  await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Possible duplicates', exact: true }),
   ).toBeVisible();

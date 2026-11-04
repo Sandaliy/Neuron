@@ -29,6 +29,28 @@ the existing 1,000-Note maximum plus one continuation probe; Card summaries are 
 returned page. The production statement is shared with restricted-role EXPLAIN tests. PostgreSQL may
 choose an existing Deck index and an in-memory top-N sort for small account collections.
 
+After a protected `main` push, the production workflow applies numbered migrations through the owner
+connection. Vercel independently checks the restricted runtime roles and required tables/columns; that
+compatibility probe does not inspect indexes. Release acceptance must therefore verify the exact 0019
+journal hash and both valid indexes after the trusted workflow, as well as production deployment health.
+Drizzle executes pending SQL and the migration journal insert in one transaction;
+`CREATE INDEX CONCURRENTLY` cannot run there.
+Migration 0019 takes its ordinary `SHARE` table lock with `NOWAIT`, refusing an existing writer instead
+of forming a write-blocking lock queue. Each index statement has a transaction-local two-second limit.
+A five-second idle-transaction limit terminates a stalled migration connection while the lock is held;
+the statement setting is restored before the journal write and all local settings end at commit.
+Either refusal or timeout rolls back both indexes and the journal entry. Reads remain available during
+a successful build; writes wait until that short transaction commits. The pre-release assessment on
+2026-11-04 confirmed a production Note heap below 1 MiB. Larger or busy databases fail closed under
+these limits and require reassessment rather than removing the guards or bypassing the workflow.
+See PostgreSQL's [index-build locking rules](https://www.postgresql.org/docs/17/sql-createindex.html)
+and [connection timeout semantics](https://www.postgresql.org/docs/17/runtime-config-client.html).
+
+`recent-indexes.test.ts` runs the actual migration and trusted production policy against a throwaway
+PostgreSQL database containing 20,000 Notes, Cards and a Review. It verifies a conflicting writer,
+injected slow-statement cancellation after the first index, atomic rollback, local setting lifetimes,
+valid indexes, safe repeated application, full row/timestamp fingerprints and restricted-role RLS.
+
 ## Downloaded and pending work
 
 A complete download provides both views from the existing account-local projection, excluding
@@ -78,3 +100,8 @@ On the installed iPhone after the protected release:
    with results open and confirm neither old rows nor filters remain.
 
 Browser profiles do not replace physical-device, installed-PWA or storage-eviction acceptance.
+
+The cross-workspace browser regression also holds duplicate search/member responses explicitly. It
+commits search with Enter, waits for the selected group, opens a named Note row and verifies the editor
+before its return breadcrumb. A generic first-row selector can otherwise select a group while a
+debounced search replaces the list. Library entries and product navigation are unchanged by that repair.
