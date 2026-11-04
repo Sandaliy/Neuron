@@ -102,9 +102,9 @@ export const listNotesSchema = z.strictObject({
     .default('true')
     .transform((value) => value === 'true'),
   status: noteStatusSchema.optional(),
-  tag: tagSchema.optional(),
+  tag: z.string().min(1).max(60).optional(),
   /** Where the notes came from, as it was recorded on the import. */
-  source: z.string().trim().min(1).max(200).optional(),
+  source: z.string().min(1).max(200).optional(),
   /** Notes that have at least one card in this state. */
   cardState: cardStateSchema.optional(),
   /** Matches the term, the translation and the tags, case insensitively. */
@@ -113,6 +113,21 @@ export const listNotesSchema = z.strictObject({
   limit: noteLimitSchema.optional(),
   cursor: cursorSchema.optional(),
 });
+
+/** Read-only discovery of exact saved metadata, bounded independently of Note pages. */
+export const noteCategoryQuerySchema = z.strictObject({
+  kind: z.enum(['tag', 'source']),
+  search: z.string().trim().max(100).optional(),
+  cursor: z.string().min(1).max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+export type NoteCategoryQuery = z.infer<typeof noteCategoryQuerySchema>;
+export const noteCategoryPageSchema = z.object({
+  items: z.array(z.object({ value: z.string(), count: z.number().int().nonnegative() })).max(200),
+  total: z.number().int().nonnegative(),
+  nextCursor: z.string().optional(),
+});
+export type NoteCategoryPage = z.infer<typeof noteCategoryPageSchema>;
 
 export const createNoteSchema = z.strictObject({
   id: idSchema.optional(),

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { termOf } from '@neuron/shared';
+import { listNotesSchema, termOf } from '@neuron/shared';
 import type {
   Card,
   Note,
@@ -171,7 +171,12 @@ export function noteListQuery(query: NoteQuery) {
       signal: AbortSignal;
       client: QueryClient;
     }) =>
-      pageParam?.startsWith('local:')
+      // Unfinished local tag drafts can exceed the server's read/write bounds.
+      // They stay exact and explicitly downloaded until the learner finishes them.
+      pageParam?.startsWith('local:') ||
+      (offlineState().available &&
+        (!listNotesSchema.shape.tag.safeParse(query.tag).success ||
+          !listNotesSchema.shape.source.safeParse(query.source).success))
         ? localNotes(query, pageParam)
         : collectionRead<{ items: Note[]; nextCursor?: string; local?: true }>(
             `/notes?${noteQueryString(query, { limit: '1000', ...(pageParam === undefined ? {} : { cursor: pageParam }) })}`,
@@ -289,6 +294,7 @@ export function useNoteActions() {
     // Revalidate on the next visit, without making every keystroke refetch a
     // thousand rows and the entire deck tree while the keyboard is open.
     void client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'], refetchType: 'none' });
+    void client.invalidateQueries({ queryKey: [NOTE_KEY, 'categories'], refetchType: 'none' });
     void client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' });
     void client.invalidateQueries({ queryKey: ['practice-notes'], refetchType: 'none' });
     void client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' });
@@ -304,6 +310,7 @@ export function useNoteActions() {
   const markCollectionStale = () => {
     void Promise.all([
       client.invalidateQueries({ queryKey: [NOTE_KEY, 'list'], refetchType: 'none' }),
+      client.invalidateQueries({ queryKey: [NOTE_KEY, 'categories'], refetchType: 'none' }),
       client.invalidateQueries({ queryKey: DECK_TREE_KEY, refetchType: 'none' }),
       client.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' }),
       client.invalidateQueries({ queryKey: ['practice-notes'], refetchType: 'none' }),

@@ -346,7 +346,13 @@ test('collection search explains an incomplete offline download without presenti
   await expect(
     page.getByRole('button', { name: 'English Deck · Library', exact: true }),
   ).toBeVisible();
+  // Healthy account probes can reconnect after a browser hint; keep the transport unavailable too.
+  await page.route(
+    (url) => url.pathname.startsWith('/api/'),
+    (route) => route.abort('internetdisconnected'),
+  );
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
+  await expect(page.getByText('Offline', { exact: true })).toBeVisible();
   await expect(
     page.getByText(
       'The collection download is incomplete or missing. Connect and sign in to finish downloading before browsing offline.',

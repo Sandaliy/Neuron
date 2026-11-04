@@ -263,6 +263,7 @@ the api anywhere in browser code would cost the session cookie.
 | `settings/totp.tsx`                             | Enrollment in three steps that cannot be skipped, and removal                                   |
 | `library/library.tsx`                           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
 | `library/collection-search*.ts(x)`              | Collection name search, flat path index, measured results and history return                    |
+| `library/note-categories.tsx`                   | Read-only Tags & Sources discovery, measured value rows and entry into filtered Notes           |
 | `library/deck-dialogs.tsx`                      | Deck naming, safe move picker and inherited language/level settings                             |
 | `library/collection-picker.tsx`                 | Hierarchy-aware deck destination picker                                                         |
 | `library/collection-path.tsx`                   | Navigable folder/deck path chips on collection-scoped screens                                   |
@@ -319,6 +320,7 @@ every one of these in every state.
 | `lib/account.ts`                                  | Who is signed in. One query, and the session check for the whole app                              |
 | `lib/decks.ts`                                    | The tree in one request, and adding up the roots                                                  |
 | `lib/notes.ts`                                    | Note queries, writes, bulk actions and batched duplicate lookup                                   |
+| `lib/note-categories.ts`                          | Bounded metadata pages with account-bound local fallback and separate server/local cursors        |
 | `lib/study-plan.ts`                               | Early authoritative default plan and account/revision/time compatibility for reuse                |
 | `lib/prompt.ts`                                   | Build-time import of `docs/card-generation-prompt.md`                                             |
 | `lib/dialog-state.ts`                             | Resets dialog-local state whenever the dialog opens                                               |

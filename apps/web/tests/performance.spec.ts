@@ -36,6 +36,83 @@ const CPU_THROTTLE = 4;
 
 const FRAMES = 180;
 
+test.describe('category browsing performance', () => {
+  test.use({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 });
+  test('Tags & Sources keeps the scroll budget with thousands of category values at 4x CPU', async ({
+    page,
+  }) => {
+    await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'off' });
+    await useFixtures(page);
+    const values = Array.from({ length: 5000 }, (_, i) => ({
+      value: `tag ${String(i).padStart(4, '0')}`,
+      count: 20,
+    }));
+    await page.route('**/api/notes/categories?*', (route) => {
+      const params = new URL(route.request().url()).searchParams;
+      const all = values.filter((row) => row.value.includes(params.get('search') ?? ''));
+      const after = all.filter((row) => !params.has('cursor') || row.value > params.get('cursor')!);
+      const items = after.slice(0, 100);
+      return route.fulfill({
+        json: {
+          items,
+          total: all.length,
+          ...(after.length > 100 ? { nextCursor: items.at(-1)!.value } : {}),
+        },
+      });
+    });
+    await page.goto('/library/categories');
+    await expect(page.getByText('Shown: 100 of 5000', { exact: true })).toBeVisible();
+    const radio = page.getByRole('radio', { name: 'Tags', exact: true });
+    await radio.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('radio', { name: 'Sources', exact: true })).toBeChecked();
+    await page.keyboard.press('ArrowLeft');
+    await expect(radio).toBeChecked();
+    for (let i = 0; i < 2; i++) {
+      await page.getByRole('button', { name: 'Show more', exact: true }).click();
+      await expect(
+        page.getByText(`Shown: ${(i + 2) * 100} of 5000`, { exact: true }),
+      ).toBeVisible();
+    }
+    await page.evaluate(async () => {
+      window.scrollTo(0, 0);
+      await document.fonts.ready;
+      await Promise.all(
+        document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+      );
+    });
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+    const measured = await page.evaluate(async (count) => {
+      const frame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
+      const gaps: number[] = [];
+      let previous = await frame();
+      for (let i = 0; i < count; i++) {
+        window.scrollTo(0, i * 24);
+        const now = await frame();
+        gaps.push(now - previous);
+        previous = now;
+      }
+      return {
+        fps: (gaps.length / gaps.reduce((a, b) => a + b, 0)) * 1000,
+        worst: Math.max(...gaps),
+        mounted: document.querySelectorAll('[role="listitem"]').length,
+      };
+    }, FRAMES);
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    await session.detach();
+    console.info(
+      `5000 categories, 4x CPU: ${measured.fps.toFixed(1)} fps; worst ${measured.worst.toFixed(1)} ms; ${measured.mounted} mounted rows`,
+    );
+    await test.info().attach('category-scroll-performance', {
+      body: JSON.stringify(measured),
+      contentType: 'application/json',
+    });
+    expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
+    expect(measured.mounted).toBeLessThan(40);
+  });
+});
+
 test.describe('collection search performance', () => {
   test.use({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 });
   test('collection search stays responsive over 5050 nested collections on a throttled phone', async ({

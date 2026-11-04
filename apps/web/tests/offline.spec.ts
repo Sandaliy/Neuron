@@ -218,6 +218,7 @@ test('Find Notes searches a downloaded 6000-Note library offline without repeate
     rank: index,
     rev: 2 + Math.floor(index / 200),
     fields: { term: `Saved ${index + 1}`, translation: 'Downloaded meaning' },
+    tags: ['cached', 'cached', ...Array.from({ length: 48 }, (_, at) => `topic ${at}`)],
   }));
   const hiddenFolder = { ...folder, id: uid(8001) };
   const hiddenDeck = { ...deck, id: uid(8002), parentId: hiddenFolder.id };
@@ -342,6 +343,25 @@ test('Find Notes searches a downloaded 6000-Note library offline without repeate
   await search.fill('match');
   await search.press('Enter');
   await expect(page.getByText('Nothing matches', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await startInteractionMetrics(page);
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'cached Notes: 6000', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'cached Notes: 6000', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'cached',
+  );
+  await expect(page.getByRole('button', { name: /^Saved 1 Downloaded/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await page.getByText('Sources', { exact: true }).click();
+  await expect(page.getByText('No categories yet', { exact: true })).toBeVisible();
+  const categories = await readInteractionMetrics(page);
+  expect(categories.scans['notes'] ?? 0).toBe(0);
+  expect(categories.scans['cards'] ?? 0).toBe(0);
+  await info.attach('offline-category-browsing.json', {
+    body: JSON.stringify(categories),
+    contentType: 'application/json',
+  });
 });
 
 test('Find Notes explains an incomplete download without presenting partial results', async ({
@@ -1752,7 +1772,18 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
     await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
     await page.close();
     const reopened = await context.newPage();
-    await reopened.goto(`${origin}/library`);
+    await reopened.goto(`${origin}/library/categories`);
+    await expect(
+      reopened.getByRole('button', { name: 'cached Notes: 1', exact: true }),
+    ).toBeVisible();
+    await reopened.getByRole('button', { name: 'cached Notes: 1', exact: true }).click();
+    await expect(reopened.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+      'cached',
+    );
+    await expect(
+      reopened.getByRole('button', { name: /Durable word Downloaded meaning/ }),
+    ).toBeVisible();
+    await reopened.getByRole('link', { name: 'Library', exact: true }).click();
     await expect(reopened.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
     const cached = await reopened.evaluate(async () =>
       (
@@ -2721,6 +2752,25 @@ test('incomplete snapshot never presents cached online collection rows as availa
   ).toBeVisible();
   await expect(page.locator('[data-rows]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
+});
+
+test('Tags & Sources hides cached online counts when the download is incomplete offline', async ({
+  page,
+  context,
+}) => {
+  const control = await installContinuityFixtures(page, context, false);
+  await page.route('**/api/notes/categories?*', (route) =>
+    control.lost
+      ? route.abort('internetdisconnected')
+      : route.fulfill({ json: { items: [{ value: 'cached', count: 1 }], total: 1 } }),
+  );
+  await page.goto('/library/categories');
+  await expect(page.getByRole('button', { name: 'cached Notes: 1', exact: true })).toBeVisible();
+  control.lost = true;
+  await page.getByRole('searchbox').fill('cached');
+  await expect(page.getByText('Offline', { exact: true })).toBeVisible();
+  await expect(page.getByText(/collection download is incomplete or missing/)).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Tags & Sources', exact: true })).toHaveCount(0);
 });
 
 test('HTTP read errors and isolated failed mutations do not establish a transport outage', async ({

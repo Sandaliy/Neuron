@@ -212,6 +212,9 @@ export function LibraryScreen() {
             <Search size={16} strokeWidth={1.5} aria-hidden="true" />
             {t('notes.find')}
           </Button>
+          <Button variant="quiet" onClick={() => void navigate({ to: '/library/categories' })}>
+            {t('categories.title')}
+          </Button>
         </div>
 
         {folder?.rev === 0 && (

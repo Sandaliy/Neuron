@@ -24,6 +24,8 @@ import {
   deleteAccountSchema,
   dueCardsSchema,
   listNotesSchema,
+  noteCategoryQuerySchema,
+  noteCategoryPageSchema,
   meSchema,
   moveDeckSchema,
   noteSchema,
@@ -87,6 +89,7 @@ const registry: Record<string, z.ZodType> = {
   DeletedNote: deletedNoteSchema,
   DeletedNoteList: deletedNoteListSchema,
   ListNotes: listNotesSchema,
+  NoteCategoryPage: noteCategoryPageSchema,
   CreateNote: createNoteSchema,
   UpdateNote: updateNoteSchema,
   BulkStatus: bulkStatusSchema,
@@ -359,6 +362,16 @@ export function openApiDocument(baseUrl: string) {
           summary: 'Create a note and its opening cards',
           requestBody: body('CreateNote'),
           responses: { 201: answer('The note and the cards it produced'), ...commonErrors },
+        },
+      },
+      '/notes/categories': {
+        get: {
+          summary: 'Browse exact saved tags or sources with live Note counts',
+          parameters: queryParameters(noteCategoryQuerySchema),
+          responses: {
+            200: answer('One bounded page of categories', 'NoteCategoryPage'),
+            ...commonErrors,
+          },
         },
       },
       '/notes/deleted': {
