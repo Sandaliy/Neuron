@@ -71,8 +71,11 @@ export function noteRoutes(): Hono<RequestBindings> {
     ]);
 
     return context.json({
-      items: page.items.map(({ cardStates, studyCards, ...note }) => ({
+      items: page.items.map(({ cardStates, studyCards, recentTimestamp, ...note }) => ({
         ...serialiseNote(note, typeNames),
+        ...(recentTimestamp
+          ? { [query.sort === 'created-desc' ? 'createdAt' : 'updatedAt']: recentTimestamp }
+          : {}),
         cardStates,
         studyCards,
       })),

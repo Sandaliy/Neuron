@@ -118,7 +118,12 @@ function warmUp(path = window.location.pathname, search = window.location.search
     const list = noteListQuery({
       ...(deckId ? { deckId } : {}),
       ...(tag ? { tag } : source ? { source } : {}),
-      sort: 'created',
+      sort:
+        params.get('recent') === 'added'
+          ? 'created-desc'
+          : params.get('recent') === 'changed'
+            ? 'updated-desc'
+            : 'created',
     });
     if (!queryClient.getQueryData(list.queryKey)) void queryClient.prefetchInfiniteQuery(list);
     if (

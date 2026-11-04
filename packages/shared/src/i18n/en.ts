@@ -842,6 +842,16 @@ export const en = {
   'notes.sort.created': 'Oldest first',
   'notes.sort.alpha': 'Alphabetical',
   'notes.sort.rank': 'Most frequent words first',
+  'notes.sort.created-desc': 'Recently added',
+  'notes.sort.updated-desc': 'Recently changed',
+  'notes.recent': 'Recent Notes',
+  'notes.recentHint':
+    'Newest first across the Library. Changed dates include content, status, tags and location updates.',
+  'notes.pendingRecent':
+    'Device-saved edits keep the last recorded update date until synchronization.',
+  'notes.refreshRecent': 'Refresh',
+  'notes.addedAt': 'Added',
+  'notes.changedAt': 'Updated',
   'notes.select': 'Select notes',
   'notes.selectDone': 'Exit selection',
   'notes.selected': 'Selected: {count}',

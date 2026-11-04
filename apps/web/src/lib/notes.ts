@@ -1,10 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { listNotesSchema, termOf } from '@neuron/shared';
+import {
+  listNotesSchema,
+  termOf,
+  isRecentNoteSort,
+  compareRecentNotes,
+  readRecentNoteCursor,
+} from '@neuron/shared';
 import type {
   Card,
   Note,
-  NoteSort,
+  NoteBrowseSort as NoteSort,
   NoteStatus,
   NoteTypeName,
   DuplicateMatch,
@@ -20,7 +26,7 @@ import { DECK_TREE_KEY, flatten } from './decks';
 import { writeEntities } from './entity-writes';
 import { creationNote, noteCreationFor, noteCreations, unsentCreation } from './note-creation';
 import { projectNotes } from './note-projection';
-import { offlineState } from './offline';
+import { accountEpoch, offlineState } from './offline';
 import { DELETED_NOTES_KEY } from './recovery';
 
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
@@ -111,25 +117,54 @@ function matches(query: NoteQuery, note: Note) {
 }
 
 /**
- * Adds unacknowledged Notes to the last server page. They carry no Cards, so
- * the page names them and learning pools leave the page alone.
+ * Recent pages merge device creations inside their captured time boundaries;
+ * other orders retain their existing last-page overlay. These Notes have no Cards.
  */
 async function withUnsent<T extends { items: Note[]; nextCursor?: string; local?: true }>(
   query: NoteQuery,
   page: T,
+  cursor?: string,
+  client?: QueryClient,
 ): Promise<T & { unsent?: string[] }> {
   const accountId = offlineState().accountId;
-  if (page.local || page.nextCursor !== undefined || !accountId) return page;
+  const visit = accountEpoch();
+  const recent = isRecentNoteSort(query.sort);
+  if (page.local || !accountId || (!recent && page.nextCursor !== undefined)) return page;
   const waiting = (await noteCreations(accountId).catch(() => []))
     .filter(unsentCreation)
     .map(creationNote)
     .filter((note) => matches(query, note) && !page.items.some((item) => item.id === note.id));
-  if (waiting.length === 0) return page;
-  const items = [...page.items, ...waiting];
-  if (query.sort === 'alpha')
+  // The authoritative tree excludes deleted and inaccessible destinations.
+  const tree = client?.getQueryData<{ decks: DeckNode[] }>(DECK_TREE_KEY)?.decks;
+  const visible = tree ? new Set(flatten(tree).map((deck) => deck.id)) : undefined;
+  const shown = recent
+    ? waiting.filter((note) => {
+        if (visible && !visible.has(note.deckId)) return false;
+        const compare = (value: string) => {
+          const boundary = readRecentNoteCursor(value);
+          if (!boundary) return 0;
+          return compareRecentNotes(
+            note,
+            { id: boundary.id, createdAt: boundary.timestamp, updatedAt: boundary.timestamp },
+            query.sort as 'created-desc' | 'updated-desc',
+          );
+        };
+        return (
+          (cursor === undefined || compare(cursor) > 0) &&
+          (page.nextCursor === undefined || compare(page.nextCursor) <= 0)
+        );
+      })
+    : waiting;
+  if (visit !== accountEpoch() || accountId !== offlineState().accountId)
+    throw new DOMException('Collection read ended', 'AbortError');
+  if (shown.length === 0) return page;
+  const items = [...page.items, ...shown];
+  if (isRecentNoteSort(query.sort))
+    items.sort((a, b) => compareRecentNotes(a, b, query.sort as 'created-desc' | 'updated-desc'));
+  else if (query.sort === 'alpha')
     items.sort((a, b) => termOf(a.fields).localeCompare(termOf(b.fields)));
   else if (query.sort === 'rank') items.sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
-  return { ...page, items, unsent: waiting.map((note) => note.id) };
+  return { ...page, items, unsent: shown.map((note) => note.id) };
 }
 
 /** What the browse screen is asking the api for. */
@@ -157,9 +192,17 @@ export function noteQueryString(query: NoteQuery, extra: Record<string, string> 
 }
 
 /** Shared by route warm-up and the browser; the original cursor/page ownership stays intact. */
-export function noteListQuery(query: NoteQuery) {
+export function noteListQuery(query: NoteQuery, deviceChanges?: number) {
+  const queryKey = [
+    NOTE_KEY,
+    'list',
+    noteQueryString(query),
+    ...(isRecentNoteSort(query.sort)
+      ? [offlineState().accountId, accountEpoch(), deviceChanges]
+      : []),
+  ];
   return {
-    queryKey: [NOTE_KEY, 'list', noteQueryString(query)],
+    queryKey,
     networkMode: 'always' as const,
     initialPageParam: undefined as string | undefined,
     queryFn: ({
@@ -173,6 +216,7 @@ export function noteListQuery(query: NoteQuery) {
     }) =>
       // Unfinished local tag drafts can exceed the server's read/write bounds.
       // They stay exact and explicitly downloaded until the learner finishes them.
+      deviceChanges !== undefined ||
       pageParam?.startsWith('local:') ||
       (offlineState().available &&
         (!listNotesSchema.shape.tag.safeParse(query.tag).success ||
@@ -185,7 +229,7 @@ export function noteListQuery(query: NoteQuery) {
             // authoritative first page before further online pagination.
             () => localNotes(query, pageParam),
             (value) => {
-              const key = [NOTE_KEY, 'list', noteQueryString(query)];
+              const key = queryKey;
               if (pageParam === undefined && !client.getQueryData(key))
                 client.setQueryData(
                   key,
@@ -193,10 +237,8 @@ export function noteListQuery(query: NoteQuery) {
                   { updatedAt: 0 },
                 );
             },
-            () =>
-              pageParam === undefined &&
-              !client.getQueryData([NOTE_KEY, 'list', noteQueryString(query)]),
-          ).then((page) => withUnsent(query, page)),
+            () => pageParam === undefined && !client.getQueryData(queryKey),
+          ).then((page) => withUnsent(query, page, pageParam, client)),
     getNextPageParam: (last: { nextCursor?: string }) => last.nextCursor,
   };
 }

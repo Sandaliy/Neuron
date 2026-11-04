@@ -6,9 +6,100 @@ import {
   useFixtures as installFixtures,
   usePreferences as installPreferences,
 } from './fixtures';
+import { installRecentFixture } from './recent-fixture';
 import { continuousSearch } from './search-interaction';
 
 import type { Page, Route } from '@playwright/test';
+
+test('Recent Notes opens restrained Library choices, dates and locations and retains filters and editor return', async ({
+  page,
+}, info) => {
+  const { requests } = await installRecentFixture(page);
+  await page.goto('/library');
+  await page.getByRole('button', { name: 'Recent Notes', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Recently added', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Recent Notes', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue(
+    'created-desc',
+  );
+  await expect(page.getByRole('button', { name: /^Wort 2 word 2/ })).toBeVisible();
+  await expect(page.locator('time').first()).toHaveAttribute(
+    'datetime',
+    '2026-11-01T00:00:00.000Z',
+  );
+  await expect(page.getByText('Deck 2', { exact: true }).first()).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath('recent-notes-added.png'),
+    animations: 'disabled',
+  });
+  await page.getByRole('combobox', { name: 'Order', exact: true }).selectOption('updated-desc');
+  await expect(page.getByRole('button', { name: /^Wort 6500 word 6500/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page
+    .getByRole('combobox', { name: 'Study participation', exact: true })
+    .selectOption('known');
+  await page.getByRole('combobox', { name: 'Tag or topic', exact: true }).fill('recent');
+  await page.getByRole('textbox', { name: 'Import source name', exact: true }).fill('Lesson');
+  await page.getByRole('searchbox', { name: 'Search', exact: true }).fill('word');
+  await page.getByRole('searchbox', { name: 'Search', exact: true }).press('Enter');
+  await expect.poll(() => requests.at(-1)?.searchParams.get('source')).toBe('Lesson');
+  await expect.poll(() => requests.at(-1)?.searchParams.get('search')).toBe('word');
+  await page.evaluate(() => window.scrollTo(0, 4000));
+  const visibleTerm = () =>
+    page.evaluate(
+      () =>
+        Array.from(document.querySelectorAll<HTMLButtonElement>('[data-rows] button'))
+          .find((node) => {
+            const rect = node.getBoundingClientRect();
+            return (
+              node.textContent?.startsWith('Wort') &&
+              rect.top > 60 &&
+              rect.bottom < innerHeight - 90
+            );
+          })
+          ?.innerText.split('\n')[0],
+    );
+  await expect.poll(visibleTerm).toBeTruthy();
+  const term = (await visibleTerm())!;
+  const target = page.getByRole('button', { name: new RegExp('^' + term + ' ') });
+  const before = await page.evaluate(() => scrollY);
+  await target.click();
+  await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Recent Notes', exact: true }).click();
+  await expect(page.getByRole('searchbox', { name: 'Search', exact: true })).toHaveValue('word');
+  await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue(
+    'updated-desc',
+  );
+  await expect(
+    page.getByRole('combobox', { name: 'Study participation', exact: true }),
+  ).toHaveValue('known');
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'recent',
+  );
+  await expect
+    .poll(() => page.evaluate((offset) => Math.abs(scrollY - offset), before))
+    .toBeLessThan(110);
+  await expect(target).toBeVisible();
+  expect(await page.locator('[data-rows] button').count()).toBeLessThan(80);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('recent changed pagination captures ties, survives a changing boundary and refreshes newer work', async ({
+  page,
+}) => {
+  const { notes, requests } = await installRecentFixture(page);
+  await page.goto('/notes?recent=changed');
+  await expect(page.getByRole('button', { name: /^Wort 6500 word 6500/ })).toBeVisible();
+  notes[5500]!.updatedAt = '2026-11-03T00:00:00.000Z';
+  await page.evaluate(() => window.scrollTo(0, 97_000));
+  await expect
+    .poll(() => requests.filter((url) => url.searchParams.has('cursor')).length)
+    .toBeGreaterThan(0);
+  expect(requests.every((url) => url.searchParams.get('limit') === '1000')).toBe(true);
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Wort 5501 word 5501/ })).toBeVisible();
+  expect(await page.locator('[data-rows] button').count()).toBeLessThan(80);
+});
 
 async function installCategoriesFixture(page: Page) {
   const notes = manyNotes(6000).map((note, index) => ({

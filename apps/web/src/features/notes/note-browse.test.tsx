@@ -84,6 +84,44 @@ it('retains filters on return and reconnect, separates Deck browsing and revokes
   client.clear();
 });
 
+it('separates recent entries, retains their compatible filters on return and clears a new account visit', async () => {
+  const { client, wrapper } = browseHarness();
+  const first = renderHook(() => useNoteBrowse(undefined, undefined, 'changed'), { wrapper });
+  expect(first.result.current.state.sort).toBe('updated-desc');
+  act(() =>
+    first.result.current.update({
+      search: 'meaning',
+      typed: 'meaning',
+      tag: 'topic',
+      tagFilter: 'topic',
+      status: 'known',
+    }),
+  );
+  await waitFor(() => expect(first.result.current.state.search).toBe('meaning'));
+  first.unmount();
+  const returned = renderHook(() => useNoteBrowse(undefined, undefined, 'changed'), { wrapper });
+  expect(returned.result.current.state).toMatchObject({
+    sort: 'updated-desc',
+    search: 'meaning',
+    tagFilter: 'topic',
+    status: 'known',
+  });
+  const added = renderHook(() => useNoteBrowse(undefined, undefined, 'added'), { wrapper });
+  expect(added.result.current.state).toMatchObject({ sort: 'created-desc', search: '' });
+  returned.unmount();
+  added.unmount();
+  account.id = 'other';
+  account.visit++;
+  const other = renderHook(() => useNoteBrowse(undefined, undefined, 'changed'), { wrapper });
+  expect(other.result.current.state).toMatchObject({
+    sort: 'updated-desc',
+    search: '',
+    status: '',
+  });
+  other.unmount();
+  client.clear();
+});
+
 it.each(['tag', 'source'] as const)(
   'preserves an exact %s entry on editor Back and starts fresh when the category is selected again',
   async (kind) => {

@@ -239,10 +239,14 @@ const noteListRoute = createRoute({
     deckId?: string;
     tag?: string;
     source?: string;
+    recent?: 'added' | 'changed';
     learning?: 'practice' | 'triage';
     entry?: 'resume' | 'setup';
   } => ({
     ...(typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {}),
+    ...(search['recent'] === 'added' || search['recent'] === 'changed'
+      ? { recent: search['recent'] }
+      : {}),
     ...(typeof search['tag'] === 'string' && search['tag'].length > 0
       ? { tag: search['tag'] }
       : {}),
@@ -260,7 +264,7 @@ const noteListRoute = createRoute({
 });
 
 function NoteListRoute() {
-  const { deckId, tag, source } = useSearch({ from: noteListRoute.id });
+  const { deckId, tag, source, recent } = useSearch({ from: noteListRoute.id });
   const category = tag
     ? { kind: 'tag' as const, value: tag }
     : source
@@ -269,9 +273,10 @@ function NoteListRoute() {
 
   return (
     <NoteListScreen
-      key={`${deckId ?? 'all'}:${category?.kind ?? ''}:${category?.value ?? ''}`}
+      key={`${deckId ?? 'all'}:${category?.kind ?? ''}:${category?.value ?? ''}:${recent ?? ''}`}
       {...(deckId === undefined ? {} : { deckId })}
       {...(category ? { category } : {})}
+      {...(recent ? { recent } : {})}
     />
   );
 }

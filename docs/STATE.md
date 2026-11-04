@@ -51,6 +51,13 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   current wave, what Study lets in today or why it lets in none, when the next wave starts and what waits
   after it; Today's rows name the wave instead of every new Note.
 
+Recent Notes (#81) adds Recently added (`createdAt`) and Recently changed (`updatedAt`) to Library's
+existing Note browser, with dates, locations, filters and editor return. Migration 0019 adds read indexes
+with no-wait locking and local execution/idle limits; runtime schema compatibility alone does not prove
+these indexes were applied, so release verification also checks their journal hash and validity.
+The category/duplicate journey commits its search and waits for Note rows before opening the editor.
+Installed-iPhone acceptance remains open. See `recent-notes.md` for semantics and acceptance steps.
+
 Not built: offline Import application, rank-ordered waves, Phase 9 progressive directions and the
 problem-card area, Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
@@ -114,7 +121,7 @@ installed-iPhone acceptance.
 
 - Practice/search interaction repair is on `work/practice-interaction-repair`, based on `1a8cf6f`.
   It retains synchronous search drafts and search scroll position, adds Practice keyboard/focus support
-  and guards the local intent/acknowledgement race. It is unmerged while Recent Notes #81 integrates.
+  and guards the local intent/acknowledgement race. Recent Notes #81 and the follow-up #83 are integrated from `main` on this branch; this repair remains unmerged.
   Browser keyboard geometry cannot replace Home Screen iPhone/VoiceOver acceptance; performance
   evidence and remaining limits are in `interaction-performance.md`.
 
