@@ -7,6 +7,14 @@ file named after the change.
 
 ## By product area
 
+Recent Notes reuses `note-list.spec.ts` (Library menu, timestamp modes, locations, filters, captured
+pagination, large collections and editor scroll return), `offline-notes.spec.ts` and
+`offline-note-creation.spec.ts` (truthful device dates, pending work, reconnection and account/deletion
+boundaries). These cases run in both Chromium interaction viewports and mobile WebKit. The 6,500-Note
+case in `performance.spec.ts` retains the existing 55 FPS budget at 4x CPU. Real PostgreSQL/RLS,
+Import/bulk changes and production-statement EXPLAIN checks live in
+`apps/api/src/routes/recent-notes.test.ts`. Installed-iPhone steps are in `docs/recent-notes.md`.
+
 `possible-duplicates.spec.ts` covers the read-only duplicate workspace: bounded group/member pages,
 Library and Deck scopes, 6,500 Notes, long mobile content, keyboard/editor return, downloaded reads,
 local changes and pending Notes, incomplete downloads, reconnection and account switching. It runs in
@@ -14,6 +22,9 @@ both Chromium interaction viewports and mobile WebKit. Initial hydration is setu
 from interaction with an already complete download.
 Combined category/duplicate scenarios also check independent editor return state, shared local edit
 projection, authoritative reconnection counts and clearing both browsers after an account change.
+The cross-workspace journey holds search/member responses, commits the debounced search with Enter
+and opens a named Note only after the selected group's loading state. This distinguishes group rows
+from member rows and preserves the editor heading and return-breadcrumb assertions.
 
 | Area                                         | Files                                                                                                                                                                                                           |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

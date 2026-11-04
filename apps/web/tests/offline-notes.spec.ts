@@ -250,6 +250,44 @@ async function reconnect(page: Page, state: Awaited<ReturnType<typeof fixture>>)
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
 }
 
+test('Recent Notes keeps truthful local edit dates, filters, reconnect and account/deletion boundaries', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await editOffline(page, state);
+  await page.goto('/notes?recent=changed');
+  await expect(
+    page.getByRole('button', { name: /Original word Local meaning.*Saved on device/ }),
+  ).toBeVisible();
+  await expect(page.locator('time').first()).toHaveAttribute('datetime', date);
+  await expect(
+    page.getByText('Device-saved edits keep the last recorded update date until synchronization.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole('searchbox', { name: 'Search', exact: true }).fill('Local meaning');
+  await expect(page.getByRole('button', { name: /Original word Local meaning/ })).toBeVisible();
+  await reconnect(page, state);
+  await expect.poll(() => state.note.fields['translation']).toBe('Local meaning');
+  await expect(page.getByRole('searchbox', { name: 'Search', exact: true })).toHaveValue(
+    'Local meaning',
+  );
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Original word Local meaning/ })).toBeVisible();
+  state.deleted = true;
+  state.purged = true;
+  state.note.rev++;
+  await page.reload();
+  await expect(page.getByRole('button', { name: /Original word Local meaning/ })).toHaveCount(0);
+  state.who = 'other-recent-reader';
+  await page.reload();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('neuron.offline.account')))
+    .toBe(state.who);
+  await expect(page.getByRole('searchbox', { name: 'Search', exact: true })).toHaveValue('');
+  await expect(page.getByRole('button', { name: /Original word/ })).toHaveCount(0);
+});
+
 test('Tags & Sources counts local tag edits, preserves selection through reconnect and clears another account', async ({
   page,
 }) => {

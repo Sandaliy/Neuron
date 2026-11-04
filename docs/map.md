@@ -57,25 +57,26 @@ This is the part the project exists for. FSRS decides _when_, this decides _how 
 
 Zod schemas and types used by both sides of the wire.
 
-| File                    | Holds                                                                                      |
-| ----------------------- | ------------------------------------------------------------------------------------------ |
-| `src/rating.ts`         | `ratingSchema`, the four ratings                                                           |
-| `src/uuid.ts`           | UUID v7 generation and parsing. Time sortable ids                                          |
-| `src/note-types.ts`     | The three built in note types (`vocab`, `basic`, `cloze`), their fields and card templates |
-| `src/note-fields.ts`    | Conditional editor sections and field access for all three note types                      |
-| `src/study-planner.ts`  | Shared deterministic Daily Study planning over core workload/FSRS inputs                   |
-| `src/card-plan.ts`      | The one note-to-card planner used by creation, import, preview and reconciliation          |
-| `src/triage.ts`         | Triage choices over Note status, card faces, sweep order and next position, wire schemas   |
-| `src/learning-waves.ts` | Waves of 50 Notes per Deck, Unsure first inside a wave, as admission ranks and summaries   |
-| `src/import-parse.ts`   | JSON, CSV, TSV, text and Anki-text parsing, mapping and row diagnostics                    |
-| `src/prompt.ts`         | Reads and fills the three canonical card-generation prompt variants                        |
-| `src/text.ts`           | Term normalization, note identity and example-word checks                                  |
-| `src/languages.ts`      | Supported language codes and CEFR levels                                                   |
-| `src/deck-settings.ts`  | Collection settings schema, defaults, and inheritance from ancestor folders                |
-| `src/preferences.ts`    | Locale, theme, plan, time zone, day cutoff hour                                            |
-| `src/password.ts`       | The password policy: ten character floor, the small list of the worst ones                 |
-| `src/recovery-code.ts`  | The recovery code alphabet, grouping, and how a typed one is read back                     |
-| `src/i18n/`             | `en.ts`, `ru.ts` and `translate`. Every user visible string, in both languages             |
+| File                    | Holds                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `src/rating.ts`         | `ratingSchema`, the four ratings                                                             |
+| `src/uuid.ts`           | UUID v7 generation and parsing. Time sortable ids                                            |
+| `src/note-types.ts`     | The three built in note types (`vocab`, `basic`, `cloze`), their fields and card templates   |
+| `src/note-fields.ts`    | Conditional editor sections and field access for all three note types                        |
+| `src/study-planner.ts`  | Shared deterministic Daily Study planning over core workload/FSRS inputs                     |
+| `src/card-plan.ts`      | The one note-to-card planner used by creation, import, preview and reconciliation            |
+| `src/triage.ts`         | Triage choices over Note status, card faces, sweep order and next position, wire schemas     |
+| `src/learning-waves.ts` | Waves of 50 Notes per Deck, Unsure first inside a wave, as admission ranks and summaries     |
+| `src/note-recency.ts`   | Timestamp/ID browse ordering and captured recent-page cursors, separate from learning orders |
+| `src/import-parse.ts`   | JSON, CSV, TSV, text and Anki-text parsing, mapping and row diagnostics                      |
+| `src/prompt.ts`         | Reads and fills the three canonical card-generation prompt variants                          |
+| `src/text.ts`           | Term normalization, note identity and example-word checks                                    |
+| `src/languages.ts`      | Supported language codes and CEFR levels                                                     |
+| `src/deck-settings.ts`  | Collection settings schema, defaults, and inheritance from ancestor folders                  |
+| `src/preferences.ts`    | Locale, theme, plan, time zone, day cutoff hour                                              |
+| `src/password.ts`       | The password policy: ten character floor, the small list of the worst ones                   |
+| `src/recovery-code.ts`  | The recovery code alphabet, grouping, and how a typed one is read back                       |
+| `src/i18n/`             | `en.ts`, `ru.ts` and `translate`. Every user visible string, in both languages               |
 
 ### The wire contract (`src/api/`)
 
@@ -375,21 +376,22 @@ every one of these in every state.
 
 ## Documentation
 
-| File                              | Holds                                                                                      |
-| --------------------------------- | ------------------------------------------------------------------------------------------ |
-| `docs/STATE.md`                   | Current phase, open threads, decision log. Read this first                                 |
-| `docs/ROADMAP.md`                 | Product direction, committed milestone order, backlog and maintenance policy               |
-| `docs/architecture.md`            | Why the structure is what it is, and the known limitations                                 |
-| `docs/algorithm.md`               | FSRS and the workload manager explained in full, with the simulator results                |
-| `docs/design-system.md`           | The visual system: tokens, inventory, motion, glass, the words, the checklist              |
-| `docs/card-generation-prompt.md`  | Canonical prompt and import output contract used by the web build                          |
-| `docs/design-principles.md`       | A pointer to the file above. The phase 5 values in it are all wrong now                    |
-| `docs/copy-audit.md`              | Every interface string in both languages, and what looks wrong with it                     |
-| `docs/offline-collection.md`      | Local-first reads, durable renames/Note edits, account/shell boundaries and safe recovery  |
-| `docs/possible-duplicates.md`     | Read-only duplicate equality, visibility, pagination, downloaded provenance and acceptance |
-| `docs/offline-study.md`           | Admitted offline Study, durable Review/Undo guarantees, recovery and physical acceptance   |
-| `docs/interaction-performance.md` | Stabilization diagnosis, matched browser measurements and device acceptance limits         |
-| `docs/assets/*.svg`               | Charts produced by `sim/main.ts`                                                           |
+| File                              | Holds                                                                                          |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `docs/STATE.md`                   | Current phase, open threads, decision log. Read this first                                     |
+| `docs/ROADMAP.md`                 | Product direction, committed milestone order, backlog and maintenance policy                   |
+| `docs/architecture.md`            | Why the structure is what it is, and the known limitations                                     |
+| `docs/algorithm.md`               | FSRS and the workload manager explained in full, with the simulator results                    |
+| `docs/design-system.md`           | The visual system: tokens, inventory, motion, glass, the words, the checklist                  |
+| `docs/card-generation-prompt.md`  | Canonical prompt and import output contract used by the web build                              |
+| `docs/design-principles.md`       | A pointer to the file above. The phase 5 values in it are all wrong now                        |
+| `docs/copy-audit.md`              | Every interface string in both languages, and what looks wrong with it                         |
+| `docs/offline-collection.md`      | Local-first reads, durable renames/Note edits, account/shell boundaries and safe recovery      |
+| `docs/possible-duplicates.md`     | Read-only duplicate equality, visibility, pagination, downloaded provenance and acceptance     |
+| `docs/recent-notes.md`            | Recent Note timestamp semantics, live pagination, pending work and installed-device acceptance |
+| `docs/offline-study.md`           | Admitted offline Study, durable Review/Undo guarantees, recovery and physical acceptance       |
+| `docs/interaction-performance.md` | Stabilization diagnosis, matched browser measurements and device acceptance limits             |
+| `docs/assets/*.svg`               | Charts produced by `sim/main.ts`                                                               |
 
 Collection recovery additions: `apps/api/src/db/repositories/purge.ts` owns irreversible deletion and
 server impact counts; `restoration.ts` owns operation-scoped subtree restoration. In the web Library,

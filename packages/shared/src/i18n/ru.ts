@@ -838,6 +838,16 @@ export const ru = {
   'notes.sort.created': 'Сначала добавленные раньше',
   'notes.sort.alpha': 'По алфавиту',
   'notes.sort.rank': 'Сначала частые слова',
+  'notes.sort.created-desc': 'Недавно добавленные',
+  'notes.sort.updated-desc': 'Недавно изменённые',
+  'notes.recent': 'Недавние заметки',
+  'notes.recentHint':
+    'Сначала новые во всей библиотеке. Дата изменения учитывает содержимое, статус, теги и перемещение.',
+  'notes.pendingRecent':
+    'До синхронизации у сохранённых на устройстве правок остаётся последняя записанная дата изменения.',
+  'notes.refreshRecent': 'Обновить',
+  'notes.addedAt': 'Добавлено',
+  'notes.changedAt': 'Обновлено',
   'notes.select': 'Выбрать записи',
   'notes.selectDone': 'Выйти из выбора',
   'notes.selected': 'Выбрано: {count}',

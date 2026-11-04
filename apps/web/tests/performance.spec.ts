@@ -3,6 +3,7 @@ import { appendFileSync, writeFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 import { manyDecks, triageNotes, useFixtures, usePreferences } from './fixtures';
+import { installRecentFixture } from './recent-fixture';
 
 import type { Page } from '@playwright/test';
 
@@ -35,6 +36,59 @@ const BUDGET = 55;
 const CPU_THROTTLE = 4;
 
 const FRAMES = 180;
+
+test('Recent Notes retains bounded rows and the scroll budget over 6500 Notes at 4x CPU', async ({
+  page,
+}, info) => {
+  const { requests } = await installRecentFixture(page);
+  const session = await page.context().newCDPSession(page);
+  await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+  try {
+    await page.goto('/notes?recent=changed');
+    await expect(page.getByRole('button', { name: /^Wort 6500 word 6500/ })).toBeVisible();
+    const samples = [];
+    for (let trial = 0; trial < 3; trial++) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      samples.push(
+        await page.evaluate(
+          (frames) =>
+            new Promise<number>((resolve) => {
+              let frame = 0;
+              let start = 0;
+              const tick = (time: number) => {
+                if (frame === 0) start = time;
+                window.scrollTo(0, frame * 24);
+                if (++frame >= frames) resolve(((frames - 1) * 1000) / (time - start));
+                else requestAnimationFrame(tick);
+              };
+              requestAnimationFrame(tick);
+            }),
+          FRAMES,
+        ),
+      );
+    }
+    const fps = [...samples].sort((a, b) => a - b)[1]!;
+    const mountedRows = await page.locator('[data-rows] [data-row]').count();
+    const result = {
+      fps,
+      samples,
+      mountedRows,
+      cpuSlowdown: CPU_THROTTLE,
+      fixtureNotes: 6500,
+      pageLimit: requests[0]?.searchParams.get('limit'),
+    };
+    console.info(JSON.stringify(result));
+    await info.attach('recent-notes-performance', {
+      body: JSON.stringify(result),
+      contentType: 'application/json',
+    });
+    expect(fps).toBeGreaterThanOrEqual(BUDGET);
+    expect(mountedRows).toBeLessThan(40);
+    expect(result.pageLimit).toBe('1000');
+  } finally {
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  }
+});
 
 test.describe('category browsing performance', () => {
   test.use({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 });

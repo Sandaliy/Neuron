@@ -1,17 +1,30 @@
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Plus, Upload, Trash2, Search } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { NOTE_SORTS, NOTE_STATUSES, termOf } from '@neuron/shared';
-import type { MessageKey, Note, NoteSort, NoteStatus } from '@neuron/shared';
+import {
+  NOTE_BROWSE_SORTS,
+  NOTE_STATUSES,
+  termOf,
+  isRecentNoteSort,
+  recentNoteTime,
+} from '@neuron/shared';
+import type {
+  MessageKey,
+  Note,
+  NoteBrowseSort as NoteSort,
+  NoteStatus,
+  RecentNoteSort,
+} from '@neuron/shared';
 
-import { useTranslate } from '../../i18n/locale';
+import { useTranslate, useLocale } from '../../i18n/locale';
 import { describe } from '../../lib/api';
 import { useCapabilities } from '../../lib/capabilities';
 import { findDeck, flatten, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
+import { noteEdits } from '../../lib/note-outbox';
 import { noteListQuery, useNoteActions } from '../../lib/notes';
 import { accountEpoch, useOffline } from '../../lib/offline';
 import { useReturnScroll } from '../../lib/return-scroll';
@@ -44,6 +57,10 @@ import type { NoteQuery } from '../../lib/notes';
 
 /** How tall a row is. The virtualiser needs a number before it can measure. */
 const ROW_HEIGHT = 52;
+const dateFormats = {
+  en: new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }),
+  ru: new Intl.DateTimeFormat('ru', { dateStyle: 'medium', timeStyle: 'short' }),
+};
 
 /**
  * A deck's notes, however many there are.
@@ -60,9 +77,11 @@ const ROW_HEIGHT = 52;
 export function NoteListScreen({
   deckId,
   category,
+  recent,
 }: {
   readonly deckId?: string;
   readonly category?: NoteCategory;
+  readonly recent?: 'added' | 'changed';
 }) {
   const learning = useLearningNavigation('practice');
   const triage = useLearningNavigation('triage');
@@ -91,7 +110,7 @@ export function NoteListScreen({
   const navigate = useNavigate();
   const decks = useDeckTree();
 
-  const { state, update } = useNoteBrowse(deckId, category);
+  const { state, update } = useNoteBrowse(deckId, category, recent);
   const origin = useRouterState({ select: (state) => state.location.state.noteCategoryOrigin });
   const categoryReturn =
     category && origin?.accountId === offline.accountId && origin.visit === accountEpoch();
@@ -139,8 +158,28 @@ export function NoteListScreen({
     sort,
   };
 
+  const edits = useQuery({
+    queryKey: ['note-outbox', offline.accountId],
+    queryFn: () => noteEdits(offline.accountId!),
+    enabled: offline.available && isRecentNoteSort(sort),
+    networkMode: 'always',
+  });
+  const pendingEdits = useMemo(
+    () =>
+      new Set(
+        (edits.data ?? [])
+          .filter((entry) => !['resolved', 'synchronized'].includes(entry.state))
+          .map((entry) => entry.entityId),
+      ),
+    [edits.data],
+  );
   const notes = useInfiniteQuery({
-    ...noteListQuery(query),
+    ...noteListQuery(
+      query,
+      isRecentNoteSort(sort) && offline.available && pendingEdits.size > 0
+        ? edits.dataUpdatedAt
+        : undefined,
+    ),
     placeholderData: keepPreviousData,
     gcTime: 30 * 60_000,
   });
@@ -164,7 +203,17 @@ export function NoteListScreen({
     [notes.data],
   );
   const rows = useMemo(
-    () => (unavailable ? [] : (notes.data?.pages.flatMap((page) => page.items) ?? [])),
+    () =>
+      unavailable
+        ? []
+        : [
+            ...new Map(
+              (notes.data?.pages.flatMap((page) => page.items) ?? []).map((note) => [
+                note.id,
+                note,
+              ]),
+            ).values(),
+          ],
     [unavailable, notes.data],
   );
   const deck = deckId === undefined ? undefined : findDeck(decks.data ?? [], deckId);
@@ -228,7 +277,10 @@ export function NoteListScreen({
     <section data-screen="" className="flex flex-col gap-16">
       <CollectionHeader
         readOnly={offline.offline}
-        title={deck?.name ?? t(deckId === undefined ? 'notes.find' : 'notes.title')}
+        title={
+          deck?.name ??
+          t(deckId === undefined ? (recent ? 'notes.recent' : 'notes.find') : 'notes.title')
+        }
         path={
           categoryReturn ? (
             <NoteCategoryBack />
@@ -262,7 +314,11 @@ export function NoteListScreen({
           </>
         }
       >
-        {deckId === undefined && <p className="text-14 text-secondary">{t('notes.findHint')}</p>}
+        {deckId === undefined && (
+          <p className="text-14 text-secondary">
+            {t(recent ? 'notes.recentHint' : 'notes.findHint')}
+          </p>
+        )}
         {deck && (
           <div className="flex min-h-44 items-center">
             <ReadOnlySlot readOnly={false} inline>
@@ -343,19 +399,36 @@ export function NoteListScreen({
             />
           </div>
           <div className="flex flex-wrap items-center gap-8">
-            <div className="min-w-0 flex-1">
+            <div
+              className={
+                isRecentNoteSort(sort)
+                  ? 'min-w-0 basis-full sm:basis-auto sm:flex-1'
+                  : 'min-w-0 flex-1'
+              }
+            >
               <Select
                 value={sort}
                 aria-label={t('notes.sort')}
                 onChange={(event) => update({ sort: event.target.value as NoteSort })}
               >
-                {NOTE_SORTS.map((option) => (
+                {NOTE_BROWSE_SORTS.map((option) => (
                   <option key={option} value={option}>
                     {t(`notes.sort.${option}` as MessageKey)}
                   </option>
                 ))}
               </Select>
             </div>
+            {isRecentNoteSort(sort) && (
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  void notes.refetch();
+                  window.scrollTo(0, 0);
+                }}
+              >
+                {t('notes.refreshRecent')}
+              </Button>
+            )}
             <Button
               variant="quiet"
               aria-expanded={filtersOpen}
@@ -452,6 +525,11 @@ export function NoteListScreen({
           {t('notes.downloadedResults')}
         </p>
       )}
+      {isRecentNoteSort(sort) && pendingEdits.size > 0 && (
+        <p role="status" className="text-13 text-secondary">
+          {t('notes.pendingRecent')}
+        </p>
+      )}
       {unavailable && (
         <p role="status" className="text-14 text-secondary">
           {t('offline.incomplete')}
@@ -533,6 +611,8 @@ export function NoteListScreen({
           rows={rows}
           locations={locations}
           unsent={unsent}
+          pendingEdits={pendingEdits}
+          dateSort={isRecentNoteSort(sort) ? sort : undefined}
           onRemove={removeNote}
           selecting={selecting}
           readOnly={readOnly}
@@ -546,7 +626,11 @@ export function NoteListScreen({
               ...(deckId === undefined
                 ? {
                     state: {
-                      noteSearchOrigin: { accountId: offline.accountId, visit: accountEpoch() },
+                      noteSearchOrigin: {
+                        accountId: offline.accountId,
+                        visit: accountEpoch(),
+                        ...(recent ? { recent: true } : {}),
+                      },
                     },
                   }
                 : {}),
@@ -574,6 +658,8 @@ export function NoteListScreen({
 function VirtualNotes({
   readOnly,
   unsent,
+  pendingEdits,
+  dateSort,
   rows,
   locations,
   selecting,
@@ -587,6 +673,8 @@ function VirtualNotes({
 }: {
   readonly readOnly: boolean;
   readonly unsent: ReadonlySet<string>;
+  readonly pendingEdits: ReadonlySet<string>;
+  readonly dateSort: RecentNoteSort | undefined;
   readonly rows: readonly Note[];
   readonly locations: ReadonlyMap<string, string> | undefined;
   readonly selecting: boolean;
@@ -621,10 +709,11 @@ function VirtualNotes({
 
   const virtual = useWindowVirtualizer({
     count: rows.length,
-    estimateSize: () => ROW_HEIGHT + (locations ? 24 : 0),
+    estimateSize: () => ROW_HEIGHT + (locations ? 24 : 0) + (dateSort ? 24 : 0),
     overscan: 8,
     scrollMargin: offset,
   });
+  useEffect(() => virtual.measure(), [virtual, dateSort, locations]);
 
   const items = virtual.getVirtualItems();
   const last = items.at(-1);
@@ -663,6 +752,8 @@ function VirtualNotes({
                 location={locations ? (locations.get(note.deckId) ?? '') : undefined}
                 readOnly={readOnly || unsent.has(note.id)}
                 unsent={unsent.has(note.id)}
+                pendingEdit={pendingEdits.has(note.id)}
+                dateSort={dateSort}
                 selecting={selecting}
                 selected={selected.has(note.id)}
                 onToggle={onToggle}
@@ -683,6 +774,8 @@ function VirtualNotes({
 const NoteRow = memo(function NoteRow({
   readOnly,
   unsent,
+  pendingEdit,
+  dateSort,
   note,
   location,
   selecting,
@@ -695,6 +788,8 @@ const NoteRow = memo(function NoteRow({
 }: {
   readonly readOnly: boolean;
   readonly unsent: boolean;
+  readonly pendingEdit: boolean;
+  readonly dateSort: RecentNoteSort | undefined;
   readonly note: Note;
   readonly location: string | undefined;
   readonly selecting: boolean;
@@ -706,6 +801,7 @@ const NoteRow = memo(function NoteRow({
   readonly onReveal: (id: string | null) => void;
 }) {
   const t = useTranslate();
+  const { locale } = useLocale();
   const toast = useToast();
   const meaning =
     typeof note.fields['translation'] === 'string'
@@ -746,7 +842,7 @@ const NoteRow = memo(function NoteRow({
           }
           trailing={
             <>
-              {unsent ? (
+              {unsent || (dateSort && pendingEdit) ? (
                 <span className="shrink-0 text-12 text-secondary">{t('offline.note.saved')}</span>
               ) : note.status !== 'active' ? (
                 <Chip tone="new">{t(`note.status.${note.status}`)}</Chip>
@@ -791,6 +887,14 @@ const NoteRow = memo(function NoteRow({
       {path !== undefined && (
         <p aria-hidden="true" title={path} className="h-24 truncate px-16 text-12 text-secondary">
           {path}
+        </p>
+      )}
+      {dateSort && (
+        <p className="h-24 truncate px-16 text-12 text-secondary">
+          {t(dateSort === 'created-desc' ? 'notes.addedAt' : 'notes.changedAt')}{' '}
+          <time dateTime={recentNoteTime(note, dateSort)} title={recentNoteTime(note, dateSort)}>
+            {dateFormats[locale].format(new Date(recentNoteTime(note, dateSort)))}
+          </time>
         </p>
       )}
     </>
