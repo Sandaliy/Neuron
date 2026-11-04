@@ -201,6 +201,22 @@ export {
   createOfflineNoteCommandSchema,
   createOfflineNoteResultSchema,
 } from './api/notes.js';
+export {
+  possibleDuplicateGroupsQuerySchema,
+  possibleDuplicateNotesQuerySchema,
+  possibleDuplicateGroupSchema,
+  possibleDuplicateNoteSchema,
+  possibleDuplicateGroupsPageSchema,
+  possibleDuplicateNotesPageSchema,
+} from './api/possible-duplicates.js';
+export type {
+  PossibleDuplicateGroup,
+  PossibleDuplicateNote,
+  PossibleDuplicateGroupsQuery,
+  PossibleDuplicateNotesQuery,
+  PossibleDuplicateGroupsPage,
+  PossibleDuplicateNotesPage,
+} from './api/possible-duplicates.js';
 export type {
   BulkDeleteBody,
   BulkMoveBody,

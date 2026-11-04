@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-03.
+Last updated: 2026-11-04.
 
 ## Release
 
@@ -24,6 +24,9 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
 - Library Tags & Sources discovers exact saved values with live Note counts and opens the existing
   filtered Note browser. Online aggregation is bounded and account-scoped. A complete download counts
   the same local Note projection, including device-saved work, with explicit synchronization provenance.
+- Possible duplicates (#80) adds read-only normalized-term groups beside Tags & Sources (#79).
+  Both retain their Library entries, editor return state and complete-download projection. Groups and
+  members use bounded account-scoped reads; inspection changes no Note, Card or Review identity.
 - Library Find Folders & Decks searches collection names at every depth, including collapsed Folders.
   Results show kind and full location; opening a collection and returning keeps the query, measured
   list position and keyboard focus. A complete download supports immediate offline search. Pending
@@ -85,6 +88,8 @@ installed-iPhone acceptance.
    Include collection search with duplicate names, long paths, collection return and offline results.
    Include Tags & Sources counts, long values, keyboard/Back return, pending Note tags and creations,
    reconnection and account switching. Browser results do not replace installed-device acceptance.
+   Include Possible duplicates alongside categories: cross-Deck terms, editor return, local edits,
+   pending Notes, reconnection and account switching. See `possible-duplicates.md`.
 2. Rank order for waves. Waves follow file order today; a frequency list imported out of order would
    need waves by its rank column, which is a per-Deck choice for the owner.
 3. Phase 9 continues: progressive directions from demonstrated stability, then the problem-card area.
@@ -107,6 +112,9 @@ installed-iPhone acceptance.
 
 ## Open threads
 
+- Preliminary offline duplicate keys retain the inherited UTF-16 prefix difference from PostgreSQL
+  for very long supplementary-Unicode terms. Server groups remain authoritative; see
+  `possible-duplicates.md`. The existing normalization and Import contract are unchanged.
 - PR #71 User Data Export and PR #74 Large Import Hardening remain outside this integration pass for
   separate critical review.
 - Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.

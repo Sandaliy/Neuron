@@ -25,16 +25,21 @@ export function NoteHeader({
 }) {
   const router = useRouter();
   const origin = useRouterState({ select: (state) => state.location.state.noteSearchOrigin });
+  const duplicateOrigin = useRouterState({
+    select: (state) => state.location.state.duplicateOrigin,
+  });
   const offline = useOffline();
   const t = useTranslate();
   const fromSearch = origin?.accountId === offline.accountId && origin?.visit === accountEpoch();
+  const fromDuplicates =
+    duplicateOrigin?.accountId === offline.accountId && duplicateOrigin?.visit === accountEpoch();
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {fromSearch ? (
+      {fromSearch || fromDuplicates ? (
         <div className="flex min-w-0 items-center gap-8">
           <Button variant="text" className="shrink-0" onClick={() => router.history.back()}>
             <ChevronLeft size={20} strokeWidth={1.5} aria-hidden="true" />
-            {t('notes.find')}
+            {t(fromDuplicates ? 'duplicates.title' : 'notes.find')}
           </Button>
           <CollectionPath tree={decks} id={deckId} />
         </div>
@@ -52,5 +57,6 @@ export function NoteHeader({
 declare module '@tanstack/react-router' {
   interface HistoryState {
     noteSearchOrigin?: { accountId: string | null; visit: number };
+    duplicateOrigin?: { accountId: string | null; visit: number };
   }
 }

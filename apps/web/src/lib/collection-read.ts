@@ -248,6 +248,11 @@ async function collection(includeCards = false): Promise<Collection> {
   }
 }
 
+/** Complete, account-visit-bound presentation, without opening the Cards store. */
+export async function duplicateCollection() {
+  return collection();
+}
+
 export async function localDeckTree(): Promise<{ decks: DeckNode[]; local?: true }> {
   const { decks, notes } = await collection();
   const counts = new Map<string, number>();

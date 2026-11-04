@@ -7,6 +7,14 @@ file named after the change.
 
 ## By product area
 
+`possible-duplicates.spec.ts` covers the read-only duplicate workspace: bounded group/member pages,
+Library and Deck scopes, 6,500 Notes, long mobile content, keyboard/editor return, downloaded reads,
+local changes and pending Notes, incomplete downloads, reconnection and account switching. It runs in
+both Chromium interaction viewports and mobile WebKit. Initial hydration is setup, measured separately
+from interaction with an already complete download.
+Combined category/duplicate scenarios also check independent editor return state, shared local edit
+projection, authoritative reconnection counts and clearing both browsers after an account change.
+
 | Area                                         | Files                                                                                                                                                                                                           |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Smoke                                        | `smoke.spec.ts`                                                                                                                                                                                                 |

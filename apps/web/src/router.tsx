@@ -79,6 +79,10 @@ const NoteListScreen = lazyRouteComponent(
   () => import('./features/notes/note-list'),
   'NoteListScreen',
 );
+const PossibleDuplicatesScreen = lazyRouteComponent(
+  () => import('./features/notes/possible-duplicates'),
+  'PossibleDuplicatesScreen',
+);
 const SettingsScreen = lazyRouteComponent(
   () => import('./features/settings/settings'),
   'SettingsScreen',
@@ -194,6 +198,15 @@ const deletedRoute = createRoute({
   path: '/library/deleted',
   staticData: { navTab: '/library' },
   component: DeletedScreen,
+});
+
+const possibleDuplicatesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/duplicates',
+  staticData: { navTab: '/library' },
+  validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
+    typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
+  component: PossibleDuplicatesScreen,
 });
 
 const collectionSearchRoute = createRoute({
@@ -359,6 +372,7 @@ const routeTree = rootRoute.addChildren([
     collectionSearchRoute,
     noteCategoriesRoute,
     deletedRoute,
+    possibleDuplicatesRoute,
     noteListRoute,
     // Before the parameter route, or a new note is read as a note whose id is
     // the word new.

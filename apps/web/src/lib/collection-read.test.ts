@@ -6,6 +6,7 @@ import {
   localNoteCategories,
   projectCollectionNote,
 } from './collection-read';
+import { localDuplicateGroups, localDuplicateNotes } from './possible-duplicates';
 
 import type { CollectionRow } from './collection-db';
 import type { PendingNoteEdit } from './note-outbox';
@@ -83,6 +84,61 @@ beforeEach(() => {
 });
 
 describe('downloaded account-wide Note browsing', () => {
+  it('shares live rows and edit invalidation between category browsing and duplicate inspection', async () => {
+    const rows = fixture();
+    rows.notes[0]!.row['fields'] = { term: ' BANK ', translation: 'River' };
+    rows.notes[1]!.row['fields'] = { term: 'bank', translation: 'Finance' };
+    rows.decks.push({ ...deck(5, null, 'folder'), deleted: true }, deck(6, id(5)));
+    const hidden = note(12, id(6));
+    hidden.row['fields'] = { term: 'Bank', translation: 'Hidden' };
+    rows.notes.push(hidden, { ...note(13), deleted: true });
+    storage.snapshot.mockResolvedValue(rows);
+    expect((await localDuplicateGroups(undefined, '')).items).toEqual([{ key: 'bank', count: 2 }]);
+    expect((await localNoteCategories({ kind: 'tag', limit: 100 })).items).toEqual([
+      { value: 'saved', count: 2 },
+    ]);
+    expect((await localNotes({ tag: 'saved' })).items.map((row) => row.id)).toEqual([
+      id(10),
+      id(11),
+    ]);
+    expect((await localDuplicateNotes(undefined, 'bank')).items.map((row) => row.id)).toEqual([
+      id(10),
+      id(11),
+    ]);
+    state.version++;
+    projectCollectionNote(
+      'reader',
+      id(10),
+      {
+        kind: 'note-edit',
+        operationId: id(99),
+        sequence: 1,
+        accountId: 'reader',
+        entityId: id(10),
+        payload: { accountId: 'reader', operationId: id(99), baseRev: 2, fields: {}, tags: [] },
+        base: rows.notes[0]!,
+        working: { fields: { term: 'Updated', translation: 'River' }, tags: ['local'] },
+        started: false,
+        state: 'draft',
+      },
+      state.version,
+    );
+    expect((await localNoteCategories({ kind: 'tag', limit: 100 })).items).toEqual([
+      { value: 'local', count: 1 },
+      { value: 'saved', count: 1 },
+    ]);
+    expect((await localDuplicateGroups(undefined, '')).items).toEqual([]);
+    expect((await localDuplicateNotes(undefined, 'bank')).items).toEqual([]);
+    expect((await localNotes({ tag: 'local' })).items[0]?.fields['term']).toBe('Updated');
+    expect(storage.snapshot).toHaveBeenCalledTimes(1);
+    expect(storage.snapshot.mock.calls[0]?.[1]).toBe(false);
+    state.visit++;
+    state.accountId = 'other';
+    storage.snapshot.mockResolvedValue(fixture([]));
+    expect((await localDuplicateGroups(undefined, '')).items).toEqual([]);
+    expect((await localNoteCategories({ kind: 'tag', limit: 100 })).items).toEqual([]);
+  });
+
   it('counts exact metadata over 6000 Notes, de-duplicates tags and omits unavailable ancestry', async () => {
     const rows = fixture(
       Array.from({ length: 6000 }, (_, at) => {

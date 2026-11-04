@@ -6,6 +6,7 @@ import { collectionRenameRepository } from './collection-renames.js';
 import { deckRepository } from './decks.js';
 import { noteTypeRepository } from './note-types.js';
 import { noteRepository } from './notes.js';
+import { possibleDuplicateRepository } from './possible-duplicates.js';
 import { practiceRepository } from './practice.js';
 import { purgeRepository } from './purge.js';
 import { reviewRepository } from './reviews.js';
@@ -42,6 +43,7 @@ import type { TriageRepository } from './triage.js';
  */
 
 export interface Repositories {
+  readonly possibleDuplicates: ReturnType<typeof possibleDuplicateRepository>;
   readonly collectionCreation: ReturnType<typeof collectionCreationRepository>;
   readonly collectionRenames: ReturnType<typeof collectionRenameRepository>;
   readonly collectionNotes: ReturnType<typeof collectionNoteRepository>;
@@ -69,6 +71,7 @@ export interface Repositories {
 
 function build(db: Database, userId: string, run: Runner): Repositories {
   return {
+    possibleDuplicates: possibleDuplicateRepository(userId, run),
     collectionCreation: collectionCreationRepository(userId, run),
     collectionRenames: collectionRenameRepository(userId, run),
     collectionNotes: collectionNoteRepository(userId, run),

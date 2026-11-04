@@ -255,9 +255,22 @@ test('large collection search returns from a Deck with the query, measured scrol
   const results = page.getByRole('list', { name: findCollections });
   const visible = results.getByRole('button').filter({ visible: true });
   const row = visible.nth(6);
+  // Wait for the requested virtual window before focusing; CSS visibility includes stale rows.
+  await expect(row).toBeInViewport({ ratio: 1 });
   await row.focus();
-  const position = await page.evaluate(() => scrollY);
+  // Measured rows can adjust scroll after focus. Compare the actual exit with the return.
+  await page.evaluate(() =>
+    document.activeElement?.addEventListener(
+      'click',
+      () => Object.assign(window, { collectionSearchExitScroll: scrollY }),
+      { once: true },
+    ),
+  );
   await page.keyboard.press('Enter');
+  const position = await page.evaluate(
+    () => (window as unknown as { collectionSearchExitScroll: number }).collectionSearchExitScroll,
+  );
+  expect(position).toBeGreaterThan(5000);
   await expect(page).toHaveURL(/\/notes\?deckId=lesson-/);
   await page.getByRole('button', { name: 'Search results', exact: true }).click();
   await expect(search).toHaveValue('lesson');
