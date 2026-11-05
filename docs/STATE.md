@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-04.
+Last updated: 2026-11-05.
 
 ## Release
 
@@ -131,7 +131,11 @@ installed-iPhone acceptance.
 - Hosted CI has shown one unreproduced desktop navigation scroll assertion and occasional Chromium
   context crashes. Assertions and failure artifacts are kept; see `interaction-performance.md`.
 - The Preview database is one empty, long-lived Neon database shared by all previews.
-- Dependency alerts: `nanoid` 3.3.17 and the Drizzle tooling `esbuild`.
+- Milestone 11 dependency maintenance is prepared for independent review. The installed tree fixes
+  Nano ID, the retired Drizzle loader's esbuild and other compatible security updates. Eight audit
+  findings remain: unused Better Auth features, trusted Vercel configuration validation on Zod 3,
+  and lint-tool glob processing. Better Auth 1.7 needs an account-schema migration and stays deferred.
+  See `dependency-security.md` for paths, scoped overrides and verification. This is not yet released.
 - Triage decisions not yet delivered are not listed in Settings > Offline & sync. The server plan has
   not heard of them; this device's offline plan applies them conservatively. See `offline-collection.md`.
 - Legacy Cloze Cards at slot 0 are inventoried by `docs/legacy-cloze-assessment.md`, not repaired. The
