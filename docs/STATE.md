@@ -50,6 +50,14 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   inside each wave. The time-based throttle still decides how many start. The Deck screen shows the
   current wave, what Study lets in today or why it lets in none, when the next wave starts and what waits
   after it; Today's rows name the wave instead of every new Note.
+- Progressive directions (9.2, on `claude/festive-shannon-rd4p9b`, not merged): a vocabulary Note starts
+  with the ladder's opening direction; Recall opens at 14 days of Recognition stability and Typing at 21
+  days of Recall stability, inherited from the Deck chain. The server opens them with the answer that
+  qualifies, once, under the account lock; Study planning catches up existing learners. Undo takes back
+  only an untouched direction its answer opened. Opened directions are new Cards under the throttle,
+  ahead of new Notes in wave order. The Note screen's Directions section shows what is open, what comes
+  next and why the rest wait, with Open now for each locked direction. Migration 0020. See
+  "Progressive directions" in `algorithm.md`.
 
 Recent Notes (#81) adds Recently added (`createdAt`) and Recently changed (`updatedAt`) to Library's
 existing Note browser, with dates, locations, filters and editor return. Migration 0019 adds read indexes
@@ -58,8 +66,8 @@ these indexes were applied, so release verification also checks their journal ha
 The category/duplicate journey commits its search and waits for Note rows before opening the editor.
 Installed-iPhone acceptance remains open. See `recent-notes.md` for semantics and acceptance steps.
 
-Not built: offline Import application, rank-ordered waves, Phase 9 progressive directions and the
-problem-card area, Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
+Not built: offline Import application, rank-ordered waves, the Phase 9 problem-card area, Phase 10
+personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
 Owner acceptance on the installed iPhone is the gate for interaction work. The last full acceptance was
 Phase 8.4 (PR #53) and offline Study (PR #54/#55). PR #56 was not accepted: the app still felt slow,
@@ -99,7 +107,7 @@ installed-iPhone acceptance.
    pending Notes, reconnection and account switching. See `possible-duplicates.md`.
 2. Rank order for waves. Waves follow file order today; a frequency list imported out of order would
    need waves by its rank column, which is a per-Deck choice for the owner.
-3. Phase 9 continues: progressive directions from demonstrated stability, then the problem-card area.
+3. Phase 9 continues: integrate and accept progressive directions (9.2), then the problem-card area.
 4. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
 5. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
@@ -114,6 +122,10 @@ installed-iPhone acceptance.
   the card says none comes in today and why.
 - Offline: mark a word Known in triage, then open Today. It is not offered. Reconnect: the decision is
   sent and the plan agrees.
+- Progressive directions: open a word answered a few times; Directions says when Recall opens and how
+  many days Recognition holds now. Answer it Easy past 14 days and Undo: Recall comes and goes. Answer
+  again, reload the Note: Recall is open, not started. The Deck card names next directions before the
+  wave's new Notes. Offline: answer a qualifying word; Recall arrives after reconnecting, once.
 - Offline: create a Deck, then a Note in an existing Deck. The new Deck opens nothing until it syncs;
   the Note is not in triage until the server has it. Reconnect: both arrive once.
 
@@ -125,6 +137,13 @@ installed-iPhone acceptance.
   Browser keyboard geometry cannot replace Home Screen iPhone/VoiceOver acceptance; performance
   evidence and remaining limits are in `interaction-performance.md`.
 
+- Progressive directions: a direction opened by an answer and taken back by Undo on one device can
+  still receive an answer another device made offline from an earlier download. That answer is kept as
+  history on the deleted Card and the direction opens again (new identity) when it qualifies. The first
+  plan after release opens what existing mature words owe, which can pause new Notes for some days.
+  Planning cost is dominated by the forecast, which predates progression: about 2.7 s per 1,000 young
+  answered Cards in the test seed, and beyond a test worker's memory at 25,000. The sweep adds about
+  0.3 s with nothing to open at 25,000 Notes and 1.8 s to open 5,000 directions.
 - Preliminary offline duplicate keys retain the inherited UTF-16 prefix difference from PostgreSQL
   for very long supplementary-Unicode terms. Server groups remain authoritative; see
   `possible-duplicates.md`. The existing normalization and Import contract are unchanged.
@@ -159,26 +178,30 @@ installed-iPhone acceptance.
 
 ## Decisions
 
-| Date       | Decision                                                    | Why                                                        |
-| ---------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
-| 2026-08    | Keep scheduling pure and deterministic in `packages/core`   | Browser and server projections must match while offline    |
-| 2026-08    | Keep reviews append only                                    | Card state can be rebuilt from the review log              |
-| 2026-08    | Require user context in repositories and RLS in Postgres    | User isolation must survive a route bug                    |
-| 2026-08    | Use recovery codes and optional TOTP without Google sign in | The product has no mail or social identity provider        |
-| 2026-08    | Keep theme and language device-first                        | Preference changes must not wait on the network            |
-| 2026-09-03 | Protect `main`; deliver through `work/*` pull requests      | Production receives only checked changes                   |
-| 2026-09-03 | Run screenshot CI on Windows                                | Baselines use the Windows runner's system fonts            |
-| 2026-09-03 | One empty, long-lived Neon Preview database                 | Previews never touch production data                       |
-| 2026-09-06 | Ship coherent user-value slices, not every task             | CI and deploy cost per change                              |
-| 2026-09-11 | Folders organise; only leaf Decks own Notes                 | One hierarchy without mixed nodes                          |
-| 2026-09-16 | Undo is an append-only cancellation event                   | Replay removes the target and keeps every later answer     |
-| 2026-09-24 | Frame-rate and visual tests run on one worker               | CPU contention made them measure the runner                |
-| 2026-10-30 | api functions in `fra1`                                     | The database is in Frankfurt; a query costs one round trip |
-| 2026-10-30 | Screens animate their arrival by direction                  | Owner acceptance: navigation felt abrupt with no motion    |
-| 2026-10-30 | Visual changes are shown to the owner before merging        | Two restyles in a row were rejected on sight               |
-| 2026-11-01 | Triage is a mark beside status; Known is the `known` status | No second status model, no change to Study admission       |
-| 2026-11-01 | Triage never classifies a Note with an answered Card        | Study's evidence outranks a pre-learning guess             |
-| 2026-11-01 | New Notes get their id on the device, Cards on the server   | One identity across retries; schedules stay authoritative  |
-| 2026-11-01 | Waves of 50 order new material; the throttle sets how much  | Finite and visible without a daily quota                   |
-| 2026-11-01 | Unsure first inside its wave (owner decision)               | Settles uncertainty early, moves nothing past one wave     |
-| 2026-11-01 | CI runs the database tests against PostgreSQL 17            | Green CI had been skipping every RLS and repository test   |
+| Date       | Decision                                                    | Why                                                         |
+| ---------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
+| 2026-08    | Keep scheduling pure and deterministic in `packages/core`   | Browser and server projections must match while offline     |
+| 2026-08    | Keep reviews append only                                    | Card state can be rebuilt from the review log               |
+| 2026-08    | Require user context in repositories and RLS in Postgres    | User isolation must survive a route bug                     |
+| 2026-08    | Use recovery codes and optional TOTP without Google sign in | The product has no mail or social identity provider         |
+| 2026-08    | Keep theme and language device-first                        | Preference changes must not wait on the network             |
+| 2026-09-03 | Protect `main`; deliver through `work/*` pull requests      | Production receives only checked changes                    |
+| 2026-09-03 | Run screenshot CI on Windows                                | Baselines use the Windows runner's system fonts             |
+| 2026-09-03 | One empty, long-lived Neon Preview database                 | Previews never touch production data                        |
+| 2026-09-06 | Ship coherent user-value slices, not every task             | CI and deploy cost per change                               |
+| 2026-09-11 | Folders organise; only leaf Decks own Notes                 | One hierarchy without mixed nodes                           |
+| 2026-09-16 | Undo is an append-only cancellation event                   | Replay removes the target and keeps every later answer      |
+| 2026-09-24 | Frame-rate and visual tests run on one worker               | CPU contention made them measure the runner                 |
+| 2026-10-30 | api functions in `fra1`                                     | The database is in Frankfurt; a query costs one round trip  |
+| 2026-10-30 | Screens animate their arrival by direction                  | Owner acceptance: navigation felt abrupt with no motion     |
+| 2026-10-30 | Visual changes are shown to the owner before merging        | Two restyles in a row were rejected on sight                |
+| 2026-11-01 | Triage is a mark beside status; Known is the `known` status | No second status model, no change to Study admission        |
+| 2026-11-01 | Triage never classifies a Note with an answered Card        | Study's evidence outranks a pre-learning guess              |
+| 2026-11-01 | New Notes get their id on the device, Cards on the server   | One identity across retries; schedules stay authoritative   |
+| 2026-11-01 | Waves of 50 order new material; the throttle sets how much  | Finite and visible without a daily quota                    |
+| 2026-11-01 | Unsure first inside its wave (owner decision)               | Settles uncertainty early, moves nothing past one wave      |
+| 2026-11-01 | CI runs the database tests against PostgreSQL 17            | Green CI had been skipping every RLS and repository test    |
+| 2026-11-05 | Directions open from the ladder's FSRS stability thresholds | Existing policy; no new score, thresholds stay Deck data    |
+| 2026-11-05 | Only the server opens a direction, under the account lock   | One identity per direction across retries and devices       |
+| 2026-11-05 | Opened directions go before new Notes inside wave order     | Owed work before new work; the throttle still sets how much |
+| 2026-11-05 | Undo takes back an opened direction only while untouched    | History is never removed; lapses never close a direction    |

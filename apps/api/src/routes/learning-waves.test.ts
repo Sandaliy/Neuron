@@ -75,6 +75,8 @@ describe.skipIf(!database)('learning waves in the Daily Study plan', () => {
         unsure: 0,
         later: 10,
         today: before.newCount,
+        directionsWaiting: 0,
+        directionsToday: 0,
       },
     ]);
     expect(started(before)).toEqual(notes.slice(0, before.newCount));

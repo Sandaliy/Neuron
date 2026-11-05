@@ -92,6 +92,21 @@ export const cards = pgTable(
     /** When this direction became available under the ladder. */
     unlockedAt: instant('unlocked_at'),
     /**
+     * How the direction came to exist: with its Note (`opening`), by hand
+     * (`manual`) or by progression from the rung before it (`ladder`). Null on
+     * Cards written before migration 0020, which are treated as opened by hand.
+     */
+    unlockReason: text('unlock_reason'),
+    /**
+     * The answer whose stability opened this direction, when one did.
+     *
+     * Undoing exactly that answer may take back the direction while it has never
+     * been answered. A sweep that opened an existing learner's direction leaves it
+     * null, so no later Undo can remove it. Not a foreign key: the Review log is
+     * erased on its own schedule and the Card must not depend on it.
+     */
+    unlockedByReviewId: uuid('unlocked_by_review_id'),
+    /**
      * Set while the card is put aside. Null while it is being studied.
      *
      * Separate from the note's status, which suspends every direction at once.
@@ -141,6 +156,14 @@ export const cards = pgTable(
       .where(sql`${table.deletedAt} is null`),
     index('cards_note_idx').on(table.noteId),
     index('cards_user_rev_idx').on(table.userId, table.rev),
+    check(
+      'cards_unlock_reason_known',
+      sql`${table.unlockReason} is null or ${table.unlockReason} in ('opening', 'manual', 'ladder')`,
+    ),
+    check(
+      'cards_unlocking_review_is_ladder',
+      sql`${table.unlockedByReviewId} is null or ${table.unlockReason} = 'ladder'`,
+    ),
     check('cards_direction_known', sql`${table.direction} in (${literalList(CARD_DIRECTIONS)})`),
     check('cards_state_known', sql`${table.state} in (${literalList(CARD_STATES)})`),
     /**

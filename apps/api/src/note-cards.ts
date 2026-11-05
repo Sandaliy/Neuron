@@ -81,6 +81,7 @@ export async function writeCards(
       slot: card.slot,
       due: now,
       unlockedAt: now,
+      unlockReason: 'opening' as const,
     })),
   );
 }

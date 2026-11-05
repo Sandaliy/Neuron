@@ -364,9 +364,24 @@ export const ru = {
   'library.cardCounts': 'Карточки: {due} к повторению · {fresh} новых',
   'note.studyStatus': 'Статус изучения',
   'study.moreDirections': 'Направления изучения',
-  'study.directionHint':
-    'Включи отдельное направление изучения заметки. Текущий прогресс сохранится.',
   'study.acceptedAnswers': 'Допустимые ответы при вводе, по одному на строку',
+  'directions.hint':
+    'Новое слово начинается с одного направления. Следующее открывается само, когда предыдущее держится достаточно долго. У каждого своё расписание.',
+  'directions.open': 'Изучается',
+  'directions.openNew': 'Открыто, ещё не начато',
+  'directions.openSuspended': 'Отложено',
+  'directions.ready': 'Откроется со следующим планом Учёбы.',
+  'directions.next':
+    'Откроется, когда «{after}» продержится {threshold} дн. Сейчас {days} из {threshold}.',
+  'directions.nextUnanswered':
+    'Откроется, когда «{after}» продержится {threshold} дн. На «{after}» ещё нет ответов.',
+  'directions.waiting': 'Откроется после «{after}».',
+  'directions.pausedSuspended': 'Ждёт, пока «{after}» отложено.',
+  'directions.pausedInactive': 'Ждёт, пока заметка снова в Учёбе.',
+  'directions.manual': 'Открывается только вручную.',
+  'directions.openNow': 'Открыть сейчас',
+  'directions.openNowLabel': 'Открыть «{direction}» сейчас',
+  'directions.summary': 'Дальше: {direction}',
   'study.direction.production': 'Ввод ответа',
   'study.direction.listening': 'Аудирование',
 
@@ -1224,6 +1239,8 @@ export const ru = {
   'waves.progress': 'Начатые записи этой волны',
   'waves.waiting': 'Ждут в этой волне: {count}.',
   'waves.unsure': 'Первыми идут «Сомневаюсь»: {count}.',
+  'waves.directions':
+    'Следующие направления начатых заметок идут первыми: сегодня {today}, ждут {count}.',
   'waves.today': 'Сегодня Учёба впустит: {count}.',
   'waves.paused.backlogActive':
     'Сегодня ни одной: повторы отстают, и новое ждёт, пока они не догонят.',

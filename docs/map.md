@@ -57,26 +57,27 @@ This is the part the project exists for. FSRS decides _when_, this decides _how 
 
 Zod schemas and types used by both sides of the wire.
 
-| File                    | Holds                                                                                        |
-| ----------------------- | -------------------------------------------------------------------------------------------- |
-| `src/rating.ts`         | `ratingSchema`, the four ratings                                                             |
-| `src/uuid.ts`           | UUID v7 generation and parsing. Time sortable ids                                            |
-| `src/note-types.ts`     | The three built in note types (`vocab`, `basic`, `cloze`), their fields and card templates   |
-| `src/note-fields.ts`    | Conditional editor sections and field access for all three note types                        |
-| `src/study-planner.ts`  | Shared deterministic Daily Study planning over core workload/FSRS inputs                     |
-| `src/card-plan.ts`      | The one note-to-card planner used by creation, import, preview and reconciliation            |
-| `src/triage.ts`         | Triage choices over Note status, card faces, sweep order and next position, wire schemas     |
-| `src/learning-waves.ts` | Waves of 50 Notes per Deck, Unsure first inside a wave, as admission ranks and summaries     |
-| `src/note-recency.ts`   | Timestamp/ID browse ordering and captured recent-page cursors, separate from learning orders |
-| `src/import-parse.ts`   | JSON, CSV, TSV, text and Anki-text parsing, mapping and row diagnostics                      |
-| `src/prompt.ts`         | Reads and fills the three canonical card-generation prompt variants                          |
-| `src/text.ts`           | Term normalization, note identity and example-word checks                                    |
-| `src/languages.ts`      | Supported language codes and CEFR levels                                                     |
-| `src/deck-settings.ts`  | Collection settings schema, defaults, and inheritance from ancestor folders                  |
-| `src/preferences.ts`    | Locale, theme, plan, time zone, day cutoff hour                                              |
-| `src/password.ts`       | The password policy: ten character floor, the small list of the worst ones                   |
-| `src/recovery-code.ts`  | The recovery code alphabet, grouping, and how a typed one is read back                       |
-| `src/i18n/`             | `en.ts`, `ru.ts` and `translate`. Every user visible string, in both languages               |
+| File                           | Holds                                                                                        |
+| ------------------------------ | -------------------------------------------------------------------------------------------- |
+| `src/rating.ts`                | `ratingSchema`, the four ratings                                                             |
+| `src/uuid.ts`                  | UUID v7 generation and parsing. Time sortable ids                                            |
+| `src/note-types.ts`            | The three built in note types (`vocab`, `basic`, `cloze`), their fields and card templates   |
+| `src/note-fields.ts`           | Conditional editor sections and field access for all three note types                        |
+| `src/study-planner.ts`         | Shared deterministic Daily Study planning over core workload/FSRS inputs                     |
+| `src/card-plan.ts`             | The one note-to-card planner used by creation, import, preview and reconciliation            |
+| `src/triage.ts`                | Triage choices over Note status, card faces, sweep order and next position, wire schemas     |
+| `src/learning-waves.ts`        | Waves of 50 Notes per Deck, Unsure first inside a wave, as admission ranks and summaries     |
+| `src/direction-progression.ts` | Progressive directions: per-Note ladder status and what opens now, shared by server and UI   |
+| `src/note-recency.ts`          | Timestamp/ID browse ordering and captured recent-page cursors, separate from learning orders |
+| `src/import-parse.ts`          | JSON, CSV, TSV, text and Anki-text parsing, mapping and row diagnostics                      |
+| `src/prompt.ts`                | Reads and fills the three canonical card-generation prompt variants                          |
+| `src/text.ts`                  | Term normalization, note identity and example-word checks                                    |
+| `src/languages.ts`             | Supported language codes and CEFR levels                                                     |
+| `src/deck-settings.ts`         | Collection settings schema, defaults, and inheritance from ancestor folders                  |
+| `src/preferences.ts`           | Locale, theme, plan, time zone, day cutoff hour                                              |
+| `src/password.ts`              | The password policy: ten character floor, the small list of the worst ones                   |
+| `src/recovery-code.ts`         | The recovery code alphabet, grouping, and how a typed one is read back                       |
+| `src/i18n/`                    | `en.ts`, `ru.ts` and `translate`. Every user visible string, in both languages               |
 
 ### The wire contract (`src/api/`)
 
@@ -198,6 +199,7 @@ The user is supplied once when the set is built. Do not write ad hoc queries in 
 | `cards.ts`               | Card reads including the due query, the per deck counts, suspend, reset                                   |
 | `reviews.ts`             | Recording a review, idempotent by id, and reading a log that respects a reset                             |
 | `study.ts`               | Presets, retry-safe import batches, summaries and batch undo                                              |
+| `progression.ts`         | The only writer of ladder-opened Cards: after answers, on Undo, and the planning sweep, under the lock    |
 | `triage.ts`              | Triage list under a Folder or Deck, and decisions applied under the write lock, never on studied Notes    |
 | `sync.ts`                | The revision stream out, and the merge coming in                                                          |
 | `account.ts`             | The user's own row: preferences, and soft deleting a collection                                           |
@@ -281,6 +283,7 @@ the api anywhere in browser code would cost the session cookie.
 | `notes/card-preview.tsx`                        | The cards a note will keep, add or remove                                                       |
 | `notes/triage.tsx`                              | Triage sweep, Undo, decisions list, completion and the Deck entry                               |
 | `notes/learning-wave.tsx`                       | The Deck's current wave from the default plan, and the `showsWave` rule Today shares            |
+| `notes/note-directions.tsx`                     | A Note's directions: open, next, why locked, and Open now                                       |
 | `import/import-screen.tsx`                      | Parse, map, preview, deduplicate, chunk, resume, finish and undo an import                      |
 | `import/import-drafts.ts`                       | Local drafts/checkpoints; `use-import-draft.ts` owns autosave and navigation                    |
 | `import/prompt-dialog.tsx`                      | Prompt variant, substituted deck context, example and clipboard action                          |

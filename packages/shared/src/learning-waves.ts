@@ -19,6 +19,14 @@ import type { WorkloadCard } from '@neuron/core';
  * Known, Set aside and Draft Notes have no Cards in planning, so they are in no
  * wave. A Note started again with Restart learning is back in its own wave and
  * is among the first to return.
+ *
+ * A direction opened by progression is a new Card on a Note that has already
+ * started. It is not a new Note: it never counts towards a wave's started or
+ * waiting Notes, and it goes before the new Notes of its own and later waves.
+ * That is the same rule as reviews before new material: the Note was taken on
+ * already, and its next direction is what the ladder owes it. The throttle
+ * still decides how many new Cards start in all, so opened directions slow the
+ * intake of new Notes rather than adding work the budget did not allow.
  */
 
 /** Notes in one wave. */
@@ -42,12 +50,19 @@ export const deckWaveSchema = z.object({
   later: z.number().int().min(0),
   /** Notes of this Deck that today's plan starts. */
   today: z.number().int().min(0),
+  /** New Cards on started Notes, opened by progression or by hand, not yet answered. */
+  directionsWaiting: z.number().int().min(0).default(0),
+  /** Of those, how many today's plan starts. */
+  directionsToday: z.number().int().min(0).default(0),
 });
 export type DeckWave = z.infer<typeof deckWaveSchema>;
 
-/** Admission rank of a Card: its wave first, Unsure before New inside it. */
-export function waveRank(wave: number, unsure: boolean): number {
-  return wave * 2 + (unsure ? 0 : 1);
+/**
+ * Admission rank of a new Card: its wave first; inside it, a started Note's
+ * next direction, then Unsure Notes, then New ones.
+ */
+export function waveRank(wave: number, unsure: boolean, startedNote = false): number {
+  return wave * 3 + (startedNote ? 0 : unsure ? 1 : 2);
 }
 
 interface WaveNote {
@@ -65,7 +80,12 @@ interface WaveNote {
 export function learningWaves<T extends WorkloadCard>(
   cards: readonly T[],
   unsure: ReadonlySet<string>,
-): { cards: T[]; decks: Omit<DeckWave, 'today'>[] } {
+): {
+  cards: T[];
+  decks: Omit<DeckWave, 'today' | 'directionsToday'>[];
+  /** Notes with an answered Card: their new Cards are directions, not new Notes. */
+  started: ReadonlySet<string>;
+} {
   const byDeck = new Map<string, Map<string, WaveNote>>();
   for (const card of cards) {
     const deckId = card.deckId ?? '';
@@ -77,7 +97,14 @@ export function learningWaves<T extends WorkloadCard>(
   }
 
   const waveOf = new Map<string, number>();
-  const decks: Omit<DeckWave, 'today'>[] = [];
+  const decks: Omit<DeckWave, 'today' | 'directionsToday'>[] = [];
+  const started = new Set<string>();
+  for (const notes of byDeck.values())
+    for (const note of notes.values()) if (note.started) started.add(note.id);
+  const directionsWaiting = new Map<string, number>();
+  for (const card of cards)
+    if (card.scheduling.state === 'new' && started.has(card.noteId))
+      directionsWaiting.set(card.deckId ?? '', (directionsWaiting.get(card.deckId ?? '') ?? 0) + 1);
   for (const [deckId, notes] of [...byDeck].sort(([a], [b]) => a.localeCompare(b))) {
     // Version 7 ids sort as creation time, which is the order of the imported file.
     const ordered = [...notes.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -99,14 +126,20 @@ export function learningWaves<T extends WorkloadCard>(
         current < 0
           ? 0
           : ordered.slice((current + 1) * WAVE_SIZE).filter((note) => !note.started).length,
+      directionsWaiting: directionsWaiting.get(deckId) ?? 0,
     });
   }
 
   return {
     cards: cards.map((card) => ({
       ...card,
-      admissionRank: waveRank(waveOf.get(card.noteId) ?? 0, unsure.has(card.noteId)),
+      admissionRank: waveRank(
+        waveOf.get(card.noteId) ?? 0,
+        unsure.has(card.noteId),
+        started.has(card.noteId),
+      ),
     })),
     decks,
+    started,
   };
 }
