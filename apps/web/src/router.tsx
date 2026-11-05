@@ -83,6 +83,10 @@ const PossibleDuplicatesScreen = lazyRouteComponent(
   () => import('./features/notes/possible-duplicates'),
   'PossibleDuplicatesScreen',
 );
+const ProblemCardsScreen = lazyRouteComponent(
+  () => import('./features/notes/problem-cards'),
+  'ProblemCardsScreen',
+);
 const SettingsScreen = lazyRouteComponent(
   () => import('./features/settings/settings'),
   'SettingsScreen',
@@ -207,6 +211,15 @@ const possibleDuplicatesRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
     typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
   component: PossibleDuplicatesScreen,
+});
+
+const problemCardsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/slipping',
+  staticData: { navTab: '/library' },
+  validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
+    typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
+  component: ProblemCardsScreen,
 });
 
 const collectionSearchRoute = createRoute({
@@ -378,6 +391,7 @@ const routeTree = rootRoute.addChildren([
     noteCategoriesRoute,
     deletedRoute,
     possibleDuplicatesRoute,
+    problemCardsRoute,
     noteListRoute,
     // Before the parameter route, or a new note is read as a note whose id is
     // the word new.

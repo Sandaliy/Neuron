@@ -8,6 +8,7 @@ import { noteTypeRepository } from './note-types.js';
 import { noteRepository } from './notes.js';
 import { possibleDuplicateRepository } from './possible-duplicates.js';
 import { practiceRepository } from './practice.js';
+import { problemCardRepository } from './problem-cards.js';
 import { purgeRepository } from './purge.js';
 import { reviewRepository } from './reviews.js';
 import { nameUser, transactionRunner } from './session.js';
@@ -48,6 +49,7 @@ export interface Repositories {
   readonly collectionRenames: ReturnType<typeof collectionRenameRepository>;
   readonly collectionNotes: ReturnType<typeof collectionNoteRepository>;
   readonly practice: ReturnType<typeof practiceRepository>;
+  readonly problemCards: ReturnType<typeof problemCardRepository>;
   readonly purge: ReturnType<typeof purgeRepository>;
   readonly decks: DeckRepository;
   readonly notes: NoteRepository;
@@ -76,6 +78,7 @@ function build(db: Database, userId: string, run: Runner): Repositories {
     collectionRenames: collectionRenameRepository(userId, run),
     collectionNotes: collectionNoteRepository(userId, run),
     practice: practiceRepository(userId, run),
+    problemCards: problemCardRepository(userId, run),
     purge: purgeRepository(userId, run),
     decks: deckRepository(userId, run),
     notes: noteRepository(userId, run),

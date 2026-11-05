@@ -26,6 +26,12 @@ The cross-workspace journey holds search/member responses, commits the debounced
 and opens a named Note only after the selected group's loading state. This distinguishes group rows
 from member rows and preserves the editor heading and return-breadcrumb assertions.
 
+`problem-cards.spec.ts` covers Slipping cards: Library and Deck entries, 3,000 Notes with 600 listed
+and bounded mounted rows, evidence and schedule text kept apart, set aside and resume in place with
+focus and scroll kept, keyboard and Back editor return, and a complete download offline (lapse rule
+only, no Card write). Real PostgreSQL/RLS, Undo/restart/reset semantics and the 200,000-Review case live
+in `apps/api/src/routes/problem-cards.test.ts`. It also runs in mobile WebKit.
+
 | Area                                         | Files                                                                                                                                                                                                           |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Smoke                                        | `smoke.spec.ts`                                                                                                                                                                                                 |

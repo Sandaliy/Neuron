@@ -437,3 +437,15 @@ Learning response and acceptance:
 - `apps/web/src/ui/typed-response.tsx`: local answer submission and accessible aligned feedback.
 - `apps/web/tests/learning-live.spec.ts`: opt-in real-database activation, rating and Practice journeys.
 - `apps/web/tests/rich-study.spec.ts`: renderer, visual-viewport and held-request responsiveness coverage.
+
+Slipping cards (Phase 9.3, problem cards; `docs/problem-cards.md`):
+
+- `packages/shared/src/problem-cards.ts`: policy thresholds, reasons, recovery and the `reps` bound.
+- `packages/shared/src/api/problem-cards.ts`: query, per-order value cursors, history/counter evidence.
+- `apps/api/src/db/repositories/problem-cards.ts`: candidates by `reps`, counted-history aggregate,
+  page-only explanation; `apps/api/src/routes/cards.ts` serves it as `GET /cards/problems`.
+- `apps/web/src/lib/problem-cards.ts`: pages, lapse-only downloaded projection, set aside/resume.
+- `apps/web/src/features/notes/problem-cards.tsx`, `problem-card-rows.tsx`: filters, evidence and
+  schedule rows, editor return.
+- `apps/web/tests/problem-cards.spec.ts`, `apps/api/src/routes/problem-cards.test.ts`: browser and
+  PostgreSQL/RLS coverage.

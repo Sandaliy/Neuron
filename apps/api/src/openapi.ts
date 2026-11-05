@@ -23,6 +23,7 @@ import {
   deckTreeSchema,
   deleteAccountSchema,
   dueCardsSchema,
+  problemCardsQuerySchema,
   listNotesSchema,
   noteCategoryQuerySchema,
   noteCategoryPageSchema,
@@ -462,6 +463,13 @@ export function openApiDocument(baseUrl: string) {
           summary: 'What is waiting now',
           parameters: queryParameters(dueCardsSchema),
           responses: { 200: answer('The cards'), ...commonErrors },
+        },
+      },
+      '/cards/problems': {
+        get: {
+          summary: 'Slipping Cards: repeated lapses or frequent Again, read-only',
+          parameters: queryParameters(problemCardsQuerySchema),
+          responses: { 200: answer('A bounded page of listed Cards'), ...commonErrors },
         },
       },
       '/cards/{id}': {
