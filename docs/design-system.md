@@ -713,6 +713,14 @@ Practice setup belongs to the entry or the Current practice card header. Active 
 numeric counters with accessible Still learning/Known labels; normal persistence has no visible Saved
 label. Only saving errors require attention. Completed runs remain completed until explicit restart.
 
+Practice uses Space to reveal, 1 for Still learning, 2 for Known and U for visit-local Undo.
+Desktop context and control titles expose the shortcuts. Native controls, editing, IME composition,
+modifiers, held keys and open dialogs retain their own keyboard behavior. Reading focus follows the
+question, revealed answer and completion summary without opening an answer keyboard; progress is a
+question description rather than a second live announcement. Field-picker cancellation returns to its
+opener. A local save temporarily disables response actions; delivery acknowledgement preserves an
+identical pending intent without overriding a changed run.
+
 Practice setup keeps all response modes discoverable. Invalid fields or an empty eligible pool have a
 concise contextual reason beside Start. Typing offers an explicit eligible single-field answer choice;
 Listening offers Word selection and Deck-language recovery. Missing system audio retains Show answer

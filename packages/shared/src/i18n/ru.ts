@@ -409,6 +409,11 @@ export const ru = {
   'library.dropInvalid': 'Сюда переместить нельзя',
   'library.dropInside': 'Переместить внутрь',
   'library.dropHere': 'Вставить здесь',
+  'practice.question': 'Вопрос',
+  'practice.answer': 'Ответ',
+  'practice.shortcuts': 'Пробел: ответ · 1: ещё учу · 2: знаю · U: отменить',
+  'practice.position':
+    'Раунд {round}. Знаю: {known}. Ещё учу: {learning}. Осталось в раунде: {remaining}.',
   'practice.title': 'Практика',
   'practice.chooseFields': 'Выбрать поля',
   'practice.fields': 'Поля карточки',
