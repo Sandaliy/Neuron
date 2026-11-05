@@ -46,8 +46,8 @@ Final validation of the integrated branch passed 758 core/shared/web unit tests,
 Chromium phone/desktop interaction gate (873 passed, 20 explicit skips), 70 unchanged Windows visual
 contracts and all 12 enforced performance cases. The broad mobile WebKit run passed 134 cases with one
 Chromium-only measurement skipped before the Recent Notes integration; refreshed Recent Notes/search/
-Practice checks then passed 61 cases across all three browser configurations, with one desktop-only
-selection skipped. TypeScript, lint, formatting and whitespace checks passed. Optional live-database
+Practice checks then passed 61 cases across all three browser configurations, with the phone-only
+measurement skipped in the desktop selection. TypeScript, lint, formatting and whitespace checks passed. Optional live-database
 journeys that were skipped are not passing evidence, and hosted checks remain a separate delivery gate.
 
 Browser automation checks persistent DOM identity, focus, caret, updated results, superseded responses,
