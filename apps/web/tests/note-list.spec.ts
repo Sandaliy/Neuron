@@ -639,6 +639,8 @@ test('Find Notes stays usable during slow and empty searches and supports the ph
 for (const path of [
   '/notes',
   '/notes?deckId=d3',
+  '/notes?recent=added',
+  '/notes?recent=changed',
   '/library/find',
   '/library/categories',
   '/library/duplicates',
@@ -646,7 +648,8 @@ for (const path of [
 ]) {
   test(`continuous search keeps focus and the screen at ${path}`, async ({ page }) => {
     await installPreferences(page, { locale: 'en', theme: 'dark' });
-    await installFixtures(page, { notes: manyNotes(1000) });
+    if (path.includes('recent=')) await installRecentFixture(page);
+    else await installFixtures(page, { notes: manyNotes(1000) });
     await page.route('**/api/notes/categories?*', (route) =>
       route.fulfill({ json: { items: [], total: 0 } }),
     );

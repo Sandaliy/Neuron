@@ -9,6 +9,8 @@ rules were unchanged between Phase 7 and PR #48. Swipe changed only its disabled
 
 The report concerns the iPhone Home Screen application, multiple search fields and jumping during
 search. Built-app probes start at `1a8cf6f` (merged #80), with Chromium phone/desktop and mobile WebKit.
+The final branch integrates `2a11670`, including Recent Notes #81 and its test follow-up #83;
+continuous editing also covers Recently added and Recently changed.
 
 - Find Notes, Deck Notes, collection search, categories and duplicates drove controlled text directly
   from asynchronous query observers. All five reproduced a caret reset to the end during mid-string
@@ -35,10 +37,18 @@ A separate matched navigation probe compares #78 (`49d9a49`) with this repair: 6
 60 Decks, phone Chromium, 4x CPU and 250 ms cold transport. It measures from the click inside the
 browser through two frames after the destination content appears. Each build makes one collection
 read and one Note-list read across three navigation cycles. Warm Note opening was 63-67 ms before
-and 67-68 ms after; Library return 183-201 ms before and 196-200 ms after; Today 64-75 ms before and
-61-65 ms after. Cold Note search was 475 ms before and 457 ms after. The unchanged 500 ms warm-navigation
+and 55-69 ms after; Library return 183-201 ms before and 182-187 ms after; Today 64-75 ms before and
+62-65 ms after. Cold Note search was 475 ms before and 453 ms after. The probe's 500 ms warm-navigation
 bound passes. These short controlled samples establish neither an application-wide regression from
 #79/#80 nor a broad speedup from this repair.
+
+Final validation of the integrated branch passed 758 core/shared/web unit tests, the complete built-app
+Chromium phone/desktop interaction gate (873 passed, 20 explicit skips), 70 unchanged Windows visual
+contracts and all 12 enforced performance cases. The broad mobile WebKit run passed 134 cases with one
+Chromium-only measurement skipped before the Recent Notes integration; refreshed Recent Notes/search/
+Practice checks then passed 61 cases across all three browser configurations, with one desktop-only
+selection skipped. TypeScript, lint, formatting and whitespace checks passed. Optional live-database
+journeys that were skipped are not passing evidence, and hosted checks remain a separate delivery gate.
 
 Browser automation checks persistent DOM identity, focus, caret, updated results, superseded responses,
 offline/reconnection and staged keyboard panning. It cannot raise an iPhone keyboard or exercise native
