@@ -6,6 +6,7 @@ import {
   readInteractionMetrics,
   startInteractionMetrics,
 } from './interaction-metrics';
+import { continuousSearch } from './search-interaction';
 
 import type { Page } from '@playwright/test';
 
@@ -33,7 +34,7 @@ test('Library offers explicit consistency and enrichment checks with exact overl
     fullPage: true,
   });
   const search = page.getByRole('searchbox', { name: 'Search vocabulary content' });
-  await search.fill('100%_literal');
+  await continuousSearch(page, search, '100%_literal');
   await search.press('Enter');
   await expect(search).not.toBeFocused();
   await page.getByRole('combobox', { name: 'Inspection Deck' }).selectOption(qualityDeckId);
@@ -127,6 +128,7 @@ test('bounded pages retain search, Deck, scroll and keyboard focus through edito
   await page.getByRole('button', { name: 'Content checks', exact: true }).click();
   await expect(page.getByText('Shown: 200 of 4124', { exact: true })).toBeVisible();
   await expect(page.locator(`[data-quality-id="${id}"]`)).toHaveCount(0);
+  await expect(page.locator('[data-quality-id] button:focus')).toHaveCount(1);
   expect(await page.locator('[data-quality-id]').count()).toBeLessThan(40);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const requests = state.requests.filter(
@@ -259,4 +261,59 @@ test('long mobile content remains readable, bounded and free of horizontal overf
   });
   await page.getByRole('searchbox', { name: 'Search vocabulary content' }).fill('no match');
   await expect(page.getByText('No matching Notes', { exact: true })).toBeVisible();
+});
+
+test('a late old-account inspection response cannot replace the new account view', async ({
+  page,
+}) => {
+  const state = await installQualityFixture(page, 20, false);
+  let release!: () => void;
+  let requested!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    requested = resolve;
+  });
+  await page.route(
+    (url) =>
+      url.pathname === '/api/notes/content-quality' && url.searchParams.get('search') === 'held',
+    async (route) => {
+      requested();
+      await held;
+      await route.fulfill({
+        json: {
+          vocabularyCount: 1,
+          counts: {
+            'translation-without-example': 1,
+            'example-without-translation': 0,
+            'missing-example': 1,
+            'missing-definition': 1,
+          },
+          items: [],
+        },
+      });
+    },
+  );
+  await page.goto('/library/quality');
+  await expect(check(page, 'No example sentence')).toContainText('10');
+  const search = page.getByRole('searchbox', { name: 'Search vocabulary content' });
+  await search.fill('held');
+  await search.press('Enter');
+  await started;
+  state.offline = true;
+  await page.evaluate(() => dispatchEvent(new Event('offline')));
+  await expect(
+    page.getByText('The collection download is incomplete or missing.', { exact: false }),
+  ).toBeVisible();
+  state.who = 'another-reader';
+  state.offline = false;
+  await page.evaluate(() => dispatchEvent(new Event('online')));
+  await expect(page.getByText('No vocabulary Notes in this view', { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  release();
+  await expect(search).toHaveValue('');
+  await expect(page.getByText('Vocabulary Notes in this view: 0', { exact: true })).toBeVisible();
+  await expect(check(page, 'No example sentence')).toContainText('0');
 });

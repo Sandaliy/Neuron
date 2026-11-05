@@ -119,6 +119,10 @@ installed-iPhone acceptance.
 
 ## Open threads
 
+- Content checks is implemented on `work/content-quality-inspector` for focused PR review. It adds
+  one schema-valid example-pair consistency check and three optional vocabulary enrichment checks,
+  with bounded account/RLS reads and complete-download inspection. It is not released; installed-iPhone
+  acceptance remains open. Rules, measurements and the device checklist are in `content-quality.md`.
 - Practice/search interaction repair (#84, `7b6db0c`) is on protected `main`.
   It retains synchronous search drafts and search scroll position, adds Practice keyboard/focus support
   and guards the local intent/acknowledgement race, including Recent Notes #81 and its follow-up #83.

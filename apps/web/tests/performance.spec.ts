@@ -88,16 +88,15 @@ test('Content checks retains the scroll budget and bounded downloaded reads over
     const offlineMs = Date.now() - started;
     const metrics = await readInteractionMetrics(page);
     const result = {
+      ...metrics,
       fps,
       samples,
       mountedRows,
       offlineMs,
       cpuSlowdown: CPU_THROTTLE,
       fixtureNotes: 6500,
-      ...metrics,
     };
     // Scroll FPS excludes cold download hydration; report both measurements separately.
-    result.fps = fps;
     console.info(JSON.stringify(result));
     await info.attach('content-checks-performance.json', {
       body: JSON.stringify(result),
