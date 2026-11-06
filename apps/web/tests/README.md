@@ -98,6 +98,12 @@ the base revision. Preserve any unrelated local work.
 
 ## Diagnosing a failed run
 
+For an intentional Library reference refresh, use an explicit update mode and a scoped selection:
+`pnpm --filter @neuron/web exec playwright test tests/screens.spec.ts --project=phone --project=desktop --grep library --update-snapshots=all`.
+This captures the selected references even when a small new control fits the existing comparison
+tolerance. Inspect the images, then repeat the selection without the update flag. An explicit mode
+also prevents a following file path from being interpreted as the update mode.
+
 Download the failed job's report before rerunning it. Keep the trace, error context and attached
 measurements together: the HTML report references files under `playwright-report/data`. Artifact paths
 must be distinct on case-insensitive filesystems too; use semantic scenario names rather than names

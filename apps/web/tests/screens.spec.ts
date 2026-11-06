@@ -66,6 +66,7 @@ for (const theme of THEMES) {
       await useFixtures(page);
       await page.goto('/library');
       await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Slipping cards', exact: true })).toBeVisible();
       await settle(page);
       await page.screenshot({
         path: testInfo.outputPath('library.png'),
@@ -86,6 +87,7 @@ for (const theme of THEMES) {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);
       await page.goto('/library');
+      await expect(page.getByRole('button', { name: 'Slipping cards', exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'Show what is inside', exact: true }).first().click();
       await page.getByRole('button', { name: 'Show what is inside', exact: true }).first().click();
       await expect(page.getByRole('button', { name: /^Verben mit Dativ/ })).toBeVisible();

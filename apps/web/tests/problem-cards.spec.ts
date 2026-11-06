@@ -258,8 +258,10 @@ test('Library entry explains the evidence and sets a Card aside and back in plac
 
   const setAside = first.getByRole('button', { name: 'Set aside', exact: true });
   await setAside.scrollIntoViewIfNeeded();
+  // Exercise keyboard focus retention explicitly; a pointer press need not focus a button.
+  await setAside.focus();
   const top = await page.evaluate(() => window.scrollY);
-  await setAside.click();
+  await setAside.press('Enter');
   await expect(page.getByText(/^Card set aside\. It stays out of Study/)).toBeVisible();
   await expect(
     first.getByText('Set aside since Nov 3. Its schedule and history are kept.'),
