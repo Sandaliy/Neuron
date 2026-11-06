@@ -50,6 +50,14 @@ Practice checks then passed 61 cases across all three browser configurations, wi
 measurement skipped in the desktop selection. TypeScript, lint, formatting and whitespace checks passed. Optional live-database
 journeys that were skipped are not passing evidence, and hosted checks remain a separate delivery gate.
 
+Published-frontend checks after #84 passed 58 focused Chromium phone/desktop and mobile WebKit cases,
+with two Chromium phone-only measurement skips, plus the 6,000-Note repeated-navigation probe.
+An additional remote performance run passed 11 of 12 cases: the first Deck opening took 405 ms against
+the unchanged 300 ms local benchmark. The previous production deployment (`2a11670`) took 613 ms in
+the same probe. Traces show cold route chunks loading from the CDN; serving the unchanged published
+assets locally passed at 268 ms with 60 FPS scrolling. This is a network-sensitive cold-start limit,
+not evidence of a new rendering regression or a reason to weaken the benchmark.
+
 Browser automation checks persistent DOM identity, focus, caret, updated results, superseded responses,
 offline/reconnection and staged keyboard panning. It cannot raise an iPhone keyboard or exercise native
 VoiceOver. Physical acceptance must repeat continuous and mid-string search, clear/no-result queries,

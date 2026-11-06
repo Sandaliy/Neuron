@@ -106,6 +106,10 @@ describe.skipIf(!configured)('recent Note index migration safety', () => {
         select gen_random_uuid(),user_id,id,deck_id,'recognition','new',now() from notes order by id limit 2`);
       await pool.query(`insert into reviews (id,user_id,card_id,reviewed_at,rating,elapsed_days,scheduled_days,placed_due,state_before)
         select gen_random_uuid(),user_id,id,now(),'good',0,0,now(),'new' from cards order by id limit 1`);
+      // Finish bulk-load maintenance before testing an otherwise idle database.
+      // Background vacuum/analyze holds a conflicting lock and correctly trips
+      // NOWAIT, masking the timeout or success case this fixture intends to test.
+      await pool.query('vacuum (analyze) notes');
     });
     baseline = await fingerprint();
   });
@@ -126,26 +130,30 @@ describe.skipIf(!configured)('recent Note index migration safety', () => {
     }
   });
 
-  it('refuses an existing writer immediately and leaves the journal and data unchanged', async () => {
-    await withPool(ownerUrl, async (pool) => {
-      const writer = await pool.connect();
-      try {
-        await writer.query('begin');
-        await writer.query('lock table notes in row exclusive mode');
-        const failure = await applyMigrations(ownerUrl).then(
-          () => undefined,
-          (error: unknown) => error,
-        );
-        expect(sqlState(failure)).toBe('55P03');
-      } finally {
-        await writer.query('rollback');
-        writer.release();
-      }
+  for (const holder of [
+    { kind: 'writer', mode: 'row exclusive' },
+    { kind: 'maintenance operation', mode: 'share update exclusive' },
+  ])
+    it(`refuses an existing ${holder.kind} immediately and leaves the journal and data unchanged`, async () => {
+      await withPool(ownerUrl, async (pool) => {
+        const writer = await pool.connect();
+        try {
+          await writer.query('begin');
+          await writer.query(`lock table notes in ${holder.mode} mode`);
+          const failure = await applyMigrations(ownerUrl).then(
+            () => undefined,
+            (error: unknown) => error,
+          );
+          expect(sqlState(failure)).toBe('55P03');
+        } finally {
+          await writer.query('rollback');
+          writer.release();
+        }
+      });
+      expect((await inspectMigrationJournal(ownerUrl)).state).toBe('behind');
+      expect(await recentIndexes()).toEqual([]);
+      expect(await fingerprint()).toEqual(baseline);
     });
-    expect((await inspectMigrationJournal(ownerUrl)).state).toBe('behind');
-    expect(await recentIndexes()).toEqual([]);
-    expect(await fingerprint()).toEqual(baseline);
-  });
 
   it('cancels a slow statement after the first index and rolls back both the index and journal', async () => {
     const folder = migrationCopy();
