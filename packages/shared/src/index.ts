@@ -178,9 +178,19 @@ export type {
 } from './api/decks.js';
 
 export {
+  isRecentNoteSort,
+  compareRecentNotes,
+  recentNoteTime,
+  recentNoteCursor,
+  readRecentNoteCursor,
+} from './note-recency.js';
+export type { RecentNoteSort } from './note-recency.js';
+
+export {
   BULK_LIMIT,
   MAX_NOTE_PAGE_SIZE,
   NOTE_SORTS,
+  NOTE_BROWSE_SORTS,
   bulkDeleteSchema,
   bulkMoveSchema,
   bulkStatusSchema,
@@ -195,6 +205,7 @@ export {
   noteLimitSchema,
   noteSchema,
   noteSortSchema,
+  noteBrowseSortSchema,
   updateNoteSchema,
   editOfflineNoteCommandSchema,
   editOfflineNoteResultSchema,
@@ -230,6 +241,7 @@ export type {
   NoteCategoryPage,
   Note,
   NoteSort,
+  NoteBrowseSort,
   UpdateNoteBody,
   EditOfflineNoteCommand,
   EditOfflineNoteResult,

@@ -5,6 +5,11 @@ import {
   termOf,
   triageChoiceOf,
   triageFace,
+  isRecentNoteSort,
+  compareRecentNotes,
+  recentNoteCursor,
+  readRecentNoteCursor,
+  recentNoteTime,
 } from '@neuron/shared';
 import type {
   Card,
@@ -344,18 +349,38 @@ export async function localNotes(
     );
     filtered.sort(
       (a, b) =>
-        (query.sort === 'alpha'
-          ? termOf(a.fields).localeCompare(termOf(b.fields))
-          : query.sort === 'rank'
-            ? (a.rank ?? Infinity) - (b.rank ?? Infinity)
-            : a.createdAt.localeCompare(b.createdAt)) || a.id.localeCompare(b.id),
+        (isRecentNoteSort(query.sort)
+          ? compareRecentNotes(a, b, query.sort)
+          : query.sort === 'alpha'
+            ? termOf(a.fields).localeCompare(termOf(b.fields))
+            : query.sort === 'rank'
+              ? (a.rank ?? Infinity) - (b.rank ?? Infinity)
+              : a.createdAt.localeCompare(b.createdAt)) || a.id.localeCompare(b.id),
     );
     if (accountEpoch() !== visit || offlineState().accountId !== accountId)
       throw new Error('collection_account_changed');
     if (projected.browseVersion !== version) return localNotes(query, cursor, pageSize, sentOnly);
     projected.browse = { key, items: filtered };
   }
-  const offset = cursor?.startsWith('local:') ? Number(cursor.slice(6)) : 0;
+  let offset = cursor?.startsWith('local:') ? Number(cursor.slice(6)) : 0;
+  if (isRecentNoteSort(query.sort)) {
+    offset = 0;
+    if (cursor) {
+      const boundary = readRecentNoteCursor(cursor.replace(/^local:/, ''));
+      if (!boundary || boundary.sort !== query.sort) throw new Error('collection_invalid_cursor');
+      const anchor = {
+        id: boundary.id,
+        createdAt: boundary.timestamp,
+        updatedAt: boundary.timestamp,
+      };
+      let end = filtered.length;
+      while (offset < end) {
+        const middle = Math.floor((offset + end) / 2);
+        if (compareRecentNotes(filtered[middle]!, anchor, query.sort) > 0) end = middle;
+        else offset = middle + 1;
+      }
+    }
+  }
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('collection_invalid_cursor');
   const items = filtered.slice(offset, offset + pageSize);
   const waiting = items.filter((note) => unsent.has(note.id)).map((note) => note.id);
@@ -364,7 +389,11 @@ export async function localNotes(
     local: true,
     ...(waiting.length ? { unsent: waiting } : {}),
     ...(offset + items.length < filtered.length
-      ? { nextCursor: `local:${offset + items.length}` }
+      ? {
+          nextCursor: isRecentNoteSort(query.sort)
+            ? `local:${recentNoteCursor(query.sort, recentNoteTime(items.at(-1)!, query.sort), items.at(-1)!.id)}`
+            : `local:${offset + items.length}`,
+        }
       : {}),
   };
 }

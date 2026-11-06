@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-04.
+Last updated: 2026-11-06.
 
 ## Release
 
@@ -50,6 +50,13 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   inside each wave. The time-based throttle still decides how many start. The Deck screen shows the
   current wave, what Study lets in today or why it lets in none, when the next wave starts and what waits
   after it; Today's rows name the wave instead of every new Note.
+
+Recent Notes (#81) adds Recently added (`createdAt`) and Recently changed (`updatedAt`) to Library's
+existing Note browser, with dates, locations, filters and editor return. Migration 0019 adds read indexes
+with no-wait locking and local execution/idle limits; runtime schema compatibility alone does not prove
+these indexes were applied, so release verification also checks their journal hash and validity.
+The category/duplicate journey commits its search and waits for Note rows before opening the editor.
+Installed-iPhone acceptance remains open. See `recent-notes.md` for semantics and acceptance steps.
 
 Not built: offline Import application, rank-ordered waves, Phase 9 progressive directions and the
 problem-card area, Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
@@ -111,6 +118,12 @@ installed-iPhone acceptance.
   the Note is not in triage until the server has it. Reconnect: both arrive once.
 
 ## Open threads
+
+- Practice/search interaction repair (#84, `7b6db0c`) is on protected `main`.
+  It retains synchronous search drafts and search scroll position, adds Practice keyboard/focus support
+  and guards the local intent/acknowledgement race, including Recent Notes #81 and its follow-up #83.
+  Browser keyboard geometry cannot replace Home Screen iPhone/VoiceOver acceptance; performance
+  evidence and remaining limits are in `interaction-performance.md`.
 
 - Preliminary offline duplicate keys retain the inherited UTF-16 prefix difference from PostgreSQL
   for very long supplementary-Unicode terms. Server groups remain authoritative; see

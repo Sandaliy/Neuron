@@ -10,6 +10,7 @@ import {
   Plus,
   Settings2,
   Search,
+  Clock,
   Trash2,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -215,6 +216,24 @@ export function LibraryScreen() {
           <Button variant="quiet" onClick={() => void navigate({ to: '/library/categories' })}>
             {t('categories.title')}
           </Button>
+          <Menu
+            label={t('notes.recent')}
+            trigger={
+              <Button variant="quiet">
+                <Clock size={16} aria-hidden="true" />
+                {t('notes.recent')}
+              </Button>
+            }
+          >
+            <MenuItem onSelect={() => void navigate({ to: '/notes', search: { recent: 'added' } })}>
+              {t('notes.sort.created-desc')}
+            </MenuItem>
+            <MenuItem
+              onSelect={() => void navigate({ to: '/notes', search: { recent: 'changed' } })}
+            >
+              {t('notes.sort.updated-desc')}
+            </MenuItem>
+          </Menu>
           <Button variant="quiet" onClick={() => void navigate({ to: '/library/duplicates' })}>
             {t('duplicates.title')}
           </Button>

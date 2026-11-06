@@ -244,3 +244,62 @@ it('keeps Practice usable online without device storage, and refuses steps once 
   const run = store.getSnapshot().run!;
   expect(store.act({ kind: 'answer', noteId: run.queue[0]!, known: true })).toBe('storage');
 });
+
+it('retains one intent when acknowledgement races its local transaction, without changing its identity', async () => {
+  const { acknowledge, savePracticeCommand } = await import('./practice-outbox');
+  const store = (await load())('ack-race', 'deck', notes, { run: null, version: 0 });
+  await vi.waitFor(() => expect(store.getSnapshot().loading).toBe(false));
+  store.act({ kind: 'start', front: 'front', back: 'back' });
+  await vi.waitFor(() => expect(store.getSnapshot().committing).toBe(false));
+  const key = 'ack-race:deck';
+  const base = structuredClone(device.records.get(key)!);
+  let release!: () => void;
+  device.hold = new Promise((resolve) => {
+    release = resolve;
+  });
+  const committed = vi.fn();
+  store.act({ kind: 'answer', noteId: notes[0]!.id, known: true }, committed);
+  device.records.set(
+    key,
+    acknowledge(base, base.pending[0]!.id, { run: base.device!, version: 1 })!,
+  );
+  release();
+  await vi.waitFor(() => expect(committed).toHaveBeenCalledTimes(1));
+  expect(device.records.get(key)!.pending).toHaveLength(1);
+  expect(store.getSnapshot().run!.statuses[notes[0]!.id]).toBe('known');
+  const attempts = vi
+    .mocked(savePracticeCommand)
+    .mock.calls.filter((call) => call[0] === 'ack-race' && call[3].kind === 'answer');
+  expect(attempts).toHaveLength(2);
+  expect(attempts[0]![3]).toEqual(attempts[1]![3]);
+});
+
+it('never retries a racing intent over progress changed elsewhere', async () => {
+  const { savePracticeCommand } = await import('./practice-outbox');
+  const store = (await load())('progress-race', 'deck', notes, { run: null, version: 0 });
+  await vi.waitFor(() => expect(store.getSnapshot().loading).toBe(false));
+  store.act({ kind: 'start', front: 'front', back: 'back' });
+  await vi.waitFor(() => expect(store.getSnapshot().committing).toBe(false));
+  const key = 'progress-race:deck';
+  const base = structuredClone(device.records.get(key)!);
+  let release!: () => void;
+  device.hold = new Promise((resolve) => {
+    release = resolve;
+  });
+  const committed = vi.fn();
+  store.act({ kind: 'answer', noteId: notes[0]!.id, known: true }, committed);
+  device.records.set(key, {
+    ...base,
+    confirmed: { ...base.confirmed, version: 10 },
+    device: { ...base.device!, queue: [] },
+  });
+  release();
+  await vi.waitFor(() => expect(store.getSnapshot().committing).toBe(false));
+  expect(committed).not.toHaveBeenCalled();
+  expect(store.getSnapshot().run!.queue).toEqual([]);
+  expect(
+    vi
+      .mocked(savePracticeCommand)
+      .mock.calls.filter((call) => call[0] === 'progress-race' && call[3].kind === 'answer'),
+  ).toHaveLength(1);
+});

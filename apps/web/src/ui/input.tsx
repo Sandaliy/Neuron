@@ -1,3 +1,7 @@
+import { useEffect, useRef } from 'react';
+
+import { keepSearchScroll } from '../lib/search-scroll';
+
 import type { InputHTMLAttributes } from 'react';
 
 /**
@@ -16,6 +20,8 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export function Input({ invalid = false, busy, className = '', ...rest }: InputProps) {
+  const release = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => () => release.current?.(), []);
   const field = (
     <input
       aria-invalid={invalid || undefined}
@@ -31,6 +37,18 @@ export function Input({ invalid = false, busy, className = '', ...rest }: InputP
         .filter(Boolean)
         .join(' ')}
       {...rest}
+      onFocus={(event) => {
+        if (rest.type === 'search') {
+          release.current?.();
+          release.current = keepSearchScroll();
+        }
+        rest.onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        release.current?.();
+        release.current = undefined;
+        rest.onBlur?.(event);
+      }}
     />
   );
 

@@ -409,6 +409,11 @@ export const ru = {
   'library.dropInvalid': 'Сюда переместить нельзя',
   'library.dropInside': 'Переместить внутрь',
   'library.dropHere': 'Вставить здесь',
+  'practice.question': 'Вопрос',
+  'practice.answer': 'Ответ',
+  'practice.shortcuts': 'Пробел: ответ · 1: ещё учу · 2: знаю · U: отменить',
+  'practice.position':
+    'Раунд {round}. Знаю: {known}. Ещё учу: {learning}. Осталось в раунде: {remaining}.',
   'practice.title': 'Практика',
   'practice.chooseFields': 'Выбрать поля',
   'practice.fields': 'Поля карточки',
@@ -838,6 +843,16 @@ export const ru = {
   'notes.sort.created': 'Сначала добавленные раньше',
   'notes.sort.alpha': 'По алфавиту',
   'notes.sort.rank': 'Сначала частые слова',
+  'notes.sort.created-desc': 'Недавно добавленные',
+  'notes.sort.updated-desc': 'Недавно изменённые',
+  'notes.recent': 'Недавние заметки',
+  'notes.recentHint':
+    'Сначала новые во всей библиотеке. Дата изменения учитывает содержимое, статус, теги и перемещение.',
+  'notes.pendingRecent':
+    'До синхронизации у сохранённых на устройстве правок остаётся последняя записанная дата изменения.',
+  'notes.refreshRecent': 'Обновить',
+  'notes.addedAt': 'Добавлено',
+  'notes.changedAt': 'Обновлено',
   'notes.select': 'Выбрать записи',
   'notes.selectDone': 'Выйти из выбора',
   'notes.selected': 'Выбрано: {count}',

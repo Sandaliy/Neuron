@@ -7,6 +7,14 @@ file named after the change.
 
 ## By product area
 
+Recent Notes reuses `note-list.spec.ts` (Library menu, timestamp modes, locations, filters, captured
+pagination, large collections and editor scroll return), `offline-notes.spec.ts` and
+`offline-note-creation.spec.ts` (truthful device dates, pending work, reconnection and account/deletion
+boundaries). These cases run in both Chromium interaction viewports and mobile WebKit. The 6,500-Note
+case in `performance.spec.ts` retains the existing 55 FPS budget at 4x CPU. Real PostgreSQL/RLS,
+Import/bulk changes and production-statement EXPLAIN checks live in
+`apps/api/src/routes/recent-notes.test.ts`. Installed-iPhone steps are in `docs/recent-notes.md`.
+
 `possible-duplicates.spec.ts` covers the read-only duplicate workspace: bounded group/member pages,
 Library and Deck scopes, 6,500 Notes, long mobile content, keyboard/editor return, downloaded reads,
 local changes and pending Notes, incomplete downloads, reconnection and account switching. It runs in
@@ -14,6 +22,9 @@ both Chromium interaction viewports and mobile WebKit. Initial hydration is setu
 from interaction with an already complete download.
 Combined category/duplicate scenarios also check independent editor return state, shared local edit
 projection, authoritative reconnection counts and clearing both browsers after an account change.
+The cross-workspace journey holds search/member responses, commits the debounced search with Enter
+and opens a named Note only after the selected group's loading state. This distinguishes group rows
+from member rows and preserves the editor heading and return-breadcrumb assertions.
 
 | Area                                         | Files                                                                                                                                                                                                           |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -35,6 +46,15 @@ projection, authoritative reconnection counts and clearing both browsers after a
 `interaction-lifecycle.spec.ts` fixes its own viewport at 375px. Its three glass-mode frame/input
 budgets run in `phone-interaction`; desktop excludes that duplicate. Ordinary desktop motion cases
 and the separate opt-in mobile WebKit coverage remain selected.
+
+`note-list.spec.ts` also checks consecutive search editing across all Library search entry points,
+mid-string selection, slow superseded responses and scroll stability with a panned keyboard viewport.
+`offline-notes.spec.ts` repeats editing across downloaded results and reconnection. Keyboard geometry
+is staged in browser automation; Home Screen iPhone acceptance remains separate.
+`practice-setup.spec.ts` covers Space/1/2/U, focus through reveal/advance/Undo/completion, response fields,
+modal cancellation, held keys, IME/modifier guards and Study follow-up isolation. Its controlled phone
+probe measures typing over 5,000 Notes at 4x CPU. `acceptance-latency.spec.ts` measures repeated navigation
+through Library, search, Notes and primary screens with 6,000 Notes, 60 Decks and delayed transport.
 
 `library-polish.spec.ts` also covers collection name search, collapsed descendants, duplicate names,
 full paths, keyboard focus and Back/scroll return over 2,500 collections. `offline-collections.spec.ts`

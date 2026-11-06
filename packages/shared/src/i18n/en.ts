@@ -404,6 +404,11 @@ export const en = {
   'library.dropInvalid': 'Cannot move here',
   'library.dropInside': 'Move inside',
   'library.dropHere': 'Insert here',
+  'practice.question': 'Question',
+  'practice.answer': 'Answer',
+  'practice.shortcuts': 'Space: reveal · 1: still learning · 2: known · U: undo',
+  'practice.position':
+    'Round {round}. Known: {known}. Still learning: {learning}. Left in this round: {remaining}.',
   'practice.title': 'Practice',
   'practice.scheduleSafe': 'A practice run only. Answers do not change your learning schedule.',
   'practice.front': 'Question field',
@@ -837,6 +842,16 @@ export const en = {
   'notes.sort.created': 'Oldest first',
   'notes.sort.alpha': 'Alphabetical',
   'notes.sort.rank': 'Most frequent words first',
+  'notes.sort.created-desc': 'Recently added',
+  'notes.sort.updated-desc': 'Recently changed',
+  'notes.recent': 'Recent Notes',
+  'notes.recentHint':
+    'Newest first across the Library. Changed dates include content, status, tags and location updates.',
+  'notes.pendingRecent':
+    'Device-saved edits keep the last recorded update date until synchronization.',
+  'notes.refreshRecent': 'Refresh',
+  'notes.addedAt': 'Added',
+  'notes.changedAt': 'Updated',
   'notes.select': 'Select notes',
   'notes.selectDone': 'Exit selection',
   'notes.selected': 'Selected: {count}',
