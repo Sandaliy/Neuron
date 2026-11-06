@@ -48,9 +48,14 @@ async function fingerprint() {
   return withPool(ownerUrl, async (pool) => {
     const rows = [];
     for (const table of ['notes', 'cards', 'reviews', 'decks', 'user']) {
+      // Only the two columns introduced after the index migration are outside
+      // this comparison. Preserve existing columns and nested JSON nulls.
+      const projection =
+        table === 'cards'
+          ? "to_jsonb(t) - 'unlock_reason' - 'unlocked_by_review_id'"
+          : 'to_jsonb(t)';
       const result = await pool.query(
-        // Nulls are stripped so a later migration's new nullable column is not a data change.
-        `select count(*)::int as count, md5(string_agg(jsonb_strip_nulls(row_to_json(t)::jsonb)::text, '' order by id)) as digest from "${table}" t`,
+        `select count(*)::int as count, md5(string_agg((${projection})::text, '' order by id)) as digest from "${table}" t`,
       );
       rows.push({ table, ...result.rows[0] });
     }
