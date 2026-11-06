@@ -128,6 +128,9 @@ on export, import-hardening or dependency-security work.
 
 Physical Home Screen iPhone acceptance remains open:
 
+The owner accepted the shown mobile/desktop visual references on 2026-11-06. That visual acceptance
+permits integration after fresh required checks; the physical-device scenarios below remain open.
+
 - Import/download at least 5,000 mixed Notes. Check known examples against all categories and
   overlapping counts. Distinguish the missing source pair from optional context.
 - Filter by Deck and search; type continuously, edit the middle, clear and try no matches. Verify
