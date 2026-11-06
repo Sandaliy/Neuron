@@ -87,6 +87,10 @@ const ProblemCardsScreen = lazyRouteComponent(
   () => import('./features/notes/problem-cards'),
   'ProblemCardsScreen',
 );
+const ContentQualityScreen = lazyRouteComponent(
+  () => import('./features/notes/content-quality'),
+  'ContentQualityScreen',
+);
 const SettingsScreen = lazyRouteComponent(
   () => import('./features/settings/settings'),
   'SettingsScreen',
@@ -227,6 +231,12 @@ const collectionSearchRoute = createRoute({
   path: '/library/find',
   staticData: { navTab: '/library' },
   component: CollectionSearchScreen,
+});
+const contentQualityRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/quality',
+  staticData: { navTab: '/library' },
+  component: ContentQualityScreen,
 });
 const noteCategoriesRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -392,6 +402,7 @@ const routeTree = rootRoute.addChildren([
     deletedRoute,
     possibleDuplicatesRoute,
     problemCardsRoute,
+    contentQualityRoute,
     noteListRoute,
     // Before the parameter route, or a new note is read as a note whose id is
     // the word new.

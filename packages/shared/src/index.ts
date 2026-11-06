@@ -438,6 +438,7 @@ export * from './triage.js';
 export { studyDecks } from './study-scope.js';
 export type { ReviewHistoryRow } from './api/reviews.js';
 export * from './typed-answer.js';
+export * from './content-quality.js';
 
 export { planDailyStudy } from './study-planner.js';
 export { WAVE_SIZE, deckWaveSchema, learningWaves, waveRank } from './learning-waves.js';

@@ -27,6 +27,8 @@ import {
   listNotesSchema,
   noteCategoryQuerySchema,
   noteCategoryPageSchema,
+  contentQualityPageSchema,
+  contentQualityQuerySchema,
   meSchema,
   moveDeckSchema,
   noteSchema,
@@ -91,6 +93,7 @@ const registry: Record<string, z.ZodType> = {
   DeletedNoteList: deletedNoteListSchema,
   ListNotes: listNotesSchema,
   NoteCategoryPage: noteCategoryPageSchema,
+  ContentQualityPage: contentQualityPageSchema,
   CreateNote: createNoteSchema,
   UpdateNote: updateNoteSchema,
   BulkStatus: bulkStatusSchema,
@@ -371,6 +374,16 @@ export function openApiDocument(baseUrl: string) {
           parameters: queryParameters(noteCategoryQuerySchema),
           responses: {
             200: answer('One bounded page of categories', 'NoteCategoryPage'),
+            ...commonErrors,
+          },
+        },
+      },
+      '/notes/content-quality': {
+        get: {
+          summary: 'Inspect vocabulary context with filtered counts and a bounded Note page',
+          parameters: queryParameters(contentQualityQuerySchema),
+          responses: {
+            200: answer('Content checks and matching Notes', 'ContentQualityPage'),
             ...commonErrors,
           },
         },
