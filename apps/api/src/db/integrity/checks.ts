@@ -14,9 +14,10 @@ const uuidFromJson = (expression: string) =>
 // account is absent from statistics. Materialization prevents the outer
 // violation predicates from reducing FULL JOIN to a quadratic nested loop.
 const cardNotes = `with card_notes as materialized (
-  select c.id,c.deck_id,n.id as visible_note_id,n.deck_id as note_deck_id
-  from (select id,note_id,deck_id from cards where user_id=$1) c
-  full join (select id,deck_id from notes where user_id=$1) n on n.id=c.note_id
+  select c.id,c.deck_id,c.deleted_at as card_deleted_at,
+    n.id as visible_note_id,n.deck_id as note_deck_id,n.deleted_at as note_deleted_at
+  from (select id,note_id,deck_id,deleted_at from cards where user_id=$1) c
+  full join (select id,deck_id,deleted_at from notes where user_id=$1) n on n.id=c.note_id
 )`;
 
 export const structuralChecks: readonly IntegrityCheck[] = [
@@ -115,8 +116,8 @@ export const structuralChecks: readonly IntegrityCheck[] = [
     severity: 'error',
     context:
       'Live Card belongs to a deleted Note. Independently retired Cards beneath live Notes are valid.',
-    sql: `select c.id from cards c join notes n on n.id=c.note_id and n.user_id=$1
-      where c.user_id=$1 and c.deleted_at is null and n.deleted_at is not null`,
+    sql: `${cardNotes} select id from card_notes
+      where id is not null and card_deleted_at is null and note_deleted_at is not null`,
   },
   {
     id: 'card-slot',

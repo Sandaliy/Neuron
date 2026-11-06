@@ -632,7 +632,12 @@ describe.skipIf(!database)('Database Integrity Doctor on real PostgreSQL', () =>
           (plan['Rows Removed by Join Filter'] ?? 0)) *
           plan['Actual Loops'] +
         (plan.Plans ?? []).reduce((sum, child) => sum + visits(child), 0);
-      for (const name of ['card-parent', 'card-deck-copy', 'review-card-owner']) {
+      for (const name of [
+        'card-parent',
+        'card-deck-copy',
+        'card-live-deleted-note',
+        'review-card-owner',
+      ]) {
         const check = structuralChecks.find((entry) => entry.id === name)!;
         const query = `select count(*)::int as count from (${check.sql}) violations`;
         const explained = await reader.query(`explain (analyze,format json) ${query}`, [f.userId]);

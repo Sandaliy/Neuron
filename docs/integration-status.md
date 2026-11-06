@@ -51,7 +51,7 @@ records and direct public health requests. No production account was inspected w
   statistics selected quadratic Card/Note, Card/Deck and Review/Card nested loops. The old parent
   query examined 27,063,011 tuples in a controlled regression. Materializing account-scoped full joins
   preserves hash/merge eligibility before applying violation filters. The regression caps examined
-  tuples for all three affected checks,
+  tuples for all four affected checks, including the shared live/deleted Note check.
   rather than relaxing elapsed-time limits. Safe failure diagnostics retain phase, code and metrics.
   The repair must pass its protected gate before the held branches receive another main refresh.
 - #87's eight Library references now show the intended entry, with explicit semantic assertions.
