@@ -25,6 +25,12 @@ import {
   projectCollectionCreation,
   projectCollectionNote,
 } from './collection-read';
+import {
+  cancelDeckCreationDelivery,
+  deliverDeckCreations,
+  onDeckCreationChange,
+  deckCreationsQueryKey,
+} from './deck-creation';
 import { lifecycle } from './lifecycle';
 import {
   cancelNoteCreationDelivery,
@@ -170,6 +176,7 @@ async function transitionReads(local: boolean) {
 export function revokeOffline(explicit = false) {
   clearCollectionProjection();
   confirmedReviewCards.clear();
+  cancelDeckCreationDelivery();
   cancelRenameDelivery();
   cancelNoteDelivery();
   cancelNoteCreationDelivery();
@@ -437,6 +444,7 @@ function enterLocalConnection(connectivity: OfflineState['connectivity']) {
   }
   lifecycle('offline');
   emit({ offline: true, validated: false, connectivity });
+  cancelDeckCreationDelivery();
   cancelRenameDelivery();
   cancelNoteDelivery();
   cancelNoteCreationDelivery();
@@ -507,6 +515,7 @@ async function download(account: Me) {
       stage = 'database';
       localStorage.setItem(CONTEXT_KEY, account.id);
       await deliverRenames();
+      await deliverDeckCreations();
       // Before edits: an edit made while a new Note was on its way is based on
       // the revision its creation acknowledgement names.
       await deliverNoteCreations();
@@ -631,6 +640,7 @@ type ListPages = InfiniteData<{
  * read or a refetch while the learner types.
  */
 function patchCreation(creation: PendingNoteCreate) {
+  void client?.invalidateQueries({ queryKey: ['notes', 'categories'] });
   const noteId = creation.entityId;
   void client?.invalidateQueries({ queryKey: ['note-creation', creation.accountId] });
   const unsent = unsentCreation(creation);
@@ -765,6 +775,7 @@ export function initializeOffline(queryClient: QueryClient) {
           projectCollectionCreation(id, creation, entry, change.version);
           patchCreation(creation);
         } else projectCollectionNote(id, change.entityId, entry, change.version);
+        void client?.invalidateQueries({ queryKey: ['notes', 'categories'] });
         // Patch cached content only. No cancelled request, tree notification or
         // full collection read competes with the editor's next keystroke.
         client?.setQueryData<{ note: Note; cards: Card[]; local?: true }>(
@@ -818,6 +829,18 @@ export function initializeOffline(queryClient: QueryClient) {
       })
       .catch(() => undefined);
   });
+  onDeckCreationChange(() => {
+    const visit = epoch;
+    const id = state.accountId;
+    if (!id) return;
+    void client?.invalidateQueries({ queryKey: deckCreationsQueryKey(id) });
+    if (!state.offline && state.validated)
+      void deliverDeckCreations().then(() => {
+        if (visit !== epoch) return;
+        refreshDownload();
+        void client?.invalidateQueries({ queryKey: ['decks'] });
+      });
+  });
   onOutboxChange(() => {
     const visit = epoch;
     const id = state.accountId;
@@ -862,6 +885,7 @@ export function initializeOffline(queryClient: QueryClient) {
     if (event.key === SIGNED_OUT_KEY) {
       if (event.newValue === 'true') {
         confirmedReviewCards.clear();
+        cancelDeckCreationDelivery();
         cancelRenameDelivery();
         cancelNoteDelivery();
         cancelNoteCreationDelivery();
@@ -890,6 +914,7 @@ export function initializeOffline(queryClient: QueryClient) {
     }
     if (event.key === CONTEXT_KEY && event.newValue !== state.accountId) {
       confirmedReviewCards.clear();
+      cancelDeckCreationDelivery();
       cancelRenameDelivery();
       cancelNoteDelivery();
       cancelNoteCreationDelivery();

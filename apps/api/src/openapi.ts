@@ -10,6 +10,8 @@ import {
   triageResultSchema,
   cardSchema,
   createDeckSchema,
+  createOfflineDeckCommandSchema,
+  createOfflineDeckResultSchema,
   createImportSchema,
   createNoteSchema,
   createPresetSchema,
@@ -23,6 +25,8 @@ import {
   deleteAccountSchema,
   dueCardsSchema,
   listNotesSchema,
+  noteCategoryQuerySchema,
+  noteCategoryPageSchema,
   meSchema,
   moveDeckSchema,
   noteSchema,
@@ -74,6 +78,8 @@ const registry: Record<string, z.ZodType> = {
   DeletedDeck: deletedDeckSchema,
   DeletedDeckList: deletedDeckListSchema,
   CreateDeck: createDeckSchema,
+  CreateOfflineDeckCommand: createOfflineDeckCommandSchema,
+  CreateOfflineDeckResult: createOfflineDeckResultSchema,
   UpdateDeck: updateDeckSchema,
   RenameDeckCommand: renameDeckCommandSchema,
   RenameDeckResult: renameDeckResultSchema,
@@ -85,6 +91,7 @@ const registry: Record<string, z.ZodType> = {
   DeletedNote: deletedNoteSchema,
   DeletedNoteList: deletedNoteListSchema,
   ListNotes: listNotesSchema,
+  NoteCategoryPage: noteCategoryPageSchema,
   CreateNote: createNoteSchema,
   UpdateNote: updateNoteSchema,
   BulkStatus: bulkStatusSchema,
@@ -252,6 +259,16 @@ export function openApiDocument(baseUrl: string) {
           responses: { 201: answer('The deck'), ...commonErrors },
         },
       },
+      '/decks/offline-create': {
+        post: {
+          summary: 'Create a saved Folder or Deck exactly once',
+          requestBody: body('CreateOfflineDeckCommand'),
+          responses: {
+            200: answer('Applied or retained conflict outcome', 'CreateOfflineDeckResult'),
+            ...commonErrors,
+          },
+        },
+      },
       '/decks/reorder': {
         post: {
           summary: 'Rewrite the order of one level',
@@ -363,6 +380,16 @@ export function openApiDocument(baseUrl: string) {
           summary: 'Create a note and its opening cards',
           requestBody: body('CreateNote'),
           responses: { 201: answer('The note and the cards it produced'), ...commonErrors },
+        },
+      },
+      '/notes/categories': {
+        get: {
+          summary: 'Browse exact saved tags or sources with live Note counts',
+          parameters: queryParameters(noteCategoryQuerySchema),
+          responses: {
+            200: answer('One bounded page of categories', 'NoteCategoryPage'),
+            ...commonErrors,
+          },
         },
       },
       '/notes/deleted': {

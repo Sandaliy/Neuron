@@ -13,6 +13,18 @@ describe('describing a failure', () => {
     expect(describeFailure(failure).key).toBe('error.name_taken');
   });
 
+  it('keeps a Note the device could not save apart from a Folder or Deck it could not save', () => {
+    expect(describeFailure(new Error('collection_note_create_storage')).key).toBe(
+      'offline.create.notSaved',
+    );
+    expect(describeFailure(new Error('collection_create_storage')).key).toBe(
+      'offline.collection.notSaved',
+    );
+    expect(describeFailure(new Error('collection_create_deck')).key).toBe(
+      'offline.create.deckMissing',
+    );
+  });
+
   it('carries the wait time into a rate limited message', () => {
     const failure = new ApiFailure({
       code: 'rate_limited',

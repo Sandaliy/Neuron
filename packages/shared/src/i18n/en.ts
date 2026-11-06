@@ -27,6 +27,29 @@ export const en = {
     'This export reached the supported size or time limit. Try again on a stable connection. If it happens again, contact support.',
   'export.shareFailed': 'Sharing did not finish. Try Save file or share again.',
   'export.rateLimited': 'Several exports were requested. Wait a minute, then try again.',
+  'offline.collection.saved':
+    'Saved on this device. It will sync when your connection is confirmed.',
+  'offline.collection.local': 'Saved on device',
+  'offline.collection.waiting':
+    'Sync or resolve saved Folders and Decks before changing the Library.',
+  'offline.collection.notSaved': 'Could not save on this device. Keep this name and try again.',
+  'offline.collection.parentRequired': 'Choose a downloaded Folder, or create at the Library root.',
+  'offline.collection.dependencies':
+    'This Folder or Deck must sync before you can add to it or change it.',
+  'offline.collection.parent_unavailable':
+    'The original Folder is unavailable. This creation is still saved on this device. Choose where to create it.',
+  'offline.collection.parent_changed':
+    'The original Folder or its inherited settings changed. Review where to create this saved item.',
+  'offline.collection.identity_exists':
+    'This identity already belongs to another item. The saved name is retained; copy it and create a new item.',
+  'offline.collection.name_exists':
+    'This name is already used here. Choose a different name or location.',
+  'offline.collection.rejected':
+    'The server did not accept this creation. Its name and original location remain saved on this device.',
+  'offline.collection.originalParent': 'Original location: {name}',
+  'offline.collection.chooseParent': 'Create inside',
+  'offline.collection.saveHere': 'Create here',
+  'offline.collection.archive': 'Stop syncing and archive',
   'offline.connectionUncertain':
     'The server is taking longer to respond. Your download is available while checking continues.',
   'offline.study.waitingDownload': 'Offline Study needs a complete download.',
@@ -170,7 +193,7 @@ export const en = {
   'offline.status.attentionDetail': 'They stay on this device until you choose what to keep.',
   'offline.works': 'What works offline',
   'offline.works.available':
-    'Without a connection you can browse your Library and Notes, rename Folders and Decks, edit existing Notes, study, practice and prepare Import drafts.',
+    'Without a connection you can browse your Library and Notes, create or rename Folders and Decks, edit existing Notes, study, practice and prepare Import drafts. New Folders and Decks must sync before you can add to them.',
   'offline.works.needsConnection': 'New Notes and applying an Import need a connection.',
   'offline.diagnostics': 'Save startup diagnostics',
   'offline.practiceUnavailable': 'Practice requires a connection.',
@@ -406,6 +429,11 @@ export const en = {
   'library.dropInvalid': 'Cannot move here',
   'library.dropInside': 'Move inside',
   'library.dropHere': 'Insert here',
+  'practice.question': 'Question',
+  'practice.answer': 'Answer',
+  'practice.shortcuts': 'Space: reveal · 1: still learning · 2: known · U: undo',
+  'practice.position':
+    'Round {round}. Known: {known}. Still learning: {learning}. Left in this round: {remaining}.',
   'practice.title': 'Practice',
   'practice.scheduleSafe': 'A practice run only. Answers do not change your learning schedule.',
   'practice.front': 'Question field',
@@ -589,6 +617,7 @@ export const en = {
   'today.waitingLabel': 'cards to review',
   'today.newLabel': 'new',
   'today.deckCounts': '{due} to review · {fresh} new',
+  'today.deckWave': '{due} to review · wave {number}: {waiting} new',
   'today.waiting': 'Cards waiting: {count}',
   'today.newAvailable': 'New cards ready to start: {count}',
   'today.newAvailableHint':
@@ -634,6 +663,19 @@ export const en = {
     'partOfSpeech: noun, verb, adjective, adverb, preposition, phrase or other. Tables support article and plural; JSON supports all grammar fields.',
 
   'library.title': 'Library',
+  'library.search.title': 'Find Folders & Decks',
+  'library.search.back': 'Search results',
+  'library.search.label': 'Search collection names',
+  'library.search.hint': 'Find a Folder or Deck anywhere in your Library.',
+  'library.search.results': '{count} of {total} collections',
+  'library.search.downloaded':
+    'Searching the downloaded Library. Changes from other devices appear after reconnecting.',
+  'library.search.stale':
+    'Collection information could not be refreshed. These results may be out of date.',
+  'library.search.pendingUnavailable':
+    'Collections saved on this device could not be read. Some results may be missing.',
+  'library.search.emptyTitle': 'No collections match',
+  'library.search.emptyBody': 'Try another name or clear the search.',
   'library.dueLabel': 'Cards waiting',
   'library.newLabel': 'Cards never answered',
   'library.expand': 'Show what is inside',
@@ -682,6 +724,15 @@ export const en = {
   'deleted.segmentLabel': 'Deleted content',
   'deleted.decks': 'Folders & decks',
   'deleted.notes': 'Notes',
+  'deleted.searchNotes': 'Search content or original location',
+  'deleted.searchDecks': 'Search names or hierarchy',
+  'deleted.sortOriginal': 'Original order',
+  'deleted.sortReverse': 'Reverse alphabetical',
+  'deleted.sortLocation': 'Original location',
+  'deleted.results': '{count} of {total}',
+  'deleted.searchEmptyTitle': 'No matches',
+  'deleted.searchEmptyBody': 'Try different words or an original folder or deck name.',
+  'deleted.inspect': 'View content',
   'deleted.restore': 'Restore',
   'deleted.topLevel': 'Top level',
   'deleted.parentRequired': 'Restore the parent folder first.',
@@ -757,6 +808,43 @@ export const en = {
   'card.direction.listening': 'Listen and say',
 
   'notes.title': 'Notes',
+  'duplicates.title': 'Possible duplicates',
+  'duplicates.groups': 'All groups',
+  'duplicates.hint':
+    'Matching terms may have different meanings, uses or sources. Inspect each Note before deciding what to change in its editor. Nothing is combined or classified here.',
+  'duplicates.scope': 'Collection scope',
+  'duplicates.library': 'Whole Library',
+  'duplicates.search': 'Search duplicate groups',
+  'duplicates.count': '{count} Notes with this term',
+  'duplicates.noSource': 'No source recorded',
+  'duplicates.downloaded':
+    'Complete downloaded collection, including saved local changes and Notes awaiting synchronization. Other devices may have newer changes.',
+  'duplicates.online':
+    'Server results. Notes and edits awaiting synchronization may appear after they are delivered.',
+  'duplicates.empty': 'No matching groups',
+  'duplicates.emptyHint':
+    'Only terms shared by at least two available Notes in this scope appear. Case and whitespace are normalized; accents are preserved. Only the first 200 characters are compared.',
+  'duplicates.more': 'Load more',
+  'notes.find': 'Find Notes',
+  'categories.title': 'Tags & Sources',
+  'categories.hint': 'Explore Notes by their saved tags and sources.',
+  'categories.tags': 'Tags',
+  'categories.sources': 'Sources',
+  'categories.search': 'Search tags and sources',
+  'categories.online':
+    'Counts include synchronized Notes. Changes saved only on this device may differ.',
+  'categories.downloaded':
+    'From this device’s complete download, including saved local changes. These may not be synchronized yet.',
+  'categories.results': 'Shown: {count} of {total}',
+  'categories.notes': 'Notes: {count}',
+  'categories.more': 'Show more',
+  'categories.empty': 'No categories yet',
+  'categories.emptyHint': 'Saved tags and non-empty sources on available Notes will appear here.',
+  'categories.noMatches': 'No matching categories',
+  'categories.trySearch': 'Try another name or clear the search.',
+  'notes.findHint': 'Search across all Folders and Decks.',
+  'notes.locationUnavailable': 'Deck location unavailable',
+  'notes.downloadedResults': 'Results from this device’s download. Connect to check for changes.',
   'notes.allDecks': 'Every deck',
   'notes.count': 'Notes: {count}',
   'notes.countMore': 'Notes: {count} and more',
@@ -779,6 +867,16 @@ export const en = {
   'notes.sort.created': 'Oldest first',
   'notes.sort.alpha': 'Alphabetical',
   'notes.sort.rank': 'Most frequent words first',
+  'notes.sort.created-desc': 'Recently added',
+  'notes.sort.updated-desc': 'Recently changed',
+  'notes.recent': 'Recent Notes',
+  'notes.recentHint':
+    'Newest first across the Library. Changed dates include content, status, tags and location updates.',
+  'notes.pendingRecent':
+    'Device-saved edits keep the last recorded update date until synchronization.',
+  'notes.refreshRecent': 'Refresh',
+  'notes.addedAt': 'Added',
+  'notes.changedAt': 'Updated',
   'notes.select': 'Select notes',
   'notes.selectDone': 'Exit selection',
   'notes.selected': 'Selected: {count}',
@@ -978,7 +1076,7 @@ export const en = {
   'triage.unsureDoneTitle': 'No Unsure Notes left',
   'triage.doneBody': 'Known {known} · Unsure {unsure} · New {new}',
   'triage.doneHint':
-    'Known Notes sit out of Study. Unsure and New Notes stay in Study and arrive as new cards. Any decision can be changed later.',
+    'Known Notes sit out of Study. Unsure and New Notes enter Study in waves of {size}, Unsure first in each wave. Any decision can be changed later.',
   'triage.reviewUnsure': 'Go through Unsure ({count})',
   'triage.reviewAll': 'Review decisions',
   'triage.done': 'Done',
@@ -1153,6 +1251,24 @@ export const en = {
   'error.unexpected': 'Something went wrong. Try again in a moment.',
   'error.internal_error':
     'Something went wrong at our end. Try again in a moment, and quote this if it keeps happening: {correlationId}',
+
+  'waves.title': 'Wave {number} of {count}',
+  'waves.started': '{started} / {size} started',
+  'waves.progress': 'Notes started in this wave',
+  'waves.waiting': 'Waiting in this wave: {count}.',
+  'waves.unsure': 'Unsure go first: {count}.',
+  'waves.today': 'Study lets in {count} today.',
+  'waves.paused.backlogActive':
+    'None today: reviews are behind, and new Notes wait until they catch up.',
+  'waves.paused.forecastOverBudget':
+    'None today: reviews already fill your minutes a day. New Notes come in as time frees up.',
+  'waves.paused.dailyCapReached': 'None today: the daily limit for new cards is reached.',
+  'waves.paused.withinBudget': 'None more today: today’s room for new material is used.',
+  'waves.next': 'The next wave starts when every Note in this one has started.',
+  'waves.nextDay': 'At today’s pace, the next wave starts tomorrow.',
+  'waves.nextDays': 'At today’s pace, the next wave starts in about {count} days.',
+  'waves.later': '{count} more wait in later waves. They take no time until they start.',
+  'waves.last': 'This is the last wave.',
 } as const;
 
 /** Every key the interface can ask for. */

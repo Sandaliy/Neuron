@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import {
   ArrowDown,
@@ -8,17 +9,24 @@ import {
   Pencil,
   Plus,
   Settings2,
+  Search,
+  Clock,
   Trash2,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import type { DeckNode, DeckSettings } from '@neuron/shared';
+import type { Deck, DeckNode, DeckSettings } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
 import { useCapabilities } from '../../lib/capabilities';
-import { findDeck, useDeckActions, useDeckTree } from '../../lib/decks';
-import { useOffline } from '../../lib/offline';
+import {
+  deckCreations,
+  deckCreationsQueryKey,
+  overlayDeckCreations,
+} from '../../lib/deck-creation';
+import { creationAncestors, findDeck, useDeckActions, useDeckTree } from '../../lib/decks';
+import { accountEpoch, useOffline } from '../../lib/offline';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
 import { Button } from '../../ui/button';
 import { CollectionIcon, collectionSurface } from '../../ui/collection';
@@ -30,9 +38,9 @@ import { TreeChildren, Row } from '../../ui/row';
 import { ServerControls } from '../../ui/server-controls';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
-import { CollectionPath } from '../library/collection-path';
 
 import { CollectionDrag, CollectionHandle, CollectionDrop } from './collection-drag';
+import { CollectionSearchPath } from './collection-search-path';
 import { DeckNameDialog, DeckSettingsDialog, MoveDeckDialog } from './deck-dialogs';
 
 /**
@@ -57,7 +65,16 @@ export function LibraryScreen() {
   const decks = useDeckTree();
   const offline = useOffline();
   const capability = useCapabilities(!decks.local);
-  const readOnly = !capability.server;
+  const creations = useQuery({
+    queryKey: deckCreationsQueryKey(offline.accountId),
+    queryFn: () => deckCreations(offline.accountId!),
+    enabled: !!offline.accountId,
+    networkMode: 'always',
+  });
+  const pending = (creations.data ?? []).some(
+    (entry) => !['synchronized', 'resolved'].includes(entry.state),
+  );
+  const readOnly = !capability.server || pending;
   const unavailable = offline.offline && !offline.available;
   const actions = useDeckActions();
   const [open, setOpen] = useState<ReadonlySet<string>>(() => readOpen());
@@ -77,12 +94,25 @@ export function LibraryScreen() {
     });
   }, []);
 
-  const tree = decks.data ?? [];
+  const tree = creations.data?.length
+    ? overlayDeckCreations(decks.data ?? [], creations.data, offline.revision ?? 0)
+    : (decks.data ?? []);
   const { folderId } = useSearch({ from: '/app/library' });
   const folder = folderId ? findDeck(tree, folderId) : undefined;
   const visible = folder?.kind === 'folder' ? folder.children : tree;
+  function showDialog(next: DialogState) {
+    setDialog(
+      next.kind === 'create'
+        ? { ...next, observedAncestors: creationAncestors(tree, next.parentId) }
+        : next,
+    );
+  }
 
   const openNotes = (id: string) => {
+    if (findDeck(tree, id)?.rev === 0 && findDeck(tree, id)?.kind === 'deck') {
+      toast.show(t('offline.collection.dependencies'));
+      return;
+    }
     if (findDeck(tree, id)?.kind === 'folder')
       void navigate({ to: '/library', search: { folderId: id } });
     else void navigate({ to: '/notes', search: { deckId: id } });
@@ -94,8 +124,8 @@ export function LibraryScreen() {
    * Recovery returns the same rows and only descendants attributed to this deletion.
    */
   function requireServer() {
-    if (capability.server) return true;
-    toast.show(t('offline.serverRequired'));
+    if (capability.server && !pending) return true;
+    toast.show(t(pending ? 'offline.collection.waiting' : 'offline.serverRequired'));
     return false;
   }
 
@@ -113,10 +143,10 @@ export function LibraryScreen() {
         <CollectionHeader
           readOnly={offline.offline}
           title={folder?.name ?? t('library.title')}
-          path={folder && <CollectionPath tree={tree} id={folder.id} trail />}
+          path={folder && <CollectionSearchPath tree={tree} id={folder.id} />}
           actions={
             <>
-              <ServerControls available={!readOnly}>
+              <ServerControls available={capability.server}>
                 <Button
                   variant="quiet"
                   className="size-44 px-12"
@@ -125,10 +155,12 @@ export function LibraryScreen() {
                 >
                   <Trash2 size={16} aria-hidden="true" />
                 </Button>
+              </ServerControls>
+              <ServerControls available={capability.server || capability.localCollection}>
                 <Button
                   variant="quiet"
                   onClick={() =>
-                    setDialog({
+                    showDialog({
                       kind: 'create',
                       collectionKind: 'folder',
                       parentId: folder?.id ?? null,
@@ -143,7 +175,7 @@ export function LibraryScreen() {
                   variant="primary"
                   className="px-12"
                   onClick={() =>
-                    setDialog({
+                    showDialog({
                       kind: 'create',
                       collectionKind: 'deck',
                       parentId: folder?.id ?? null,
@@ -158,6 +190,60 @@ export function LibraryScreen() {
           }
         />
 
+        <div className="flex flex-wrap items-center gap-x-12 gap-y-4">
+          <Button
+            variant="quiet"
+            onClick={() =>
+              void navigate({
+                to: '/library/find',
+                state: {
+                  collectionSearchEntry: { accountId: offline.accountId, visit: accountEpoch() },
+                },
+              })
+            }
+          >
+            <Search size={16} strokeWidth={1.5} aria-hidden="true" />
+            {t('library.search.title')}
+          </Button>
+          <Button
+            variant="quiet"
+            className="self-start"
+            onClick={() => void navigate({ to: '/notes' })}
+          >
+            <Search size={16} strokeWidth={1.5} aria-hidden="true" />
+            {t('notes.find')}
+          </Button>
+          <Button variant="quiet" onClick={() => void navigate({ to: '/library/categories' })}>
+            {t('categories.title')}
+          </Button>
+          <Menu
+            label={t('notes.recent')}
+            trigger={
+              <Button variant="quiet">
+                <Clock size={16} aria-hidden="true" />
+                {t('notes.recent')}
+              </Button>
+            }
+          >
+            <MenuItem onSelect={() => void navigate({ to: '/notes', search: { recent: 'added' } })}>
+              {t('notes.sort.created-desc')}
+            </MenuItem>
+            <MenuItem
+              onSelect={() => void navigate({ to: '/notes', search: { recent: 'changed' } })}
+            >
+              {t('notes.sort.updated-desc')}
+            </MenuItem>
+          </Menu>
+          <Button variant="quiet" onClick={() => void navigate({ to: '/library/duplicates' })}>
+            {t('duplicates.title')}
+          </Button>
+        </div>
+
+        {folder?.rev === 0 && (
+          <p role="status" className="text-14 text-secondary">
+            {t('offline.collection.dependencies')}
+          </p>
+        )}
         {unavailable && (
           <p role="status" className="text-14 text-secondary">
             {t('offline.incomplete')}
@@ -198,6 +284,7 @@ export function LibraryScreen() {
                 key={deck.id}
                 deck={deck}
                 readOnly={readOnly}
+                pendingCreations={pending}
                 localEdits={capability.localEdits}
                 offline={offline.offline}
                 siblings={visible}
@@ -206,7 +293,7 @@ export function LibraryScreen() {
                 open={open}
                 onToggle={toggle}
                 onOpen={openNotes}
-                onAct={setDialog}
+                onAct={showDialog}
               />
             ))}
           </div>
@@ -217,14 +304,25 @@ export function LibraryScreen() {
             action checks authority when it runs instead. */}
         <DeckDialogs
           state={dialog}
-          decks={tree}
+          decks={decks.data ?? []}
           onClose={() => setDialog({ kind: 'none' })}
           onCreate={async (parentId, name, kind) => {
-            if (!requireServer()) return;
-            await actions.create.mutateAsync({ name, parentId, kind });
+            if (parentId && findDeck(tree, parentId)?.rev === 0) {
+              toast.show(t('offline.collection.dependencies'));
+              return;
+            }
+            const result = await actions.create.mutateAsync({
+              name,
+              parentId,
+              kind,
+              owner: { accountId: offline.accountId, epoch: accountEpoch() },
+              observedAncestors: dialog.kind === 'create' ? (dialog.observedAncestors ?? []) : [],
+            });
 
             setDialog({ kind: 'none' });
-            toast.show(t('library.created', { name }));
+            toast.show(
+              'saved' in result ? t('offline.collection.saved') : t('library.created', { name }),
+            );
           }}
           onRename={async (deck, name) => {
             const saved = await actions.rename.mutateAsync({ id: deck.id, name, observed: deck });
@@ -270,6 +368,7 @@ type DialogState =
       readonly collectionKind: 'folder' | 'deck';
       readonly parentId: string | null;
       readonly parentName?: string;
+      readonly observedAncestors?: readonly Deck[];
     }
   | { readonly kind: 'rename'; readonly deck: DeckNode }
   | { readonly kind: 'move'; readonly deck: DeckNode }
@@ -279,6 +378,7 @@ type DialogState =
 function Deck({
   deck,
   readOnly,
+  pendingCreations,
   localEdits,
   offline,
   siblings,
@@ -291,6 +391,7 @@ function Deck({
 }: {
   readonly deck: DeckNode;
   readonly readOnly: boolean;
+  readonly pendingCreations: boolean;
   readonly localEdits: boolean;
   readonly offline: boolean;
   /** The decks at this level, for moving one up or down among them. */
@@ -307,8 +408,12 @@ function Deck({
   const t = useTranslate();
   const toast = useToast();
   const act = (state: DialogState) => {
-    if ((state.kind === 'rename' && localEdits) || !readOnly) onAct(state);
-    else toast.show(t('offline.serverRequired'));
+    if (deck.rev === 0) {
+      toast.show(t('offline.collection.dependencies'));
+      return;
+    }
+    if ((['rename', 'create'].includes(state.kind) && localEdits) || !readOnly) onAct(state);
+    else toast.show(t(pendingCreations ? 'offline.collection.waiting' : 'offline.serverRequired'));
   };
 
   const hasChildren = deck.kind === 'folder' && deck.children.length > 0;
@@ -317,7 +422,7 @@ function Deck({
 
   function reorder(offset: number) {
     if (readOnly) {
-      toast.show(t('offline.serverRequired'));
+      toast.show(t(pendingCreations ? 'offline.collection.waiting' : 'offline.serverRequired'));
       return;
     }
     const order = siblings.map((entry) => entry.id);
@@ -371,6 +476,7 @@ function Deck({
           subtitle={
             <span className="block whitespace-normal text-13 leading-read text-secondary">
               {[
+                deck.rev === 0 ? t('offline.collection.local') : '',
                 deck.kind === 'folder'
                   ? t(countDecks(deck) === 1 ? 'library.oneDeck' : 'library.deckCount', {
                       count: countDecks(deck),
@@ -430,7 +536,7 @@ function Deck({
               </div>
               <MenuSeparator />
               <MenuItem
-                unavailable={readOnly && !localEdits}
+                unavailable={deck.rev === 0 || (readOnly && !localEdits)}
                 icon={<Pencil size={16} strokeWidth={1.5} />}
                 onSelect={() => act({ kind: 'rename', deck })}
               >
@@ -446,7 +552,7 @@ function Deck({
               {deck.kind === 'folder' && (
                 <>
                   <MenuItem
-                    unavailable={readOnly}
+                    unavailable={deck.rev === 0 || (readOnly && !localEdits)}
                     icon={<Folder size={16} />}
                     onSelect={() =>
                       act({
@@ -460,7 +566,7 @@ function Deck({
                     {t('library.newFolder')}
                   </MenuItem>
                   <MenuItem
-                    unavailable={readOnly}
+                    unavailable={deck.rev === 0 || (readOnly && !localEdits)}
                     icon={<Plus size={16} />}
                     onSelect={() =>
                       act({
@@ -542,6 +648,7 @@ function Deck({
                 key={child.id}
                 deck={child}
                 readOnly={readOnly}
+                pendingCreations={pendingCreations}
                 localEdits={localEdits}
                 offline={offline}
                 siblings={deck.children}

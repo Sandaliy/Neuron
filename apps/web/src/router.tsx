@@ -63,6 +63,14 @@ const LibraryScreen = lazyRouteComponent(
   () => import('./features/library/library'),
   'LibraryScreen',
 );
+const CollectionSearchScreen = lazyRouteComponent(
+  () => import('./features/library/collection-search'),
+  'CollectionSearchScreen',
+);
+const NoteCategoriesScreen = lazyRouteComponent(
+  () => import('./features/library/note-categories'),
+  'NoteCategoriesScreen',
+);
 const NoteEditorScreen = lazyRouteComponent(
   () => import('./features/notes/note-editor'),
   'NoteEditorScreen',
@@ -70,6 +78,10 @@ const NoteEditorScreen = lazyRouteComponent(
 const NoteListScreen = lazyRouteComponent(
   () => import('./features/notes/note-list'),
   'NoteListScreen',
+);
+const PossibleDuplicatesScreen = lazyRouteComponent(
+  () => import('./features/notes/possible-duplicates'),
+  'PossibleDuplicatesScreen',
 );
 const SettingsScreen = lazyRouteComponent(
   () => import('./features/settings/settings'),
@@ -188,6 +200,28 @@ const deletedRoute = createRoute({
   component: DeletedScreen,
 });
 
+const possibleDuplicatesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/duplicates',
+  staticData: { navTab: '/library' },
+  validateSearch: (search: Record<string, unknown>): { deckId?: string } =>
+    typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {},
+  component: PossibleDuplicatesScreen,
+});
+
+const collectionSearchRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/find',
+  staticData: { navTab: '/library' },
+  component: CollectionSearchScreen,
+});
+const noteCategoriesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/categories',
+  staticData: { navTab: '/library' },
+  component: NoteCategoriesScreen,
+});
+
 /**
  * The notes: a list, one being written, and one being edited.
  *
@@ -203,10 +237,22 @@ const noteListRoute = createRoute({
     search: Record<string, unknown>,
   ): {
     deckId?: string;
+    tag?: string;
+    source?: string;
+    recent?: 'added' | 'changed';
     learning?: 'practice' | 'triage';
     entry?: 'resume' | 'setup';
   } => ({
     ...(typeof search['deckId'] === 'string' ? { deckId: search['deckId'] } : {}),
+    ...(search['recent'] === 'added' || search['recent'] === 'changed'
+      ? { recent: search['recent'] }
+      : {}),
+    ...(typeof search['tag'] === 'string' && search['tag'].length > 0
+      ? { tag: search['tag'] }
+      : {}),
+    ...(typeof search['source'] === 'string' && search['source'].length > 0
+      ? { source: search['source'] }
+      : {}),
     ...(search['learning'] === 'practice' || search['learning'] === 'triage'
       ? { learning: search['learning'] }
       : {}),
@@ -218,9 +264,21 @@ const noteListRoute = createRoute({
 });
 
 function NoteListRoute() {
-  const { deckId } = useSearch({ from: noteListRoute.id });
+  const { deckId, tag, source, recent } = useSearch({ from: noteListRoute.id });
+  const category = tag
+    ? { kind: 'tag' as const, value: tag }
+    : source
+      ? { kind: 'source' as const, value: source }
+      : undefined;
 
-  return <NoteListScreen key={deckId ?? 'all'} {...(deckId === undefined ? {} : { deckId })} />;
+  return (
+    <NoteListScreen
+      key={`${deckId ?? 'all'}:${category?.kind ?? ''}:${category?.value ?? ''}:${recent ?? ''}`}
+      {...(deckId === undefined ? {} : { deckId })}
+      {...(category ? { category } : {})}
+      {...(recent ? { recent } : {})}
+    />
+  );
 }
 // Expose the lazy screen's preload through its search-parameter wrapper so
 // the module is ready before the route commits, avoiding a nested suspension.
@@ -316,7 +374,10 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     todayRoute,
     libraryRoute,
+    collectionSearchRoute,
+    noteCategoriesRoute,
     deletedRoute,
+    possibleDuplicatesRoute,
     noteListRoute,
     // Before the parameter route, or a new note is read as a note whose id is
     // the word new.

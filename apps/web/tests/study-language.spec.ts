@@ -321,6 +321,9 @@ for (const immediate of [false, true]) {
       const min = Math.min(...heights),
         max = Math.max(...heights);
       expect(max - min).toBeGreaterThan(100);
+      expect(heights[0]).toBe(max);
+      expect(heights.at(-1)).toBe(min);
+      expect(heights.slice(1).every((height, index) => height <= heights[index]!)).toBe(true);
       const speed = Math.max(
         ...heights
           .slice(1)

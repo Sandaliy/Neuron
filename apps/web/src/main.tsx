@@ -7,6 +7,7 @@ import { accountQuery } from './lib/account';
 import { ApiFailure } from './lib/api';
 import { deckTreeQuery } from './lib/decks';
 import { trackModality, trackPresses } from './lib/interactions';
+import { watchWavePlans } from './lib/learning-waves';
 import { lifecycle } from './lib/lifecycle';
 import { noteListQuery, noteQuery } from './lib/notes';
 import { confirmConnection, initializeOffline, offlineState } from './lib/offline';
@@ -110,8 +111,20 @@ function warmUp(path = window.location.pathname, search = window.location.search
   )
     void queryClient.prefetchQuery(initialStudyQuery());
   if (path === '/notes') {
-    const deckId = new URLSearchParams(search).get('deckId');
-    const list = noteListQuery({ ...(deckId ? { deckId } : {}), sort: 'created' });
+    const params = new URLSearchParams(search);
+    const deckId = params.get('deckId');
+    const tag = params.get('tag');
+    const source = params.get('source');
+    const list = noteListQuery({
+      ...(deckId ? { deckId } : {}),
+      ...(tag ? { tag } : source ? { source } : {}),
+      sort:
+        params.get('recent') === 'added'
+          ? 'created-desc'
+          : params.get('recent') === 'changed'
+            ? 'updated-desc'
+            : 'created',
+    });
     if (!queryClient.getQueryData(list.queryKey)) void queryClient.prefetchInfiniteQuery(list);
     if (
       !offlineState().offline &&
@@ -124,6 +137,7 @@ function warmUp(path = window.location.pathname, search = window.location.search
 
 initializeOffline(queryClient);
 initializeTriage(queryClient);
+watchWavePlans(queryClient);
 lifecycle('module');
 registerShell();
 warmUp();

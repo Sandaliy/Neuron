@@ -1,14 +1,23 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { CardState } from '@neuron/core';
-import { MAX_NOTE_PAGE_SIZE, parseNoteFields, uuidV7 } from '@neuron/shared';
+import {
+  MAX_NOTE_PAGE_SIZE,
+  parseNoteFields,
+  uuidV7,
+  isRecentNoteSort,
+  recentNoteCursor,
+  readRecentNoteCursor,
+} from '@neuron/shared';
 import type {
   CardStateCounts,
   NoteFields,
-  NoteSort,
+  NoteBrowseSort as NoteSort,
   NoteStatus,
   NoteTypeName,
   RestoreNoteResult,
+  NoteCategoryQuery,
+  NoteCategoryPage,
 } from '@neuron/shared';
 
 import { cards, decks, noteTypes, notes, user } from '../schema/index.js';
@@ -54,7 +63,7 @@ export interface ListNotes {
   readonly search?: string | undefined;
   readonly sort?: NoteSort | undefined;
   readonly limit?: number | undefined;
-  /** The id of the last note on the previous page. */
+  /** Last Note ID for legacy orders; captured timestamp/ID for recent orders. */
   readonly cursor?: string | undefined;
 }
 
@@ -70,6 +79,7 @@ export interface DuplicateRow {
 /** One page of notes, and where the next one starts. */
 export interface NotePage {
   readonly items: readonly (NoteRow & {
+    readonly recentTimestamp?: string;
     readonly cardStates: CardStateCounts;
     readonly studyCards: {
       state: string;
@@ -98,16 +108,19 @@ export interface NoteRepository {
   duplicatesOf: (deckId: string, termKeys: readonly string[]) => Promise<DuplicateRow[]>;
   byId: (id: string, options?: { readonly forUpdate: boolean }) => Promise<NoteRow | undefined>;
   byIds: (ids: readonly string[]) => Promise<NoteRow[]>;
+  /** Live Notes in Study in these Decks that triage marked Unsure. They start first in their wave. */
+  unsureIn: (deckIds: readonly string[]) => Promise<string[]>;
   /**
    * The browse screen: filtered, and one page at a time.
    *
    * Paged by a cursor rather than an offset. An offset skips a row whenever
    * something ahead of it is deleted between two pages, and a deck being edited
    * while it is being read is the normal case here rather than the odd one.
-   * Ids are UUID version 7, so ordering by id is ordering by creation time and
-   * the cursor is just the last id seen.
+   * Legacy creation/file order uses the last ID. Recent orders capture the
+   * timestamp and ID so later writes cannot move the page boundary.
    */
   list: (query: ListNotes) => Promise<NotePage>;
+  categories: (query: NoteCategoryQuery) => Promise<NoteCategoryPage>;
   /** Soft-deleted notes only, for the recovery screen. */
   listDeleted: () => Promise<NoteRow[]>;
   /** Every note in a deck and, when asked, in the decks under it. */
@@ -174,6 +187,10 @@ const NO_RANK = 2_147_483_647;
 /** The columns each sort orders by, always ending in the id so it is total. */
 function order(sort: NoteSort) {
   switch (sort) {
+    case 'created-desc':
+      return [desc(notes.createdAt), desc(notes.id)];
+    case 'updated-desc':
+      return [desc(notes.updatedAt), desc(notes.id)];
     case 'alpha': {
       return [asc(notes.termKey), asc(notes.id)];
     }
@@ -192,16 +209,20 @@ function order(sort: NoteSort) {
 /**
  * Where the next page carries on from.
  *
- * The cursor is the last id seen, and the value it sorted by is read back out
- * of that row rather than carried in the cursor. A cursor holding a two hundred
- * character word and a uuid does not fit in a query string anybody wants to
- * look at, and the extra index lookup is one row.
+ * Legacy orders read the key from the last ID. Recent orders carry their
+ * timestamp explicitly so an update or purge cannot change the boundary.
  *
  * @param sort which order the page is in
  * @param cursor the last id of the previous page
  * @returns the condition that skips everything up to and including it
  */
 function after(sort: NoteSort, cursor: string) {
+  if (isRecentNoteSort(sort)) {
+    const boundary = readRecentNoteCursor(cursor);
+    if (!boundary || boundary.sort !== sort) throw new Error('Invalid recent Note cursor');
+    const timestamp = sort === 'created-desc' ? notes.createdAt : notes.updatedAt;
+    return sql`(${timestamp}, ${notes.id}) < (${boundary.timestamp}::timestamptz, ${boundary.id}::uuid)`;
+  }
   switch (sort) {
     case 'alpha': {
       return sql`(${notes.termKey}, ${notes.id}) > ((select n.term_key from notes n where n.id = ${cursor}::uuid), ${cursor}::uuid)`;
@@ -219,7 +240,134 @@ function after(sort: NoteSort, cursor: string) {
 
 /** Makes a search term literal, so a typed `%` matches a `%`. */
 function escapeLike(value: string): string {
-  return value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
+  return value.replaceAll('!', '!!').replaceAll('%', '!%').replaceAll('_', '!_');
+}
+
+/** Browse and metadata counts share the same live parent-link boundary. */
+function liveNoteConditions(userId: string) {
+  return [
+    eq(notes.userId, userId),
+    isNull(notes.deletedAt),
+    isNull(notes.purgedAt),
+    sql`${notes.deckId} in (
+      with recursive live_decks(id) as (
+        select id from decks where user_id = ${userId} and parent_id is null
+          and deleted_at is null and purged_at is null
+        union
+        select child.id from decks child join live_decks parent on child.parent_id = parent.id
+        where child.user_id = ${userId} and child.deleted_at is null and child.purged_at is null
+      ) select id from live_decks
+    )`,
+  ];
+}
+
+/** The bounded production browse query, also used by restricted-role EXPLAIN checks. */
+export function noteBrowseStatement(tx: Tx, userId: string, query: ListNotes) {
+  const limit = Math.min(query.limit ?? 50, MAX_NOTE_PAGE_SIZE);
+  // Deleting a collection retains its Notes for recovery. Browse only the
+  // live hierarchy, following parent links rather than legacy cached paths.
+  const conditions = liveNoteConditions(userId);
+
+  if (query.deckId !== undefined) {
+    if (query.includeSubtree === false) {
+      conditions.push(eq(notes.deckId, query.deckId));
+    } else {
+      const under = tx
+        .select({ id: decks.id })
+        .from(decks)
+        .where(
+          and(
+            eq(decks.userId, userId),
+            isNull(decks.deletedAt),
+            sql`(${decks.id} = ${query.deckId} or ${decks.path} @> array[${query.deckId}]::uuid[])`,
+          ),
+        );
+
+      conditions.push(inArray(notes.deckId, under));
+    }
+  }
+
+  if (query.status !== undefined) {
+    conditions.push(eq(notes.status, query.status));
+  }
+
+  if (query.tag !== undefined) {
+    conditions.push(sql`${notes.tags} @> array[${query.tag}]::text[]`);
+  }
+
+  if (query.source !== undefined) {
+    conditions.push(eq(notes.source, query.source));
+  }
+
+  if (query.cardState !== undefined) {
+    // An exists rather than a join, so a note with three cards in that
+    // state comes back once rather than three times.
+    conditions.push(
+      sql`exists (select 1 from cards c where c.note_id = ${notes.id} and c.state = ${query.cardState} and c.deleted_at is null)`,
+    );
+  }
+
+  if (query.search !== undefined) {
+    const pattern = `%${escapeLike(query.search)}%`;
+
+    // Across the whole of `fields` rather than one named column, because
+    // the columns differ by note type and a person searching for a word
+    // does not care whether it was the term or the example it appeared
+    // in. Tags are a column of their own, so they are asked separately.
+    // It is a scan, and at the size a person's own collection reaches
+    // that is cheaper than the index it would take to avoid one.
+    conditions.push(
+      sql`(${notes.fields}::text ilike ${pattern} escape '!' or array_to_string(${notes.tags}, ' ') ilike ${pattern} escape '!')`,
+    );
+  }
+
+  if (query.cursor !== undefined) {
+    conditions.push(after(query.sort ?? 'created', query.cursor));
+  }
+
+  // One more than asked for, so that "is there another page" is answered
+  // by looking rather than by counting the whole table.
+  const sort = query.sort ?? 'created';
+  const timestamp = sort === 'created-desc' ? notes.createdAt : notes.updatedAt;
+  return tx
+    .select({
+      ...getTableColumns(notes),
+      // Date truncates microseconds. Keep the exact key for pagination and display.
+      ...(isRecentNoteSort(sort)
+        ? {
+            recentTimestamp: sql<string>`to_char(${timestamp} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+          }
+        : {}),
+    })
+    .from(notes)
+    .where(and(...conditions))
+    .orderBy(...order(query.sort ?? 'created'))
+    .limit(limit + 1);
+}
+
+/** String.trim() whitespace, used only to omit blank values, never to rewrite saved names. */
+const CATEGORY_WHITESPACE =
+  ' \t\n\r\f\v\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+
+/** Exported so representative EXPLAIN checks execute the production statement. */
+export function noteCategoryStatement(userId: string, query: NoteCategoryQuery) {
+  const values =
+    query.kind === 'tag'
+      ? sql`lateral (select distinct unnest(${notes.tags}) collate "C" as value) category`
+      : sql`lateral (select ${notes.source} collate "C" as value) category`;
+  return sql`with grouped as (
+    select category.value, count(*)::integer as count
+    from ${notes} cross join ${values}
+    where ${and(...liveNoteConditions(userId))}
+      and btrim(category.value, ${CATEGORY_WHITESPACE}) <> ''
+      ${query.search ? sql`and category.value collate "default" ilike ${`%${escapeLike(query.search)}%`} escape '!'` : sql``}
+    group by category.value
+  ), counted as (
+    select value, count, count(*) over ()::integer as total from grouped
+  )
+  select value, count, total from counted
+  ${query.cursor === undefined ? sql`` : sql`where value > ${query.cursor} collate "C"`}
+  order by value collate "C" limit ${Math.min(query.limit, 200) + 1}`;
 }
 
 /** The note type named on a write does not exist, or is not readable. */
@@ -377,6 +525,26 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       });
     },
 
+    async unsureIn(deckIds) {
+      if (!deckIds.length) return [];
+      const rows = await run((tx) =>
+        tx
+          .select({ id: notes.id })
+          .from(notes)
+          .where(
+            and(
+              eq(notes.userId, userId),
+              inArray(notes.deckId, [...deckIds]),
+              eq(notes.status, 'active'),
+              eq(notes.triage, 'unsure'),
+              isNull(notes.deletedAt),
+              isNull(notes.purgedAt),
+            ),
+          ),
+      );
+      return rows.map((row) => row.id);
+    },
+
     async byIds(ids) {
       if (!ids.length) return [];
       return run((tx) =>
@@ -411,76 +579,26 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
       });
     },
 
+    async categories(query) {
+      return run(async (tx) => {
+        const limit = Math.min(query.limit, 200);
+        const result = await tx.execute<{ value: string; count: number; total: number }>(
+          noteCategoryStatement(userId, query),
+        );
+        const items = result.rows.slice(0, limit).map(({ value, count }) => ({ value, count }));
+        return {
+          items,
+          total: result.rows[0]?.total ?? 0,
+          ...(result.rows.length > limit ? { nextCursor: items.at(-1)!.value } : {}),
+        };
+      });
+    },
+
     async list(query) {
       return run(async (tx) => {
         const limit = Math.min(query.limit ?? 50, MAX_NOTE_PAGE_SIZE);
-        const conditions = [eq(notes.userId, userId), isNull(notes.deletedAt)];
-
-        if (query.deckId !== undefined) {
-          if (query.includeSubtree === false) {
-            conditions.push(eq(notes.deckId, query.deckId));
-          } else {
-            const under = tx
-              .select({ id: decks.id })
-              .from(decks)
-              .where(
-                and(
-                  eq(decks.userId, userId),
-                  isNull(decks.deletedAt),
-                  sql`(${decks.id} = ${query.deckId} or ${decks.path} @> array[${query.deckId}]::uuid[])`,
-                ),
-              );
-
-            conditions.push(inArray(notes.deckId, under));
-          }
-        }
-
-        if (query.status !== undefined) {
-          conditions.push(eq(notes.status, query.status));
-        }
-
-        if (query.tag !== undefined) {
-          conditions.push(sql`${notes.tags} @> array[${query.tag}]::text[]`);
-        }
-
-        if (query.source !== undefined) {
-          conditions.push(eq(notes.source, query.source));
-        }
-
-        if (query.cardState !== undefined) {
-          // An exists rather than a join, so a note with three cards in that
-          // state comes back once rather than three times.
-          conditions.push(
-            sql`exists (select 1 from cards c where c.note_id = ${notes.id} and c.state = ${query.cardState} and c.deleted_at is null)`,
-          );
-        }
-
-        if (query.search !== undefined) {
-          const pattern = `%${escapeLike(query.search)}%`;
-
-          // Across the whole of `fields` rather than one named column, because
-          // the columns differ by note type and a person searching for a word
-          // does not care whether it was the term or the example it appeared
-          // in. Tags are a column of their own, so they are asked separately.
-          // It is a scan, and at the size a person's own collection reaches
-          // that is cheaper than the index it would take to avoid one.
-          conditions.push(
-            sql`(${notes.fields}::text ilike ${pattern} escape '\' or array_to_string(${notes.tags}, ' ') ilike ${pattern} escape '\')`,
-          );
-        }
-
-        if (query.cursor !== undefined) {
-          conditions.push(after(query.sort ?? 'created', query.cursor));
-        }
-
-        // One more than asked for, so that "is there another page" is answered
-        // by looking rather than by counting the whole table.
-        const rows = await tx
-          .select()
-          .from(notes)
-          .where(and(...conditions))
-          .orderBy(...order(query.sort ?? 'created'))
-          .limit(limit + 1);
+        const sort = query.sort ?? 'created';
+        const rows = await noteBrowseStatement(tx, userId, query);
 
         const noteRows = rows.slice(0, limit);
         const ids = noteRows.map((row) => row.id);
@@ -530,7 +648,12 @@ export function noteRepository(userId: string, run: Runner): NoteRepository {
             studyCards: summaries.get(note.id) ?? [],
             cardStates: states.get(note.id) ?? { new: 0, learning: 0, review: 0, relearning: 0 },
           })),
-          nextCursor: rows.length > limit ? noteRows.at(-1)?.id : undefined,
+          nextCursor:
+            rows.length > limit && noteRows.length > 0
+              ? isRecentNoteSort(sort)
+                ? recentNoteCursor(sort, noteRows.at(-1)!.recentTimestamp!, noteRows.at(-1)!.id)
+                : noteRows.at(-1)!.id
+              : undefined,
         };
       });
     },

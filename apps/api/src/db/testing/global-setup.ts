@@ -1,3 +1,5 @@
+import './ws-proxy.js';
+
 import { describeSkipReason, prepareSchema, resetDatabase, testDatabase } from './database.js';
 
 /**

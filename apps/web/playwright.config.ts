@@ -53,7 +53,7 @@ export default defineConfig({
     {
       name: 'webkit-phone-interaction',
       testMatch:
-        /(?:import|connectivity-live|offline(?:-live|-renames|-notes|-note-creation(?:-live)?|-reviews|-practice)?|stabilization|rich-study|study|study-language|practice-setup|navigation|learning-live|offline-review-live|offline-study(?:-live)?|phase84-latency|acceptance-motion|interaction-lifecycle|polish(?:-visual)?|triage)\.spec\.ts/,
+        /(?:possible-duplicates|import|connectivity-live|offline(?:-live|-collections(?:-live)?|-renames|-notes|-note-creation(?:-live)?|-reviews|-practice)?|stabilization|rich-study|study|study-language|practice-setup|navigation|library-polish|note-list|learning-live|offline-review-live|offline-study(?:-live)?|phase84-latency|acceptance-motion|interaction-lifecycle|polish(?:-visual)?|triage|learning-waves)\.spec\.ts/,
       use: { ...devices['iPhone 13'] },
     },
     {
@@ -85,9 +85,10 @@ export default defineConfig({
     },
     {
       name: 'desktop-interaction',
-      // The frame rate budgets are phone measurements. Running them again at
-      // 1440 measures a different thing and calls it the same name.
-      testIgnore: /(?:gallery|screens|performance)\.spec\.ts/,
+      // This benchmark explicitly fixes its viewport at 375px. Keep its three
+      // glass modes in phone-interaction instead of repeating them under a
+      // desktop label. Ordinary motion and interaction cases still run here.
+      testIgnore: /(?:gallery|screens|performance|interaction-lifecycle)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },

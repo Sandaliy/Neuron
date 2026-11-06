@@ -100,6 +100,12 @@ export const notes = pgTable(
       .on(table.userId, table.termKey)
       .where(sql`${table.deletedAt} is null`),
     index('notes_user_rev_idx').on(table.userId, table.rev),
+    index('notes_user_created_recent_idx')
+      .on(table.userId, table.createdAt, table.id)
+      .where(sql`${table.deletedAt} is null and ${table.purgedAt} is null`),
+    index('notes_user_updated_recent_idx')
+      .on(table.userId, table.updatedAt, table.id)
+      .where(sql`${table.deletedAt} is null and ${table.purgedAt} is null`),
     index('notes_import_batch_idx').on(table.importBatchId),
     check('notes_status_known', sql`${table.status} in (${literalList(NOTE_STATUSES)})`),
     check(

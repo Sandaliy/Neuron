@@ -195,6 +195,276 @@ async function offline(page: Page, context: BrowserContext) {
   await expect(page.getByText('Offline', { exact: true })).toBeVisible();
 }
 
+test('Find Notes searches a downloaded 6000-Note library offline without repeated store scans', async ({
+  page,
+  context,
+}, info) => {
+  // Windows WebKit writes this large fixture slowly; search is measured only after completion.
+  test.setTimeout(240_000);
+  await installPreferences(page, { locale: 'en', theme: 'dark', glass: 'off' });
+  await installInteractionMetrics(page);
+  const uid = (value: number) => `01900000-0000-7000-8000-${String(value).padStart(12, '0')}`;
+  const nested = { ...folder, id: uid(10), parentId: folderId, name: 'Nested Folder' };
+  const decks = Array.from({ length: 60 }, (_, index) => ({
+    ...deck,
+    id: uid(100 + index),
+    parentId: index % 2 ? nested.id : folderId,
+    name: `Lesson ${index + 1}`,
+  }));
+  const notes = Array.from({ length: 6000 }, (_, index) => ({
+    ...note,
+    id: uid(1000 + index),
+    deckId: decks[index % 60]!.id,
+    rank: index,
+    rev: 2 + Math.floor(index / 200),
+    fields: { term: `Saved ${index + 1}`, translation: 'Downloaded meaning' },
+    tags: ['cached', 'cached', ...Array.from({ length: 48 }, (_, at) => `topic ${at}`)],
+  }));
+  const hiddenFolder = { ...folder, id: uid(8001) };
+  const hiddenDeck = { ...deck, id: uid(8002), parentId: hiddenFolder.id };
+  const changes = [
+    change('decks', folder),
+    change('decks', nested),
+    ...decks.map((row) => change('decks', row)),
+    change('decks', hiddenFolder, true),
+    change('decks', hiddenDeck),
+    ...notes.map((row) => change('notes', row)),
+    change(
+      'notes',
+      {
+        ...note,
+        id: uid(8003),
+        rev: 32,
+        fields: { term: 'Deleted match', translation: 'Downloaded meaning' },
+      },
+      true,
+    ),
+    {
+      entity: 'notes',
+      id: uid(8004),
+      rev: 32,
+      deleted: true,
+      purged: true,
+      row: { id: uid(8004), rev: 32 },
+    },
+    change('notes', {
+      ...note,
+      id: uid(8005),
+      rev: 32,
+      deckId: hiddenDeck.id,
+      fields: { term: 'Hidden match', translation: 'Downloaded meaning' },
+    }),
+  ];
+  await installOfflineFixtures(page, context, {
+    who: { ...account, revision: 32 },
+    pull: async (route, since) => {
+      const revision = Math.min(32, since + 1);
+      await route.fulfill({
+        json: {
+          since,
+          revision,
+          hasMore: revision < 32,
+          changes: changes.filter((change) => change.rev > since && change.rev <= revision),
+        },
+      });
+    },
+  });
+  await page.goto('/library');
+  try {
+    await expect
+      .poll(() => meta(page), { timeout: 180_000 })
+      .toEqual({ cursor: 32, complete: true, format: 1 });
+  } catch (error) {
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
+    await info.attach('download-failure.txt', {
+      body: await page.locator('main').innerText(),
+      contentType: 'text/plain',
+    });
+    throw error;
+  }
+  await offline(page, context);
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  const search = page.getByRole('searchbox', { name: 'Search', exact: true });
+  await search.fill('Downloaded');
+  await expect(
+    page.getByRole('button', {
+      name: /^Saved 1 Downloaded meaning · Lesson 1 · Downloaded Folder/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', {
+      name: /^Saved 2 Downloaded meaning · Lesson 2 · Downloaded Folder \/ Nested Folder/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Results from this device’s download. Connect to check for changes.'),
+  ).toBeVisible();
+  await startInteractionMetrics(page);
+  await search.fill('Saved 2');
+  await search.press('Enter');
+  await expect(page.getByRole('button', { name: /^Saved 2 Downloaded/ })).toBeVisible();
+  await search.fill('Downloaded');
+  await search.press('Enter');
+  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByRole('combobox', { name: 'Tag or topic', exact: true }).fill('cached');
+  // Commit the filters before paging; a later debounce would reset these pages.
+  await search.press('Enter');
+  await expect(search).not.toHaveAttribute('aria-busy', 'true');
+  for (let pageNumber = 1; pageNumber < 6; pageNumber++) {
+    await page.evaluate(() =>
+      window.scrollTo(0, document.documentElement.scrollHeight - innerHeight),
+    );
+    await expect
+      .poll(() =>
+        page.locator('[data-rows]').evaluate((node) => node.getBoundingClientRect().height),
+      )
+      .toBeGreaterThan((pageNumber + 1) * 76_000);
+  }
+  const metrics = await readInteractionMetrics(page);
+  expect(metrics.scans['notes'] ?? 0).toBe(0);
+  expect(metrics.scans['cards'] ?? 0).toBe(0);
+  expect(await page.locator('[data-rows] [data-row]').count()).toBeLessThan(60);
+  expect(await page.getByRole('button', { name: /Deleted match|Hidden match/ }).count()).toBe(0);
+  await info.attach('offline-find-notes.json', {
+    body: JSON.stringify(metrics, null, 2),
+    contentType: 'application/json',
+  });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByRole('button', { name: /^Saved 1 Downloaded/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Translation', exact: true })).toHaveValue(
+    'Downloaded meaning',
+  );
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await expect(search).toHaveValue('Downloaded');
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'cached',
+  );
+  // A new query proves deleted, purged and orphaned rows cannot enter the local result.
+  await search.fill('match');
+  await search.press('Enter');
+  await expect(page.getByText('Nothing matches', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await startInteractionMetrics(page);
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'cached Notes: 6000', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'cached Notes: 6000', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'cached',
+  );
+  await expect(page.getByRole('button', { name: /^Saved 1 Downloaded/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await page.getByText('Sources', { exact: true }).click();
+  await expect(page.getByText('No categories yet', { exact: true })).toBeVisible();
+  const categories = await readInteractionMetrics(page);
+  expect(categories.scans['notes'] ?? 0).toBe(0);
+  expect(categories.scans['cards'] ?? 0).toBe(0);
+  await info.attach('offline-category-browsing.json', {
+    body: JSON.stringify(categories),
+    contentType: 'application/json',
+  });
+});
+
+test('Find Notes explains an incomplete download without presenting partial results', async ({
+  page,
+  context,
+}) => {
+  await installPreferences(page, { locale: 'en', theme: 'dark' });
+  await installOfflineFixtures(page, context, {
+    pull: async (route, since) => {
+      if (since === 0) return void (await route.fulfill({ json: first }));
+      await route.fulfill({
+        status: 503,
+        json: {
+          error: { code: 'service_unavailable', status: 503, correlationId: 'held-download' },
+        },
+      });
+    },
+  });
+  await page.goto('/library');
+  await expect.poll(() => meta(page)).toEqual({ cursor: 1, complete: false, format: 1 });
+  await offline(page, context);
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await expect(page.getByRole('searchbox', { name: 'Search', exact: true })).toBeVisible();
+  await expect(
+    page.getByText(
+      'The collection download is incomplete or missing. Connect and sign in to finish downloading before browsing offline.',
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.locator('[data-rows]')).toHaveCount(0);
+  await expect(page.getByText('Nothing matches', { exact: true })).toHaveCount(0);
+});
+
+test('Find Notes retains query and filters when the same account reconnects', async ({
+  page,
+  context,
+}) => {
+  await installPreferences(page, { locale: 'en', theme: 'dark' });
+  await installOfflineFixtures(page, context);
+  const reads: URL[] = [];
+  await page.route('**/api/notes?*', (route) => {
+    reads.push(new URL(route.request().url()));
+    return route.fulfill({ json: { items: [note] } });
+  });
+  await download(page);
+  await offline(page, context);
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  const search = page.getByRole('searchbox', { name: 'Search', exact: true });
+  await search.fill('Durable');
+  await search.press('Enter');
+  await page.getByRole('button', { name: /^Filters/ }).click();
+  const tag = page.getByRole('combobox', { name: 'Tag or topic', exact: true });
+  await tag.fill('cached');
+  await expect(search).not.toHaveAttribute('aria-busy', 'true');
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect
+    .poll(() =>
+      reads.some(
+        (url) =>
+          url.searchParams.get('search') === 'Durable' && url.searchParams.get('tag') === 'cached',
+      ),
+    )
+    .toBe(true);
+  await expect(
+    page.getByText('Results from this device’s download. Connect to check for changes.', {
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(search).not.toHaveAttribute('aria-busy', 'true');
+  await expect(search).toHaveValue('Durable');
+  await expect(tag).toHaveValue('cached');
+});
+
+test('Find Notes revokes previous account results and browse state on an account switch', async ({
+  page,
+  context,
+}) => {
+  await installPreferences(page, { locale: 'en', theme: 'dark' });
+  await installOfflineFixtures(page, context);
+  await download(page);
+  await offline(page, context);
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  const search = page.getByRole('searchbox', { name: 'Search', exact: true });
+  await search.fill('Durable');
+  await search.press('Enter');
+  await expect(page.getByRole('button', { name: /^Durable word/ })).toBeVisible();
+  await page.route('**/api/account', (route) =>
+    route.fulfill({ json: { ...account, id: 'another-reader', revision: 0 } }),
+  );
+  await page.route('**/api/sync?*', (route) =>
+    route.fulfill({ json: { since: 0, revision: 0, hasMore: false, changes: [] } }),
+  );
+  await page.route('**/api/notes?*', (route) => route.fulfill({ json: { items: [] } }));
+  await page.route('**/api/decks', (route) => route.fulfill({ json: { decks: [] } }));
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(search).toHaveValue('');
+  await expect(page.getByRole('button', { name: /^Durable word/ })).toHaveCount(0);
+  await expect(page.getByText('Downloaded Folder', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Nothing in here yet', { exact: true })).toBeVisible();
+});
+
 for (const [interrupted, onlineHint, stalled] of [
   [false, false, false],
   [true, false, false],
@@ -537,7 +807,7 @@ test('cached navigation detects stalled HTTP without a connectivity or foregroun
   const at = Date.now();
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   // Silence enables local content without declaring a confirmed outage.
-  await expect(page.getByRole('button', { name: 'New deck', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Deleted', exact: true })).toBeDisabled();
   await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
   const handover = Date.now() - at;
   expect(handover).toBeLessThan(5000);
@@ -564,10 +834,17 @@ test('a false offline hint cannot overrule a freshly accepted server session', a
   await expect(page.getByRole('button', { name: 'New deck', exact: true })).toBeEnabled();
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
   let created = false;
-  await page.route('**/api/decks', (route) => {
-    if (route.request().method() !== 'POST') return route.fallback();
+  await page.route('**/api/decks/offline-create', (route) => {
     created = true;
-    return route.fulfill({ json: { deck: { ...deck, ...route.request().postDataJSON() } } });
+    const command = route.request().postDataJSON();
+    return route.fulfill({
+      json: {
+        operationId: command.operationId,
+        entityId: command.entityId,
+        status: 'applied',
+        revision: 3,
+      },
+    });
   });
   await page.getByRole('button', { name: 'New deck', exact: true }).click();
   await page.getByRole('dialog').getByLabel('Name', { exact: true }).fill('Connection checked');
@@ -1495,7 +1772,18 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
     await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
     await page.close();
     const reopened = await context.newPage();
-    await reopened.goto(`${origin}/library`);
+    await reopened.goto(`${origin}/library/categories`);
+    await expect(
+      reopened.getByRole('button', { name: 'cached Notes: 1', exact: true }),
+    ).toBeVisible();
+    await reopened.getByRole('button', { name: 'cached Notes: 1', exact: true }).click();
+    await expect(reopened.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+      'cached',
+    );
+    await expect(
+      reopened.getByRole('button', { name: /Durable word Downloaded meaning/ }),
+    ).toBeVisible();
+    await reopened.getByRole('link', { name: 'Library', exact: true }).click();
     await expect(reopened.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
     const cached = await reopened.evaluate(async () =>
       (
@@ -2338,7 +2626,7 @@ test('in-session Library keeps its header, nested expansion and row geometry whe
   for (const handle of await page.getByRole('button', { name: /Drag/i }).all())
     await expect(handle).toBeDisabled();
   for (const button of await page.getByRole('button', { name: /New deck|New folder/i }).all())
-    await expect(button).toBeDisabled();
+    await expect(button).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Hide what is inside', exact: true })).toHaveCount(
     2,
   );
@@ -2464,6 +2752,25 @@ test('incomplete snapshot never presents cached online collection rows as availa
   ).toBeVisible();
   await expect(page.locator('[data-rows]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeDisabled();
+});
+
+test('Tags & Sources hides cached online counts when the download is incomplete offline', async ({
+  page,
+  context,
+}) => {
+  const control = await installContinuityFixtures(page, context, false);
+  await page.route('**/api/notes/categories?*', (route) =>
+    control.lost
+      ? route.abort('internetdisconnected')
+      : route.fulfill({ json: { items: [{ value: 'cached', count: 1 }], total: 1 } }),
+  );
+  await page.goto('/library/categories');
+  await expect(page.getByRole('button', { name: 'cached Notes: 1', exact: true })).toBeVisible();
+  control.lost = true;
+  await page.getByRole('searchbox').fill('cached');
+  await expect(page.getByText('Offline', { exact: true })).toBeVisible();
+  await expect(page.getByText(/collection download is incomplete or missing/)).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Tags & Sources', exact: true })).toHaveCount(0);
 });
 
 test('HTTP read errors and isolated failed mutations do not establish a transport outage', async ({

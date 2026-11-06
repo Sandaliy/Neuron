@@ -46,6 +46,14 @@ export interface WorkloadCard {
   readonly direction: CardDirection;
   /** Everything the scheduler knows about the card. */
   readonly scheduling: SchedulingState;
+  /**
+   * Where a new card stands in its deck's admission order, lowest first.
+   *
+   * It decides which new cards fill the places the throttle allows, never how
+   * many places there are. Absent counts as zero, so a collection that sets it
+   * nowhere keeps its creation order.
+   */
+  readonly admissionRank?: number;
 }
 
 /**

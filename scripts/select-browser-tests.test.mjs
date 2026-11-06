@@ -17,10 +17,11 @@ test('screen changes include their existing regressions', () => {
   assert.deepEqual(result.files, ['tests/import.spec.ts', 'tests/smoke.spec.ts']);
 });
 
-test('Study changes select the merged rich direction journeys', () => {
+test('Study changes select setup, language motion and the rich direction journeys', () => {
   const result = selectBrowserTests(['apps/web/src/features/today/listening-prompt.tsx']);
   assert.equal(result.full, false);
-  assert.equal(result.files.includes('tests/rich-study.spec.ts'), true);
+  for (const file of ['today-setup.spec.ts', 'study-language.spec.ts', 'rich-study.spec.ts'])
+    assert.equal(result.files.includes(`tests/${file}`), true);
 });
 
 test('shared browser changes require full interactions', () => {

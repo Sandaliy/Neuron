@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { check, index, jsonb, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
 
 import type {
+  CreateOfflineDeckResult,
   CreateOfflineNoteResult,
   EditOfflineNoteResult,
   RenameDeckResult,
@@ -18,6 +19,7 @@ export interface SyncReceiptOutcome {
   noteRestoration?: RestoreNoteResult & { id: string };
   clamped: boolean;
   rename?: { digest: string; result: RenameDeckResult };
+  deckCreation?: { digest: string; result: CreateOfflineDeckResult };
   noteEdit?: { digest: string; result: EditOfflineNoteResult };
   noteCreate?: { digest: string; result: CreateOfflineNoteResult };
   reviewUndo?: { targetId: string; submittedAt: string | null; cancellationId: string };

@@ -1,11 +1,13 @@
 import { accountExportRepository } from './account-export.js';
 import { accountRepository } from './account.js';
 import { cardRepository } from './cards.js';
+import { collectionCreationRepository } from './collection-creation.js';
 import { collectionNoteRepository } from './collection-notes.js';
 import { collectionRenameRepository } from './collection-renames.js';
 import { deckRepository } from './decks.js';
 import { noteTypeRepository } from './note-types.js';
 import { noteRepository } from './notes.js';
+import { possibleDuplicateRepository } from './possible-duplicates.js';
 import { practiceRepository } from './practice.js';
 import { purgeRepository } from './purge.js';
 import { reviewRepository } from './reviews.js';
@@ -43,6 +45,8 @@ import type { TriageRepository } from './triage.js';
 
 export interface Repositories {
   readonly accountExport: ReturnType<typeof accountExportRepository>;
+  readonly possibleDuplicates: ReturnType<typeof possibleDuplicateRepository>;
+  readonly collectionCreation: ReturnType<typeof collectionCreationRepository>;
   readonly collectionRenames: ReturnType<typeof collectionRenameRepository>;
   readonly collectionNotes: ReturnType<typeof collectionNoteRepository>;
   readonly practice: ReturnType<typeof practiceRepository>;
@@ -70,6 +74,8 @@ export interface Repositories {
 function build(db: Database, userId: string, run: Runner): Repositories {
   return {
     accountExport: accountExportRepository(db, userId),
+    possibleDuplicates: possibleDuplicateRepository(userId, run),
+    collectionCreation: collectionCreationRepository(userId, run),
     collectionRenames: collectionRenameRepository(userId, run),
     collectionNotes: collectionNoteRepository(userId, run),
     practice: practiceRepository(userId, run),
