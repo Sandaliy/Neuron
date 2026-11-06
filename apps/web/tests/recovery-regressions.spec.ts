@@ -40,6 +40,25 @@ test.describe('phone collection row isolation', () => {
     await expect(page).toHaveURL(/\/library$/);
   });
 
+  test('a tall collection menu stays inside a short viewport and reaches its last action', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 560 });
+    await openMenu(page);
+    const menu = page.getByRole('menu');
+    await menu.evaluate(async (element) => {
+      await Promise.all(element.getAnimations().map((animation) => animation.finished));
+    });
+    const bounds = await menu.boundingBox();
+    expect(bounds!.y).toBeGreaterThanOrEqual(16);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(544);
+    await menu.press('End');
+    await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeFocused();
+    await page.getByRole('menuitem', { name: 'Delete' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page).toHaveURL(/\/library$/);
+  });
+
   test('disabled reorder actions are inert', async ({ page }) => {
     await page.route('/api/decks', async (route) => {
       if (route.request().method() === 'GET') {
