@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-05.
+Last updated: 2026-11-06.
 
 ## Release
 
@@ -118,6 +118,12 @@ installed-iPhone acceptance.
   the Note is not in triage until the server has it. Reconnect: both arrive once.
 
 ## Open threads
+
+- Practice/search interaction repair (#84, `7b6db0c`) is on protected `main`.
+  It retains synchronous search drafts and search scroll position, adds Practice keyboard/focus support
+  and guards the local intent/acknowledgement race, including Recent Notes #81 and its follow-up #83.
+  Browser keyboard geometry cannot replace Home Screen iPhone/VoiceOver acceptance; performance
+  evidence and remaining limits are in `interaction-performance.md`.
 
 - Preliminary offline duplicate keys retain the inherited UTF-16 prefix difference from PostgreSQL
   for very long supplementary-Unicode terms. Server groups remain authoritative; see

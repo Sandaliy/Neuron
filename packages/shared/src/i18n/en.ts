@@ -404,6 +404,11 @@ export const en = {
   'library.dropInvalid': 'Cannot move here',
   'library.dropInside': 'Move inside',
   'library.dropHere': 'Insert here',
+  'practice.question': 'Question',
+  'practice.answer': 'Answer',
+  'practice.shortcuts': 'Space: reveal · 1: still learning · 2: known · U: undo',
+  'practice.position':
+    'Round {round}. Known: {known}. Still learning: {learning}. Left in this round: {remaining}.',
   'practice.title': 'Practice',
   'practice.scheduleSafe': 'A practice run only. Answers do not change your learning schedule.',
   'practice.front': 'Question field',

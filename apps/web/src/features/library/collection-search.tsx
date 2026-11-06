@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 import { ChevronLeft, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -7,6 +7,7 @@ import type { DeckNode } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
+import { useBrowseState } from '../../lib/browse-state';
 import {
   deckCreations,
   deckCreationsQueryKey,
@@ -39,21 +40,11 @@ export function CollectionSearchScreen() {
   const toast = useToast();
   const offline = useOffline();
   const visit = accountEpoch();
-  const client = useQueryClient();
   const key = useMemo(
     () => ['collection-search', offline.accountId, visit],
     [offline.accountId, visit],
   );
-  const browse = useQuery({
-    queryKey: key,
-    queryFn: () => initial,
-    initialData: initial,
-    enabled: false,
-    staleTime: Infinity,
-    gcTime: Infinity,
-  }).data;
-  const update = (patch: Partial<Browse>) =>
-    client.setQueryData<Browse>(key, (current) => ({ ...initial, ...current, ...patch }));
+  const [browse, update] = useBrowseState(key, initial);
   const entry = useRouterState({ select: (state) => state.location.state.collectionSearchEntry });
   const decks = useDeckTree();
   const creations = useQuery({

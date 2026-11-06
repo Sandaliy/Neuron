@@ -1,7 +1,15 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useRouterState } from '@tanstack/react-router';
 import { SlidersHorizontal, Undo2 } from 'lucide-react';
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { flushSync } from 'react-dom';
 
 import {
@@ -25,6 +33,7 @@ import { useAccount } from '../../lib/account';
 import { describe } from '../../lib/api';
 import { useCapabilities } from '../../lib/capabilities';
 import { findDeck, settingsFor, useDeckTree } from '../../lib/decks';
+import { learningShortcut } from '../../lib/learning-shortcuts';
 import { NOTE_KEY, noteQueryString } from '../../lib/notes';
 import { useOffline } from '../../lib/offline';
 import { practicePool, practiceQuery, practiceStore } from '../../lib/practice';
@@ -208,8 +217,12 @@ function PersistentPractice({
     store.refresh(notes, latest);
   }, [store, notes, latest]);
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  const fields = PRACTICE_FIELDS.filter((key) =>
-    notes.some((note) => practiceValue(note.fields, key) !== undefined),
+  const fields = useMemo(
+    () =>
+      PRACTICE_FIELDS.filter((key) =>
+        notes.some((note) => practiceValue(note.fields, key) !== undefined),
+      ),
+    [notes],
   );
   const [front, setFront] = useState<PracticeRun['front']>(fields[0] ?? 'front');
   const [back, setBack] = useState<PracticeRun['back']>(fields[1] ?? 'back');
@@ -250,8 +263,9 @@ function PersistentPractice({
   const statuses = Object.values(run?.statuses ?? {});
   const known = statuses.filter((status) => status === 'known').length;
   const learning = statuses.filter((status) => status === 'learning').length;
-  const eligible = notes.filter((note) =>
-    supportsPracticeResponse(note.fields, front, back, response),
+  const eligible = useMemo(
+    () => notes.filter((note) => supportsPracticeResponse(note.fields, front, back, response)),
+    [notes, front, back, response],
   );
   const answerFields =
     response === 'typing' && (!run || configuring) && !eligible.length
@@ -332,13 +346,82 @@ function PersistentPractice({
       startRun();
     }
   }
+  const screen = useRef<HTMLElement>(null);
+  const progressId = useId();
+  const questionTextId = useId();
+  const answerTextId = useId();
+  const completionTextId = useId();
+  function reveal() {
+    if (!current || revealed || state.committing) return;
+    if (screen.current) captureLearningReveal(screen.current);
+    setTypingReady(false);
+    setRevealed(true);
+  }
+  function grade(known: boolean) {
+    if (!current || !run || !revealed || state.committing || state.error) return;
+    act({ kind: 'answer', noteId: current.id, known }, () => {
+      setHistory([...history, run]);
+      resetEncounter();
+    });
+  }
+  function undoAnswer() {
+    const previous = history.at(-1);
+    if (!previous || previous.id !== run?.id || state.committing || state.error) return;
+    act({ kind: 'undo', previous }, () => {
+      setHistory(history.slice(0, -1));
+      resetEncounter();
+    });
+  }
   // A run waiting for the learner's choice is not a sitting: no progress, counts or Undo for it.
   const sitting = !!run && active && !configuring && !state.conflict;
+  useLayoutEffect(() => {
+    if (!sitting || state.loading || state.committing || confirmNew) return;
+    // Focus the reading content once per encounter/reveal, never an answer input.
+    // This also restores keyboard focus after grading, Undo and completion.
+    screen.current
+      ?.querySelector<HTMLElement>('[data-practice-focus]')
+      ?.focus({ preventScroll: true });
+  }, [sitting, current?.id, interaction, revealed, state.loading, state.committing, confirmNew]);
+  useLayoutEffect(() => {
+    if (!sitting) return;
+    const handler = (event: KeyboardEvent) => {
+      if (
+        !(event.target instanceof Node) ||
+        !screen.current?.contains(event.target) ||
+        !learningShortcut(event) ||
+        state.committing ||
+        state.error
+      )
+        return;
+      if (event.code === 'Space' && current && !revealed) {
+        event.preventDefault();
+        reveal();
+      } else if (revealed && (event.key === '1' || event.key === '2')) {
+        event.preventDefault();
+        grade(event.key === '2');
+      } else if (event.key.toLowerCase() === 'u' && history.length) {
+        event.preventDefault();
+        undoAnswer();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  });
   return (
     <section
+      ref={screen}
       data-screen=""
       data-learning-screen={sitting ? '' : undefined}
       data-typing-ready={typingReady || undefined}
+      onKeyDown={(event) => {
+        if (
+          event.repeat &&
+          (event.key === 'Enter' || event.code === 'Space') &&
+          event.target instanceof Element &&
+          event.target.closest('button')
+        )
+          event.preventDefault();
+      }}
       className="neu-session flex flex-col gap-16"
     >
       <ModeHeader
@@ -355,16 +438,15 @@ function PersistentPractice({
                 variant="text"
                 className="w-44 text-secondary"
                 aria-label={t('study.undo')}
-                title={t('study.undo')}
-                disabled={!history.length || !!state.error || history.at(-1)?.id !== run.id}
-                onClick={() => {
-                  const previous = history.at(-1);
-                  if (!previous) return;
-                  act({ kind: 'undo', previous }, () => {
-                    setHistory(history.slice(0, -1));
-                    resetEncounter();
-                  });
-                }}
+                title={`${t('study.undo')} (U)`}
+                disabled={
+                  !history.length ||
+                  state.committing ||
+                  !!state.error ||
+                  history.at(-1)?.id !== run.id
+                }
+                aria-keyshortcuts="u"
+                onClick={undoAnswer}
               >
                 <Undo2 size={20} strokeWidth={1.5} aria-hidden="true" />
               </Button>
@@ -372,6 +454,16 @@ function PersistentPractice({
           </div>
         }
       />
+      {sitting && (
+        <p id={progressId} className="sr-only">
+          {t('practice.position', {
+            round: run.round,
+            known,
+            learning,
+            remaining: run.queue.length,
+          })}
+        </p>
+      )}
       {sitting && (
         <div
           className="neu-practice-progress grid shrink-0 grid-cols-2 gap-16 text-12 text-secondary"
@@ -596,22 +688,38 @@ function PersistentPractice({
                 key={`${current.id}:${interaction}`}
                 identity={current.id}
                 answerFocused={run.response === 'listening'}
-                context={t(`practice.mode.${run.response ?? 'reveal'}`)}
+                context={
+                  <>
+                    {t(`practice.mode.${run.response ?? 'reveal'}`)}
+                    <span className="hidden sm:inline"> · {t('practice.shortcuts')}</span>
+                  </>
+                }
                 prompt={
-                  run.response === 'listening' ? (
-                    <ListeningPrompt
-                      key={current.id}
-                      text={String(current.fields['term'] ?? '')}
-                      language={language}
-                    />
-                  ) : (
-                    <PracticeFace
-                      fields={current.fields}
-                      side={run.front}
-                      language={language}
-                      identity={current.id}
-                    />
-                  )
+                  <div
+                    role="group"
+                    className="rounded-8 focus-visible:-outline-offset-2"
+                    aria-label={t('practice.question')}
+                    tabIndex={-1}
+                    data-practice-focus={!revealed ? '' : undefined}
+                    aria-describedby={`${questionTextId} ${progressId}`}
+                  >
+                    <div id={questionTextId}>
+                      {run.response === 'listening' ? (
+                        <ListeningPrompt
+                          key={current.id}
+                          text={String(current.fields['term'] ?? '')}
+                          language={language}
+                        />
+                      ) : (
+                        <PracticeFace
+                          fields={current.fields}
+                          side={run.front}
+                          language={language}
+                          identity={current.id}
+                        />
+                      )}
+                    </div>
+                  </div>
                 }
                 response={
                   run.response === 'typing' || run.response === 'listening' ? (
@@ -643,16 +751,27 @@ function PersistentPractice({
                 }
                 answer={
                   revealed ? (
-                    <PracticeFace
-                      fields={current.fields}
-                      side={
-                        run.response === 'listening'
-                          ? [...new Set(['term' as const, ...practiceFields(run.back)])]
-                          : run.back
-                      }
-                      language={language}
-                      identity={current.id}
-                    />
+                    <div
+                      role="group"
+                      className="rounded-8 focus-visible:-outline-offset-2"
+                      aria-label={t('practice.answer')}
+                      aria-describedby={answerTextId}
+                      tabIndex={-1}
+                      data-practice-focus=""
+                    >
+                      <div id={answerTextId}>
+                        <PracticeFace
+                          fields={current.fields}
+                          side={
+                            run.response === 'listening'
+                              ? [...new Set(['term' as const, ...practiceFields(run.back)])]
+                              : run.back
+                          }
+                          language={language}
+                          identity={current.id}
+                        />
+                      </div>
+                    </div>
                   ) : undefined
                 }
               />
@@ -662,13 +781,10 @@ function PersistentPractice({
                     <Button
                       key={String(value)}
                       variant={value ? 'primary' : 'quiet'}
-                      disabled={!!state.error}
-                      onClick={() =>
-                        act({ kind: 'answer', noteId: current.id, known: value }, () => {
-                          setHistory([...history, run]);
-                          resetEncounter();
-                        })
-                      }
+                      disabled={state.committing || !!state.error}
+                      aria-keyshortcuts={value ? '2' : '1'}
+                      title={`${t(value ? 'practice.know' : 'practice.learning')} (${value ? '2' : '1'})`}
+                      onClick={() => grade(value)}
                     >
                       {t(value ? 'practice.know' : 'practice.learning')}
                     </Button>
@@ -680,11 +796,10 @@ function PersistentPractice({
                   variant={
                     run.response === 'typing' || run.response === 'listening' ? 'quiet' : 'primary'
                   }
-                  onClick={(event) => {
-                    captureLearningReveal(event.currentTarget);
-                    setTypingReady(false);
-                    setRevealed(true);
-                  }}
+                  aria-keyshortcuts="Space"
+                  title={`${t('study.reveal')} (Space)`}
+                  disabled={state.committing}
+                  onClick={reveal}
                 >
                   {t('study.reveal')}
                 </Button>
@@ -692,7 +807,14 @@ function PersistentPractice({
             </>
           ) : (
             <>
-              <div className="neu-reveal my-auto flex flex-col items-center gap-16 py-32 text-center">
+              <div
+                role="group"
+                aria-label={t(learning ? 'practice.roundComplete' : 'practice.cleared')}
+                aria-describedby={completionTextId}
+                tabIndex={-1}
+                data-practice-focus=""
+                className="neu-reveal my-auto flex flex-col items-center gap-16 py-32 text-center"
+              >
                 <CompletionProgress
                   value={known}
                   max={statuses.length}
@@ -701,22 +823,22 @@ function PersistentPractice({
                 <h2 className="text-24">
                   {t(learning ? 'practice.roundComplete' : 'practice.cleared')}
                 </h2>
-                <p className="text-14 text-secondary">
+                <p id={completionTextId} className="text-14 text-secondary">
                   {t('practice.completionCounts', { known, learning })}
                 </p>
               </div>
               {learning > 0 ? (
                 <Button
                   variant="primary"
-                  disabled={!!state.error}
-                  onClick={() => act({ kind: 'round' })}
+                  disabled={state.committing || !!state.error}
+                  onClick={() => act({ kind: 'round' }, resetEncounter)}
                 >
                   {t('practice.repeat')}
                 </Button>
               ) : (
                 <Button
                   variant="quiet"
-                  disabled={!!state.error}
+                  disabled={state.committing || !!state.error}
                   onClick={() =>
                     act(
                       {
@@ -834,12 +956,15 @@ function PracticeFieldChoice({
   const t = useTranslate();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(practiceFields(value));
+  const trigger = useRef<HTMLButtonElement | null>(null);
   return (
     <div className="flex min-w-0 flex-col gap-8 text-13 text-secondary">
       <span>{label}</span>
       <Button
         className="justify-start text-left"
-        onClick={() => {
+        onClick={(event) => {
+          trigger.current = event.currentTarget;
+          event.currentTarget.focus({ preventScroll: true });
           setDraft(practiceFields(value));
           setOpen(true);
         }}
@@ -851,6 +976,7 @@ function PracticeFieldChoice({
       <Dialog
         open={open}
         onOpenChange={setOpen}
+        restoreFocus={() => trigger.current?.focus({ preventScroll: true })}
         title={`${label}: ${t('practice.chooseFields')}`}
         description={t('practice.chooseFieldsHint')}
       >

@@ -47,6 +47,15 @@ from member rows and preserves the editor heading and return-breadcrumb assertio
 budgets run in `phone-interaction`; desktop excludes that duplicate. Ordinary desktop motion cases
 and the separate opt-in mobile WebKit coverage remain selected.
 
+`note-list.spec.ts` also checks consecutive search editing across all Library search entry points,
+mid-string selection, slow superseded responses and scroll stability with a panned keyboard viewport.
+`offline-notes.spec.ts` repeats editing across downloaded results and reconnection. Keyboard geometry
+is staged in browser automation; Home Screen iPhone acceptance remains separate.
+`practice-setup.spec.ts` covers Space/1/2/U, focus through reveal/advance/Undo/completion, response fields,
+modal cancellation, held keys, IME/modifier guards and Study follow-up isolation. Its controlled phone
+probe measures typing over 5,000 Notes at 4x CPU. `acceptance-latency.spec.ts` measures repeated navigation
+through Library, search, Notes and primary screens with 6,000 Notes, 60 Decks and delayed transport.
+
 `library-polish.spec.ts` also covers collection name search, collapsed descendants, duplicate names,
 full paths, keyboard focus and Back/scroll return over 2,500 collections. `offline-collections.spec.ts`
 covers downloaded search, pending identities, reconnection and account boundaries. `performance.spec.ts`

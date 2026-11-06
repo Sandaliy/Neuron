@@ -1,10 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { ChevronLeft, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
+import { useBrowseState } from '../../lib/browse-state';
 import { flatten, useDeckTree } from '../../lib/decks';
 import { accountEpoch, useOffline } from '../../lib/offline';
 import { usePossibleDuplicates } from '../../lib/possible-duplicates';
@@ -46,21 +46,11 @@ function DuplicateBrowser({ deckId }: { readonly deckId: string | undefined }) {
   const navigate = useNavigate();
   const offline = useOffline();
   const visit = accountEpoch();
-  const client = useQueryClient();
   const browseKey = useMemo(
     () => ['duplicate-browse', offline.accountId, visit, deckId],
     [offline.accountId, visit, deckId],
   );
-  const browse = useQuery({
-    queryKey: browseKey,
-    queryFn: () => initial,
-    initialData: initial,
-    enabled: false,
-    staleTime: Infinity,
-    gcTime: Infinity,
-  }).data;
-  const update = (patch: Partial<Browse>) =>
-    client.setQueryData<Browse>(browseKey, (current) => ({ ...initial, ...current, ...patch }));
+  const [browse, update] = useBrowseState(browseKey, initial);
   const [search, setSearch] = useState(browse.typed.trim());
   useEffect(() => {
     const timer = setTimeout(() => setSearch(browse.typed.trim()), 250);
