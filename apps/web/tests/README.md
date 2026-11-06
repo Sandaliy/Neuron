@@ -7,6 +7,15 @@ file named after the change.
 
 ## By product area
 
+`content-quality.spec.ts` covers the read-only vocabulary inspector: four explicit checks, overlapping
+counts over 6,500 mixed Notes, search/Deck filters, bounded pages, continuous typing, keyboard/editor
+return, corrections leaving a category, long mobile text, complete/incomplete downloads, saved edits,
+pending Notes, reconnection and a late response during account switching. It runs in both Chromium
+interaction viewports and mobile WebKit. `performance.spec.ts` measures its existing 55 FPS scroll
+budget at 4x CPU and reports complete-download projection separately, including Note/Card-store reads.
+`apps/api/src/routes/content-quality.test.ts` checks real PostgreSQL/RLS and production-statement
+EXPLAIN plans; `docs/content-quality.md` records the rule/count contract and physical-device checklist.
+
 Recent Notes reuses `note-list.spec.ts` (Library menu, timestamp modes, locations, filters, captured
 pagination, large collections and editor scroll return), `offline-notes.spec.ts` and
 `offline-note-creation.spec.ts` (truthful device dates, pending work, reconnection and account/deletion

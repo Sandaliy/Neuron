@@ -237,6 +237,9 @@ export function LibraryScreen() {
           <Button variant="quiet" onClick={() => void navigate({ to: '/library/duplicates' })}>
             {t('duplicates.title')}
           </Button>
+          <Button variant="quiet" onClick={() => void navigate({ to: '/library/quality' })}>
+            {t('quality.title')}
+          </Button>
         </div>
 
         {folder?.rev === 0 && (
