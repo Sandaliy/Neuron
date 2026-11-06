@@ -99,6 +99,8 @@ Complete the integration gates in `integration-status.md` before new feature wor
 (#71), Import hardening (#74), progressive directions (#86, Draft) and Slipping Cards (#87) require
 critical review. Integrate #86 before combined #87 validation; Content checks (#89) requires owner
 visual acceptance. Offline Sync Chaos Testing has not started.
+Shared menu viewport recovery (#91) is released with green main CI and production health. A further
+Doctor query-plan repair addresses cold-account scale failures before the held branches are refreshed.
 
 1. Installed-iPhone acceptance of the integrated release: the scenarios in "Acceptance on the iPhone"
    below, then the quality pass and earlier offline features (screen and card motion, folders and

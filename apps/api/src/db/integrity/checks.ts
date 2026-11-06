@@ -10,6 +10,16 @@ export interface IntegrityCheck {
 const uuidFromJson = (expression: string) =>
   `(case when ${expression} ~ '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$' then (${expression})::uuid else null end)`;
 
+// Keep the account-scoped parent join hash/merge eligible even when a new
+// account is absent from statistics. Materialization prevents the outer
+// violation predicates from reducing FULL JOIN to a quadratic nested loop.
+const cardNotes = `with card_notes as materialized (
+  select c.id,c.deck_id,c.deleted_at as card_deleted_at,
+    n.id as visible_note_id,n.deck_id as note_deck_id,n.deleted_at as note_deleted_at
+  from (select id,note_id,deck_id,deleted_at from cards where user_id=$1) c
+  full join (select id,deck_id,deleted_at from notes where user_id=$1) n on n.id=c.note_id
+)`;
+
 export const structuralChecks: readonly IntegrityCheck[] = [
   {
     id: 'collection-parent',
@@ -87,25 +97,27 @@ export const structuralChecks: readonly IntegrityCheck[] = [
     severity: 'error',
     context:
       'Card Note or Deck is missing/inaccessible. Retained deleted and purged Cards must still have account-bound parents.',
-    sql: `select c.id from cards c left join notes n on n.id=c.note_id and n.user_id=$1
-      left join decks d on d.id=c.deck_id and d.user_id=$1
-      where c.user_id=$1 and (n.id is null or d.id is null or d.kind<>'deck')`,
+    sql: `${cardNotes}, card_parents as materialized (
+      select c.id,c.visible_note_id,d.id as visible_deck_id,d.kind
+      from card_notes c full join (select id,kind from decks where user_id=$1) d on d.id=c.deck_id
+    ) select id from card_parents
+      where id is not null and (visible_note_id is null or visible_deck_id is null or kind<>'deck')`,
   },
   {
     id: 'card-deck-copy',
     severity: 'error',
     context:
       'Card Deck differs from its Note, including retained Cards. Inspect the atomic Note move and revisions.',
-    sql: `select c.id from cards c join notes n on n.id=c.note_id and n.user_id=$1
-      where c.user_id=$1 and c.deck_id<>n.deck_id`,
+    sql: `${cardNotes} select id from card_notes
+      where id is not null and deck_id<>note_deck_id`,
   },
   {
     id: 'card-live-deleted-note',
     severity: 'error',
     context:
       'Live Card belongs to a deleted Note. Independently retired Cards beneath live Notes are valid.',
-    sql: `select c.id from cards c join notes n on n.id=c.note_id and n.user_id=$1
-      where c.user_id=$1 and c.deleted_at is null and n.deleted_at is not null`,
+    sql: `${cardNotes} select id from card_notes
+      where id is not null and card_deleted_at is null and note_deleted_at is not null`,
   },
   {
     id: 'card-slot',
@@ -133,8 +145,11 @@ export const structuralChecks: readonly IntegrityCheck[] = [
     severity: 'error',
     context:
       'Immutable Review has no accessible same-account Card. Escalate before any learning-history operation.',
-    sql: `select r.id from reviews r left join cards c on c.id=r.card_id and c.user_id=$1
-      where r.user_id=$1 and c.id is null`,
+    sql: `with review_cards as materialized (
+      select r.id,c.id as visible_card_id
+      from (select id,card_id from reviews where user_id=$1) r
+      full join (select id from cards where user_id=$1) c on c.id=r.card_id
+    ) select id from review_cards where id is not null and visible_card_id is null`,
   },
   {
     id: 'review-cancellation',
