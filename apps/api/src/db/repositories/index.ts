@@ -3,6 +3,7 @@ import { cardRepository } from './cards.js';
 import { collectionCreationRepository } from './collection-creation.js';
 import { collectionNoteRepository } from './collection-notes.js';
 import { collectionRenameRepository } from './collection-renames.js';
+import { contentQualityRepository } from './content-quality.js';
 import { deckRepository } from './decks.js';
 import { noteTypeRepository } from './note-types.js';
 import { noteRepository } from './notes.js';
@@ -43,6 +44,7 @@ import type { TriageRepository } from './triage.js';
  */
 
 export interface Repositories {
+  readonly contentQuality: ReturnType<typeof contentQualityRepository>;
   readonly possibleDuplicates: ReturnType<typeof possibleDuplicateRepository>;
   readonly collectionCreation: ReturnType<typeof collectionCreationRepository>;
   readonly collectionRenames: ReturnType<typeof collectionRenameRepository>;
@@ -71,6 +73,7 @@ export interface Repositories {
 
 function build(db: Database, userId: string, run: Runner): Repositories {
   return {
+    contentQuality: contentQualityRepository(userId, run),
     possibleDuplicates: possibleDuplicateRepository(userId, run),
     collectionCreation: collectionCreationRepository(userId, run),
     collectionRenames: collectionRenameRepository(userId, run),

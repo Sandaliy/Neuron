@@ -27,6 +27,9 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
 - Possible duplicates (#80) adds read-only normalized-term groups beside Tags & Sources (#79).
   Both retain their Library entries, editor return state and complete-download projection. Groups and
   members use bounded account-scoped reads; inspection changes no Note, Card or Review identity.
+- Content checks (#89) inspects vocabulary example pairs and optional context with bounded
+  account/RLS reads, filters, editor return and complete-download inspection. The owner accepted
+  the shown visual references on 2026-11-06; installed-iPhone acceptance remains open.
 - Library Find Folders & Decks searches collection names at every depth, including collapsed Folders.
   Results show kind and full location; opening a collection and returning keeps the query, measured
   list position and keyboard focus. A complete download supports immediate offline search. Pending
@@ -97,8 +100,8 @@ installed-iPhone acceptance.
 
 Complete the integration gates in `integration-status.md` before new feature work. Account export
 (#71), Import hardening (#74), progressive directions (#86, Draft) and Slipping Cards (#87) require
-critical review. Integrate #86 before combined #87 validation; Content checks (#89) requires owner
-visual acceptance. Offline Sync Chaos Testing has not started.
+critical review. Integrate #86 before combined #87 validation. Content checks (#89) has owner visual
+acceptance; installed-iPhone acceptance remains open. Offline Sync Chaos Testing has not started.
 Shared menu viewport recovery (#91) is released with green main CI and production health. A further
 Doctor query-plan repair addresses cold-account scale failures before the held branches are refreshed.
 
@@ -138,6 +141,9 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
 
 ## Open threads
 
+- Content checks adds one schema-valid example-pair consistency check and three optional vocabulary
+  enrichment checks. Owner visual acceptance is complete; installed-iPhone acceptance remains open.
+  Rules, measurements and the device checklist are in `content-quality.md`.
 - Practice/search interaction repair (#84, `7b6db0c`) is on protected `main`.
   It retains synchronous search drafts and search scroll position, adds Practice keyboard/focus support
   and guards the local intent/acknowledgement race, including Recent Notes #81 and its follow-up #83.
@@ -158,8 +164,6 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
   Progressive directions (#86) remains Draft: a reproduced suspend/resume/Undo case retracts a
   direction that its stated policy retains. Slipping Cards (#87) undercounts equal-time recovery
   answers and awaits #86 integration. See `integration-status.md` for evidence and next actions.
-- Content checks (#89) remains unmerged for owner visual acceptance. Its hosted menu failure shares
-  the diagnosed viewport overflow with #87; shared menu recovery preserves ordinary action clicks.
 - Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.
   Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue.
 - Local new-card admission offline is conservative over the last complete download and this device's
