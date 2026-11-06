@@ -7,5 +7,10 @@ allowBuilds:
   esbuild: true
   unrs-resolver: true
 
-minimumReleaseAgeExclude:
-  - tsx@4.23.9
+# Stable Drizzle Kit still loads the retired esbuild-kit transformer. Its
+# transform APIs work with the patched esbuild version already used by Kit.
+overrides:
+  '@esbuild-kit/core-utils@3.3.2>esbuild': 0.25.12
+  # routing-utils retains 6.1.0 for legacy route conversion; keep the same API
+  # with the ReDoS fix, including for the deployment rewrites in vercel.ts.
+  '@vercel/routing-utils>path-to-regexp': 6.3.0
