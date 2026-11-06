@@ -12,6 +12,7 @@ import {
   duplicateCheckSchema,
   idParamSchema,
   listNotesSchema,
+  noteCategoryQuerySchema,
   normaliseTerm,
   noteTermKey,
   purgeConfirmationSchema,
@@ -33,6 +34,8 @@ import { applyCardChange, createOpeningCards, planCardChange } from '../note-car
 import { serialiseCard, serialiseNote } from '../serialise.js';
 import { readBody, readParams, readQuery } from '../validation.js';
 
+import { possibleDuplicateRoutes } from './possible-duplicates.js';
+
 import type { RequestBindings } from '../context.js';
 
 /**
@@ -45,6 +48,7 @@ import type { RequestBindings } from '../context.js';
  */
 export function noteRoutes(): Hono<RequestBindings> {
   const routes = new Hono<RequestBindings>();
+  routes.route('/possible-duplicates', possibleDuplicateRoutes());
 
   routes.get('/', async (context) => {
     const query = readQuery(context, listNotesSchema);
@@ -67,13 +71,21 @@ export function noteRoutes(): Hono<RequestBindings> {
     ]);
 
     return context.json({
-      items: page.items.map(({ cardStates, studyCards, ...note }) => ({
+      items: page.items.map(({ cardStates, studyCards, recentTimestamp, ...note }) => ({
         ...serialiseNote(note, typeNames),
+        ...(recentTimestamp
+          ? { [query.sort === 'created-desc' ? 'createdAt' : 'updatedAt']: recentTimestamp }
+          : {}),
         cardStates,
         studyCards,
       })),
       ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
     });
+  });
+
+  routes.get('/categories', async (context) => {
+    const query = readQuery(context, noteCategoryQuerySchema);
+    return context.json(await repositoriesOf(context).notes.categories(query));
   });
 
   routes.get('/deleted', async (context) => {

@@ -210,6 +210,102 @@ async function reconnect(page: Page, state: Awaited<ReturnType<typeof fixture>>)
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
 }
 
+test('collection search uses the download offline, gates pending identities and clears results across accounts', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  const nestedId = '01900000-0000-7000-8000-000000000910';
+  const deckId = '01900000-0000-7000-8000-000000000911';
+  state.rows.push(
+    {
+      ...state.rows[0]!,
+      id: nestedId,
+      name: 'Nested folder',
+      parentId: folderId,
+      path: [folderId],
+      rev: 2,
+    },
+    {
+      ...state.rows[0]!,
+      id: deckId,
+      kind: 'deck',
+      name: 'Downloaded lesson',
+      parentId: nestedId,
+      path: [folderId, nestedId],
+      rev: 3,
+    },
+  );
+  state.revision = 3;
+  await page.reload();
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const opened = indexedDB.open('neuron.collection:offline-collection-creator');
+        const db = await new Promise<IDBDatabase>((resolve) => {
+          opened.onsuccess = () => resolve(opened.result);
+        });
+        try {
+          const request = db.transaction('decks').objectStore('decks').count();
+          return await new Promise<number>((resolve) => {
+            request.onsuccess = () => resolve(request.result);
+          });
+        } finally {
+          db.close();
+        }
+      }),
+    )
+    .toBe(3);
+  await disconnect(page, state);
+  await createCollection(page, 'Pending folder', 'folder');
+  await createCollection(page, 'Pending deck');
+  await page.getByRole('button', { name: 'Find Folders & Decks', exact: true }).click();
+  const search = page.getByRole('searchbox', { name: 'Search collection names' });
+  await expect(page.getByText(/Searching the downloaded Library/)).toBeVisible();
+  await search.fill('pending');
+  for (const name of [
+    'Pending folder Folder · Library Saved on device',
+    'Pending deck Deck · Library Saved on device',
+  ]) {
+    await page.getByRole('button', { name, exact: true }).click();
+    await expect(page).toHaveURL(/\/library\/find$/);
+  }
+  await expect(
+    page.getByText('This Folder or Deck must sync before you can add to it or change it.').first(),
+  ).toBeVisible();
+  await search.fill('Downloaded lesson');
+  await page
+    .getByRole('button', {
+      name: 'Downloaded lesson Deck · Library / Downloaded folder / Nested folder',
+      exact: true,
+    })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/notes\\?deckId=${deckId}`));
+  await page.goBack();
+  await expect(search).toHaveValue('Downloaded lesson');
+  await page.reload();
+  await search.fill('Downloaded lesson');
+  await expect(page.getByRole('button', { name: /^Downloaded lesson Deck/ })).toBeVisible();
+  expect(state.posted).toEqual([]);
+  state.rows[0] = { ...state.rows[0]!, name: 'Renamed folder', rev: 4 };
+  state.rows[2] = { ...state.rows[2]!, rev: 5 };
+  state.removed.add(deckId);
+  state.revision = 5;
+  await reconnect(page, state);
+  await expect(page.getByText('No collections match', { exact: true })).toBeVisible();
+  await search.fill('Nested');
+  await expect(
+    page.getByRole('button', {
+      name: 'Nested folder Folder · Library / Renamed folder',
+      exact: true,
+    }),
+  ).toBeVisible();
+  state.who = 'different-creator';
+  await page.reload();
+  await expect(search).toHaveValue('');
+  await expect(page.getByRole('listitem')).toHaveCount(0);
+  await expect(page.getByText('Nested folder', { exact: true })).toHaveCount(0);
+});
+
 test('a complete download saves first even when connectivity disappears without an offline hint', async ({
   page,
 }) => {

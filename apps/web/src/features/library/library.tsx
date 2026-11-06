@@ -9,6 +9,8 @@ import {
   Pencil,
   Plus,
   Settings2,
+  Search,
+  Clock,
   Trash2,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -36,9 +38,9 @@ import { TreeChildren, Row } from '../../ui/row';
 import { ServerControls } from '../../ui/server-controls';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
-import { CollectionPath } from '../library/collection-path';
 
 import { CollectionDrag, CollectionHandle, CollectionDrop } from './collection-drag';
+import { CollectionSearchPath } from './collection-search-path';
 import { DeckNameDialog, DeckSettingsDialog, MoveDeckDialog } from './deck-dialogs';
 
 /**
@@ -141,7 +143,7 @@ export function LibraryScreen() {
         <CollectionHeader
           readOnly={offline.offline}
           title={folder?.name ?? t('library.title')}
-          path={folder && <CollectionPath tree={tree} id={folder.id} trail />}
+          path={folder && <CollectionSearchPath tree={tree} id={folder.id} />}
           actions={
             <>
               <ServerControls available={capability.server}>
@@ -187,6 +189,55 @@ export function LibraryScreen() {
             </>
           }
         />
+
+        <div className="flex flex-wrap items-center gap-x-12 gap-y-4">
+          <Button
+            variant="quiet"
+            onClick={() =>
+              void navigate({
+                to: '/library/find',
+                state: {
+                  collectionSearchEntry: { accountId: offline.accountId, visit: accountEpoch() },
+                },
+              })
+            }
+          >
+            <Search size={16} strokeWidth={1.5} aria-hidden="true" />
+            {t('library.search.title')}
+          </Button>
+          <Button
+            variant="quiet"
+            className="self-start"
+            onClick={() => void navigate({ to: '/notes' })}
+          >
+            <Search size={16} strokeWidth={1.5} aria-hidden="true" />
+            {t('notes.find')}
+          </Button>
+          <Button variant="quiet" onClick={() => void navigate({ to: '/library/categories' })}>
+            {t('categories.title')}
+          </Button>
+          <Menu
+            label={t('notes.recent')}
+            trigger={
+              <Button variant="quiet">
+                <Clock size={16} aria-hidden="true" />
+                {t('notes.recent')}
+              </Button>
+            }
+          >
+            <MenuItem onSelect={() => void navigate({ to: '/notes', search: { recent: 'added' } })}>
+              {t('notes.sort.created-desc')}
+            </MenuItem>
+            <MenuItem
+              onSelect={() => void navigate({ to: '/notes', search: { recent: 'changed' } })}
+            >
+              {t('notes.sort.updated-desc')}
+            </MenuItem>
+          </Menu>
+          <Button variant="quiet" onClick={() => void navigate({ to: '/library/duplicates' })}>
+            {t('duplicates.title')}
+          </Button>
+        </div>
 
         {folder?.rev === 0 && (
           <p role="status" className="text-14 text-secondary">

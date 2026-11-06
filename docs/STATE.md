@@ -4,18 +4,36 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-01.
+Last updated: 2026-11-06.
 
 ## Release
 
 Phases 0 to 8.6, the 2026-10-30 quality pass, offline Practice, offline Import preparation, offline
-Note and Folder/Deck creation and Phase 9.0 triage are on protected `main`. Phase 9.1, learning waves,
-ships from `work/learning-waves`. The product has:
+Note and Folder/Deck creation, Phase 9.0 triage and Phase 9.1 learning waves are on protected `main`.
+Browser verification (#70) preserves literal focused filters and removes only the three duplicate
+desktop swipe executions. Deleted browsing (#75) adds search, sorting and bounded recovery windows.
+Find Notes (#76) adds account-wide Library search with live collection visibility. The product has:
 
 - Daily Study with deterministic time-based planning, explainable new-card admission, current-session
   Undo and durable answers that survive offline sittings, reload and lost responses.
 - Practice: configurable, schedule-free, persistent per Deck.
 - Writable Folders/Decks/Notes, import with resume and undo, soft deletion with Deleted/Restore.
+- Library Find Notes searches across live Decks and names their locations. Search, filters, sort and
+  list position survive a visit to the Note editor. Complete downloaded collections support local
+  search, with the same query retained when the account reconnects.
+- Library Tags & Sources discovers exact saved values with live Note counts and opens the existing
+  filtered Note browser. Online aggregation is bounded and account-scoped. A complete download counts
+  the same local Note projection, including device-saved work, with explicit synchronization provenance.
+- Possible duplicates (#80) adds read-only normalized-term groups beside Tags & Sources (#79).
+  Both retain their Library entries, editor return state and complete-download projection. Groups and
+  members use bounded account-scoped reads; inspection changes no Note, Card or Review identity.
+- Library Find Folders & Decks searches collection names at every depth, including collapsed Folders.
+  Results show kind and full location; opening a collection and returning keeps the query, measured
+  list position and keyboard focus. A complete download supports immediate offline search. Pending
+  creations keep their saved-on-device identity and cannot open dependencies before synchronization.
+- Deleted searches Note content and original locations or collection names and hierarchy. Recovery
+  retains supporting ancestors, parent requirements and permanent-deletion confirmation. Large lists
+  use measured virtual rows with keyboard and dialog continuity.
 - Offline: a complete downloaded collection browses, renames, edits existing Notes and plans Study
   locally. Answers, renames and Note edits travel through account-bound outboxes with exact retries and
   retained conflicts. Practice runs offline with durable ordered delivery and explicit two-device
@@ -32,6 +50,13 @@ ships from `work/learning-waves`. The product has:
   inside each wave. The time-based throttle still decides how many start. The Deck screen shows the
   current wave, what Study lets in today or why it lets in none, when the next wave starts and what waits
   after it; Today's rows name the wave instead of every new Note.
+
+Recent Notes (#81) adds Recently added (`createdAt`) and Recently changed (`updatedAt`) to Library's
+existing Note browser, with dates, locations, filters and editor return. Migration 0019 adds read indexes
+with no-wait locking and local execution/idle limits; runtime schema compatibility alone does not prove
+these indexes were applied, so release verification also checks their journal hash and validity.
+The category/duplicate journey commits its search and waits for Note rows before opening the editor.
+Installed-iPhone acceptance remains open. See `recent-notes.md` for semantics and acceptance steps.
 
 Not built: offline Import application, rank-ordered waves, Phase 9 progressive directions and the
 problem-card area, Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
@@ -65,6 +90,13 @@ installed-iPhone acceptance.
 1. Installed-iPhone acceptance of the integrated release: the scenarios in "Acceptance on the iPhone"
    below, then the quality pass and earlier offline features (screen and card motion, folders and
    disclosures, Study start after a setup change, offline Practice on two devices, offline Import drafts).
+   Include Deleted search, category choices, long-list scrolling, parent-dependent restore and purge
+   confirmation. Include Find Notes filters, editor return, downloaded results and reconnection.
+   Include collection search with duplicate names, long paths, collection return and offline results.
+   Include Tags & Sources counts, long values, keyboard/Back return, pending Note tags and creations,
+   reconnection and account switching. Browser results do not replace installed-device acceptance.
+   Include Possible duplicates alongside categories: cross-Deck terms, editor return, local edits,
+   pending Notes, reconnection and account switching. See `possible-duplicates.md`.
 2. Rank order for waves. Waves follow file order today; a frequency list imported out of order would
    need waves by its rank column, which is a per-Deck choice for the owner.
 3. Phase 9 continues: progressive directions from demonstrated stability, then the problem-card area.
@@ -87,6 +119,17 @@ installed-iPhone acceptance.
 
 ## Open threads
 
+- Practice/search interaction repair (#84, `7b6db0c`) is on protected `main`.
+  It retains synchronous search drafts and search scroll position, adds Practice keyboard/focus support
+  and guards the local intent/acknowledgement race, including Recent Notes #81 and its follow-up #83.
+  Browser keyboard geometry cannot replace Home Screen iPhone/VoiceOver acceptance; performance
+  evidence and remaining limits are in `interaction-performance.md`.
+
+- Preliminary offline duplicate keys retain the inherited UTF-16 prefix difference from PostgreSQL
+  for very long supplementary-Unicode terms. Server groups remain authoritative; see
+  `possible-duplicates.md`. The existing normalization and Import contract are unchanged.
+- PR #71 User Data Export and PR #74 Large Import Hardening remain outside this integration pass for
+  separate critical review.
 - Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.
   Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue.
 - Local new-card admission offline is conservative over the last complete download and this device's

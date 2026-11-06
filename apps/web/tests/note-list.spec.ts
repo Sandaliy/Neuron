@@ -1,6 +1,297 @@
 import { expect, test } from '@playwright/test';
 
-import { manyNotes, useFixtures, usePreferences } from './fixtures';
+import {
+  manyDecks,
+  manyNotes,
+  useFixtures as installFixtures,
+  usePreferences as installPreferences,
+} from './fixtures';
+import { installRecentFixture } from './recent-fixture';
+import { continuousSearch } from './search-interaction';
+
+import type { Page, Route } from '@playwright/test';
+
+test('Recent Notes opens restrained Library choices, dates and locations and retains filters and editor return', async ({
+  page,
+}, info) => {
+  const { requests } = await installRecentFixture(page);
+  await page.goto('/library');
+  await page.getByRole('button', { name: 'Recent Notes', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Recently added', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Recent Notes', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue(
+    'created-desc',
+  );
+  await expect(page.getByRole('button', { name: /^Wort 2 word 2/ })).toBeVisible();
+  await expect(page.locator('time').first()).toHaveAttribute(
+    'datetime',
+    '2026-11-01T00:00:00.000Z',
+  );
+  await expect(page.getByText('Deck 2', { exact: true }).first()).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath('recent-notes-added.png'),
+    animations: 'disabled',
+  });
+  await page.getByRole('combobox', { name: 'Order', exact: true }).selectOption('updated-desc');
+  await expect(page.getByRole('button', { name: /^Wort 6500 word 6500/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page
+    .getByRole('combobox', { name: 'Study participation', exact: true })
+    .selectOption('known');
+  await page.getByRole('combobox', { name: 'Tag or topic', exact: true }).fill('recent');
+  await page.getByRole('textbox', { name: 'Import source name', exact: true }).fill('Lesson');
+  await page.getByRole('searchbox', { name: 'Search', exact: true }).fill('word');
+  await page.getByRole('searchbox', { name: 'Search', exact: true }).press('Enter');
+  await expect.poll(() => requests.at(-1)?.searchParams.get('source')).toBe('Lesson');
+  await expect.poll(() => requests.at(-1)?.searchParams.get('search')).toBe('word');
+  await page.evaluate(() => window.scrollTo(0, 4000));
+  const visibleTerm = () =>
+    page.evaluate(
+      () =>
+        Array.from(document.querySelectorAll<HTMLButtonElement>('[data-rows] button'))
+          .find((node) => {
+            const rect = node.getBoundingClientRect();
+            return (
+              node.textContent?.startsWith('Wort') &&
+              rect.top > 60 &&
+              rect.bottom < innerHeight - 90
+            );
+          })
+          ?.innerText.split('\n')[0],
+    );
+  await expect.poll(visibleTerm).toBeTruthy();
+  const term = (await visibleTerm())!;
+  const target = page.getByRole('button', { name: new RegExp('^' + term + ' ') });
+  const before = await page.evaluate(() => scrollY);
+  await target.click();
+  await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Recent Notes', exact: true }).click();
+  await expect(page.getByRole('searchbox', { name: 'Search', exact: true })).toHaveValue('word');
+  await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue(
+    'updated-desc',
+  );
+  await expect(
+    page.getByRole('combobox', { name: 'Study participation', exact: true }),
+  ).toHaveValue('known');
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'recent',
+  );
+  await expect
+    .poll(() => page.evaluate((offset) => Math.abs(scrollY - offset), before))
+    .toBeLessThan(110);
+  await expect(target).toBeVisible();
+  expect(await page.locator('[data-rows] button').count()).toBeLessThan(80);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('recent changed pagination captures ties, survives a changing boundary and refreshes newer work', async ({
+  page,
+}) => {
+  const { notes, requests } = await installRecentFixture(page);
+  await page.goto('/notes?recent=changed');
+  await expect(page.getByRole('button', { name: /^Wort 6500 word 6500/ })).toBeVisible();
+  notes[5500]!.updatedAt = '2026-11-03T00:00:00.000Z';
+  await page.evaluate(() => window.scrollTo(0, 97_000));
+  await expect
+    .poll(() => requests.filter((url) => url.searchParams.has('cursor')).length)
+    .toBeGreaterThan(0);
+  expect(requests.every((url) => url.searchParams.get('limit') === '1000')).toBe(true);
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Wort 5501 word 5501/ })).toBeVisible();
+  expect(await page.locator('[data-rows] button').count()).toBeLessThan(80);
+});
+
+async function installCategoriesFixture(page: Page) {
+  const notes = manyNotes(6000).map((note, index) => ({
+    ...note,
+    deckId: `deck_${index % 60}`,
+    rank: index,
+    tags: ['shared', 'shared', `topic ${String(index % 320).padStart(3, '0')}`],
+    source: index % 2 ? 'Course' : 'course',
+  }));
+  const requests: URL[] = [];
+  await installPreferences(page, { theme: 'dark', locale: 'en', glass: 'off' });
+  await installFixtures(page, {
+    notes: [],
+    decks: manyDecks(60).map((deck, index) => ({ ...deck, id: `deck_${index}` })),
+  });
+  await page.route('**/api/notes/categories?*', async (route) => {
+    const url = new URL(route.request().url());
+    requests.push(url);
+    const params = url.searchParams;
+    const counts = new Map<string, number>();
+    for (const note of notes)
+      for (const value of params.get('kind') === 'tag' ? new Set(note.tags) : [note.source])
+        if (value.toLowerCase().includes(params.get('search')?.toLowerCase() ?? ''))
+          counts.set(value, (counts.get(value) ?? 0) + 1);
+    const all = [...counts]
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([value, count]) => ({ value, count }));
+    const after = all.filter((row) => !params.has('cursor') || row.value > params.get('cursor')!);
+    const items = after.slice(0, 100);
+    await route.fulfill({
+      json: {
+        items,
+        total: all.length,
+        ...(after.length > 100 ? { nextCursor: items.at(-1)!.value } : {}),
+      },
+    });
+  });
+  await page.route('**/api/notes?*', async (route) => {
+    const url = new URL(route.request().url());
+    requests.push(url);
+    const params = url.searchParams;
+    const matching = notes.filter(
+      (note) =>
+        (!params.has('tag') || note.tags.includes(params.get('tag')!)) &&
+        (!params.has('source') || note.source === params.get('source')) &&
+        (!params.has('search') ||
+          JSON.stringify(note.fields).toLowerCase().includes(params.get('search')!.toLowerCase())),
+    );
+    const offset = Number(params.get('cursor') ?? 0);
+    await route.fulfill({
+      json: {
+        items: matching.slice(offset, offset + 1000),
+        ...(offset + 1000 < matching.length ? { nextCursor: String(offset + 1000) } : {}),
+      },
+    });
+  });
+  await page.route(/\/api\/notes\/note_\d+$/, (route) =>
+    route.fulfill({
+      json: {
+        note: notes.find((note) => route.request().url().endsWith(`/${note.id}`)),
+        cards: [],
+      },
+    }),
+  );
+  return { notes, requests };
+}
+
+test('Tags & Sources opens exact Note filters and preserves search, sort and Back state', async ({
+  page,
+}, info) => {
+  const { requests } = await installCategoriesFixture(page);
+  await page.goto('/library');
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(page.getByText('Shown: 100 of 321', { exact: true })).toBeVisible();
+  expect(requests.every((url) => url.pathname.endsWith('/categories'))).toBe(true);
+  await page.screenshot({ path: info.outputPath('tags-sources.png'), animations: 'disabled' });
+  await page.getByRole('button', { name: 'shared Notes: 6000', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'shared',
+  );
+  const search = page.getByRole('searchbox', { name: 'Search', exact: true });
+  await search.fill('word');
+  await page.getByRole('combobox', { name: 'Order', exact: true }).selectOption('rank');
+  await expect
+    .poll(() =>
+      requests
+        .filter((url) => url.pathname.endsWith('/notes'))
+        .at(-1)
+        ?.searchParams.get('sort'),
+    )
+    .toBe('rank');
+  await page.getByRole('button', { name: /^Wort 1 word 1/ }).click();
+  await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await expect(search).toHaveValue('word');
+  await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue('rank');
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'shared',
+  );
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await page.getByText('Sources', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Course Notes: 3000', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'course Notes: 3000', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Course Notes: 3000', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Import source name', exact: true })).toHaveValue(
+    'Course',
+  );
+  await expect(page.getByRole('button', { name: /^Wort 2 word 2/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Wort 1 word 1/ })).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Import source name', exact: true }).fill('course');
+  await expect(page.getByRole('button', { name: /^Wort 1 word 1/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await page.getByRole('button', { name: 'Course Notes: 3000', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Import source name', exact: true })).toHaveValue(
+    'Course',
+  );
+});
+
+test('category pagination and keyboard return keep a measured, bounded mobile list', async ({
+  page,
+}) => {
+  const { requests } = await installCategoriesFixture(page);
+  await page.goto('/library/categories');
+  const search = page.getByRole('searchbox', { name: 'Search tags and sources', exact: true });
+  expect(await search.evaluate((node) => getComputedStyle(node).fontSize)).toBe('16px');
+  await search.fill('topic');
+  await search.press('Enter');
+  await expect(search).not.toBeFocused();
+  await expect(page.getByText('Shown: 100 of 320', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Show more', exact: true }).click();
+  await expect(page.getByText('Shown: 200 of 320', { exact: true })).toBeVisible();
+  expect(requests.some((url) => url.searchParams.get('cursor') === 'topic 099')).toBe(true);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const row = page.getByRole('button', { name: /^topic 199 Notes:/ });
+  await row.focus();
+  await row.press('Enter');
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'topic 199',
+  );
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(search).toHaveValue('topic');
+  await expect(row).toBeFocused();
+  expect(await page.getByRole('listitem').count()).toBeLessThan(40);
+  await search.fill('missing category');
+  await search.press('Enter');
+  await expect(page.getByText('No matching categories', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('long saved sources and padded tags remain exact and wrap on a phone', async ({
+  page,
+}, info) => {
+  const { notes, requests } = await installCategoriesFixture(page);
+  const source = ` ${'Very long source '.repeat(11)}`.slice(0, 199) + ' ';
+  notes[0]!.source = source;
+  notes[0]!.tags = [' padded tag '];
+  for (let i = 1; i < notes.length; i++)
+    notes[i]!.source = `local:${String(i % 320).padStart(3, '0')}`;
+  await page.goto('/library/categories');
+  await page.getByText('Sources', { exact: true }).click();
+  await page.getByRole('searchbox').fill('Very long');
+  await expect(page.getByRole('button', { name: /Very long source.*Notes: 1/ })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('long-source.png'), animations: 'disabled' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: /Very long source.*Notes: 1/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Import source name', exact: true })).toHaveValue(
+    source,
+  );
+  await expect
+    .poll(() =>
+      requests
+        .filter((url) => url.pathname.endsWith('/notes'))
+        .at(-1)
+        ?.searchParams.get('source'),
+    )
+    .toBe(source);
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await page.getByText('Tags', { exact: true }).click();
+  await page.getByRole('searchbox').fill('padded');
+  await page.getByRole('button', { name: 'padded tag Notes: 1', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    ' padded tag ',
+  );
+  await expect(page.getByRole('button', { name: /^Wort 1 word 1/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await page.getByText('Sources', { exact: true }).click();
+  await page.getByRole('searchbox').fill('local:');
+  await expect(page.getByText('Shown: 100 of 320', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Show more', exact: true }).click();
+  await expect(page.getByText('Shown: 200 of 320', { exact: true })).toBeVisible();
+  expect(requests.some((url) => url.searchParams.get('cursor') === 'local:099')).toBe(true);
+});
 
 for (const theme of ['dark', 'light']) {
   test(`virtual notes keep selection and refresh content in ${theme}`, async ({ page }) => {
@@ -15,8 +306,8 @@ for (const theme of ['dark', 'light']) {
       statusRequested = resolve;
     });
 
-    await usePreferences(page, { theme, locale: 'en', glassScope: 'floating' });
-    await useFixtures(page, { notes });
+    await installPreferences(page, { theme, locale: 'en', glassScope: 'floating' });
+    await installFixtures(page, { notes });
     await page.route('**/api/notes/status', async (route) => {
       expect(route.request().postDataJSON()).toEqual({ ids: ['note_0'], status: 'known' });
       statusRequested();
@@ -99,8 +390,8 @@ test('source filtering and card summaries stay bounded', async ({ page }) => {
   };
   const requests: URL[] = [];
 
-  await usePreferences(page, { theme: 'dark', locale: 'en', glassScope: 'floating' });
-  await useFixtures(page, { notes: [] });
+  await installPreferences(page, { theme: 'dark', locale: 'en', glassScope: 'floating' });
+  await installFixtures(page, { notes: [] });
   await page.route('**/api/notes?*', async (route) => {
     const url = new URL(route.request().url());
     requests.push(url);
@@ -155,4 +446,300 @@ test('source filtering and card summaries stay bounded', async ({ page }) => {
   expect(requests.some((request) => request.searchParams.get('source') === null)).toBe(true);
   expect(requests.every((request) => request.pathname === '/api/notes')).toBe(true);
   expect(requests.length).toBeLessThan(8);
+});
+
+/** A paginated account, with identical Deck names under different Folders. */
+async function installFindNotesFixture(page: Page, count = 6000) {
+  const leaves = manyDecks(60).map((deck, index) => ({
+    ...deck,
+    name: `Lesson ${index + 1}`,
+    parentId: index % 2 ? 'nested' : 'root',
+    path: index % 2 ? ['root', 'nested'] : ['root'],
+  }));
+  const root = {
+    ...leaves[0],
+    id: 'root',
+    kind: 'folder',
+    name: 'Languages',
+    parentId: null,
+    path: [],
+    children: [
+      {
+        ...leaves[0],
+        id: 'nested',
+        kind: 'folder',
+        name: 'German',
+        parentId: 'root',
+        path: ['root'],
+        children: leaves.filter((_, at) => at % 2),
+      },
+      ...leaves.filter((_, at) => at % 2 === 0),
+    ],
+  };
+  const notes = manyNotes(count).map((note, index) => ({
+    ...note,
+    deckId: `deck_${index % 60}`,
+    rank: index,
+    tags: ['lesson'],
+    source: 'Frequency list',
+  }));
+  await installPreferences(page, { theme: 'dark', locale: 'en', glass: 'off' });
+  await installFixtures(page, { notes: [], decks: [root] });
+  const requests: URL[] = [];
+  const state = { hold: false, held: undefined as Route | undefined };
+  await page.route('**/api/notes?*', async (route) => {
+    const url = new URL(route.request().url());
+    requests.push(url);
+    if (state.hold) {
+      state.held = route;
+      return;
+    }
+    const query = url.searchParams;
+    const matching = notes.filter((note) => {
+      const search = query.get('search')?.toLowerCase();
+      return (
+        (!search || JSON.stringify(note.fields).toLowerCase().includes(search)) &&
+        (!query.has('tag') || query.get('tag') === 'lesson') &&
+        (!query.has('source') || query.get('source') === 'Frequency list') &&
+        (!query.has('status') || query.get('status') === 'active')
+      );
+    });
+    const offset = Number(query.get('cursor') ?? 0);
+    await route.fulfill({
+      json: {
+        items: matching.slice(offset, offset + 1000),
+        ...(offset + 1000 < matching.length ? { nextCursor: String(offset + 1000) } : {}),
+      },
+    });
+  });
+  await page.route(/\/api\/notes\/note_\d+$/, (route) => {
+    const note = notes.find((note) => route.request().url().endsWith(`/${note.id}`));
+    return route.fulfill({ json: { note, cards: [] } });
+  });
+  return { requests, state };
+}
+
+test('Find Notes searches every Deck and returns with filters, sorting and list position intact', async ({
+  page,
+}, info) => {
+  const { requests } = await installFindNotesFixture(page);
+  await page.goto('/library?folderId=nested');
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Find Notes', exact: true })).toBeVisible();
+  const search = page.getByRole('searchbox', { name: 'Search', exact: true });
+  await search.fill('word');
+  await expect.poll(() => requests.at(-1)?.searchParams.get('search')).toBe('word');
+  await expect(
+    page.getByRole('button', { name: /^Wort 1 word 1 · Lesson 1 · Languages/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /^Wort 2 word 2 · Lesson 2 · Languages \/ German/ }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath('find-notes-results.png'),
+    animations: 'disabled',
+  });
+  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByRole('combobox', { name: 'Study participation' }).selectOption('active');
+  await page.getByRole('combobox', { name: 'Card progress' }).selectOption('new');
+  await page.getByRole('combobox', { name: 'Order' }).selectOption('rank');
+  await page.getByRole('combobox', { name: 'Tag or topic', exact: true }).fill('lesson');
+  await page
+    .getByRole('textbox', { name: 'Import source name', exact: true })
+    .fill('Frequency list');
+  await expect.poll(() => requests.at(-1)?.searchParams.get('source')).toBe('Frequency list');
+  expect(requests.at(-1)?.searchParams.get('deckId')).toBeNull();
+  expect(requests.every((url) => url.searchParams.get('limit') === '1000')).toBe(true);
+  await page.screenshot({ path: info.outputPath('find-notes.png'), animations: 'disabled' });
+  await expect(search).not.toHaveAttribute('aria-busy', 'true');
+  await page.evaluate(() => window.scrollTo(0, 4000));
+  const visibleTerm = () =>
+    page.locator('[data-rows] [data-row]').evaluateAll((rows) => {
+      const row = rows.find((node) => {
+        const box = node.getBoundingClientRect();
+        return box.top >= 0 && box.bottom < innerHeight - 120;
+      });
+      return row?.querySelector('span span')?.textContent;
+    });
+  await expect.poll(visibleTerm).not.toBe('Wort 1');
+  await expect.poll(visibleTerm).toBeTruthy();
+  const term = await visibleTerm();
+  expect(term).toBeTruthy();
+  const position = await page.evaluate(() => scrollY);
+  await page.getByRole('button', { name: new RegExp(`^${term} word`) }).click();
+  await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await expect(search).toHaveValue('word');
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'lesson',
+  );
+  await expect(page.getByRole('textbox', { name: 'Import source name', exact: true })).toHaveValue(
+    'Frequency list',
+  );
+  await expect(page.getByRole('combobox', { name: 'Study participation' })).toHaveValue('active');
+  await expect(page.getByRole('combobox', { name: 'Card progress' })).toHaveValue('new');
+  await expect(page.getByRole('combobox', { name: 'Order' })).toHaveValue('rank');
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(position, 0);
+  const reopened = page.getByRole('button', { name: new RegExp(`^${term} word`) });
+  await reopened.click({ trial: true });
+  const secondPosition = await page.evaluate(() => scrollY);
+  await reopened.click();
+  await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(search).toHaveValue('word');
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(secondPosition, 0);
+  expect(await page.locator('[data-rows] [data-row]').count()).toBeLessThan(60);
+  // Fetch further pages only as the learner reaches the existing boundary.
+  await page.evaluate(() => window.scrollTo(0, 75_000));
+  await expect
+    .poll(() => requests.some((url) => url.searchParams.get('cursor') === '1000'))
+    .toBe(true);
+});
+
+test('Find Notes stays usable during slow and empty searches and supports the phone keyboard', async ({
+  page,
+}) => {
+  const { requests, state } = await installFindNotesFixture(page, 3);
+  state.hold = true;
+  await page.goto('/notes');
+  const search = page.getByRole('searchbox', { name: 'Search', exact: true });
+  await expect(search).toBeVisible();
+  await search.focus();
+  expect(await search.evaluate((node) => getComputedStyle(node).fontSize)).toBe('16px');
+  await expect(search).toHaveAttribute('enterkeyhint', 'search');
+  await expect(search).toHaveAttribute('maxlength', '100');
+  await search.pressSequentially('absent', { delay: 25 });
+  await expect(search).toHaveValue('absent');
+  await expect.poll(() => requests.at(-1)?.searchParams.get('search')).toBe('absent');
+  expect(
+    requests
+      .filter((url) => url.searchParams.has('search'))
+      .map((url) => url.searchParams.get('search')),
+  ).toEqual(['absent']);
+  await expect(search).toBeFocused();
+  await expect(page.getByRole('status').filter({ hasText: 'Updating' })).toBeVisible();
+  state.hold = false;
+  await state.held!.fulfill({ json: { items: [] } });
+  await expect(page.getByText('Nothing matches', { exact: true })).toBeVisible();
+  await expect(search).toBeFocused();
+  await page.setViewportSize({ width: 375, height: 420 });
+  await search.fill('word 2');
+  await search.press('Enter');
+  await expect(search).not.toBeFocused();
+  await expect(page.getByRole('button', { name: /^Wort 2 word 2/ })).toBeVisible();
+  await search.focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('combobox', { name: 'Order' })).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: /^Clear/ }).click();
+  await expect(search).toHaveValue('');
+  await expect(page.getByRole('button', { name: /^Wort 1 word 1/ })).toBeVisible();
+});
+
+for (const path of [
+  '/notes',
+  '/notes?deckId=d3',
+  '/notes?recent=added',
+  '/notes?recent=changed',
+  '/library/find',
+  '/library/categories',
+  '/library/duplicates',
+  '/library/deleted',
+]) {
+  test(`continuous search keeps focus and the screen at ${path}`, async ({ page }) => {
+    await installPreferences(page, { locale: 'en', theme: 'dark' });
+    if (path.includes('recent=')) await installRecentFixture(page);
+    else await installFixtures(page, { notes: manyNotes(1000) });
+    await page.route('**/api/notes/categories?*', (route) =>
+      route.fulfill({ json: { items: [], total: 0 } }),
+    );
+    await continuousSearch(
+      page,
+      await (async () => {
+        await page.goto(path);
+        return page.getByRole('searchbox').first();
+      })(),
+      'Wort',
+    );
+  });
+}
+
+test('slow superseded search responses never interrupt editing or replace the newer results', async ({
+  page,
+}) => {
+  await installPreferences(page, { locale: 'en', theme: 'dark' });
+  const notes = manyNotes(6000);
+  await installFixtures(page, { notes: [], collectionDownload: false });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/notes?*', async (route) => {
+    const search = new URL(route.request().url()).searchParams.get('search') ?? '';
+    if (search === 'Wort') await held;
+    const matches = notes.filter((note) =>
+      String((note.fields as Record<string, unknown>).term).includes(search),
+    );
+    await route.fulfill({ json: { items: matches.slice(0, 50) } }).catch(() => {});
+  });
+  await page.goto('/notes');
+  const input = page.getByRole('searchbox');
+  const pending = page.waitForRequest(
+    (request) => new URL(request.url()).searchParams.get('search') === 'Wort',
+  );
+  await continuousSearch(page, input, 'Wort');
+  await pending;
+  await page.keyboard.type(' 2999');
+  await expect(page.getByRole('button', { name: /^Wort 2999 word 2999/ })).toBeVisible();
+  release();
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue('Wort 2999');
+  await expect(page.getByRole('button', { name: /^Wort 1 word 1/ })).toHaveCount(0);
+  await input.press('ControlOrMeta+A');
+  await input.press('Backspace');
+  await page.keyboard.type('Wort 12');
+  await expect(input).toBeFocused();
+  await expect(page.getByRole('button', { name: /^Wort 12 word 12/ })).toBeVisible();
+});
+
+test('empty search results preserve the focused field position after native focus scrolling', async ({
+  page,
+}) => {
+  await installPreferences(page, { locale: 'en', theme: 'dark' });
+  await installFixtures(page, { notes: manyNotes(1000), collectionDownload: false });
+  await page.route('**/api/notes?*', (route) =>
+    route.fulfill({
+      json: {
+        items: new URL(route.request().url()).searchParams.has('search') ? [] : manyNotes(1000),
+      },
+    }),
+  );
+  await page.goto('/notes?deckId=d3');
+  const input = page.getByRole('searchbox');
+  await input.click();
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--keyboard-inset', '336px');
+    document.documentElement.dataset['keyboard'] = 'open';
+  });
+  await input.evaluate((node) =>
+    window.scrollTo(0, node.getBoundingClientRect().top + scrollY - 24),
+  );
+  const top = (await input.boundingBox())!.y;
+  await page.keyboard.type('no matches');
+  await expect(page.getByText('Nothing matches', { exact: true })).toBeVisible();
+  await expect(input).toBeFocused();
+  // Safari pans its visual viewport independently while the keyboard remains open.
+  await page.evaluate(() => {
+    Object.defineProperty(window.visualViewport!, 'height', {
+      configurable: true,
+      value: innerHeight - 336,
+    });
+    Object.defineProperty(window.visualViewport!, 'offsetTop', { configurable: true, value: 200 });
+    window.visualViewport!.dispatchEvent(new Event('resize'));
+  });
+  await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'open');
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  expect(Math.abs((await input.boundingBox())!.y - top)).toBeLessThan(2);
 });

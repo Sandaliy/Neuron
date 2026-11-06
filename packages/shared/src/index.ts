@@ -178,9 +178,19 @@ export type {
 } from './api/decks.js';
 
 export {
+  isRecentNoteSort,
+  compareRecentNotes,
+  recentNoteTime,
+  recentNoteCursor,
+  readRecentNoteCursor,
+} from './note-recency.js';
+export type { RecentNoteSort } from './note-recency.js';
+
+export {
   BULK_LIMIT,
   MAX_NOTE_PAGE_SIZE,
   NOTE_SORTS,
+  NOTE_BROWSE_SORTS,
   bulkDeleteSchema,
   bulkMoveSchema,
   bulkStatusSchema,
@@ -190,15 +200,34 @@ export {
   deletedNoteSchema,
   createNoteSchema,
   listNotesSchema,
+  noteCategoryQuerySchema,
+  noteCategoryPageSchema,
   noteLimitSchema,
   noteSchema,
   noteSortSchema,
+  noteBrowseSortSchema,
   updateNoteSchema,
   editOfflineNoteCommandSchema,
   editOfflineNoteResultSchema,
   createOfflineNoteCommandSchema,
   createOfflineNoteResultSchema,
 } from './api/notes.js';
+export {
+  possibleDuplicateGroupsQuerySchema,
+  possibleDuplicateNotesQuerySchema,
+  possibleDuplicateGroupSchema,
+  possibleDuplicateNoteSchema,
+  possibleDuplicateGroupsPageSchema,
+  possibleDuplicateNotesPageSchema,
+} from './api/possible-duplicates.js';
+export type {
+  PossibleDuplicateGroup,
+  PossibleDuplicateNote,
+  PossibleDuplicateGroupsQuery,
+  PossibleDuplicateNotesQuery,
+  PossibleDuplicateGroupsPage,
+  PossibleDuplicateNotesPage,
+} from './api/possible-duplicates.js';
 export type {
   BulkDeleteBody,
   BulkMoveBody,
@@ -208,8 +237,11 @@ export type {
   DeletedNote,
   CreateNoteBody,
   ListNotesQuery,
+  NoteCategoryQuery,
+  NoteCategoryPage,
   Note,
   NoteSort,
+  NoteBrowseSort,
   UpdateNoteBody,
   EditOfflineNoteCommand,
   EditOfflineNoteResult,

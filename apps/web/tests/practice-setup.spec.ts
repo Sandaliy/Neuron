@@ -589,3 +589,207 @@ test('an active Practice view stays mounted while an offline step is saved and l
   await expect(page.locator('[data-retained-practice="true"]')).toBeVisible();
   await expect(progress).not.toHaveAttribute('aria-valuenow', '0');
 });
+
+test('large Practice typing measures input to paint at 4x CPU', async ({
+  page,
+  browserName,
+}, info) => {
+  test.skip(
+    browserName !== 'chromium' || info.project.name !== 'phone-interaction',
+    'Controlled Chromium phone measurement',
+  );
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  const pool = Array.from({ length: 5000 }, (_, index) => ({
+    ...notes[0]!,
+    id: id(100 + index),
+    fields: { term: `Word ${index}`, translation: `Meaning ${index}` },
+  }));
+  await useFixtures(page, { decks: [deck], notes: pool });
+  let run: PracticeRun | null = null;
+  let version = 0;
+  await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+    if (route.request().method() === 'POST') {
+      run = advancePractice(run, route.request().postDataJSON(), pool);
+      version++;
+    }
+    return route.fulfill({ json: { run, version } });
+  });
+  await page.goto(`/notes?deckId=${deck.id}&learning=practice&entry=setup`);
+  await page.getByRole('combobox', { name: 'Response mode', exact: true }).selectOption('typing');
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+  const session = await page.context().newCDPSession(page);
+  await session.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await page.evaluate(() => {
+    const times: number[] = [];
+    Object.assign(window, { practiceInputTimes: times });
+    document.addEventListener(
+      'input',
+      () => {
+        const at = performance.now();
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => times.push(performance.now() - at)),
+        );
+      },
+      true,
+    );
+  });
+  for (const char of 'performance12345') {
+    await page.keyboard.type(char);
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+  }
+  const times = await page.evaluate(
+    () => (window as unknown as { practiceInputTimes: number[] }).practiceInputTimes,
+  );
+  await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  await session.detach();
+  console.log('Practice input to paint, 5000 Notes, 4x CPU:', JSON.stringify(times));
+  await info.attach('practice-input-latency', {
+    body: JSON.stringify(times),
+    contentType: 'application/json',
+  });
+  expect([...times].sort((a, b) => a - b)[Math.floor(times.length * 0.95)]).toBeLessThan(100);
+});
+
+for (const mode of ['reveal', 'typing', 'listening'] as const) {
+  for (const entry of ['deck', 'study-followup'] as const) {
+    test(`Practice keyboard and focus: ${mode}, ${entry}`, async ({ page }, info) => {
+      await usePreferences(page, { locale: 'en', theme: 'dark' });
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await useSpeech(page);
+      const pool = notes.slice(0, 2);
+      await useFixtures(page, { decks: [deck], notes: pool });
+      const writes: string[] = [];
+      page.on('request', (request) => {
+        if (request.method() !== 'GET') writes.push(new URL(request.url()).pathname);
+      });
+      let run: PracticeRun | null = advancePractice(
+        null,
+        {
+          kind: 'start',
+          id: id(80),
+          runId: id(81),
+          expectedVersion: 0,
+          front: 'term',
+          back: 'translation',
+          response: mode,
+        },
+        pool,
+      );
+      let version = 1;
+      await page.route(`**/api/decks/${deck.id}/practice`, (route) => {
+        if (route.request().method() === 'POST') {
+          run = advancePractice(run, route.request().postDataJSON(), pool);
+          version++;
+        }
+        return route.fulfill({ json: { run, version } });
+      });
+      const url =
+        entry === 'deck'
+          ? `/notes?deckId=${deck.id}&learning=practice&entry=resume`
+          : `/?learning=study&followup=practice&practiceDeck=${deck.id}`;
+      await page.goto(url);
+      if (entry === 'study-followup')
+        await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
+      const question = page.getByRole('group', { name: 'Question', exact: true });
+      const answer = page.getByRole('group', { name: 'Answer', exact: true });
+      await expect(question).toBeFocused();
+      await expect(question).toHaveAccessibleDescription(/Round 1/);
+      if (mode !== 'listening') await expect(question).toHaveAccessibleDescription(/Sorgfalt/);
+      else await expect(question).not.toHaveAccessibleDescription(/Sorgfalt/);
+      for (const combination of ['Control+Space', 'Alt+Space', 'Shift+Space'])
+        await page.keyboard.press(combination);
+      await question.evaluate((node) =>
+        node.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            code: 'Space',
+            key: ' ',
+            bubbles: true,
+            isComposing: true,
+          }),
+        ),
+      );
+      await expect(answer).toHaveCount(0);
+      if (mode !== 'reveal') {
+        await page.getByRole('button', { name: 'Type your answer', exact: true }).click();
+        const field = page.getByRole('textbox', { name: 'Type your answer', exact: true });
+        await page.keyboard.type('12u');
+        await expect(field).toHaveValue('12u');
+        await expect(field).toBeFocused();
+        await field.press('Enter');
+      } else {
+        await page.keyboard.down('Space');
+        await page.keyboard.down('Space');
+        await page.keyboard.up('Space');
+      }
+      await expect(answer).toBeFocused();
+      await expect(
+        page.getByRole('button', { name: 'Still learning', exact: true }),
+      ).toHaveAttribute('aria-keyshortcuts', '1');
+      // One held response classifies exactly one Note, and must not reveal the next.
+      await page.keyboard.down('1');
+      await page.keyboard.down('1');
+      await page.keyboard.up('1');
+      await expect(question).toBeFocused();
+      await expect(page.locator('.neu-practice-progress strong')).toHaveText(['1', '0']);
+      await expect(answer).toHaveCount(0);
+      await expect(
+        page.getByRole('button', { name: 'Undo last answer', exact: true }),
+      ).toBeEnabled();
+      await page.keyboard.press('u');
+      await expect(question).toBeFocused();
+      await expect(page.locator('.neu-practice-progress strong')).toHaveText(['0', '0']);
+      for (let index = 0; index < 2; index++) {
+        await expect(page.getByRole('button', { name: 'Show answer', exact: true })).toBeEnabled();
+        await page.keyboard.press('Space');
+        await expect(answer).toBeFocused();
+        await page.keyboard.press('2');
+        if (index === 0) await expect(question).toBeFocused();
+      }
+      await expect(
+        page.getByRole('group', { name: 'Practice complete', exact: true }),
+      ).toBeFocused();
+      await expect(
+        page.getByRole('button', { name: 'Undo last answer', exact: true }),
+      ).toBeEnabled();
+      await page.keyboard.press('u');
+      await expect(question).toBeFocused();
+      await expect(page.locator('.neu-practice-progress strong')).toHaveText(['0', '1']);
+      await waitForPracticeSave(page);
+      expect(
+        writes
+          .filter((path) => path !== '/api/study/session')
+          .every((path) => path.endsWith('/practice')),
+      ).toBe(true);
+      await expect(page.getByRole('button', { name: 'Show answer', exact: true })).toBeEnabled();
+      await page.screenshot({ path: info.outputPath(`practice-${mode}-${entry}.png`) });
+    });
+  }
+}
+
+test('Practice settings dialogs own keyboard navigation and restore focus after cancellation', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [deck], notes });
+  await page.route(`**/api/decks/${deck.id}/practice`, (route) =>
+    route.fulfill({ json: { run: null, version: 0 } }),
+  );
+  await page.goto(`/notes?deckId=${deck.id}&learning=practice&entry=setup`);
+  const fields = page
+    .getByText('Question field', { exact: true })
+    .locator('..')
+    .getByRole('button');
+  await fields.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('1');
+  await page.keyboard.press('u');
+  await page.keyboard.press('Tab');
+  expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(fields).toBeFocused();
+  await expect(page.getByRole('group', { name: 'Answer', exact: true })).toHaveCount(0);
+});

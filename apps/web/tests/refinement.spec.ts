@@ -28,7 +28,12 @@ test('collection creation separates acknowledgement from refresh latency', async
   let created: Record<string, unknown> | undefined;
   let acknowledgedMs = 0;
   let started = 0;
+  let refreshRequested = false;
   let refreshed = false;
+  let releaseRefresh!: () => void;
+  const refreshHeld = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
   await page.route('**/api/decks', async (route) => {
     if (route.request().method() === 'POST') {
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -37,7 +42,8 @@ test('collection creation separates acknowledgement from refresh latency', async
       await route.fulfill({ json: { deck: created } });
     } else {
       if (created) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        refreshRequested = true;
+        await refreshHeld;
         refreshed = true;
       }
       await route.fulfill({ json: { decks: created ? [created] : [] } });
@@ -48,15 +54,27 @@ test('collection creation separates acknowledgement from refresh latency', async
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('textbox').fill('New collection');
   started = performance.now();
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByRole('button', { name: /^New collection/ }).first()).toBeVisible();
-  expect(refreshed).toBe(false);
-  const measurement = { transportMs: 250, acknowledgedMs, visibleMs: performance.now() - started };
-  console.info('refinement-create', JSON.stringify(measurement));
-  await info.attach('creation', {
-    body: JSON.stringify(measurement, null, 2),
-    contentType: 'application/json',
-  });
+  const row = page.getByRole('button', { name: /^New collection/ }).first();
+  try {
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    // Prove acknowledgement renders independently of refresh, even if the
+    // browser driver observes visibility after a timer would have expired.
+    await expect(row).toBeVisible();
+    await expect(dialog).not.toBeVisible();
+    const visibleMs = performance.now() - started;
+    await expect.poll(() => refreshRequested).toBe(true);
+    expect(refreshed).toBe(false);
+    const measurement = { transportMs: 250, acknowledgedMs, visibleMs };
+    console.info('refinement-create', JSON.stringify(measurement));
+    await info.attach('creation', {
+      body: JSON.stringify(measurement, null, 2),
+      contentType: 'application/json',
+    });
+  } finally {
+    releaseRefresh();
+  }
+  await expect.poll(() => refreshed).toBe(true);
+  await expect(row).toBeVisible();
 });
 
 test('Study skill save measures feedback, transport and authoritative readiness', async ({

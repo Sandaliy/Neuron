@@ -6,6 +6,7 @@ import {
   startInteractionMetrics,
   readInteractionMetrics,
 } from './interaction-metrics';
+import { continuousSearch } from './search-interaction';
 
 import type { PendingNoteEdit } from '../src/lib/note-outbox';
 import type { Page, Route } from '@playwright/test';
@@ -249,6 +250,95 @@ async function reconnect(page: Page, state: Awaited<ReturnType<typeof fixture>>)
   state.offline = false;
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
 }
+
+test('Recent Notes keeps truthful local edit dates, filters, reconnect and account/deletion boundaries', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await editOffline(page, state);
+  await page.goto('/notes?recent=changed');
+  await expect(
+    page.getByRole('button', { name: /Original word Local meaning.*Saved on device/ }),
+  ).toBeVisible();
+  await expect(page.locator('time').first()).toHaveAttribute('datetime', date);
+  await expect(
+    page.getByText('Device-saved edits keep the last recorded update date until synchronization.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole('searchbox', { name: 'Search', exact: true }).fill('Local meaning');
+  await expect(page.getByRole('button', { name: /Original word Local meaning/ })).toBeVisible();
+  await reconnect(page, state);
+  await expect.poll(() => state.note.fields['translation']).toBe('Local meaning');
+  await expect(page.getByRole('searchbox', { name: 'Search', exact: true })).toHaveValue(
+    'Local meaning',
+  );
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Original word Local meaning/ })).toBeVisible();
+  state.deleted = true;
+  state.purged = true;
+  state.note.rev++;
+  await page.reload();
+  await expect(page.getByRole('button', { name: /Original word Local meaning/ })).toHaveCount(0);
+  state.who = 'other-recent-reader';
+  await page.reload();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('neuron.offline.account')))
+    .toBe(state.who);
+  await expect(page.getByRole('searchbox', { name: 'Search', exact: true })).toHaveValue('');
+  await expect(page.getByRole('button', { name: /Original word/ })).toHaveCount(0);
+});
+
+test('Tags & Sources counts local tag edits, preserves selection through reconnect and clears another account', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.route('**/api/notes/categories?*', (route) => {
+    if (state.offline) return route.abort('internetdisconnected');
+    const values = state.who === account.id && !state.deleted ? state.note.tags : [];
+    const items = [...new Set(values)].sort().map((value) => ({ value, count: 1 }));
+    return route.fulfill({ json: { items, total: items.length } });
+  });
+  await editOffline(page, state);
+  await page.getByRole('textbox', { name: 'Tags', exact: true }).fill('local category, repeated');
+  await expect
+    .poll(async () => (await stored(page))[0]?.working.tags)
+    .toEqual(['local category', 'repeated']);
+  await page.goto('/library/categories');
+  await expect(page.getByText(/From this device’s complete download/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'original Notes: 1', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'local category Notes: 1', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'local category',
+  );
+  const row = page.getByRole('button', { name: /Original word Local meaning/ });
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page.getByRole('textbox', { name: 'Tags', exact: true })).toHaveValue(
+    'local category, repeated',
+  );
+  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await reconnect(page, state);
+  await expect.poll(() => state.note.tags).toEqual(['local category', 'repeated']);
+  await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
+    'local category',
+  );
+  await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
+  await expect(page.getByText(/Counts include synchronized Notes/)).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'local category Notes: 1', exact: true }),
+  ).toBeVisible();
+  state.who = 'other-metadata-reader';
+  await page.reload();
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('neuron.offline.account')))
+    .toBe(state.who);
+  await expect(page.getByText('No categories yet', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'local category Notes: 1', exact: true }),
+  ).toHaveCount(0);
+});
 async function editOffline(
   page: Page,
   state: Awaited<ReturnType<typeof fixture>>,
@@ -856,11 +946,34 @@ for (const malformed of [false, true])
     await editOffline(page, state);
     state.reject = !malformed;
     state.badAck = malformed;
+    const saved = (await stored(page))[0]!;
+    let acknowledge!: () => void;
+    state.hold = new Promise<void>((resolve) => {
+      acknowledge = resolve;
+    });
+    const acknowledgement = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/notes/${id}/offline-edit`) &&
+        response.request().method() === 'POST',
+    );
     await reconnect(page, state);
-    await expect.poll(() => state.deliveries.length).toBe(1);
+    try {
+      // Observe the first attempt before a fast invalid response permits an exact retry.
+      await expect.poll(() => state.deliveries.length).toBe(1);
+      expect(state.deliveries[0]).toEqual(saved.payload);
+    } finally {
+      acknowledge();
+    }
+    const response = await acknowledgement;
+    await response.finished();
+    expect(response.status()).toBe(malformed ? 200 : 403);
     await expect
       .poll(async () => (await stored(page))[0]?.state)
       .toBe(malformed ? 'pending' : 'rejected');
+    const retained = await stored(page);
+    expect(retained).toHaveLength(1);
+    expect(retained[0]!.payload).toEqual(saved.payload);
+    for (const attempt of state.deliveries) expect(attempt).toEqual(saved.payload);
     await expect(page.getByRole('textbox', { name: 'Translation', exact: true })).toHaveValue(
       'Local meaning',
     );
@@ -929,4 +1042,21 @@ test('small and large synchronized Note histories stay on the device without bei
   await expect(page.getByRole('button', { name: 'Recent activity' })).toHaveCount(0);
   expect(await stored(page)).toHaveLength(250);
   await page.screenshot({ path: info.outputPath('settled-note-history.png') });
+});
+
+test('downloaded search keeps continuous editing and caret across result updates and reconnect', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await disconnect(page, state);
+  await page.goto('/notes');
+  const input = page.getByRole('searchbox');
+  await continuousSearch(page, input, 'Original');
+  await expect(page.getByRole('button', { name: /Original word Original meaning/ })).toBeVisible();
+  await reconnect(page, state);
+  await expect(input).toHaveValue('Original');
+  await expect(input).toBeFocused();
+  await page.keyboard.type(' word');
+  await expect(input).toHaveValue('Original word');
+  await expect(input).toBeFocused();
 });

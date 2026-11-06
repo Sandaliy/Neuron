@@ -3,6 +3,7 @@ import { appendFileSync, writeFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 import { manyDecks, triageNotes, useFixtures, usePreferences } from './fixtures';
+import { installRecentFixture } from './recent-fixture';
 
 import type { Page } from '@playwright/test';
 
@@ -35,6 +36,245 @@ const BUDGET = 55;
 const CPU_THROTTLE = 4;
 
 const FRAMES = 180;
+
+test('Recent Notes retains bounded rows and the scroll budget over 6500 Notes at 4x CPU', async ({
+  page,
+}, info) => {
+  const { requests } = await installRecentFixture(page);
+  const session = await page.context().newCDPSession(page);
+  await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+  try {
+    await page.goto('/notes?recent=changed');
+    await expect(page.getByRole('button', { name: /^Wort 6500 word 6500/ })).toBeVisible();
+    const samples = [];
+    for (let trial = 0; trial < 3; trial++) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      samples.push(
+        await page.evaluate(
+          (frames) =>
+            new Promise<number>((resolve) => {
+              let frame = 0;
+              let start = 0;
+              const tick = (time: number) => {
+                if (frame === 0) start = time;
+                window.scrollTo(0, frame * 24);
+                if (++frame >= frames) resolve(((frames - 1) * 1000) / (time - start));
+                else requestAnimationFrame(tick);
+              };
+              requestAnimationFrame(tick);
+            }),
+          FRAMES,
+        ),
+      );
+    }
+    const fps = [...samples].sort((a, b) => a - b)[1]!;
+    const mountedRows = await page.locator('[data-rows] [data-row]').count();
+    const result = {
+      fps,
+      samples,
+      mountedRows,
+      cpuSlowdown: CPU_THROTTLE,
+      fixtureNotes: 6500,
+      pageLimit: requests[0]?.searchParams.get('limit'),
+    };
+    console.info(JSON.stringify(result));
+    await info.attach('recent-notes-performance', {
+      body: JSON.stringify(result),
+      contentType: 'application/json',
+    });
+    expect(fps).toBeGreaterThanOrEqual(BUDGET);
+    expect(mountedRows).toBeLessThan(40);
+    expect(result.pageLimit).toBe('1000');
+  } finally {
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  }
+});
+
+test.describe('category browsing performance', () => {
+  test.use({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 });
+  test('Tags & Sources keeps the scroll budget with thousands of category values at 4x CPU', async ({
+    page,
+  }) => {
+    await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'off' });
+    await useFixtures(page);
+    const values = Array.from({ length: 5000 }, (_, i) => ({
+      value: `tag ${String(i).padStart(4, '0')}`,
+      count: 20,
+    }));
+    await page.route('**/api/notes/categories?*', (route) => {
+      const params = new URL(route.request().url()).searchParams;
+      const all = values.filter((row) => row.value.includes(params.get('search') ?? ''));
+      const after = all.filter((row) => !params.has('cursor') || row.value > params.get('cursor')!);
+      const items = after.slice(0, 100);
+      return route.fulfill({
+        json: {
+          items,
+          total: all.length,
+          ...(after.length > 100 ? { nextCursor: items.at(-1)!.value } : {}),
+        },
+      });
+    });
+    await page.goto('/library/categories');
+    await expect(page.getByText('Shown: 100 of 5000', { exact: true })).toBeVisible();
+    const radio = page.getByRole('radio', { name: 'Tags', exact: true });
+    await radio.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('radio', { name: 'Sources', exact: true })).toBeChecked();
+    await page.keyboard.press('ArrowLeft');
+    await expect(radio).toBeChecked();
+    for (let i = 0; i < 2; i++) {
+      await page.getByRole('button', { name: 'Show more', exact: true }).click();
+      await expect(
+        page.getByText(`Shown: ${(i + 2) * 100} of 5000`, { exact: true }),
+      ).toBeVisible();
+    }
+    await page.evaluate(async () => {
+      window.scrollTo(0, 0);
+      await document.fonts.ready;
+      await Promise.all(
+        document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+      );
+    });
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+    const measured = await page.evaluate(async (count) => {
+      const frame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
+      const gaps: number[] = [];
+      let previous = await frame();
+      for (let i = 0; i < count; i++) {
+        window.scrollTo(0, i * 24);
+        const now = await frame();
+        gaps.push(now - previous);
+        previous = now;
+      }
+      return {
+        fps: (gaps.length / gaps.reduce((a, b) => a + b, 0)) * 1000,
+        worst: Math.max(...gaps),
+        mounted: document.querySelectorAll('[role="listitem"]').length,
+      };
+    }, FRAMES);
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    await session.detach();
+    console.info(
+      `5000 categories, 4x CPU: ${measured.fps.toFixed(1)} fps; worst ${measured.worst.toFixed(1)} ms; ${measured.mounted} mounted rows`,
+    );
+    await test.info().attach('category-scroll-performance', {
+      body: JSON.stringify(measured),
+      contentType: 'application/json',
+    });
+    expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
+    expect(measured.mounted).toBeLessThan(40);
+  });
+});
+
+test.describe('collection search performance', () => {
+  test.use({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 });
+  test('collection search stays responsive over 5050 nested collections on a throttled phone', async ({
+    page,
+  }) => {
+    await usePreferences(page, { theme: 'dark', locale: 'en', glass: 'full', glassScope: 'all' });
+    const roots = manyDecks(50).map((row, group) => ({
+      ...row,
+      kind: 'folder',
+      name: `Folder ${group}`,
+      children: manyDecks(100).map((child, at) => ({
+        ...child,
+        id: `child-${group}-${at}`,
+        name: `Lesson ${at}`,
+        parentId: row['id'],
+        path: [row['id']],
+      })),
+    }));
+    await useFixtures(page, { decks: roots, notes: [] });
+    await page.goto('/library/find');
+    await expect(
+      page.getByRole('status').filter({ hasText: '5050 of 5050 collections' }),
+    ).toBeVisible();
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await Promise.all(
+        document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+      );
+    });
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+    const measured = await page.evaluate(async (count) => {
+      const frame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
+      const input = document.querySelector<HTMLInputElement>('input[type="search"]')!;
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      const searches: number[] = [];
+      for (const [term, expected] of [
+        ['Lesson 17', 50],
+        ['Folder', 50],
+        ['absent', 0],
+        ['Lesson 3', 550],
+        ['Lesson', 5000],
+      ] as const) {
+        const start = performance.now();
+        setter.call(input, term);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await frame();
+        while (
+          input.getAttribute('aria-busy') === 'true' ||
+          !document
+            .querySelector('[role="status"][aria-busy]')
+            ?.textContent?.startsWith(`${expected} of`) ||
+          (expected > 0 &&
+            !document.querySelector('[role="list"] button')?.textContent?.startsWith(term))
+        ) {
+          if (performance.now() - start > 5000) throw new Error('Search did not finish');
+          await frame();
+        }
+        await frame();
+        searches.push(performance.now() - start);
+      }
+      const gaps: number[] = [];
+      let previous = await frame();
+      for (let at = 0; at < count; at++) {
+        window.scrollTo(0, at * 24);
+        const now = await frame();
+        gaps.push(now - previous);
+        previous = now;
+      }
+      return {
+        searches,
+        fps: (gaps.length / gaps.reduce((sum, gap) => sum + gap, 0)) * 1000,
+        worst: Math.max(...gaps),
+        mounted: document.querySelectorAll('[role="listitem"]').length,
+      };
+    }, FRAMES);
+    const openMs = await page.evaluate(async () => {
+      const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const button = [...document.querySelectorAll<HTMLButtonElement>('[role="list"] button')].find(
+        (node) => {
+          const box = node.getBoundingClientRect();
+          return box.top >= 0 && box.bottom < innerHeight - 100;
+        },
+      )!;
+      const name = button.textContent!.match(/^Lesson \d+/)![0];
+      const start = performance.now();
+      button.click();
+      while (document.querySelector('h1')?.textContent !== name) {
+        if (performance.now() - start > 5000) throw new Error('Collection did not open');
+        await frame();
+      }
+      await frame();
+      return performance.now() - start;
+    });
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    await session.detach();
+    const line = `5050 collections, 4x CPU: search including 150ms batching ${measured.searches.map((value) => value.toFixed(1)).join(', ')} ms; scroll ${measured.fps.toFixed(1)} fps, worst ${measured.worst.toFixed(1)} ms; ${measured.mounted} mounted rows; first Deck open ${openMs.toFixed(1)} ms`;
+    console.log(line);
+    await test.info().attach('collection-search-performance', {
+      body: JSON.stringify({ ...measured, openMs }),
+      contentType: 'application/json',
+    });
+    expect(Math.max(...measured.searches)).toBeLessThan(300);
+    expect(measured.fps).toBeGreaterThanOrEqual(BUDGET);
+    expect(measured.mounted).toBeLessThan(40);
+    expect(openMs).toBeLessThan(300);
+  });
+});
 
 interface Measurement {
   readonly fps: number;

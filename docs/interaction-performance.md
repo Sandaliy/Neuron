@@ -5,6 +5,65 @@ implementation. Phase 7 (`703890b`) and the accepted PR #47 continuity implement
 provide the interaction references. Disclosure, dialog, scroll restoration, motion tokens and glass
 rules were unchanged between Phase 7 and PR #48. Swipe changed only its disabled-state guards.
 
+## Search and Practice interaction repair, 2026-11-04
+
+The report concerns the iPhone Home Screen application, multiple search fields and jumping during
+search. Built-app probes start at `1a8cf6f` (merged #80), with Chromium phone/desktop and mobile WebKit.
+The final branch integrates `2a11670`, including Recent Notes #81 and its test follow-up #83;
+continuous editing also covers Recently added and Recently changed.
+
+- Find Notes, Deck Notes, collection search, categories and duplicates drove controlled text directly
+  from asynchronous query observers. All five reproduced a caret reset to the end during mid-string
+  editing; Deleted's immediate local state passed. Editing now updates synchronously while preserving
+  the account/visit/scope cache used for navigation return. No focus-restoration loop is involved.
+- A shortened result list plus independently panned keyboard viewport reproduced 63 px displacement.
+  A focused search retains its current document scroll floor until blur or unmount. It neither scrolls
+  the document nor follows keyboard geometry; native panning and the existing viewport observer remain.
+- Practice repeatedly scanned eligibility across the whole pool during each typed character. Memoized
+  pool/recipe derivation reduced a matched 5,000-Note, 4x CPU input-to-paint sequence from 41-49 ms to
+  21-28 ms. This is a local rendering improvement, not evidence that all reported interface lag had
+  the same cause.
+- Rapid Practice actions exposed an acknowledgement race against the local transaction's expected
+  record. One retry retains the identical command only when the stored run and logical version are
+  exactly unchanged. Changed progress retains reconciliation; tests cover both outcomes and command
+  identity. UI actions are disabled while their local transaction commits.
+
+The unmodified #80 built app passed all 11 established controlled performance cases at 4x CPU.
+Large Note/category/collection lists measured about 60 FPS, collection search 197-212 ms including
+150 ms batching, and first Deck opening 192 ms. The 55 FPS budgets remain unchanged. These observations
+do not reproduce a general application-wide slowdown or establish production network latency.
+
+A separate matched navigation probe compares #78 (`49d9a49`) with this repair: 6,000 Notes across
+60 Decks, phone Chromium, 4x CPU and 250 ms cold transport. It measures from the click inside the
+browser through two frames after the destination content appears. Each build makes one collection
+read and one Note-list read across three navigation cycles. Warm Note opening was 63-67 ms before
+and 55-69 ms after; Library return 183-201 ms before and 182-187 ms after; Today 64-75 ms before and
+62-65 ms after. Cold Note search was 475 ms before and 453 ms after. The probe's 500 ms warm-navigation
+bound passes. These short controlled samples establish neither an application-wide regression from
+#79/#80 nor a broad speedup from this repair.
+
+Final validation of the integrated branch passed 758 core/shared/web unit tests, the complete built-app
+Chromium phone/desktop interaction gate (873 passed, 20 explicit skips), 70 unchanged Windows visual
+contracts and all 12 enforced performance cases. The broad mobile WebKit run passed 134 cases with one
+Chromium-only measurement skipped before the Recent Notes integration; refreshed Recent Notes/search/
+Practice checks then passed 61 cases across all three browser configurations, with the phone-only
+measurement skipped in the desktop selection. TypeScript, lint, formatting and whitespace checks passed. Optional live-database
+journeys that were skipped are not passing evidence, and hosted checks remain a separate delivery gate.
+
+Published-frontend checks after #84 passed 58 focused Chromium phone/desktop and mobile WebKit cases,
+with two Chromium phone-only measurement skips, plus the 6,000-Note repeated-navigation probe.
+An additional remote performance run passed 11 of 12 cases: the first Deck opening took 405 ms against
+the unchanged 300 ms local benchmark. The previous production deployment (`2a11670`) took 613 ms in
+the same probe. Traces show cold route chunks loading from the CDN; serving the unchanged published
+assets locally passed at 268 ms with 60 FPS scrolling. This is a network-sensitive cold-start limit,
+not evidence of a new rendering regression or a reason to weaken the benchmark.
+
+Browser automation checks persistent DOM identity, focus, caret, updated results, superseded responses,
+offline/reconnection and staged keyboard panning. It cannot raise an iPhone keyboard or exercise native
+VoiceOver. Physical acceptance must repeat continuous and mid-string search, clear/no-result queries,
+slow transport, downloaded mode and editor return in the Home Screen app, then Practice with keyboard,
+VoiceOver, Listening audio, Undo/completion, settings cancellation and reduced motion.
+
 ## Contract for later Phase 8 work
 
 PR #49's measured zero reconciliation displacement and zero warm/background navigation snapshot scans
@@ -686,3 +745,58 @@ import, when Neon's buffers were cold. The response is 973 KiB before compressio
 decisions took 7.9 to 10.4 s, about a second each, almost all of it round trips from this machine to
 Frankfurt. Production functions run in `fra1`, next to the database, and report `triage_read` in
 `Server-Timing`. A sweep sends small batches as it goes, so none of this is on the tap path.
+
+## Find Notes across the Library
+
+The account-wide view reuses Note browsing, its 300 ms text debounce, 1,000-Note server pages and
+window virtualization. The Deck name precedes Folder ancestry on a secondary location line. No Note
+or Card detail request is needed to label a result. The input retains its DOM parent while its busy
+indicator changes, preserving focus and the phone keyboard through responses.
+
+Measured on 2026-11-02 with the built app in Windows Chromium, a 375 by 812 viewport at 2x device
+scale and 4x CPU slowdown: 6,000 Notes across 60 Decks scrolled at a 60.0 fps median over three
+180-frame samples, with 28 mounted rows. Typing `word` sent one debounced search request and recorded
+no long tasks. The first page contains 1,000 Notes; further pages are requested at the existing scroll
+boundary. `00-note-list-performance.spec.ts` retains the machine-readable measurements and requests.
+
+`note-list.spec.ts` covers location labels, all existing filters/sorting, slow responses, empty results,
+keyboard focus, narrowed viewport, direct editing and returning to the same query and scroll position.
+`offline.spec.ts` searches a complete 6,000-Note download across 60 Decks, paginates all matches and
+records zero additional Notes or Cards store scans during repeated searches/filtering/pagination.
+It also covers same-account reconnection, account switching and excluded tombstones, purged Notes and
+deleted ancestry.
+Unit tests check cached ordering reuse and invalidation after edits, pulls and account changes.
+
+These are routed-fixture browser measurements, not production database search latency or physical
+iPhone evidence. Query/filter state lasts for the account visit; loaded query pages stay cached for
+30 minutes after leaving the browser. App restarts do not persist the search presentation. Offline
+results reflect the last complete download plus supported local edits, not other devices' unsynced work.
+
+Installed-iPhone acceptance: open Find Notes from Library and from a nested Folder; type a translation
+with the keyboard open, change filters and order, scroll well into results, open a Note and return by
+both the in-app action and system Back. Confirm the query, filters and position survive and location
+labels distinguish Decks. Repeat in airplane mode after a complete download, then reconnect and check
+that authoritative results replace downloaded provenance. Check long names, VoiceOver labels, text
+selection, the keyboard Search key and scrolling near the bottom navigation.
+
+## Library collection search
+
+Find Folders & Decks uses the existing account-bound Library tree and pending-creation overlay. A single
+preorder pass builds normalized names and current ancestor paths per tree change; 150ms input batching
+scans that flat index. There are no search endpoints, persistent search store or per-result tree walks.
+Measured window virtualization wraps full paths, retains keyboard neighbours and saves row measurements
+for history restoration. Search presentation belongs to the account visit and clears on account change.
+
+The routed-fixture phone check in `performance.spec.ts` uses 5,050 collections (50 Folders with 100 Decks
+each), two device pixels per CSS pixel and 4x CPU slowdown. Completed searches took 195–209ms including
+the 150ms batching delay; the first Deck opened in 210ms. A 180-frame scroll
+held 60.0 fps, with a 16.8ms worst frame and 21 mounted rows, above the unchanged 55 fps budget.
+Existing 500-row Library checks held 59.3 fps for panels-only, all-glass and mixed collection modes.
+The index unit check also exercises repeated searches over 10,100 nested collections.
+
+`library-polish.spec.ts` covers collapsed descendants, duplicate names, complete Cyrillic paths,
+query/scroll/focus return, empty results and loading/retry. `offline-collections.spec.ts` covers the
+complete download, reopening offline, pending Folder/Deck restrictions, renamed/deleted results,
+reconnection and account switching. These are browser fixtures, not installed-iPhone acceptance.
+On the installed iPhone, repeat typing with the keyboard open, scrolling deep into results, opening
+both kinds and returning by Search results and system Back; repeat after downloading in airplane mode.

@@ -218,6 +218,10 @@ has two. Now the flag is necessary and not sufficient: the deleting role also ha
 
 ## Soft deletion and restoration
 
+Note browsing, including account-wide search and exact-Deck reads, requires a live Deck and a live
+parent chain. The read follows parent links, including legacy rows with incomplete cached paths.
+Collection deletion retains Notes for recovery; it does not make them searchable in the Library.
+
 Deck deletion marks the selected deck and its live descendant decks. It does not delete notes or cards.
 Both repository and sync deletion follow parent links, including legacy rows with incomplete paths.
 Each collection deletion assigns a new server-owned `deletion_id` to the selected live row and its

@@ -833,6 +833,12 @@ test('touch handle drag keeps the exact insertion target', async ({ page }) => {
     'touch-action',
     'none',
   );
+  // Synthetic touch coordinates must come from the settled Folder, as for mouse drags.
+  await page
+    .locator('[data-library-view]')
+    .evaluate((view) =>
+      Promise.all(view.getAnimations({ subtree: true }).map((motion) => motion.finished)),
+    );
   const start = (await handle.boundingBox())!;
   await handle.dispatchEvent('pointerdown', {
     pointerId: 1,

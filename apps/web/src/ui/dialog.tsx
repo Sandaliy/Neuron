@@ -51,6 +51,7 @@ export function Dialog({
   title,
   description,
   dismissable = true,
+  restoreFocus,
   children,
 }: {
   readonly open: boolean;
@@ -58,6 +59,7 @@ export function Dialog({
   readonly title: string;
   readonly description?: string | undefined;
   readonly dismissable?: boolean;
+  readonly restoreFocus?: () => void;
   readonly children: ReactNode;
 }) {
   const t = useTranslate();
@@ -142,6 +144,14 @@ export function Dialog({
               event.preventDefault();
               content.current?.focus({ preventScroll: true });
             }}
+            onCloseAutoFocus={
+              restoreFocus
+                ? (event) => {
+                    event.preventDefault();
+                    restoreFocus();
+                  }
+                : undefined
+            }
             onEscapeKeyDown={(event) => {
               if (!dismissable) {
                 event.preventDefault();

@@ -1,6 +1,6 @@
 import { useBlocker } from '@tanstack/react-router';
 import { Undo2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import {
   studyAvailableAt,
@@ -28,6 +28,7 @@ import { useAccount } from '../../lib/account';
 import { describe, request } from '../../lib/api';
 import { settingsFor, useDeckTree } from '../../lib/decks';
 import { useLearningNavigation } from '../../lib/learning-navigation';
+import { learningShortcut } from '../../lib/learning-shortcuts';
 import { accountEpoch, offlineState, useOffline } from '../../lib/offline';
 import { localStudyPlan } from '../../lib/offline-study';
 import { saveReviewIntent, requireDeliveredReviews } from '../../lib/review-outbox';
@@ -453,9 +454,9 @@ export function StudyScreen({
     locked.current = false;
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.repeat || transportError) return;
+      if (followup.active || !learningShortcut(event) || transportError) return;
       if (event.code === 'Space' && current && note) {
         event.preventDefault();
         setRevealed(true);
