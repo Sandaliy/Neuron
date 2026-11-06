@@ -96,9 +96,11 @@ export const structuralChecks: readonly IntegrityCheck[] = [
     severity: 'error',
     context:
       'Card Note or Deck is missing/inaccessible. Retained deleted and purged Cards must still have account-bound parents.',
-    sql: `${cardNotes} select c.id from card_notes c
-      left join decks d on d.id=c.deck_id and d.user_id=$1
-      where c.id is not null and (c.visible_note_id is null or d.id is null or d.kind<>'deck')`,
+    sql: `${cardNotes}, card_parents as materialized (
+      select c.id,c.visible_note_id,d.id as visible_deck_id,d.kind
+      from card_notes c full join (select id,kind from decks where user_id=$1) d on d.id=c.deck_id
+    ) select id from card_parents
+      where id is not null and (visible_note_id is null or visible_deck_id is null or kind<>'deck')`,
   },
   {
     id: 'card-deck-copy',
@@ -142,8 +144,11 @@ export const structuralChecks: readonly IntegrityCheck[] = [
     severity: 'error',
     context:
       'Immutable Review has no accessible same-account Card. Escalate before any learning-history operation.',
-    sql: `select r.id from reviews r left join cards c on c.id=r.card_id and c.user_id=$1
-      where r.user_id=$1 and c.id is null`,
+    sql: `with review_cards as materialized (
+      select r.id,c.id as visible_card_id
+      from (select id,card_id from reviews where user_id=$1) r
+      full join (select id from cards where user_id=$1) c on c.id=r.card_id
+    ) select id from review_cards where id is not null and visible_card_id is null`,
   },
   {
     id: 'review-cancellation',

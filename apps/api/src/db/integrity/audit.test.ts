@@ -580,17 +580,18 @@ describe.skipIf(!database)('Database Integrity Doctor on real PostgreSQL', () =>
     ).toBe(0);
   });
 
-  it('keeps Card/Note consistency work bounded for a new large account with stale statistics', async () => {
+  it('keeps Card/Note/Review consistency work bounded for a new large account with stale statistics', async () => {
     await fixture();
     await owner.query('analyze notes');
     await owner.query('analyze cards');
+    await owner.query('analyze reviews');
     const statistics = await owner.connect();
     const reader = await app.connect();
     try {
       await statistics.query('begin');
       // Keep ANALYZE from replacing the deliberately older account statistics.
       // This mode permits the fixture's normal writes and the restricted reads.
-      await statistics.query('lock table notes, cards in share update exclusive mode');
+      await statistics.query('lock table notes, cards, reviews in share update exclusive mode');
       const f = await fixture();
       const count = 3000;
       await owner.query(
@@ -605,6 +606,12 @@ describe.skipIf(!database)('Database Integrity Doctor on real PostgreSQL', () =>
         from notes n cross join unnest(array['recognition','recall']) d
         where n.user_id=$1 and n.id<>$4`,
         [f.userId, f.deck.id, now, f.note.id],
+      );
+      await owner.query(
+        `insert into reviews(id,user_id,card_id,rating,reviewed_at,placed_due,state_before,elapsed_days,scheduled_days)
+        select md5(c.id::text||':cold-review')::uuid,$1,c.id,'good',$2,$2,'new',0,0
+        from cards c where c.user_id=$1`,
+        [f.userId, now],
       );
       await reader.query('begin read only');
       await reader.query("select set_config('app.user_id',$1,true)", [f.userId]);
@@ -625,13 +632,14 @@ describe.skipIf(!database)('Database Integrity Doctor on real PostgreSQL', () =>
           (plan['Rows Removed by Join Filter'] ?? 0)) *
           plan['Actual Loops'] +
         (plan.Plans ?? []).reduce((sum, child) => sum + visits(child), 0);
-      for (const name of ['card-parent', 'card-deck-copy']) {
+      for (const name of ['card-parent', 'card-deck-copy', 'review-card-owner']) {
         const check = structuralChecks.find((entry) => entry.id === name)!;
         const query = `select count(*)::int as count from (${check.sql}) violations`;
         const explained = await reader.query(`explain (analyze,format json) ${query}`, [f.userId]);
         const work = visits(explained.rows[0]['QUERY PLAN'][0].Plan);
         // Measure examined tuples, rather than a runner-dependent elapsed-time budget.
-        expect(work, name).toBeLessThanOrEqual((count * 2 + 1) * 20);
+        const size = (count * 2 + 1) * (name === 'review-card-owner' ? 2 : 1);
+        expect(work, name).toBeLessThanOrEqual(size * 20);
         expect((await reader.query(query, [f.userId])).rows[0]?.count).toBe(0);
       }
     } finally {

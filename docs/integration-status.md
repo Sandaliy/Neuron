@@ -48,9 +48,10 @@ records and direct public health requests. No production account was inspected w
   Resulting main [CI](https://github.com/Sandaliy/Neuron/actions/runs/42280527137) passed.
 - The next refreshed #71/#74/#87 runs exposed a shared Doctor scale failure: its deep audit exhausted
   the unchanged per-statement budget. PostgreSQL 17 plans for a newly populated account absent from
-  statistics selected quadratic Card/Note nested loops. The old query examined 27,063,011 tuples in
-  a controlled regression. Materializing an account-scoped full join preserves hash/merge eligibility
-  before applying violation filters. The regression caps examined tuples for both affected checks,
+  statistics selected quadratic Card/Note, Card/Deck and Review/Card nested loops. The old parent
+  query examined 27,063,011 tuples in a controlled regression. Materializing account-scoped full joins
+  preserves hash/merge eligibility before applying violation filters. The regression caps examined
+  tuples for all three affected checks,
   rather than relaxing elapsed-time limits. Safe failure diagnostics retain phase, code and metrics.
   The repair must pass its protected gate before the held branches receive another main refresh.
 - #87's eight Library references now show the intended entry, with explicit semantic assertions.
