@@ -52,8 +52,9 @@ records and direct public health requests. No production account was inspected w
   query examined 27,063,011 tuples in a controlled regression. Materializing account-scoped full joins
   preserves hash/merge eligibility before applying violation filters. The regression caps examined
   tuples for all four affected checks, including the shared live/deleted Note check.
-  rather than relaxing elapsed-time limits. Safe failure diagnostics retain phase, code and metrics.
-  The repair must pass its protected gate before the held branches receive another main refresh.
+  Existing elapsed-time limits remain enforced. Safe failure diagnostics retain phase, code and metrics.
+  The protected repair is [#92](https://github.com/Sandaliy/Neuron/pull/92); refresh held branches from
+  its resulting main before treating their required checks as current.
 - #87's eight Library references now show the intended entry, with explicit semantic assertions.
   All eight comparisons passed. Twelve focused Chromium/mobile-WebKit cases passed; the keyboard
   suspend driver now explicitly focuses its target instead of relying on pointer focus behavior.
