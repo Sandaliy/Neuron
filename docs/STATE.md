@@ -87,6 +87,11 @@ installed-iPhone acceptance.
 
 ## Next
 
+Complete the integration gates in `integration-status.md` before new feature work. Account export
+(#71), Import hardening (#74), progressive directions (#86, Draft) and Slipping Cards (#87) require
+critical review. Integrate #86 before combined #87 validation; Content checks (#89) requires owner
+visual acceptance. Offline Sync Chaos Testing has not started.
+
 1. Installed-iPhone acceptance of the integrated release: the scenarios in "Acceptance on the iPhone"
    below, then the quality pass and earlier offline features (screen and card motion, folders and
    disclosures, Study start after a setup change, offline Practice on two devices, offline Import drafts).
@@ -128,8 +133,12 @@ installed-iPhone acceptance.
 - Preliminary offline duplicate keys retain the inherited UTF-16 prefix difference from PostgreSQL
   for very long supplementary-Unicode terms. Server groups remain authoritative; see
   `possible-duplicates.md`. The existing normalization and Import contract are unchanged.
-- PR #71 User Data Export and PR #74 Large Import Hardening remain outside this integration pass for
-  separate critical review.
+- Account export (#71) and Import hardening (#74) are prepared for separate critical review.
+  Progressive directions (#86) remains Draft: a reproduced suspend/resume/Undo case retracts a
+  direction that its stated policy retains. Slipping Cards (#87) undercounts equal-time recovery
+  answers and awaits #86 integration. See `integration-status.md` for evidence and next actions.
+- Content checks (#89) remains unmerged for owner visual acceptance. Its hosted menu failure shares
+  the diagnosed viewport overflow with #87; shared menu recovery preserves ordinary action clicks.
 - Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.
   Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue.
 - Local new-card admission offline is conservative over the last complete download and this device's
@@ -137,7 +146,11 @@ installed-iPhone acceptance.
 - Hosted CI has shown one unreproduced desktop navigation scroll assertion and occasional Chromium
   context crashes. Assertions and failure artifacts are kept; see `interaction-performance.md`.
 - The Preview database is one empty, long-lived Neon database shared by all previews.
-- Dependency alerts: `nanoid` 3.3.17 and the Drizzle tooling `esbuild`.
+- Dependency maintenance (#85, `0687ec3`) is on protected `main`. The installed tree fixes
+  Nano ID, the retired Drizzle loader's esbuild and other compatible security updates. Eight audit
+  findings remain: unused Better Auth features, trusted Vercel configuration validation on Zod 3,
+  and lint-tool glob processing. Better Auth 1.7 needs an account-schema migration and stays deferred.
+  See `dependency-security.md` for paths, scoped overrides and verification.
 - Triage decisions not yet delivered are not listed in Settings > Offline & sync. The server plan has
   not heard of them; this device's offline plan applies them conservatively. See `offline-collection.md`.
 - Legacy Cloze Cards at slot 0 are inventoried by `docs/legacy-cloze-assessment.md`, not repaired. The
