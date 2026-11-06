@@ -15,12 +15,14 @@ remain binding even when hosted checks pass. Auto-merge is disabled for held wor
 | [#71](https://github.com/Sandaliy/Neuron/pull/71) | Unmerged for critical security/data-integrity review. Conflicts and diagnosed CI failures repaired.             | Account-export allowlists, RLS/read-only snapshot, late authorization, purge redaction and completion validation need integration-owner sign-off. Hosted streaming and installed-iPhone Files/Share remain unverified. |
 | [#74](https://github.com/Sandaliy/Neuron/pull/74) | Unmerged for critical security/data-integrity review. Search/Import conflicts resolved preserving both changes. | Review atomic bulk writes, bounded revisions, immutable source/IDs, header concurrency and recovery after lost acknowledgements. Physical termination/eviction/near-limit memory acceptance remains open.              |
 | [#86](https://github.com/Sandaliy/Neuron/pull/86) | Draft, unmerged; critical learning-correctness review required.                                                 | Resolve the suspend/resume/Undo concern below. Keep the draft state until its owner completes review.                                                                                                                  |
-| [#87](https://github.com/Sandaliy/Neuron/pull/87) | Unmerged; critical learning review and #86 integration required before combined validation.                     | Resolve equal-time recovery evidence below; refresh Library visual references and verify combined behavior after #86.                                                                                                  |
-| [#89](https://github.com/Sandaliy/Neuron/pull/89) | Unmerged for owner visual acceptance.                                                                           | Refresh against the shared menu repair and require green checks; screenshots and browser emulation do not replace owner acceptance.                                                                                    |
+| [#87](https://github.com/Sandaliy/Neuron/pull/87) | Unmerged; critical learning review and #86 integration required before combined validation.                     | Resolve equal-time recovery evidence below. Eight Library references are refreshed; verify combined behavior after #86.                                                                                                |
+| [#89](https://github.com/Sandaliy/Neuron/pull/89) | Unmerged for owner visual acceptance.                                                                           | Required checks passed on refreshed head `dcfb711`; screenshots and browser emulation do not replace owner acceptance.                                                                                                 |
+| [#91](https://github.com/Sandaliy/Neuron/pull/91) | Merged: shared menu viewport repair and integration handoff.                                                    | `ba23f21`; all required checks passed on `f42b166`; resulting main CI and production migrations passed.                                                                                                                |
 
-Both production projects for #82 and #90 reported successful deployments at their exact merge SHAs.
+Both production projects for #82, #90, #85 and #91 reported successful deployments at their exact merge SHAs.
 Their trusted production-migration workflows passed. The web root, API `/health` with compatible
 schema, and `/db-check` returned 200 after each integration; API requests ran in `fra1`.
+Main CI passed for #90, #85 and #91; #82's superseded run is covered by those later integrated runs.
 The Vercel connector lacked team access, so deployment evidence came from GitHub deployment/status
 records and direct public health requests. No production account was inspected with the Doctor.
 
@@ -41,7 +43,21 @@ records and direct public health requests. No production account was inspected w
   to force clicks or relax the tests. A 375-by-560 regression fails on unchanged main with menu top
   `-189`; constraining the shared menu to Radix's available height with internal scrolling fixes it.
   All 16 focused recovery/toast cases pass, including keyboard access and a real pointer click on the
-  final action. Full combined dependency/menu verification is required before delivery.
+  final action. The full built-app CI-equivalent gate passed 875 cases with 20 optional live cases
+  skipped on the combined dependency/menu tree; the new menu regression also passed mobile WebKit.
+  Resulting main [CI](https://github.com/Sandaliy/Neuron/actions/runs/42280527137) passed.
+- The next refreshed #71/#74/#87 runs exposed a shared Doctor scale failure: its deep audit exhausted
+  the unchanged per-statement budget. PostgreSQL 17 plans for a newly populated account absent from
+  statistics selected quadratic Card/Note nested loops. The old query examined 27,063,011 tuples in
+  a controlled regression. Materializing an account-scoped full join preserves hash/merge eligibility
+  before applying violation filters. The regression caps examined tuples for both affected checks,
+  rather than relaxing elapsed-time limits. Safe failure diagnostics retain phase, code and metrics.
+  The repair must pass its protected gate before the held branches receive another main refresh.
+- #87's eight Library references now show the intended entry, with explicit semantic assertions.
+  All eight comparisons passed. Twelve focused Chromium/mobile-WebKit cases passed; the keyboard
+  suspend driver now explicitly focuses its target instead of relying on pointer focus behavior.
+  #89's content-quality and recovery checks passed 34 focused browser cases. #71's six motion cases
+  and #86's two direction-editor cases also passed after the final menu/dependency refresh.
 - #86's index-migration fingerprint previously stripped every JSON null recursively. It now excludes
   only the two explicitly introduced Card metadata columns, preserving every older column and nested
   JSON null. The migration-tip lookup remains compatible with migration 0020. Hosted PostgreSQL 17

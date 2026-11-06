@@ -18,6 +18,7 @@ import {
 } from '../testing/database.js';
 
 import { auditAccount, auditExitCode } from './audit.js';
+import { structuralChecks } from './checks.js';
 
 import type { AuditOptions } from './audit.js';
 import type { Pool } from '@neondatabase/serverless';
@@ -579,6 +580,68 @@ describe.skipIf(!database)('Database Integrity Doctor on real PostgreSQL', () =>
     ).toBe(0);
   });
 
+  it('keeps Card/Note consistency work bounded for a new large account with stale statistics', async () => {
+    await fixture();
+    await owner.query('analyze notes');
+    await owner.query('analyze cards');
+    const statistics = await owner.connect();
+    const reader = await app.connect();
+    try {
+      await statistics.query('begin');
+      // Keep ANALYZE from replacing the deliberately older account statistics.
+      // This mode permits the fixture's normal writes and the restricted reads.
+      await statistics.query('lock table notes, cards in share update exclusive mode');
+      const f = await fixture();
+      const count = 3000;
+      await owner.query(
+        `insert into notes(id,user_id,deck_id,note_type_id,fields,rev)
+        select md5($1||':cold:'||s)::uuid,$1,$2,$3,'{"term":"bulk","translation":"meaning"}',0
+        from generate_series(1,$4) s`,
+        [f.userId, f.deck.id, systemNoteTypeId('vocab'), count],
+      );
+      await owner.query(
+        `insert into cards(id,user_id,note_id,deck_id,direction,due)
+        select md5(n.id::text||d)::uuid,$1,n.id,$2,d,$3
+        from notes n cross join unnest(array['recognition','recall']) d
+        where n.user_id=$1 and n.id<>$4`,
+        [f.userId, f.deck.id, now, f.note.id],
+      );
+      await reader.query('begin read only');
+      await reader.query("select set_config('app.user_id',$1,true)", [f.userId]);
+      await reader.query("set local statement_timeout='5000'");
+      await reader.query("set local work_mem='4MB'");
+      await reader.query("set local jit='off'");
+      await reader.query('set local max_parallel_workers_per_gather=0');
+      type Plan = {
+        'Actual Rows': number;
+        'Actual Loops': number;
+        'Rows Removed by Filter'?: number;
+        'Rows Removed by Join Filter'?: number;
+        Plans?: Plan[];
+      };
+      const visits = (plan: Plan): number =>
+        (plan['Actual Rows'] +
+          (plan['Rows Removed by Filter'] ?? 0) +
+          (plan['Rows Removed by Join Filter'] ?? 0)) *
+          plan['Actual Loops'] +
+        (plan.Plans ?? []).reduce((sum, child) => sum + visits(child), 0);
+      for (const name of ['card-parent', 'card-deck-copy']) {
+        const check = structuralChecks.find((entry) => entry.id === name)!;
+        const query = `select count(*)::int as count from (${check.sql}) violations`;
+        const explained = await reader.query(`explain (analyze,format json) ${query}`, [f.userId]);
+        const work = visits(explained.rows[0]['QUERY PLAN'][0].Plan);
+        // Measure examined tuples, rather than a runner-dependent elapsed-time budget.
+        expect(work, name).toBeLessThanOrEqual((count * 2 + 1) * 20);
+        expect((await reader.query(query, [f.userId])).rows[0]?.count).toBe(0);
+      }
+    } finally {
+      await reader.query('rollback');
+      reader.release();
+      await statistics.query('rollback');
+      statistics.release();
+    }
+  });
+
   it('measures thousands of Notes, many Cards and substantial immutable histories with bounded results', async () => {
     const f = await fixture();
     const count = 3000;
@@ -639,14 +702,20 @@ describe.skipIf(!database)('Database Integrity Doctor on real PostgreSQL', () =>
     let deep;
     try {
       result = await run(f, { statementMs: 10000 });
-      expect(result.status).toBe('complete');
+      expect(
+        result.status,
+        JSON.stringify({ failure: result.failure, metrics: result.metrics }),
+      ).toBe('complete');
       expect(errors(result)).toEqual([]);
       expect(result.counts['notes']).toBe('3001');
       expect(result.counts['cards']).toBe('6001');
       expect(result.counts['reviews']).toBe('60000');
       expect(result.metrics.maxRows).toBeLessThanOrEqual(11);
       deep = await run(f, { deep: true, deckId: f.deck.id, maxItems: 50, pageSize: 17 });
-      expect(deep.status).toBe('incomplete');
+      expect(
+        deep.status,
+        JSON.stringify({ failure: deep.failure, metrics: deep.metrics, checks: deep.checks }),
+      ).toBe('incomplete');
       expect(errors(deep)).toEqual([]);
       expect(deep.metrics.maxRows).toBeLessThanOrEqual(18);
     } finally {
