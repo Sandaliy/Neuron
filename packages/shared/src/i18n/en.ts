@@ -783,6 +783,44 @@ export const en = {
   'card.direction.listening': 'Listen and say',
 
   'notes.title': 'Notes',
+  'quality.title': 'Content checks',
+  'quality.hint':
+    'Review vocabulary context. Examples and definitions are optional; missing context does not make a Note invalid.',
+  'quality.allChecks': 'All checks',
+  'quality.scope': 'Inspection Deck',
+  'quality.library': 'All Library Decks',
+  'quality.search': 'Search vocabulary content',
+  'quality.consistency': 'Consistency check',
+  'quality.enrichment': 'Optional context',
+  'quality.check.translation-without-example': 'Example translation without an example',
+  'quality.check.example-without-translation': 'Example without a translation',
+  'quality.check.missing-example': 'No example sentence',
+  'quality.check.missing-definition': 'No definition',
+  'quality.meaning.translation-without-example':
+    'A translation is saved with no source example to refer to. Review the pair.',
+  'quality.meaning.example-without-translation':
+    'An example is saved without its translation. Add one if it would help you study.',
+  'quality.meaning.missing-example':
+    'No example sentence is saved. Add context if it would help you study.',
+  'quality.meaning.missing-definition':
+    'No definition is saved. A translation may already be enough.',
+  'quality.online': 'Server results. Device-only changes appear after synchronization.',
+  'quality.downloaded':
+    'Complete downloaded collection, including locally saved edits and pending Notes. Other devices may have newer content.',
+  'quality.coverage': 'Vocabulary Notes in this view: {count}',
+  'quality.countHint':
+    'Counts follow the search and Deck filters. One Note can appear in several checks. Basic and Cloze Notes are outside these checks.',
+  'quality.results': 'Shown: {count} of {total}',
+  'quality.notes': 'Matching Notes',
+  'quality.more': 'Load more',
+  'quality.empty': 'No matching Notes',
+  'quality.filteredEmpty':
+    'This check has no matches in the current search and Deck. Try a broader view or choose another check.',
+  'quality.completed':
+    'No Notes match this check. Choose another check to review other optional context.',
+  'quality.noVocabulary': 'No vocabulary Notes in this view',
+  'quality.noVocabularyHint':
+    'These checks apply to vocabulary Notes. Basic and Cloze Notes need no vocabulary fields.',
   'duplicates.title': 'Possible duplicates',
   'duplicates.groups': 'All groups',
   'duplicates.hint':

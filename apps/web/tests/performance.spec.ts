@@ -2,7 +2,13 @@ import { appendFileSync, writeFileSync } from 'node:fs';
 
 import { expect, test } from '@playwright/test';
 
+import { installQualityFixture, qualityDownloaded } from './content-quality-fixture';
 import { manyDecks, triageNotes, useFixtures, usePreferences } from './fixtures';
+import {
+  installInteractionMetrics,
+  readInteractionMetrics,
+  startInteractionMetrics,
+} from './interaction-metrics';
 import { installRecentFixture } from './recent-fixture';
 
 import type { Page } from '@playwright/test';
@@ -36,6 +42,75 @@ const BUDGET = 55;
 const CPU_THROTTLE = 4;
 
 const FRAMES = 180;
+
+test('Content checks retains the scroll budget and bounded downloaded reads over 6500 mixed Notes at 4x CPU', async ({
+  page,
+}, info) => {
+  test.setTimeout(210_000);
+  const state = await installQualityFixture(page);
+  await installInteractionMetrics(page);
+  const session = await page.context().newCDPSession(page);
+  await session.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+  try {
+    await page.goto('/library/quality');
+    await page.getByRole('button', { name: /^No definition / }).click();
+    await expect(page.getByText('Shown: 100 of 4125', { exact: true })).toBeVisible();
+    const samples: number[] = [];
+    for (let trial = 0; trial < 3; trial++) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      samples.push(
+        await page.evaluate(
+          (frames) =>
+            new Promise<number>((resolve) => {
+              let frame = 0;
+              let start = 0;
+              const tick = (time: number) => {
+                if (frame === 0) start = time;
+                window.scrollTo(0, frame * 24);
+                if (++frame >= frames) resolve(((frames - 1) * 1000) / (time - start));
+                else requestAnimationFrame(tick);
+              };
+              requestAnimationFrame(tick);
+            }),
+          FRAMES,
+        ),
+      );
+    }
+    const fps = [...samples].sort((a, b) => a - b)[1]!;
+    const mountedRows = await page.locator('[data-quality-id]').count();
+    await qualityDownloaded(page);
+    state.offline = true;
+    await startInteractionMetrics(page);
+    const started = Date.now();
+    await page.evaluate(() => dispatchEvent(new Event('offline')));
+    await expect(page.getByText(/^Complete downloaded collection/)).toBeVisible();
+    await expect(page.getByText('Shown: 100 of 4125', { exact: true })).toBeVisible();
+    const offlineMs = Date.now() - started;
+    const metrics = await readInteractionMetrics(page);
+    const result = {
+      ...metrics,
+      fps,
+      samples,
+      mountedRows,
+      offlineMs,
+      cpuSlowdown: CPU_THROTTLE,
+      fixtureNotes: 6500,
+    };
+    // Scroll FPS excludes cold download hydration; report both measurements separately.
+    console.info(JSON.stringify(result));
+    await info.attach('content-checks-performance.json', {
+      body: JSON.stringify(result),
+      contentType: 'application/json',
+    });
+    expect(fps).toBeGreaterThanOrEqual(BUDGET);
+    expect(mountedRows).toBeLessThan(40);
+    expect(offlineMs).toBeLessThan(3000);
+    expect(metrics.scans['cards'] ?? 0).toBe(0);
+    expect(metrics.scans['notes'] ?? 0).toBeLessThanOrEqual(1);
+  } finally {
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  }
+});
 
 test('Recent Notes retains bounded rows and the scroll budget over 6500 Notes at 4x CPU', async ({
   page,

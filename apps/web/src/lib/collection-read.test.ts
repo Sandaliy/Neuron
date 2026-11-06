@@ -6,9 +6,11 @@ import {
   localNoteCategories,
   projectCollectionNote,
 } from './collection-read';
+import { localContentQuality } from './content-quality';
 import { localDuplicateGroups, localDuplicateNotes } from './possible-duplicates';
 
 import type { CollectionRow } from './collection-db';
+import type { PendingNoteCreate } from './note-creation';
 import type { PendingNoteEdit } from './note-outbox';
 
 const state = vi.hoisted(() => ({
@@ -343,5 +345,142 @@ describe('downloaded account-wide Note browsing', () => {
     state.visit++;
     expect((await localNotes({ search: 'shared' })).items).toEqual([]);
     expect(storage.snapshot).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('complete downloaded content inspection', () => {
+  it('counts overlapping checks over 6500 mixed Notes with shared visibility and bounded pages', async () => {
+    const rows = fixture(
+      Array.from({ length: 6500 }, (_, at) => {
+        const row = note(100 + at, id(at % 2 ? 3 : 4));
+        row.row['noteType'] = at < 5500 ? 'vocab' : at < 6000 ? 'basic' : 'cloze';
+        row.row['fields'] =
+          at < 5500
+            ? {
+                term: `Word ${at}`,
+                translation: 'meaning',
+                ...(at % 2 ? { exampleTranslation: 'orphan context' } : {}),
+              }
+            : at < 6000
+              ? { front: 'Q', back: 'A' }
+              : { text: 'A {{gap}}.' };
+        return row;
+      }),
+    );
+    rows.decks.push({ ...deck(5, null, 'folder'), deleted: true }, deck(6, id(5)));
+    rows.notes.push(
+      note(7000, id(6)),
+      { ...note(7001), deleted: true },
+      { ...note(7002), purged: true },
+    );
+    storage.snapshot.mockResolvedValue(rows);
+    const summary = await localContentQuality(undefined, '');
+    expect(summary).toMatchObject({
+      vocabularyCount: 5500,
+      items: [],
+      local: true,
+      counts: {
+        'translation-without-example': 2750,
+        'example-without-translation': 0,
+        'missing-example': 5500,
+        'missing-definition': 5500,
+      },
+    });
+    const first = await localContentQuality(undefined, '', 'missing-example');
+    const second = await localContentQuality(undefined, '', 'missing-example', first.nextCursor);
+    expect(first.items).toHaveLength(100);
+    expect(second.items).toHaveLength(100);
+    expect(new Set([...first.items, ...second.items].map((note) => note.id)).size).toBe(200);
+    expect(second.counts).toEqual(first.counts);
+    expect(
+      (await localContentQuality(id(3), 'orphan', 'missing-example')).counts['missing-example'],
+    ).toBe(2750);
+    expect(
+      (await localContentQuality(id(4), 'orphan', 'missing-example')).counts['missing-example'],
+    ).toBe(0);
+    expect(storage.snapshot).toHaveBeenCalledTimes(1);
+    expect(storage.snapshot).toHaveBeenCalledWith(expect.anything(), false);
+  });
+  it('reflects durable raw edits, including an incomplete draft, without reopening Note or Card stores', async () => {
+    expect((await localContentQuality(undefined, '')).counts['missing-example']).toBe(2);
+    state.version++;
+    const edit: PendingNoteEdit = {
+      kind: 'note-edit',
+      operationId: id(99),
+      sequence: 1,
+      accountId: 'reader',
+      entityId: id(10),
+      payload: { accountId: 'reader', operationId: id(99), baseRev: 2, fields: {}, tags: [] },
+      base: note(10),
+      working: { fields: { term: '', example: 'Saved draft example' }, tags: [] },
+      started: false,
+      state: 'draft',
+    };
+    projectCollectionNote('reader', id(10), edit, state.version);
+    const page = await localContentQuality(undefined, 'saved draft', 'example-without-translation');
+    expect(page.items.map((note) => note.id)).toEqual([id(10)]);
+    expect(page.counts['missing-example']).toBe(0);
+    expect(page.counts['example-without-translation']).toBe(1);
+    expect(storage.snapshot).toHaveBeenCalledTimes(1);
+  });
+  it('includes only actual saved pending creations and removes resolved creations', async () => {
+    const rows = fixture();
+    const pending: PendingNoteCreate = {
+      kind: 'note-create',
+      accountId: 'reader',
+      entityId: id(90),
+      operationId: id(91),
+      sequence: 1,
+      createdAt: date,
+      updatedAt: date,
+      started: false,
+      state: 'pending',
+      payload: {
+        accountId: 'reader',
+        noteId: id(90),
+        operationId: id(91),
+        deckId: id(3),
+        noteType: 'vocab',
+        fields: { term: 'Device', translation: 'saved' },
+        tags: [],
+      },
+      working: {
+        fields: { term: 'Device', translation: 'saved', exampleTranslation: 'saved orphan' },
+        tags: [],
+      },
+    };
+    storage.snapshot.mockResolvedValue({ ...rows, creations: [pending] });
+    const page = await localContentQuality(undefined, 'Device', 'translation-without-example');
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({ id: id(90), pending: true });
+    expect(page.counts['missing-example']).toBe(1);
+    state.version++;
+    storage.snapshot.mockResolvedValue({ ...rows, creations: [{ ...pending, state: 'resolved' }] });
+    expect((await localContentQuality(undefined, 'Device')).vocabularyCount).toBe(0);
+  });
+  it('refuses incomplete downloads even after a complete view was cached', async () => {
+    await localContentQuality(undefined, '');
+    state.available = false;
+    await expect(localContentQuality(undefined, '')).rejects.toThrow('collection_incomplete');
+  });
+  it('rejects a pending old-account read and recomputes after a pull and an account visit change', async () => {
+    expect((await localContentQuality(undefined, '')).vocabularyCount).toBe(2);
+    state.cursor++;
+    storage.snapshot.mockResolvedValue(fixture([]));
+    expect((await localContentQuality(undefined, '')).vocabularyCount).toBe(0);
+    state.cursor++;
+    let release!: (rows: ReturnType<typeof fixture>) => void;
+    storage.snapshot.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    const waiting = localContentQuality(undefined, '');
+    await vi.waitFor(() => expect(storage.snapshot).toHaveBeenCalledTimes(3));
+    state.accountId = 'other';
+    state.visit++;
+    release(fixture());
+    await expect(waiting).rejects.toThrow('collection_account_changed');
+    expect((await localContentQuality(undefined, '')).vocabularyCount).toBe(0);
   });
 });
