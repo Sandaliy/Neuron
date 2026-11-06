@@ -79,7 +79,7 @@ export function Menu({
             sideOffset={4}
             collisionPadding={16}
             className={[
-              'z-50 flex min-w-[200px] flex-col rounded-18 p-8',
+              'z-50 flex max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[200px] flex-col overflow-y-auto rounded-18 p-8',
               'data-[state=open]:neu-panel-in data-[state=closed]:neu-menu-out',
             ].join(' ')}
           >

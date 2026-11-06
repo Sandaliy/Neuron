@@ -80,6 +80,9 @@ jobs:
       - name: Test browser verification commands
         run: node --test apps/web/scripts/screens-ci.test.mjs
 
+      - name: Test dependency compatibility
+        run: node --test scripts/dependency-compatibility.test.mjs
+
       - name: Check formatting
         run: pnpm format:check
 

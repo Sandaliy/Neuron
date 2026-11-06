@@ -230,6 +230,9 @@ Migrations are in `drizzle/`, numbered. `0002_isolation.sql` is the row level se
 `0005_auth_isolation.sql` is the split into two roles, and `0007_auth_rework.sql` puts the recovery codes
 and the two factor secrets on the authentication side of that split.
 
+`src/db/integrity/` owns the read-only, account-bound Database Integrity Doctor and its bounded replay.
+Operator commands, coverage and limits are in `docs/database-integrity-doctor.md`.
+
 ## apps/web
 
 React 19 on Vite, deployed as `neuron-web`. Every request goes to the origin the page came from.
