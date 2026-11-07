@@ -28,6 +28,7 @@ import {
   toReviewLog,
   toSchedulingState,
 } from './mapping.js';
+import { progressNotes } from './progression.js';
 import { requireLiveDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
@@ -84,6 +85,8 @@ export interface RecordedReview {
    * written and the card is being returned as it already stood.
    */
   readonly applied: boolean;
+  /** Directions this answer opened by progression. Empty on a retry. */
+  readonly opened: readonly (typeof cards.$inferSelect)[];
 }
 
 export interface ReviewRepository {
@@ -444,6 +447,13 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
           .where(and(eq(cards.userId, userId), eq(cards.id, card.id)))
           .returning();
         if (!updated) throw new CardNotFound(card.id);
+        // The undone answer may have opened a direction. It is taken back only
+        // while it no longer qualifies and has never been used.
+        await progressNotes(tx, userId, [updated.noteId], {
+          now: new Date(),
+          rev,
+          undoneReviewId: reviewId,
+        });
         return { ...updated, cancellationId: eventId };
       });
     },
@@ -490,6 +500,7 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
             card,
             state: toSchedulingState(card),
             applied: false,
+            opened: [],
           };
         const rev = await nextRev(tx, userId);
 
@@ -542,6 +553,7 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
             card,
             state: toSchedulingState(card),
             applied: false,
+            opened: [],
           };
         }
 
@@ -563,7 +575,15 @@ export function reviewRepository(userId: string, run: Runner): ReviewRepository 
           throw new Error('the card was not updated');
         }
 
-        return { review: written, card: updated, state: projected, applied: true };
+        // Still under the account lock: the stability this answer produced may
+        // open the Note's next direction, exactly once whoever delivers it.
+        const { opened } = await progressNotes(tx, userId, [updated.noteId], {
+          now: new Date(),
+          rev,
+          reviewId: id,
+        });
+
+        return { review: written, card: updated, state: projected, applied: true, opened };
       });
     },
 

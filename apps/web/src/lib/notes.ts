@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import type { CardDirection } from '@neuron/core';
 import {
   listNotesSchema,
   termOf,
@@ -535,7 +536,7 @@ export function useNoteActions() {
 
   const enableDirection = useMutation({
     mutationKey: ['note-interaction', 'direction'],
-    mutationFn: (input: { noteId: string; direction: 'production' | 'listening' }) =>
+    mutationFn: (input: { noteId: string; direction: CardDirection }) =>
       writeEntities(client, [input.noteId], () =>
         request<{ card: Card }>(`/notes/${input.noteId}/cards`, {
           method: 'POST',
