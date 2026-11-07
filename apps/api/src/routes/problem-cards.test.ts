@@ -153,6 +153,25 @@ describe.skipIf(!database)('Slipping Cards through PostgreSQL and RLS', () => {
     expect(relisted?.evidence).toMatchObject({ answers: 6, again: 3, lapses: 3 });
   });
 
+  it('counts successful answers after the last Again in equal-time replay order', async () => {
+    const { recognition } = await vocab('same-time recovery');
+    const ratings = [G, A, A, A, A, A, G, G, G];
+    // Delayed clients can submit IDs in an order different from the committed revisions.
+    const reviewIds = ratings
+      .map(() => uuidV7())
+      .sort()
+      .reverse();
+    const now = new Date(clock + DAY);
+    for (const [index, rating] of ratings.entries())
+      await repo.reviews.record({ id: reviewIds[index]!, cardId: recognition.id, rating, now });
+
+    const evidence = async () =>
+      (await page()).items.find((item) => item.card.id === recognition.id)?.evidence;
+    expect(await evidence()).toMatchObject({ kind: 'history', answers: 9, sinceLastAgain: 3 });
+    await repo.reviews.undo(reviewIds.at(-1)!, uuidV7());
+    expect(await evidence()).toMatchObject({ kind: 'history', answers: 8, sinceLastAgain: 2 });
+  });
+
   it('counts only the history since the latest restart or reset, and says when it started', async () => {
     const restarted = await vocab('restart word', otherDeck);
     await answer(restarted.recognition.id, lapses(4));

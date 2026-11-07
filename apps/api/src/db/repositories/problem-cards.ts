@@ -130,8 +130,19 @@ export function problemCardRepository(userId: string, run: Runner) {
           from (select count(*)::int as total from listed) totals
           left join page on true
           left join lateral (
+            -- The timestamp identifies the latest Again group. Revision and ID
+            -- pick the last answer in that group using canonical replay order.
+            select a.reviewed_at, a.rev, a.id
+            from reviews a
+            where a.user_id = ${userId} and a.card_id = page.id
+              and a.reviewed_at = page.last_again_at and a.rating = 'again'
+              and ${countedAs('a', 'page', true)}
+            order by a.rev desc, a.id desc
+            limit 1
+          ) last_again on page.id is not null
+          left join lateral (
             select
-              count(*) filter (where r.reviewed_at > page.last_again_at)::int as since_last_again,
+              count(*)::int as since_last_again,
               (select jsonb_agg(jsonb_build_object(
                   'rating', latest.rating, 'reviewedAt', latest.reviewed_at,
                   'stateBefore', latest.state_before
@@ -145,7 +156,10 @@ export function problemCardRepository(userId: string, run: Runner) {
                   limit ${PROBLEM_CARD_POLICY.recentAnswers}
                 ) latest) as recent
             from reviews r
-            where r.user_id = ${userId} and r.card_id = page.id and ${countedAs('r', 'page', true)}
+            where r.user_id = ${userId} and r.card_id = page.id
+              and r.reviewed_at >= last_again.reviewed_at
+              and (r.reviewed_at, r.rev, r.id) > (last_again.reviewed_at, last_again.rev, last_again.id)
+              and ${countedAs('r', 'page', true)}
           ) explained on page.id is not null
           ${order}
         `);

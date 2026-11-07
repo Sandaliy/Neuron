@@ -35,7 +35,8 @@ learning steps. The thresholds are hypotheses for owner testing (ROADMAP Milesto
 Each listed Card also carries, for the page only: its latest 8 counted answers (newest first, with
 dates for assistive technology), the date of the last Again, how many answers since then were
 successful ("Remembered the last 3 times" from 3 on; a description, not a reason to hide it), and the
-restart or reset its history starts from. Difficulty, stability or any other model score never decides
+restart or reset its history starts from. Equal-time answers follow canonical replay order by revision
+and then Review ID. Difficulty, stability or any other model score never decides
 membership.
 
 Only active Notes in live, account-owned Decks reached through actual parent links contribute. Notes
