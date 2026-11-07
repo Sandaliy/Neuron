@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-07.
+Last updated: 2026-11-08 (session recovery merged at `46d7908`).
 
 ## Release
 
@@ -53,7 +53,7 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   inside each wave. The time-based throttle still decides how many start. The Deck screen shows the
   current wave, what Study lets in today or why it lets in none, when the next wave starts and what waits
   after it; Today's rows name the wave instead of every new Note.
-- Progressive directions (9.2, on `claude/festive-shannon-rd4p9b`, not merged): a vocabulary Note starts
+- Progressive directions (9.2, PR #86): a vocabulary Note starts
   with the ladder's opening direction; Recall opens at 14 days of Recognition stability and Typing at 21
   days of Recall stability, inherited from the Deck chain. The server opens them with the answer that
   qualifies, once, under the account lock; Study planning catches up existing learners. Undo takes back
@@ -99,8 +99,8 @@ installed-iPhone acceptance.
 ## Next
 
 Complete the integration gates in `integration-status.md` before new feature work. Account export
-(#71), Import hardening (#74), progressive directions (#86, Draft) and Slipping Cards (#87) require
-critical review. Integrate #86 before combined #87 validation. Content checks (#89) has owner visual
+(#71), Import hardening (#74) and Slipping Cards (#87) remain in the release backlog. Refresh #87
+after the Progressive Directions release. Content checks (#89) has owner visual
 acceptance; installed-iPhone acceptance remains open. The offline sync chaos harness exercises
 combined delivery faults against the built PWA and disposable PostgreSQL. It also checks that
 real Better Auth sign-in after session expiry validates the new visit in the same document.
@@ -120,7 +120,7 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
    pending Notes, reconnection and account switching. See `possible-duplicates.md`.
 2. Rank order for waves. Waves follow file order today; a frequency list imported out of order would
    need waves by its rank column, which is a per-Deck choice for the owner.
-3. Phase 9 continues: integrate and accept progressive directions (9.2), then the problem-card area.
+3. Accept Progressive Directions on the installed iPhone, then verify Slipping Cards with it.
 4. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
 5. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
@@ -164,9 +164,8 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
   for very long supplementary-Unicode terms. Server groups remain authoritative; see
   `possible-duplicates.md`. The existing normalization and Import contract are unchanged.
 - Account export (#71) and Import hardening (#74) are prepared for separate critical review.
-  Progressive directions (#86) remains Draft: a reproduced suspend/resume/Undo case retracts a
-  direction that its stated policy retains. Slipping Cards (#87) undercounts equal-time recovery
-  answers and awaits #86 integration. See `integration-status.md` for evidence and next actions.
+  Slipping Cards (#87) still needs its protected release checks on the refreshed base. See
+  `integration-status.md` for evidence and next actions.
 - Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.
   Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue.
 - Local new-card admission offline is conservative over the last complete download and this device's
