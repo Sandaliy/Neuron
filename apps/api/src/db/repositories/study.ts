@@ -1,11 +1,11 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { uuidV7 } from '@neuron/shared';
 import type { NoteFields, NoteTypeName } from '@neuron/shared';
 
 import { cards, importBatches, notes, studyPresets, user } from '../schema/index.js';
 
-import { appendImport, ImportConflict, pendingImportMerge } from './import-write.js';
+import { appendImport, ImportConflict, pendingImportMerge, undoImport } from './import-write.js';
 import { requireLiveDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
@@ -320,45 +320,6 @@ export function importBatchRepository(userId: string, run: Runner): ImportBatchR
       );
     },
 
-    async undo(id) {
-      return run(async (tx) => {
-        const rev = await nextRev(tx, userId);
-        const now = new Date();
-
-        const marked = await tx
-          .update(notes)
-          .set({ deletedAt: now, updatedAt: now, rev })
-          .where(
-            and(eq(notes.userId, userId), eq(notes.importBatchId, id), isNull(notes.deletedAt)),
-          )
-          .returning({ id: notes.id });
-
-        // The cards the import generated go with their notes, in the same
-        // statement rather than at the next cleanup. A card whose note is gone
-        // is a question with no answer, and it would keep coming up due.
-        if (marked.length > 0) {
-          await tx
-            .update(cards)
-            .set({ deletedAt: now, deletedWithNote: true, updatedAt: now, rev })
-            .where(
-              and(
-                eq(cards.userId, userId),
-                inArray(
-                  cards.noteId,
-                  marked.map((row) => row.id),
-                ),
-                isNull(cards.deletedAt),
-              ),
-            );
-        }
-
-        await tx
-          .update(importBatches)
-          .set({ undoneAt: now, updatedAt: now, rev })
-          .where(and(eq(importBatches.userId, userId), eq(importBatches.id, id)));
-
-        return marked.length;
-      });
-    },
+    undo: (id) => undoImport(userId, run, id),
   };
 }

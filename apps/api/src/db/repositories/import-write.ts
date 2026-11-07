@@ -30,6 +30,72 @@ export interface ImportWriteNote {
   readonly status?: NoteStatus | undefined;
 }
 
+/** Undo commits atomically and publishes bounded groups of Note and Card tombstones. */
+export function undoImport(userId: string, run: Runner, id: string): Promise<number> {
+  return run(async (tx) => {
+    const [account] = await tx
+      .select({ revision: user.currentRev })
+      .from(user)
+      .where(eq(user.id, userId))
+      .for('update');
+    const [batch] = await tx
+      .select({ undoneAt: importBatches.undoneAt })
+      .from(importBatches)
+      .where(
+        and(
+          eq(importBatches.userId, userId),
+          eq(importBatches.id, id),
+          isNull(importBatches.deletedAt),
+        ),
+      );
+    if (!account || !batch || batch.undoneAt) return 0;
+
+    const now = new Date();
+    const stamp = now.toISOString();
+    const marked = await tx.execute<{ id: string }>(sql`
+      with ranked as (
+        select id, (row_number() over (order by id) - 1) / ${REVISION_ROWS} as group_number
+        from notes
+        where user_id = ${userId} and import_batch_id = ${id}::uuid and deleted_at is null
+      )
+      update notes n
+      set deleted_at = ${stamp}::timestamptz, updated_at = ${stamp}::timestamptz,
+          rev = ${account.revision + 1} + ranked.group_number
+      from ranked where n.user_id = ${userId} and n.id = ranked.id
+      returning n.id
+    `);
+    let revision = account.revision + Math.ceil(marked.rows.length / REVISION_ROWS);
+    if (marked.rows.length) {
+      const result = await tx.execute<{ count: number }>(sql`
+        with ranked as (
+          select id, (row_number() over (order by id) - 1) / ${REVISION_ROWS} as group_number
+          from cards
+          where user_id = ${userId} and deleted_at is null
+            and note_id = any(${sql.param(marked.rows.map((row) => row.id))}::uuid[])
+        ), changed as (
+          update cards c
+          set deleted_at = ${stamp}::timestamptz, updated_at = ${stamp}::timestamptz,
+              deleted_with_note = true, rev = ${revision + 1} + ranked.group_number
+          from ranked where c.user_id = ${userId} and c.id = ranked.id
+          returning c.id
+        )
+        select count(*)::int as count from changed
+      `);
+      revision += Math.ceil(result.rows[0]!.count / REVISION_ROWS);
+    }
+    const batchRevision = revision + 1;
+    await tx
+      .update(importBatches)
+      .set({ undoneAt: now, updatedAt: now, rev: batchRevision })
+      .where(and(eq(importBatches.userId, userId), eq(importBatches.id, id)));
+    await tx
+      .update(user)
+      .set({ currentRev: batchRevision, updatedAt: now })
+      .where(eq(user.id, userId));
+    return marked.rows.length;
+  });
+}
+
 /** Import-only bulk writes. The user lock orders delivery against Undo and collection mutations. */
 export async function appendImport(
   userId: string,

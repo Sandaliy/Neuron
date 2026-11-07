@@ -455,7 +455,29 @@ describe.skipIf(!database)('importing', () => {
         cards: 4000,
         reviewedCards: 1,
       });
+      let undoCursor = await repositories.sync.revision();
       await json(await server.request(`/api/imports/${batchId}/undo`, { method: 'POST' }), 200);
+      const undone = [];
+      for (;;) {
+        const page = await repositories.sync.pull(undoCursor, 1);
+        expect(page.changes.length).toBeLessThanOrEqual(200);
+        undone.push(...page.changes);
+        expect(page.revision).toBeGreaterThan(undoCursor);
+        undoCursor = page.revision;
+        if (!page.hasMore) break;
+      }
+      expect(undone).toHaveLength(5501);
+      expect(undone.filter((row) => row.entity === 'notes' && row.deleted)).toHaveLength(1500);
+      expect(undone.filter((row) => row.entity === 'cards' && row.deleted)).toHaveLength(4000);
+      expect(undone.at(-1)).toMatchObject({
+        entity: 'importBatches',
+        id: batchId,
+        row: { undoneAt: expect.any(Date) },
+      });
+      expect(
+        await json(await server.request(`/api/imports/${batchId}/undo`, { method: 'POST' }), 200),
+      ).toEqual({ undone: 0 });
+      expect(await repositories.sync.revision()).toBe(undoCursor);
       expect(
         (await pool.query('select * from reviews where card_id=$1 order by id', [cardId])).rows,
       ).toEqual(reviewsBefore);

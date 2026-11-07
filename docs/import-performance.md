@@ -134,8 +134,9 @@ deleted destinations and Undo. A 1,500-Note mixed fixture produces exactly 4,000
 directions, two Basic directions and Cloze slots 1, 3 and 7, including repeated occurrences of slot 1.
 Every source ID, rank, relationship and canonical direction/slot is compared with stored state.
 Review and Card records remain unchanged through retries and supported fill-blank merges; Undo keeps
-Reviews. Sync pages with limit 1 return each complete bounded revision, including the final batch row;
-the union is compared with every Note and Card in the committed chunk.
+Reviews. Large Undo commits the tombstones and batch marker together and publishes them in bounded
+revisions. Sync pages with limit 1 return each complete revision, including the final batch row.
+The tests reconcile every Note and Card in the committed chunk and every tombstone after Undo.
 The existing Learning Waves read consumes the imported collection in its source order.
 
 Built-browser checks cover all supported formats, bounded previews, offline preparation, quota failure,
