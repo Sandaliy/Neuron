@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+/** Narrows a request made by an existing tab to the account it is displaying. */
+export const EXPECTED_ACCOUNT_HEADER = 'x-neuron-expected-account';
+
 import { newPasswordSchema, passwordSchema } from '../password.js';
 import { RECOVERY_CODE_COUNT, normaliseRecoveryCode } from '../recovery-code.js';
 

@@ -73,12 +73,19 @@ and a 401. Invalidation preserves that error while the next request is pending, 
 protected gate to redirect back to Sign in even after Better Auth accepts fresh credentials.
 Successful authentication now discards the prior query and waits for the current account's
 authority before the protected shell renders. Offline restoration remains bound to the same visit.
+Requests from an existing visit also carry its expected account. The API checks it against the
+cookie before reading or writing collection data or acting on account credentials. This covers the
+interval before a tab receives the storage notification for a replacement cookie. A mismatch
+revalidates the session and leaves the prior account's IndexedDB untouched.
 
 The regression holds the real account response after sign-in, verifies the new cookie independently,
 then releases the response and checks the second account in Settings in the same document. It records
 only HTTP statuses and the final route, with browser tracing disabled for real auth cookies.
 The separate expiry fault scenario verifies that returning to the original account through Sign in
 resumes its retained work and delivers it exactly once.
+Two cross-tab cases use real sessions to hold this interval open, assert that stale reads and
+writes are refused, and verify that sign-out clears registration recovery codes from both storage
+and the mounted page. Reloading within the original account still restores unconfirmed codes.
 
 ## Held branches
 
