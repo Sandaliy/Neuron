@@ -141,6 +141,13 @@
       "when": 1793772266689,
       "tag": "0019_recent_note_order",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793870645080,
+      "tag": "0020_direction_progression",
+      "breakpoints": true
     }
   ]
 }

@@ -784,6 +784,7 @@ async function writeRow(input: WriteRow): Promise<void> {
         .update(cards)
         .set({
           suspendedAt: suspendedAt instanceof Date ? suspendedAt : null,
+          ...(suspendedAt instanceof Date ? { wasSuspended: true } : {}),
           deletedWithNote: false,
           ...base,
         })

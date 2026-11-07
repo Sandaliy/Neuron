@@ -18,8 +18,8 @@ import type { CardTemplate, ClozeFields, NoteFields, NoteTypeName } from './note
  * one release later.
  *
  * Pure, like packages/core: no clock, no io, nothing injected. What it does not
- * decide is when a direction opens. That is the ladder in the deck settings and,
- * from phase 9, the progressive unlocking rule. This decides what exists.
+ * decide is when a later direction opens. That is the ladder in the deck settings,
+ * applied by direction-progression.ts. This decides what exists.
  */
 
 /** One line of a card, and which field it came from. */

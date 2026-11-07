@@ -430,8 +430,9 @@ started. Known, Set aside and Draft Notes have no Cards in planning, so they are
 waves close up around them. A Note started over with Restart learning is back in its own wave.
 
 Waves change **which** new Cards fill the places the throttle allows, never **how many**. The planner
-gives every Card an admission rank, `2 × wave + (Unsure ? 0 : 1)`, and `orderNewCards` sorts by that
-rank before the existing due/id order. The forecast, the budget, the backlog stop, the daily ceiling and
+gives every new Card an admission rank, `3 × wave + (started Note ? 0 : Unsure ? 1 : 2)`, and
+`orderNewCards` sorts by that rank before the existing due/id order. The "started Note" term is a
+direction opened by progression (below); for a Note's first Card the order is the one waves always had. The forecast, the budget, the backlog stop, the daily ceiling and
 the per-Deck merging of streams are untouched; the core test holds the count and the allowance equal
 with and without ranks. Without triage marks, waves only restate creation order.
 
@@ -458,6 +459,60 @@ where the account's one automatic allowance is divided between Decks, so it is t
 language a sitting then picks. The next wave needs no event: it is current as soon as every Note of the
 one before has started. Computing waves for 5,000 Notes (10,000 Cards) takes about 2 ms, against about
 2.7 s for the whole plan on the same machine, where the forecast dominates.
+
+## Progressive directions
+
+A vocabulary Note starts with the opening direction of its Deck's ladder, Recognition by default. Each
+later rung opens once the rung before it has reached the rung's `opensAtStability`: Recall at 14 days of
+Recognition stability, Typing at 21 days of Recall stability (`DEFAULT_DECK_SETTINGS`). Stability is the
+FSRS quantity, the interval at which recall is expected to fall to 90 per cent, so "holds for 14 days"
+means FSRS expects the learner to still recognise the word with 90 per cent probability two weeks after
+the last answer. No other measure is introduced and the thresholds are the ones the ladder already had;
+they are a Deck setting, inherited through Folders like every other setting, and nothing here changes
+them. The rule is `directionProgress` in `packages/shared/src/direction-progression.ts`, used by the
+server and by the Note screen alike.
+
+The rule, in order:
+
+- Only directions the Note can produce take part. A rung the type cannot produce is skipped, and the rung
+  after it follows the nearest earlier rung the Note does produce: a Basic Note goes Recognition → Recall
+  and stops; a Cloze Note has nothing to progress to.
+- A zero-threshold rung is an opening direction, made with the Note or by the Deck's skill switches, never
+  by progression. Directions the ladder does not mention (Listening by default) open only by hand.
+- A later rung opens when every live, unsuspended Card of the preceding rung has been answered and holds at
+  least the threshold (inclusive: 14.0 opens, 13.999 does not).
+- A suspended preceding direction holds the rungs after it, and a Note outside Study (Known, Set aside,
+  Draft) opens nothing.
+- Opening is one-way. A lapse that later lowers the preceding rung's stability never takes a direction
+  back: the opened Card has its own FSRS state and Review history from its first moment. The only way back
+  is Undo of the very answer that opened it, while the opened Card has never been answered, suspended or
+  reset, and only if the Note no longer qualifies once that answer is cancelled. Suspension is
+  remembered after Resume, and the Card keeps the identity of the answer that opened it.
+- Resets and Restart learning keep every opened direction. They return the predecessor to New, so it opens
+  nothing further until it earns the threshold again.
+
+**Admission.** An opened direction is a new Card and goes through the same throttle as any other: it
+counts toward the forecast-based allowance and the daily new-card ceiling, and the forecast prices it
+when it is admitted, exactly as it prices a Note's first Card. Inside the wave order it goes before the new
+Notes of its own and later waves. That is the session's existing rule, owed work before volunteered work:
+the Note was taken on already, and its next direction is what the ladder owes it. In steady state a
+three-rung ladder means each Note eventually costs three new Cards, so opened directions slow the intake
+of new Notes to what the budget can carry instead of adding work the budget did not allow. The cost is
+visible: a learner with a large backlog of mature words (the first plan after this shipped) sees new
+Notes pause while their next directions are admitted, and the Deck's wave card says so. Same-Note
+separation and the Study-day rule are unchanged: an opened direction of a Note answered today waits for
+the next study day, and two Cards of one Note never meet in a sitting. Waves count Notes, so an opened
+direction never moves a wave's started or waiting count; each Deck's wave summary reports
+`directionsWaiting` and `directionsToday` beside them.
+
+**Where it runs.** Only the server creates these Cards. Recording an answer evaluates that Note inside
+the answer's transaction, under the account lock, so the answer and the direction it opens commit
+together, once, whichever path delivered it (single answer, offline batch or synchronization push) and
+however often it is retried. Planning a Study session first sweeps the planned Decks for Notes that
+already qualify, which is how existing learners, lowered thresholds and Notes returning to Study catch
+up. A device planning offline uses only the Cards it downloaded: a direction that qualifies offline opens
+when the answer reaches the server and arrives with the next download, which is conservative in the same
+way as the offline admission of new Cards.
 
 ## What the simulator measured
 

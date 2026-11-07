@@ -39,6 +39,7 @@ describe('cutting a Deck into waves', () => {
       waiting: 50,
       unsure: 0,
       later: 70,
+      directionsWaiting: 0,
     });
   });
 
@@ -153,6 +154,8 @@ describe('waves in the shared planner', () => {
         unsure: 2,
         later: 250,
         today: plain.newCount,
+        directionsWaiting: 0,
+        directionsToday: 0,
       },
     ]);
   });
@@ -179,5 +182,50 @@ describe('waves in the shared planner', () => {
 
     expect(result.newCount).toBe(0);
     expect(result.waves[0]).toMatchObject({ today: 0 });
+  });
+
+  it('starts the next direction of a started Note before new Notes, outside wave progress', () => {
+    // Ten Notes of the first wave have started; each has a newly opened recall Card.
+    const cards = deck('d', 120, range(0, 10));
+    const opened = range(0, 10);
+    const directions = [...opened].map((index): WorkloadCard => ({
+      ...freshCard(
+        {
+          id: `recall:${cards[index]!.noteId}`,
+          noteId: cards[index]!.noteId,
+          direction: 'production',
+        },
+        NOW,
+      ),
+      deckId: 'd',
+    }));
+    const before = plan(cards);
+    const after = plan([...cards, ...directions]);
+    const fresh = after.cards.filter((card) => card.scheduling.state === 'new');
+
+    // The throttle sets how many new Cards in all; directions take places first.
+    expect(after.newCount).toBeGreaterThan(opened.size);
+    expect(after.newCount).toBe(before.newCount);
+    expect(fresh.filter((card) => card.id.startsWith('recall:')).length).toBe(
+      Math.min(opened.size, after.newCount),
+    );
+    const [wave] = after.waves;
+    expect(wave).toMatchObject({
+      number: 1,
+      started: 10,
+      waiting: 40,
+      directionsWaiting: 10,
+      directionsToday: Math.min(opened.size, after.newCount),
+      today: Math.max(0, after.newCount - opened.size),
+    });
+    // Same-Note separation still holds across directions.
+    const notes = after.cards.map((card) => card.noteId);
+    expect(new Set(notes).size).toBe(notes.length);
+  });
+
+  it('ranks a next direction ahead of Unsure and New Notes of its wave', () => {
+    expect(waveRank(0, false, true)).toBeLessThan(waveRank(0, true));
+    expect(waveRank(0, true)).toBeLessThan(waveRank(0, false));
+    expect(waveRank(0, false)).toBeLessThan(waveRank(1, false, true));
   });
 });

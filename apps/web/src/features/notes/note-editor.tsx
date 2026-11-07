@@ -7,6 +7,7 @@ import { availableForStudy, studyAvailableAt, createSchedulerConfig } from '@neu
 import {
   NOTE_TYPES,
   LANGUAGE_CODES,
+  directionsOf,
   editorFields,
   filledPaths,
   noteFieldsSchemas,
@@ -61,6 +62,7 @@ import { useToast } from '../../ui/toast';
 import { CollectionPicker } from '../library/collection-picker';
 
 import { CardPreview } from './card-preview';
+import { NoteDirections } from './note-directions';
 import { NoteField } from './note-field';
 import { NoteHeader } from './note-header';
 
@@ -921,30 +923,28 @@ function Editor({
         </div>
       )}
 
-      {note?.noteType === 'vocab' && !conversion && (
-        <Disclosure quiet title={t('study.moreDirections')}>
-          <div className="flex flex-col gap-12">
-            <p className="text-13 text-secondary">{t('study.directionHint')}</p>
-            <div className="flex flex-wrap gap-8">
-              {(['production', 'listening'] as const).map((direction) => (
-                <Button
-                  key={direction}
-                  disabled={
-                    cards.some((card) => card.direction === direction) ||
-                    actions.enableDirection.isPending ||
-                    !serverActions
-                  }
-                  onClick={() => {
-                    setStatusError(undefined);
-                    void actions.enableDirection
-                      .mutateAsync({ noteId: note.id, direction })
-                      .catch(setStatusError);
-                  }}
-                >
-                  {t(`study.direction.${direction}`)}
-                </Button>
-              ))}
-            </div>
+      {note && !conversion && directionsOf(note.noteType).length > 1 && (
+        <NoteDirections
+          noteType={note.noteType}
+          fields={note.fields as NoteFields}
+          status={note.status}
+          cards={cards}
+          ladder={settings.ladder}
+          available={serverActions}
+          pending={actions.enableDirection.isPending}
+          onOpen={(direction) => {
+            setStatusError(undefined);
+            void actions.enableDirection
+              .mutateAsync({ noteId: note.id, direction })
+              .catch((error: unknown) => {
+                // Already open, by progression or another device a moment ago:
+                // the refreshed Note shows it, and nothing went wrong.
+                if (!(error instanceof ApiFailure && error.code === 'direction_unavailable'))
+                  setStatusError(error);
+              });
+          }}
+        >
+          {note.noteType === 'vocab' && (
             <label className="flex flex-col gap-8 text-14 text-secondary">
               {t('study.acceptedAnswers')}
               <TextArea
@@ -961,8 +961,8 @@ function Editor({
                 }}
               />
             </label>
-          </div>
-        </Disclosure>
+          )}
+        </NoteDirections>
       )}
 
       {conversion && (

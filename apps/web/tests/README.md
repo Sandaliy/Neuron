@@ -46,7 +46,7 @@ in `apps/api/src/routes/problem-cards.test.ts`. It also runs in mobile WebKit.
 | Smoke                                        | `smoke.spec.ts`                                                                                                                                                                                                 |
 | Shell, navigation, dialogs, toasts, keyboard | `navigation.spec.ts`, `dialogs.spec.ts`, `toast.spec.ts`, `keyboard.spec.ts`                                                                                                                                    |
 | Today and Study setup                        | `today-setup.spec.ts`, `study-language.spec.ts`, `polish.spec.ts` (setup controls, focus halos, disclosure continuity)                                                                                          |
-| Study sittings, answers, Undo                | `study.spec.ts`, `rich-study.spec.ts` (typed, listening, directions)                                                                                                                                            |
+| Study sittings, answers, Undo                | `study.spec.ts`, `rich-study.spec.ts` (typed, listening, directions, progressive direction status)                                                                                                              |
 | Practice                                     | `practice-setup.spec.ts`, `stabilization.spec.ts` (also grammar fields)                                                                                                                                         |
 | Library, Folders, Decks, Deleted             | `collection-integrity.spec.ts`, `library-polish.spec.ts`, `recovery-regressions.spec.ts`, `refinement.spec.ts` (creation feedback)                                                                              |
 | Notes and the editor                         | `note-list.spec.ts`, `note-conversion.spec.ts`, `grammar-stabilization.spec.ts`, `iphone-ux.spec.ts` (autosave, Known, restart)                                                                                 |
@@ -84,6 +84,11 @@ ancestry and production-statement EXPLAIN plans over 6,000 heavily tagged Notes 
 
 Live files need the throwaway database (`DATABASE_URL_TEST`) and an opt-in variable named at the top of
 each file. They skip otherwise, and a skip is not a pass.
+
+The [offline sync chaos harness](../../../docs/offline-sync-chaos.md) runs separately against the built
+PWA and a disposable PostgreSQL database. Its dedicated config fails if the database or built shell is
+missing. CI runs the Chromium regression selection. The runbook includes seeded stress and single-case
+reproduction commands.
 
 ## Running them
 

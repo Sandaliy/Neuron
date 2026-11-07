@@ -187,8 +187,12 @@ Phase 9.1, visible learning waves, is implemented on `work/learning-waves`. A De
 cut into waves of 50 in source order; Unsure Notes start first inside their wave (owner decision,
 2026-11-01); the time-based throttle still decides how many start. The Deck screen shows the current
 wave, what Study lets in today or why it lets in none, when the next wave starts and how much waits after
-it. Today names the wave instead of every new Note. Rank order for waves and progressive directions
-remain (progressive directions: PR #86, in review).
+it. Today names the wave instead of every new Note. Rank order for waves remains.
+
+Phase 9.2, progressive directions, is implemented on `claude/festive-shannon-rd4p9b`. Later ladder rungs
+open from the preceding rung's FSRS stability (Recall at 14 days, Typing at 21 by default), on the server,
+once per direction; opened directions are new Cards under the throttle, ahead of new Notes in wave order;
+the Note screen explains each direction and keeps Open now.
 
 Phase 9.3, Slipping cards (the problem-card area), is implemented in its own pull request: discovery
 from repeated lapses or frequent Again in each Card's current history, an explanation from the latest
@@ -201,6 +205,7 @@ integrity-safe contract for moving history or identity exists. See `docs/problem
 - Add a fast triage sweep for Known, Unsure, and New decisions. (Phase 9.0)
 - Admit new material in visible finite waves ordered by rank or source order. (Phase 9.1, source order)
 - Release additional card directions progressively from demonstrated stability and deck policy.
+  (Phase 9.2, server-opened from the ladder's FSRS stability thresholds)
 - Explain when new material is paused and when capacity is likely to return. (Phase 9.1, per Deck)
 - Build a problem-card review area from lapse history, with editing, mnemonic/context improvements, splitting,
   and temporary suspension. (Phase 9.3 without splitting)

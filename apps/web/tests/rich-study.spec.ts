@@ -749,7 +749,10 @@ for (const direction of ['production', 'listening'] as const)
     await page.goto(`/notes/${note.id}`);
     await page.getByText('Study directions', { exact: true }).click();
     await page
-      .getByRole('button', { name: direction === 'production' ? 'Typing' : 'Listening' })
+      .getByRole('button', {
+        name: `Open ${direction === 'production' ? 'Typing' : 'Listening'} now`,
+        exact: true,
+      })
       .click();
     await expect.poll(() => enabled).toBe(true);
     await page.getByRole('link', { name: 'Today' }).click();
@@ -760,6 +763,83 @@ for (const direction of ['production', 'listening'] as const)
       }),
     ).toBeVisible();
   });
+
+test('the Note editor explains which directions are open, next and locked', async ({ page }) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [deck], notes: [note] });
+  const recognition = {
+    ...base,
+    id: id(4),
+    direction: 'recognition',
+    state: 'review',
+    stability: 6.7,
+    difficulty: 5,
+    lastReview: stamp,
+    reps: 3,
+  };
+  const cards: Record<string, unknown>[] = [recognition];
+  await page.route(`**/api/notes/${note.id}`, (route) => route.fulfill({ json: { note, cards } }));
+  await page.goto(`/notes/${note.id}`);
+  const section = page.getByRole('button', { name: /^Study directions/ });
+  await expect(section).toContainText('Next: Recall');
+  await section.click();
+  const row = (direction: string) => page.locator(`[data-direction="${direction}"]`);
+  await expect(row('recognition')).toHaveAttribute('data-direction-state', 'open');
+  await expect(row('recognition')).toContainText('Studying');
+  await expect(row('recall')).toContainText(
+    'Opens when Recognition holds for 14 days. Now 6 of 14.',
+  );
+  await expect(row('production')).toContainText('Opens after Recall.');
+  await expect(row('listening')).toContainText('Opens only by hand.');
+  // An open direction has no action; every locked one can still be opened by hand.
+  await expect(row('recognition').getByRole('button')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Open Recall now', exact: true })).toBeEnabled();
+});
+
+test('opening a direction that progression opened a moment earlier refreshes quietly', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page, { decks: [deck], notes: [note] });
+  const recognition = {
+    ...base,
+    id: id(4),
+    direction: 'recognition',
+    state: 'review',
+    stability: 15,
+    difficulty: 5,
+    lastReview: stamp,
+    reps: 4,
+  };
+  const cards: Record<string, unknown>[] = [recognition];
+  let attempts = 0;
+  await page.route(`**/api/notes/${note.id}`, (route) => route.fulfill({ json: { note, cards } }));
+  await page.route(`**/api/notes/${note.id}/cards`, (route) => {
+    attempts++;
+    // The server opened recall from an answer while this request travelled.
+    cards.push({ ...base, id: id(5), direction: 'recall', unlockReason: 'ladder' });
+    return route.fulfill({
+      status: 409,
+      json: { error: { code: 'direction_unavailable', status: 409, correlationId: 'x' } },
+    });
+  });
+  await page.goto(`/notes/${note.id}`);
+  await page.getByRole('button', { name: /^Study directions/ }).click();
+  await expect(page.locator('[data-direction="recall"]')).toContainText(
+    'Opens with your next Study plan.',
+  );
+  await page.getByRole('button', { name: 'Open Recall now', exact: true }).click();
+  await expect(page.locator('[data-direction="recall"]')).toHaveAttribute(
+    'data-direction-state',
+    'open',
+  );
+  await expect(page.locator('[data-direction="recall"]')).toContainText('Open, not started yet');
+  await expect(page.locator('[data-direction="production"]')).toContainText(
+    'Opens when Recall holds for 21 days. Recall is not answered yet.',
+  );
+  await expect(page.getByText('That card direction is not available.')).toHaveCount(0);
+  expect(attempts).toBe(1);
+});
 
 for (const screen of ['Study', 'Practice'] as const)
   for (const reduced of [false, true])
