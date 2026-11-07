@@ -289,8 +289,12 @@ restart. They are preparation data, separate from Settings' synchronization outb
 download provides a recovery option when saving fails. Browser storage eviction can still remove local
 work; device storage is not a backup.
 
-`features/import/import-drafts.ts` stores version-1 envelopes under `import-draft:<id>` keys in the
-existing account database's `meta` store, with `import-draft-current` retaining the last selected draft.
+`features/import/import-drafts.ts` reads version-1 envelopes and saves version-2 headers under
+`import-draft:<id>` in the account database's `meta` store. The preparation and frozen attempt live at
+`import-preparation:<id>` and `import-attempt:<id>`; `import-draft-current` retains the selected draft.
+Source/plan records and their referencing header commit atomically. Acknowledgements update only the
+small header, retaining the same immutable plan. Existing version-1 drafts upgrade on their next save.
+An older shell refuses the unknown version rather than overwriting it; reopen with the updated shell.
 No shared collection schema change or Offline Practice persistence integration is required. Compatible additive upgrades
 and collection rebuilds preserve these keys. Unknown draft formats and unreadable storage fail closed
 without deleting existing records. Account and visit checks guard reads, writes and late results;
@@ -309,8 +313,21 @@ Before the first online write, the draft commits a frozen delivery checkpoint wi
 and Note IDs. Each acknowledged 500-row chunk advances the checkpoint. A reopened interrupted import
 offers explicit online resume using those same IDs, including after a lost response. Resuming a frozen
 delivery retains its original duplicate decisions; it does not replan already-applied rows as new
-duplicates. The completed summary retains access to the existing server-confirmed Undo flow. Merges
-still fill blanks and remain outside the undoable additions batch.
+duplicates. Merge delivery uses at most two requests at a time and checkpoints each fully confirmed
+group of twenty. An unconfirmed group retries the original fill-blank decisions; confirmed groups do
+not replay. Merges remain outside the undoable additions batch. Leaving Import stops subsequent
+requests; an in-flight commit remains recoverable with its original IDs. A changed preparation cannot
+freeze an earlier preview after final duplicate validation.
+
+The server serializes chunk application with Undo through the user's write lock. Undone batches,
+changed batch metadata and IDs belonging to different work are refused; a conflicting row rolls back
+the whole chunk. New Notes, canonical opening Cards and the updated batch count commit in one server
+transaction. A reserved revision range limits each published group to 200 entity rows, plus the final
+batch row, so a large Card expansion cannot force one oversized browser-cache transaction. Exact
+retries leave existing Cards and Reviews unchanged. Missing additions in the final
+server summary retain recovery instead of showing completion. A completed checkpoint is shown before
+background destination-cache warming finishes. See [large Import measurements and recovery](import-performance.md)
+for measurements, verification boundaries and device acceptance limits.
 
 A failed storage transaction retains the previous committed draft and the current visible input.
 In-app navigation waits for the latest save and stays on the form if it fails. Pending changes request

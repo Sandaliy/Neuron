@@ -974,6 +974,7 @@ export const en = {
   'import.draftName': 'Draft {number} · {deck}',
   'import.draftSaved':
     'Draft saved on this device. Preparation is local; nothing is imported until you apply it online.',
+  'import.checkpointSaved': 'Recovery checkpoint saved on this device.',
   'import.draftPending':
     'Import preparation stays on this device. Changes are saved automatically.',
   'import.draftFailed':
@@ -1035,11 +1036,18 @@ export const en = {
   'import.resolve.create': 'Add it anyway',
   'import.start': 'Import {count} notes',
   'import.importing': 'Importing',
+  'import.reconciling': 'Checking the completed import',
+  'import.mergeProgress': '{done} of {total} existing Notes confirmed',
+  'import.reconcileFailed':
+    'The saved plan and the server result differ. Your checkpoint is kept. Check whether Notes were moved or deleted before resuming.',
+  'error.import_conflict':
+    'This import was undone or conflicts with other work. Your saved import is kept. Check the destination before continuing.',
   'import.progress': '{done} of {total}',
   'import.merging': 'Merging into the notes you already have',
-  'import.failed': 'The connection dropped after {done} of {total}. Nothing was written twice.',
+  'import.failed': 'Import paused after {done} of {total} chunks. Try continuing below.',
   'import.resume': 'Carry on from where it stopped',
   'import.doneTitle': 'Import complete',
+  'import.doneMerged': 'Existing notes processed: {count}.',
   'import.doneBody': 'Notes: {notes}. Cards: {cards}.',
   'import.openDeck': 'Open the deck',
   'import.undo': 'Take this import back',

@@ -1,0 +1,167 @@
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+
+import { openingCards, parseNoteFields, resolveDeckSettings, uuidV7 } from '@neuron/shared';
+import type { DeckSettings, NoteFields, NoteStatus, NoteTypeName } from '@neuron/shared';
+
+import { decks, importBatches, notes, noteTypes, user } from '../schema/index.js';
+
+import { requireLiveDeck } from './restoration.js';
+import { nextRev } from './session.js';
+
+import type { Runner } from './session.js';
+
+const REVISION_ROWS = 200;
+
+export class ImportConflict extends Error {
+  override readonly name = 'ImportConflict';
+  constructor() {
+    super('the frozen import cannot be applied');
+  }
+}
+
+export interface ImportWriteNote {
+  readonly id?: string | undefined;
+  readonly noteType: NoteTypeName;
+  readonly fields: NoteFields;
+  readonly tags?: readonly string[] | undefined;
+  readonly source?: string | null | undefined;
+  readonly rank?: number | null | undefined;
+  readonly status?: NoteStatus | undefined;
+}
+
+/** Import-only bulk writes. The user lock orders delivery against Undo and collection mutations. */
+export async function appendImport(
+  userId: string,
+  run: Runner,
+  id: string,
+  inputs: readonly ImportWriteNote[],
+) {
+  // Repository validation remains authoritative even for callers other than HTTP routes.
+  const parsed = inputs.map((note) => ({
+    ...note,
+    id: note.id?.toLowerCase() ?? uuidV7(),
+    fields: parseNoteFields(note.noteType, note.fields),
+  }));
+  if (new Set(parsed.map((note) => note.id)).size !== parsed.length) throw new ImportConflict();
+  return run(async (tx) => {
+    const rev = await nextRev(tx, userId);
+    const [batch] = await tx
+      .select()
+      .from(importBatches)
+      .where(
+        and(
+          eq(importBatches.userId, userId),
+          eq(importBatches.id, id),
+          isNull(importBatches.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!batch) return undefined;
+    if (batch.undoneAt) throw new ImportConflict();
+    if (!parsed.length) return { notes: 0, cards: 0, skipped: 0 };
+    const chain = await requireLiveDeck(tx, userId, batch.deckId, 'deck');
+    const existing = await tx
+      .select({
+        id: notes.id,
+        batchId: notes.importBatchId,
+        deckId: notes.deckId,
+        deletedAt: notes.deletedAt,
+      })
+      .from(notes)
+      .where(
+        and(
+          eq(notes.userId, userId),
+          inArray(
+            notes.id,
+            parsed.map((note) => note.id),
+          ),
+        ),
+      );
+    if (
+      existing.some(
+        (note) => note.batchId !== batch.id || note.deckId !== batch.deckId || note.deletedAt,
+      )
+    )
+      throw new ImportConflict();
+    const known = new Set(existing.map((note) => note.id));
+    const pending = parsed.filter((note) => !known.has(note.id));
+    if (!pending.length) return { notes: 0, cards: 0, skipped: parsed.length };
+    const types = await tx
+      .select({ id: noteTypes.id, name: noteTypes.name })
+      .from(noteTypes)
+      .where(
+        and(
+          inArray(noteTypes.name, [...new Set(pending.map((note) => note.noteType))]),
+          isNull(noteTypes.deletedAt),
+        ),
+      );
+    const typeIds = new Map(types.map((type) => [type.name, type.id]));
+    const ancestors = await tx
+      .select({ id: decks.id, settings: decks.settings })
+      .from(decks)
+      .where(and(eq(decks.userId, userId), inArray(decks.id, chain)));
+    const byId = new Map(ancestors.map((deck) => [deck.id, deck.settings]));
+    const settings = resolveDeckSettings(
+      chain.map((deckId) => byId.get(deckId) as DeckSettings | null),
+    );
+    const planned = pending.flatMap((note) =>
+      openingCards(note.noteType, note.fields, settings.ladder).map(({ direction, slot }) => ({
+        id: uuidV7(),
+        noteId: note.id,
+        direction,
+        slot,
+      })),
+    );
+    const noteRevisions = Math.ceil(pending.length / REVISION_ROWS);
+    const revisions = noteRevisions + Math.ceil(planned.length / REVISION_ROWS);
+    // nextRev already owns the user lock. Reserve the remaining contiguous range
+    // in one statement, so bounded pull revisions do not add a request waterfall.
+    const batchRev = rev + revisions - 1;
+    if (revisions > 1)
+      await tx
+        .update(user)
+        .set({ currentRev: batchRev, updatedAt: new Date() })
+        .where(eq(user.id, userId));
+    const values = pending.map((note, index) => ({
+      ...note,
+      noteTypeId: typeIds.get(note.noteType),
+      tags: note.tags ?? [],
+      source: note.source ?? batch.source,
+      rank: note.rank ?? null,
+      status: note.status ?? 'active',
+      rev: rev + Math.floor(index / REVISION_ROWS),
+    }));
+    if (values.some((note) => !note.noteTypeId)) throw new ImportConflict();
+    // One bound JSON value avoids thousands of SQL fragments/parameters and full-row return allocations.
+    const inserted = await tx.execute<{ id: string }>(sql`
+      insert into notes (id, user_id, deck_id, note_type_id, fields, tags, source, rank, status, import_batch_id, rev)
+      select r.id, ${userId}, ${batch.deckId}::uuid, r."noteTypeId", r.fields, r.tags, r.source, r.rank, r.status, ${id}::uuid, r.rev
+      from jsonb_to_recordset(${JSON.stringify(values)}::jsonb)
+        as r(id uuid, "noteTypeId" uuid, fields jsonb, tags text[], source text, rank integer, status text, rev bigint)
+      on conflict do nothing returning id
+    `);
+    // RLS may hide a conflicting foreign ID. Never turn that into a successful missing row.
+    if (inserted.rows.length !== pending.length) throw new ImportConflict();
+    const now = new Date().toISOString();
+    for (let start = 0; start < planned.length; start += 2000) {
+      const rows = planned.slice(start, start + 2000).map((card, index) => ({
+        ...card,
+        rev: rev + noteRevisions + Math.floor((start + index) / REVISION_ROWS),
+      }));
+      await tx.execute(sql`
+        insert into cards (id, user_id, note_id, deck_id, direction, slot, due, unlocked_at, rev)
+        select r.id, ${userId}, r."noteId", ${batch.deckId}::uuid, r.direction, r.slot, ${now}::timestamptz, ${now}::timestamptz, r.rev
+        from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as r(id uuid, "noteId" uuid, direction text, slot integer, rev bigint)
+      `);
+    }
+    await tx
+      .update(importBatches)
+      .set({
+        noteCount: sql`${importBatches.noteCount} + ${pending.length}`,
+        updatedAt: new Date(now),
+        rev: batchRev,
+      })
+      .where(and(eq(importBatches.userId, userId), eq(importBatches.id, id)));
+    return { notes: pending.length, cards: planned.length, skipped: existing.length };
+  });
+}

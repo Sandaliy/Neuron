@@ -40,12 +40,30 @@ export interface ImportDraft {
   delivery?: {
     attempt: ImportAttempt;
     done: number;
+    merged?: number;
     summary?: { notes: number; cards: number };
   };
 }
 
 export const IMPORT_DRAFT_PREFIX = 'import-draft:';
 const ACTIVE_DRAFT_KEY = 'import-draft-current';
+const preparationKey = (id: string) => `import-preparation:${id}`;
+const attemptKey = (id: string) => `import-attempt:${id}`;
+type DraftHeader = Omit<ImportDraft, 'format' | 'preparation' | 'delivery'> & {
+  format: 2;
+  delivery?: Omit<NonNullable<ImportDraft['delivery']>, 'attempt'>;
+};
+const validatedAttempts = new WeakSet<ImportAttempt>();
+type StoredVersion = { key: string; revision: number };
+const storedPreparations = new WeakMap<ImportPreparation, StoredVersion>();
+const storedAttempts = new WeakMap<ImportAttempt, StoredVersion>();
+const frozen = new WeakSet<object>();
+function freeze(value: unknown): void {
+  if (!value || typeof value !== 'object' || frozen.has(value)) return;
+  frozen.add(value);
+  for (const child of Object.values(value)) freeze(child);
+  Object.freeze(value);
+}
 const resolutions = ['skip', 'merge', 'create'];
 const strings = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string');
@@ -82,49 +100,76 @@ export function validateImportDraft(input: unknown, accountId: string): ImportDr
     throw new Error('import_draft_invalid');
   if (draft.delivery) {
     const { attempt, done, summary } = draft.delivery;
-    idSchema.parse(attempt.batchId);
-    createImportSchema.parse({
-      id: attempt.batchId,
-      deckId: attempt.deckId,
-      source: attempt.source,
-      format: attempt.format,
-    });
+    const merged = draft.delivery.merged ?? (summary ? attempt?.merge.length : 0);
     if (
-      typeof attempt.deckId !== 'string' ||
-      !attempt.deckId ||
-      attempt.deckId !== p.deck ||
-      typeof attempt.source !== 'string' ||
-      !IMPORT_FORMATS.includes(attempt.format) ||
-      !NOTE_TYPES.includes(attempt.noteType) ||
-      !Array.isArray(attempt.create) ||
-      !Number.isSafeInteger(done) ||
-      done < 0 ||
-      done > Math.ceil(attempt.create.length / IMPORT_CHUNK_SIZE) ||
+      !attempt ||
       !Array.isArray(attempt.merge) ||
-      !Number.isSafeInteger(attempt.skipped) ||
-      attempt.skipped < 0
+      !Number.isSafeInteger(merged) ||
+      merged! < 0 ||
+      merged! > attempt.merge.length ||
+      attempt.deckId !== p.deck
     )
       throw new Error('import_draft_invalid');
-    for (let at = 0; at < attempt.create.length; at += IMPORT_CHUNK_SIZE) {
-      importChunkSchema.parse({
-        notes: attempt.create.slice(at, at + IMPORT_CHUNK_SIZE).map((row) => ({
-          id: row.id,
-          noteType: attempt.noteType,
-          fields: row.fields,
-          tags: row.tags,
-          ...(row.rank === undefined ? {} : { rank: row.rank }),
-        })),
+    if (!validatedAttempts.has(attempt)) {
+      idSchema.parse(attempt.batchId);
+      createImportSchema.parse({
+        id: attempt.batchId,
+        deckId: attempt.deckId,
+        source: attempt.source,
+        format: attempt.format,
       });
+      if (
+        typeof attempt.deckId !== 'string' ||
+        !attempt.deckId ||
+        attempt.deckId !== p.deck ||
+        typeof attempt.source !== 'string' ||
+        !IMPORT_FORMATS.includes(attempt.format) ||
+        !NOTE_TYPES.includes(attempt.noteType) ||
+        !Array.isArray(attempt.create) ||
+        !Number.isSafeInteger(done) ||
+        done < 0 ||
+        done > Math.ceil(attempt.create.length / IMPORT_CHUNK_SIZE) ||
+        !Array.isArray(attempt.merge) ||
+        !Number.isSafeInteger(attempt.skipped) ||
+        attempt.skipped < 0
+      )
+        throw new Error('import_draft_invalid');
+      for (let at = 0; at < attempt.create.length; at += IMPORT_CHUNK_SIZE) {
+        importChunkSchema.parse({
+          notes: attempt.create.slice(at, at + IMPORT_CHUNK_SIZE).map((row) => ({
+            id: row.id,
+            noteType: attempt.noteType,
+            fields: row.fields,
+            tags: row.tags,
+            ...(row.rank === undefined ? {} : { rank: row.rank }),
+          })),
+        });
+      }
+      for (const row of attempt.create) noteFieldsSchemas[attempt.noteType].parse(row.fields);
+      for (const merge of attempt.merge) {
+        idSchema.parse(merge.noteId);
+        noteFieldsSchemas[attempt.noteType].parse(merge.fields);
+      }
+      if (
+        new Set(attempt.create.map((row) => row.id.toLowerCase())).size !== attempt.create.length ||
+        new Set(attempt.merge.map((row) => row.noteId.toLowerCase())).size !== attempt.merge.length
+      )
+        throw new Error('import_draft_invalid');
+      freeze(attempt);
+      validatedAttempts.add(attempt);
     }
-    for (const row of attempt.create) noteFieldsSchemas[attempt.noteType].parse(row.fields);
-    for (const merge of attempt.merge) {
-      idSchema.parse(merge.noteId);
-      noteFieldsSchemas[attempt.noteType].parse(merge.fields);
-    }
+    // Progress is mutable even though the frozen plan is validated only once per read.
+    if (
+      !Number.isSafeInteger(done) ||
+      done < 0 ||
+      done > Math.ceil(attempt.create.length / IMPORT_CHUNK_SIZE)
+    )
+      throw new Error('import_draft_invalid');
     if (
       summary !== undefined &&
       (!object(summary) ||
         done !== Math.ceil(attempt.create.length / IMPORT_CHUNK_SIZE) ||
+        merged !== attempt.merge.length ||
         !Number.isSafeInteger(summary.notes) ||
         summary.notes < 0 ||
         !Number.isSafeInteger(summary.cards) ||
@@ -132,7 +177,26 @@ export function validateImportDraft(input: unknown, accountId: string): ImportDr
     )
       throw new Error('import_draft_invalid');
   }
+  freeze(p);
   return draft;
+}
+
+function validateHeader(value: unknown, accountId: string): DraftHeader {
+  const head = value as DraftHeader;
+  if (
+    !head ||
+    head.format !== 2 ||
+    head.accountId !== accountId ||
+    !idSchema.safeParse(head.id).success ||
+    !Number.isSafeInteger(head.revision) ||
+    head.revision < 1 ||
+    (head.delivery !== undefined &&
+      (!object(head.delivery) ||
+        !Number.isSafeInteger(head.delivery.done) ||
+        head.delivery.done < 0))
+  )
+    throw new Error('import_draft_invalid');
+  return head;
 }
 
 export function newImportDraft(accountId: string, deck = ''): ImportDraft {
@@ -173,18 +237,43 @@ export async function importDrafts(accountId: string): Promise<ImportDraft[]> {
   try {
     current();
     const tx = db.transaction('meta');
-    const [rows, active] = await Promise.all([
+    const store = tx.objectStore('meta');
+    const reads = Promise.all([
       result<unknown[]>(
         tx
           .objectStore('meta')
           .getAll(IDBKeyRange.bound(IMPORT_DRAFT_PREFIX, `${IMPORT_DRAFT_PREFIX}\uffff`)),
       ),
       result<string | undefined>(tx.objectStore('meta').get(ACTIVE_DRAFT_KEY)),
-      committed(tx),
-    ]);
+    ]).then(async ([rows, active]) => {
+      const loaded = await Promise.all(
+        rows.map(async (row) => {
+          if ((row as ImportDraft)?.format === 1) return row;
+          const head = validateHeader(row, accountId);
+          const [preparation, attempt] = await Promise.all([
+            result<ImportPreparation>(store.get(preparationKey(head.id))),
+            head.delivery ? result<ImportAttempt>(store.get(attemptKey(head.id))) : undefined,
+          ]);
+          return {
+            ...head,
+            format: 1,
+            preparation,
+            ...(head.delivery ? { delivery: { ...head.delivery, attempt } } : {}),
+          };
+        }),
+      );
+      return { loaded, active };
+    });
+    const [{ loaded, active }] = await Promise.all([reads, committed(tx)]);
     current();
-    return rows
+    return loaded
       .map((row) => validateImportDraft(row, accountId))
+      .map((draft) => {
+        const version = { key: `${accountId}:${draft.id}`, revision: draft.revision };
+        storedPreparations.set(draft.preparation, version);
+        if (draft.delivery) storedAttempts.set(draft.delivery.attempt, version);
+        return draft;
+      })
       .sort(
         (a, b) => Number(b.id === active) - Number(a.id === active) || b.id.localeCompare(a.id),
       );
@@ -204,6 +293,7 @@ export async function saveImportDraft(draft: ImportDraft): Promise<ImportDraft> 
     const tx = db.transaction('meta', 'readwrite');
     const done = committed(tx);
     let conflict = false;
+    let writeError: unknown;
     const store = tx.objectStore('meta');
     const read = store.get(`${IMPORT_DRAFT_PREFIX}${draft.id}`);
     read.onsuccess = () => {
@@ -214,10 +304,43 @@ export async function saveImportDraft(draft: ImportDraft): Promise<ImportDraft> 
           tx.abort();
           return;
         }
-        if (read.result) validateImportDraft(read.result, draft.accountId);
-        store.put(next, `${IMPORT_DRAFT_PREFIX}${draft.id}`);
+        const previous = read.result;
+        if (previous) {
+          if (previous.format === 1) validateImportDraft(previous, draft.accountId);
+          else validateHeader(previous, draft.accountId);
+          if (previous.id !== draft.id) throw new Error('import_draft_invalid');
+        }
+        const key = `${draft.accountId}:${draft.id}`;
+        const unchanged = (version: StoredVersion | undefined) =>
+          version?.key === key && version.revision === draft.revision;
+        // The header is the compare-and-save boundary. Large immutable values stay
+        // in separate records; every acknowledgement commits only a small header.
+        if (previous?.format !== 2 || !unchanged(storedPreparations.get(next.preparation)))
+          store.put(next.preparation, preparationKey(draft.id));
+        if (
+          next.delivery &&
+          (previous?.format !== 2 || !unchanged(storedAttempts.get(next.delivery.attempt)))
+        )
+          store.put(next.delivery.attempt, attemptKey(draft.id));
+        if (!next.delivery) store.delete(attemptKey(draft.id));
+        const { preparation: _preparation, delivery, ...base } = next;
+        const head: DraftHeader = {
+          ...base,
+          format: 2,
+          ...(delivery
+            ? {
+                delivery: {
+                  done: delivery.done,
+                  ...(delivery.merged === undefined ? {} : { merged: delivery.merged }),
+                  ...(delivery.summary ? { summary: delivery.summary } : {}),
+                },
+              }
+            : {}),
+        };
+        store.put(head, `${IMPORT_DRAFT_PREFIX}${draft.id}`);
         store.put(draft.id, ACTIVE_DRAFT_KEY);
-      } catch {
+      } catch (error) {
+        writeError = error;
         tx.abort();
       }
     };
@@ -225,9 +348,12 @@ export async function saveImportDraft(draft: ImportDraft): Promise<ImportDraft> 
       await done;
     } catch (error) {
       if (conflict) throw new Error('import_draft_conflict', { cause: error });
-      throw error;
+      throw writeError ?? error;
     }
     current();
+    const version = { key: `${draft.accountId}:${draft.id}`, revision: next.revision };
+    storedPreparations.set(next.preparation, version);
+    if (next.delivery) storedAttempts.set(next.delivery.attempt, version);
     return next;
   } finally {
     db.close();

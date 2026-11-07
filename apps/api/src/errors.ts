@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { API_ERROR_STATUS, uuidV7 } from '@neuron/shared';
 import type { ApiErrorCode } from '@neuron/shared';
 
+import { ImportConflict } from './db/repositories/import-write.js';
 import { CardNotFound, DeckCycle, DeckNotFound, UnknownNoteType } from './db/repositories/index.js';
 import { InvalidCollectionKind, RestoreDependency } from './db/repositories/restoration.js';
 import { ReviewIdReused } from './db/repositories/reviews.js';
@@ -130,6 +131,7 @@ export function toApiError(error: unknown): ApiError {
     return new ApiError('invalid_request', { details: { fields: fieldsOf(error) }, cause: error });
   }
   if (error instanceof ReviewIdReused) return new ApiError('review_id_reused', { cause: error });
+  if (error instanceof ImportConflict) return new ApiError('import_conflict', { cause: error });
 
   if (error instanceof DeckNotFound || error instanceof CardNotFound) {
     return new ApiError('not_found', { cause: error });

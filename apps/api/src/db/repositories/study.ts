@@ -2,11 +2,13 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { uuidV7 } from '@neuron/shared';
 
-import { cards, importBatches, notes, studyPresets } from '../schema/index.js';
+import { cards, importBatches, notes, studyPresets, user } from '../schema/index.js';
 
+import { appendImport, ImportConflict } from './import-write.js';
 import { requireLiveDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
+import type { ImportWriteNote } from './import-write.js';
 import type { Runner } from './session.js';
 
 /**
@@ -63,6 +65,7 @@ export interface ImportBatchRepository {
    * half the notes attached to each and neither undo working.
    */
   create: (input: CreateImportBatch) => Promise<ImportBatchRow>;
+  append: (id: string, notes: readonly ImportWriteNote[]) => ReturnType<typeof appendImport>;
   byId: (id: string) => Promise<ImportBatchRow | undefined>;
   list: () => Promise<ImportBatchRow[]>;
   /** Adds to the running count as chunks land. */
@@ -183,6 +186,7 @@ export function presetRepository(userId: string, run: Runner): PresetRepository 
 
 export function importBatchRepository(userId: string, run: Runner): ImportBatchRepository {
   return {
+    append: (id, notes) => appendImport(userId, run, id, notes),
     async create(input) {
       return run(async (tx) => {
         const rev = await nextRev(tx, userId);
@@ -216,9 +220,15 @@ export function importBatchRepository(userId: string, run: Runner): ImportBatchR
           .where(and(eq(importBatches.userId, userId), eq(importBatches.id, id)))
           .limit(1);
 
-        if (!existing) {
-          throw new Error('the import batch was not written');
-        }
+        if (
+          !existing ||
+          existing.deckId !== input.deckId.toLowerCase() ||
+          existing.source !== input.source ||
+          existing.format !== (input.format ?? 'json') ||
+          existing.undoneAt ||
+          existing.deletedAt
+        )
+          throw new ImportConflict();
 
         return existing;
       });
@@ -242,23 +252,33 @@ export function importBatchRepository(userId: string, run: Runner): ImportBatchR
 
     async contents(id) {
       return run(async (tx) => {
-        const [row] = await tx
-          .select({
-            notes: sql<number>`count(distinct ${notes.id})`,
-            cards: sql<number>`count(${cards.id})`,
-            reviewedCards: sql<number>`count(${cards.id}) filter (where ${cards.reps} > 0)`,
-          })
+        // Keep both reads consistent with Undo and other writes. Binding the live
+        // IDs avoids a cold-statistics RLS join that rescans all Cards per Note.
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('share');
+        const members = await tx
+          .select({ id: notes.id })
           .from(notes)
-          .leftJoin(
-            cards,
-            and(eq(cards.noteId, notes.id), eq(cards.userId, userId), isNull(cards.deletedAt)),
-          )
           .where(
             and(eq(notes.userId, userId), eq(notes.importBatchId, id), isNull(notes.deletedAt)),
           );
+        if (!members.length) return { notes: 0, cards: 0, reviewedCards: 0 };
+        const [row] = await tx
+          .select({
+            cards: sql<number>`count(*)`,
+            reviewedCards: sql<number>`count(*) filter (where ${cards.reps} > 0)`,
+          })
+          .from(cards)
+          .where(
+            and(
+              eq(cards.userId, userId),
+              isNull(cards.deletedAt),
+              // One UUID-array parameter also avoids PostgreSQL's bind-parameter limit.
+              sql`${cards.noteId} = any(${sql.param(members.map((note) => note.id))}::uuid[])`,
+            ),
+          );
 
         return {
-          notes: Number(row?.notes ?? 0),
+          notes: members.length,
           cards: Number(row?.cards ?? 0),
           reviewedCards: Number(row?.reviewedCards ?? 0),
         };
