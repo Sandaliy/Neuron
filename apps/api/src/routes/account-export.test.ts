@@ -469,6 +469,35 @@ describe.skipIf(!database)('private synchronized account export on PostgreSQL', 
     expect((await archive()).validator.complete).toBe(true);
   });
 
+  it('closes a streamed response when the client aborts after the manifest', async () => {
+    const controller = new AbortController();
+    const before = await repo.sync.revision();
+    const response = await testServer(db, OWNER).request('/api/account/export', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accountId: OWNER }),
+      signal: controller.signal,
+    });
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    const first = await reader.read();
+    expect(decoder.decode(first.value)).toContain('"type":"manifest"');
+    controller.abort();
+    let rest = '';
+    try {
+      for (;;) {
+        const next = await reader.read();
+        if (next.done) break;
+        rest += decoder.decode(next.value, { stream: true });
+      }
+      expect(rest).not.toContain('"type":"complete"');
+      expect(await repo.sync.revision()).toBe(before);
+      expect((await archive()).validator.complete).toBe(true);
+    } finally {
+      await reader.cancel();
+    }
+  });
+
   it.skipIf(!database?.authUrl)(
     'rejects completion after the real session expires mid-stream',
     async () => {
