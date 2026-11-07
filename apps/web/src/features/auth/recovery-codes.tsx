@@ -4,6 +4,7 @@ import { formatRecoveryCode } from '@neuron/shared';
 import type { MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
+import { RECOVERY_CODE_KEYS } from '../../lib/storage';
 import { Button } from '../../ui/button';
 import { Panel } from '../../ui/card';
 import { Checkbox } from '../../ui/checkbox';
@@ -33,20 +34,12 @@ import { useToast } from '../../ui/toast';
  * way past them. They are separate names now, so neither can answer for the
  * other.
  */
-export type CodeScope = 'account' | 'two-factor';
-
-const HELD: Record<CodeScope, string> = {
-  // Not the name the shared key had. Anything a browser is still holding under
-  // that one belongs to the version where the second factor could strand a set
-  // there, and nothing reads it now, so it is orphaned rather than restored.
-  account: 'neuron.account-codes.pending',
-  'two-factor': 'neuron.two-factor-codes.pending',
-};
+export type CodeScope = keyof typeof RECOVERY_CODE_KEYS;
 
 /** Puts codes aside so a reload cannot lose them. */
 export function holdCodes(codes: readonly string[], scope: CodeScope = 'account'): void {
   try {
-    sessionStorage.setItem(HELD[scope], JSON.stringify(codes));
+    sessionStorage.setItem(RECOVERY_CODE_KEYS[scope], JSON.stringify(codes));
   } catch {
     // Storage refused. The codes are still on screen, which is the copy that
     // matters; only surviving a reload is lost.
@@ -56,7 +49,7 @@ export function holdCodes(codes: readonly string[], scope: CodeScope = 'account'
 /** The codes a previous page load was showing, if it was interrupted. */
 export function heldCodes(scope: CodeScope = 'account'): readonly string[] | undefined {
   try {
-    const raw = sessionStorage.getItem(HELD[scope]);
+    const raw = sessionStorage.getItem(RECOVERY_CODE_KEYS[scope]);
 
     if (!raw) {
       return undefined;
@@ -75,7 +68,7 @@ export function heldCodes(scope: CodeScope = 'account'): readonly string[] | und
 /** Forgets them, once somebody has said they have them. */
 export function releaseCodes(scope: CodeScope = 'account'): void {
   try {
-    sessionStorage.removeItem(HELD[scope]);
+    sessionStorage.removeItem(RECOVERY_CODE_KEYS[scope]);
   } catch {
     // Nothing to do about it, and nothing worth saying.
   }

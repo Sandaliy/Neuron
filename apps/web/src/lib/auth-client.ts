@@ -1,11 +1,11 @@
 import { twoFactorClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 
-import { API_ERROR_CODES } from '@neuron/shared';
+import { API_ERROR_CODES, EXPECTED_ACCOUNT_HEADER, apiErrorSchema } from '@neuron/shared';
 import type { MessageKey, MessageValues } from '@neuron/shared';
 
 import { API_BASE } from './api';
-import { revokeOffline } from './offline';
+import { accountChanged, accountEpoch, offlineState, revokeOffline } from './offline';
 
 import type { FailureCode } from './api';
 
@@ -22,10 +22,43 @@ import type { FailureCode } from './api';
  * 599 is unassigned, so it cannot be confused with something a server said.
  */
 const UNREACHABLE = 'NETWORK_UNREACHABLE';
+const ACCOUNT_AUTH_PATHS = new Set([
+  '/change-password',
+  '/recovery/regenerate',
+  '/two-factor/enable',
+  '/two-factor/disable',
+]);
 
 const fetchOrSaySo: typeof fetch = async (input, init) => {
   try {
-    return await fetch(input, init);
+    const path = new URL(input instanceof Request ? input.url : input, location.origin).pathname;
+    const headers = new Headers(
+      init?.headers ?? (input instanceof Request ? input.headers : undefined),
+    );
+    const accountId = offlineState().accountId;
+    if (accountId && ACCOUNT_AUTH_PATHS.has(path.slice(`${API_BASE}/auth`.length)))
+      headers.set(EXPECTED_ACCOUNT_HEADER, accountId);
+    const visit = accountEpoch();
+    const response = await fetch(input, { ...init, headers });
+    if (
+      headers.has(EXPECTED_ACCOUNT_HEADER) &&
+      response.status === 409 &&
+      visit === accountEpoch()
+    ) {
+      const failure = apiErrorSchema.safeParse(
+        await response
+          .clone()
+          .json()
+          .catch(() => undefined),
+      );
+      if (
+        failure.success &&
+        failure.data.error.code === 'account_changed' &&
+        visit === accountEpoch()
+      )
+        accountChanged();
+    }
+    return response;
   } catch (cause) {
     // An abort is the app tidying up after itself, not a failure to report.
     if (cause instanceof DOMException && cause.name === 'AbortError') {
@@ -59,10 +92,13 @@ export const authClient = createAuthClient({
 });
 
 export const { useSession, signIn, signUp, twoFactor, changePassword } = authClient;
-export const signOut: typeof authClient.signOut = (...args) => {
+export function signOut() {
+  const accountId = offlineState().accountId;
   revokeOffline(true);
-  return authClient.signOut(...args);
-};
+  return accountId
+    ? authClient.signOut({ fetchOptions: { headers: { [EXPECTED_ACCOUNT_HEADER]: accountId } } })
+    : authClient.signOut();
+}
 
 /**
  * Better Auth's own error codes, in the vocabulary the catalogue speaks.

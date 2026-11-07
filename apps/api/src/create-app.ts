@@ -1,10 +1,16 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
-import { uuidV7 } from '@neuron/shared';
+import { EXPECTED_ACCOUNT_HEADER, uuidV7 } from '@neuron/shared';
 
 import { createAuth } from './auth.js';
-import { addressFromHeaders, clientAddress, requireSession, signedIn } from './context.js';
+import {
+  addressFromHeaders,
+  assertExpectedAccount,
+  clientAddress,
+  requireSession,
+  signedIn,
+} from './context.js';
 import { createAuthDb, createDb } from './db/client.js';
 import { requireCompatibleApplicationSchema } from './db/compatibility.js';
 import { readDatabaseTime } from './db/health.js';
@@ -100,7 +106,7 @@ export function mountApp(app: Hono, parts: AppParts): Hono {
       origin: (origin) => (isTrustedOrigin(env.APP_ORIGIN, origin) ? origin : null),
       credentials: true,
       allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['content-type'],
+      allowHeaders: ['content-type', EXPECTED_ACCOUNT_HEADER],
     }),
   );
 
@@ -179,6 +185,11 @@ export function mountApp(app: Hono, parts: AppParts): Hono {
    * make a log line nicer.
    */
   app.on(['GET', 'POST'], '/api/auth/*', async (context) => {
+    const headers = context.req.raw.headers;
+    if (headers.has(EXPECTED_ACCOUNT_HEADER)) {
+      const session = await auth.api.getSession({ headers });
+      assertExpectedAccount(headers, session?.user.id);
+    }
     const response = await auth.handler(context.req.raw);
 
     return response.ok ? response : traceable(response, context);

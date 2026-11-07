@@ -1,4 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
@@ -17,7 +16,6 @@ import { PasswordField } from './password-field';
 export function SignInScreen() {
   const t = useTranslate();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -54,9 +52,7 @@ export function SignInScreen() {
       return;
     }
 
-    // The session changed, so everything read under the old one is stale.
     beginOnlineAccount();
-    await queryClient.invalidateQueries();
     void navigate({ to: '/' });
   };
 

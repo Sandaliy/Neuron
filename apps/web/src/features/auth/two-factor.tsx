@@ -1,4 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
 
@@ -30,7 +29,6 @@ import { CodeInput } from './code-input';
 export function TwoFactorScreen() {
   const t = useTranslate();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [code, setCode] = useState('');
   const [backup, setBackup] = useState('');
   const [usingBackup, setUsingBackup] = useState(false);
@@ -40,11 +38,10 @@ export function TwoFactorScreen() {
     values: Record<string, string | number>;
   }>();
 
-  const finish = useCallback(async () => {
+  const finish = useCallback(() => {
     beginOnlineAccount();
-    await queryClient.invalidateQueries();
     void navigate({ to: '/' });
-  }, [queryClient, navigate]);
+  }, [navigate]);
 
   const submitCode = useCallback(
     async (value: string) => {
@@ -64,7 +61,7 @@ export function TwoFactorScreen() {
         return;
       }
 
-      await finish();
+      finish();
     },
     [finish],
   );
@@ -83,7 +80,7 @@ export function TwoFactorScreen() {
       return;
     }
 
-    await finish();
+    finish();
   };
 
   return (

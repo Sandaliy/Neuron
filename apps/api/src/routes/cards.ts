@@ -4,6 +4,7 @@ import {
   dueCardsSchema,
   idParamSchema,
   possibleCards,
+  problemCardsQuerySchema,
   unlockDirectionSchema,
 } from '@neuron/shared';
 import type { NoteFields, NoteTypeName } from '@neuron/shared';
@@ -36,6 +37,16 @@ export function cardRoutes(): Hono<RequestBindings> {
 
     return context.json({ cards: cards.map(serialiseCard) });
   });
+
+  /**
+   * Slipping Cards: a bounded, read-only page of Cards the learner keeps forgetting, with the
+   * current learning history that put each one there. Registered before `/:id`.
+   */
+  routes.get('/problems', async (context) =>
+    context.json(
+      await repositoriesOf(context).problemCards.list(readQuery(context, problemCardsQuerySchema)),
+    ),
+  );
 
   routes.get('/:id', async (context) => {
     const { id } = readParams(context, idParamSchema);

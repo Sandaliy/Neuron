@@ -1,5 +1,14 @@
 import * as RadixToast from '@radix-ui/react-toast';
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+
+import { accountEpoch, onOfflineChange } from '../lib/offline';
 
 import type { ReactNode } from 'react';
 
@@ -43,6 +52,7 @@ function readingTime(text: string, tone: Tone): number {
 
 interface Message {
   readonly id: number;
+  readonly visit: number;
   readonly text: string;
   readonly tone: Tone;
   readonly open: boolean;
@@ -50,10 +60,17 @@ interface Message {
 
 export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
+  const visit = useSyncExternalStore(onOfflineChange, accountEpoch);
 
-  const show = useCallback((text: string, tone: Tone = 'neutral') => {
-    setMessages((current) => [{ id: Date.now() + current.length, text, tone, open: true }]);
-  }, []);
+  const show = useCallback(
+    (text: string, tone: Tone = 'neutral') => {
+      if (visit !== accountEpoch()) return;
+      setMessages((current) => [
+        { id: Date.now() + current.length, visit, text, tone, open: true },
+      ]);
+    },
+    [visit],
+  );
 
   const value = useMemo(() => ({ show }), [show]);
 
@@ -62,33 +79,37 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
       <RadixToast.Provider swipeDirection="down">
         {children}
 
-        {messages.map((message) => (
-          <RadixToast.Root
-            key={message.id}
-            data-g="toast"
-            open={message.open}
-            duration={readingTime(message.text, message.tone)}
-            onAnimationEnd={(event) => {
-              if (event.target === event.currentTarget && !message.open) {
-                setMessages((current) => current.filter((item) => item.id !== message.id));
-              }
-            }}
-            onOpenChange={(open) => {
-              if (!open) {
-                setMessages((current) =>
-                  current.map((item) => (item.id === message.id ? { ...item, open: false } : item)),
-                );
-              }
-            }}
-            className={[
-              'pointer-events-auto rounded-18 px-16 py-12 text-14',
-              'data-[state=open]:neu-toast-in data-[state=closed]:neu-toast-out',
-              message.tone === 'danger' ? 'text-error' : 'text-primary',
-            ].join(' ')}
-          >
-            <RadixToast.Description>{message.text}</RadixToast.Description>
-          </RadixToast.Root>
-        ))}
+        {messages
+          .filter((message) => message.visit === visit)
+          .map((message) => (
+            <RadixToast.Root
+              key={message.id}
+              data-g="toast"
+              open={message.open}
+              duration={readingTime(message.text, message.tone)}
+              onAnimationEnd={(event) => {
+                if (event.target === event.currentTarget && !message.open) {
+                  setMessages((current) => current.filter((item) => item.id !== message.id));
+                }
+              }}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setMessages((current) =>
+                    current.map((item) =>
+                      item.id === message.id ? { ...item, open: false } : item,
+                    ),
+                  );
+                }
+              }}
+              className={[
+                'pointer-events-auto rounded-18 px-16 py-12 text-14',
+                'data-[state=open]:neu-toast-in data-[state=closed]:neu-toast-out',
+                message.tone === 'danger' ? 'text-error' : 'text-primary',
+              ].join(' ')}
+            >
+              <RadixToast.Description>{message.text}</RadixToast.Description>
+            </RadixToast.Root>
+          ))}
 
         {/* The stylesheet places feedback above the bar or the keyboard. */}
         <RadixToast.Viewport
