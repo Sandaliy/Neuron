@@ -314,8 +314,9 @@ and Note IDs. Each acknowledged 500-row chunk advances the checkpoint. A reopene
 offers explicit online resume using those same IDs, including after a lost response. Resuming a frozen
 delivery retains its original duplicate decisions; it does not replan already-applied rows as new
 duplicates. Merge delivery uses at most two requests at a time and checkpoints each fully confirmed
-group of twenty. An unconfirmed group retries the original fill-blank decisions; confirmed groups do
-not replay. Merges remain outside the undoable additions batch. Leaving Import stops subsequent
+group of twenty. An unconfirmed group retries the original attempt and destination. A committed
+merge has a digest-only receipt and its retry acknowledges the edit without applying it again.
+Confirmed groups do not replay. Merges remain outside the undoable additions batch. Leaving Import stops subsequent
 requests; an in-flight commit remains recoverable with its original IDs. A changed preparation cannot
 freeze an earlier preview after final duplicate validation.
 
@@ -324,9 +325,10 @@ changed batch metadata and IDs belonging to different work are refused; a confli
 the whole chunk. New Notes, canonical opening Cards and the updated batch count commit in one server
 transaction. A reserved revision range limits each published group to 200 entity rows, plus the final
 batch row, so a large Card expansion cannot force one oversized browser-cache transaction. Exact
-retries leave existing Cards and Reviews unchanged. Missing additions in the final
-server summary retain recovery instead of showing completion. A completed checkpoint is shown before
-background destination-cache warming finishes. See [large Import measurements and recovery](import-performance.md)
+retries leave existing Cards, Reviews and revisions unchanged. Large Undo writes all tombstones
+atomically and publishes them in bounded revisions. Import and Undo refresh the existing download
+without waiting on it to show completion. Missing additions in the final server summary retain
+recovery. See [large Import measurements and recovery](import-performance.md)
 for measurements, verification boundaries and device acceptance limits.
 
 A failed storage transaction retains the previous committed draft and the current visible input.

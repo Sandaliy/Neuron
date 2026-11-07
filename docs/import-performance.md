@@ -145,6 +145,10 @@ delivery. Additional checks stop delivery after acknowledgement persistence fail
 summary, resume only unconfirmed merge groups, and finish without waiting for a held cache read.
 The opt-in live journey compares IndexedDB checkpoints and their frozen IDs with real PostgreSQL
 Notes, Cards and retained Review records after closing and reopening the page.
+Chromium and mobile WebKit also complete the download, confirm Undo, and verify both the server
+tombstones and their arrival in IndexedDB. On the Windows test host the full mobile WebKit journey,
+including both background pulls, took 10.4 minutes. The existing interactive completion deadline
+remains separate from background convergence.
 
 Local validation on this branch:
 
