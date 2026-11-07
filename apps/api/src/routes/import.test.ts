@@ -151,6 +151,53 @@ describe.skipIf(!database)('importing', () => {
     expect(batch?.noteCount).toBe(3);
   });
 
+  it('keeps Reviews when taking back an Import whose opening Card progressed', async () => {
+    const row = note('Imported progression');
+    const started = await startBatch('Progressive Import');
+    await sendChunk(started.import.id, [row]);
+    const [recognition] = await repositories.cards.forNote(row.id);
+    const now = new Date();
+    const day = 86_400_000;
+    await repositories.cards.putState(recognition!.id, {
+      state: 'review',
+      stability: 10,
+      difficulty: 5,
+      due: new Date(now.getTime() - day),
+      lastReview: new Date(now.getTime() - 10 * day),
+      reps: 4,
+      lapses: 0,
+      learningStep: 0,
+    });
+    const reviewId = uuidV7();
+    await json(
+      await server.request('/api/reviews', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: reviewId,
+          cardId: recognition!.id,
+          rating: 'good',
+          reviewedAt: now.toISOString(),
+          durationMs: 1000,
+        }),
+      }),
+      200,
+    );
+    const recall = (await repositories.cards.forNote(row.id)).find(
+      (card) => card.direction === 'recall',
+    );
+    expect(recall).toMatchObject({ unlockReason: 'ladder', unlockedByReviewId: reviewId });
+    const reviews = await repositories.reviews.forCard(recognition!.id);
+    expect(reviews).toHaveLength(1);
+    expect(await sendChunk(started.import.id, [row])).toEqual({ notes: 0, cards: 0, skipped: 1 });
+    await json(
+      await server.request(`/api/imports/${started.import.id}/undo`, { method: 'POST' }),
+      200,
+    );
+    expect(await repositories.cards.forNote(row.id)).toEqual([]);
+    expect(await repositories.reviews.forCard(recognition!.id)).toEqual(reviews);
+  });
+
   it('counts live Notes without Cards independently of Card and reviewed-Card totals', async () => {
     const batch = await startBatch('Sparse legacy Cards');
     const empty = await repositories.notes.create({
