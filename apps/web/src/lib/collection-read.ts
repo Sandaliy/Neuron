@@ -258,6 +258,11 @@ export async function duplicateCollection() {
   return collection();
 }
 
+/** Complete, account-visit-bound presentation with the downloaded Card projections. */
+export async function problemCardCollection() {
+  return collection(true);
+}
+
 export async function localDeckTree(): Promise<{ decks: DeckNode[]; local?: true }> {
   const { decks, notes } = await collection();
   const counts = new Map<string, number>();

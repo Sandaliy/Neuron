@@ -240,6 +240,9 @@ export function LibraryScreen() {
           <Button variant="quiet" onClick={() => void navigate({ to: '/library/quality' })}>
             {t('quality.title')}
           </Button>
+          <Button variant="quiet" onClick={() => void navigate({ to: '/library/slipping' })}>
+            {t('problems.title')}
+          </Button>
         </div>
 
         {folder?.rev === 0 && (

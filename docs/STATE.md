@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-08 (session recovery merged at `46d7908`).
+Last updated: 2026-11-08 (Progressive Directions merged at `2f11bd3`).
 
 ## Release
 
@@ -62,6 +62,12 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   next and why the rest wait, with Open now for each locked direction. Migration 0020. See
   "Progressive directions" in `algorithm.md`.
 
+- Slipping Cards (9.3, PR #87) lists Cards with 3 or more lapses or
+  frequent Again in their current learning history (Undo, restart and reset respected; each direction
+  separate), explains each from its latest answers, opens the Note editor with list return, and sets a
+  Card aside or resumes it through the existing schedule-preserving endpoints. A complete download
+  lists the lapse rule from Card counters; Card writes need a connection. See `problem-cards.md`.
+
 Recent Notes (#81) adds Recently added (`createdAt`) and Recently changed (`updatedAt`) to Library's
 existing Note browser, with dates, locations, filters and editor return. Migration 0019 adds read indexes
 with no-wait locking and local execution/idle limits; runtime schema compatibility alone does not prove
@@ -69,7 +75,7 @@ these indexes were applied, so release verification also checks their journal ha
 The category/duplicate journey commits its search and waits for Note rows before opening the editor.
 Installed-iPhone acceptance remains open. See `recent-notes.md` for semantics and acceptance steps.
 
-Not built: offline Import application, rank-ordered waves, the Phase 9 problem-card area, Phase 10
+Not built: offline Import application, rank-ordered waves, splitting problem Notes, Phase 10
 personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
 Owner acceptance on the installed iPhone is the gate for interaction work. The last full acceptance was
@@ -99,8 +105,7 @@ installed-iPhone acceptance.
 ## Next
 
 Complete the integration gates in `integration-status.md` before new feature work. Account export
-(#71), Import hardening (#74) and Slipping Cards (#87) remain in the release backlog. Refresh #87
-after the Progressive Directions release. Content checks (#89) has owner visual
+(#71), Import hardening (#74) remain in the release backlog. Content checks (#89) has owner visual
 acceptance; installed-iPhone acceptance remains open. The offline sync chaos harness exercises
 combined delivery faults against the built PWA and disposable PostgreSQL. It also checks that
 real Better Auth sign-in after session expiry validates the new visit in the same document.
@@ -120,7 +125,8 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
    pending Notes, reconnection and account switching. See `possible-duplicates.md`.
 2. Rank order for waves. Waves follow file order today; a frequency list imported out of order would
    need waves by its rank column, which is a per-Deck choice for the owner.
-3. Accept Progressive Directions on the installed iPhone, then verify Slipping Cards with it.
+3. Accept progressive directions and Slipping Cards on the installed iPhone. Slipping-card thresholds
+   need owner testing. Splitting needs an integrity-safe identity and history contract.
 4. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
 5. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
@@ -164,8 +170,7 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
   for very long supplementary-Unicode terms. Server groups remain authoritative; see
   `possible-duplicates.md`. The existing normalization and Import contract are unchanged.
 - Account export (#71) and Import hardening (#74) are prepared for separate critical review.
-  Slipping Cards (#87) still needs its protected release checks on the refreshed base. See
-  `integration-status.md` for evidence and next actions.
+  See `integration-status.md` for evidence and next actions.
 - Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.
   Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue.
 - Local new-card admission offline is conservative over the last complete download and this device's
@@ -193,6 +198,7 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
 | Visual system, motion, words                              | `design-system.md`           |
 | Offline collection and outboxes                           | `offline-collection.md`      |
 | Offline Study, delivery and recovery                      | `offline-study.md`           |
+| Slipping cards: policy, reads, offline, acceptance        | `problem-cards.md`           |
 | Measured performance and its limits                       | `interaction-performance.md` |
 | Browser tests by product area, and how to run them        | `apps/web/tests/README.md`   |
 | Milestones                                                | `ROADMAP.md`                 |
@@ -226,3 +232,5 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
 | 2026-11-05 | Only the server opens a direction, under the account lock   | One identity per direction across retries and devices       |
 | 2026-11-05 | Opened directions go before new Notes inside wave order     | Owed work before new work; the throttle still sets how much |
 | 2026-11-05 | Undo takes back an opened direction only while untouched    | History is never removed; lapses never close a direction    |
+| 2026-11-05 | Slipping cards: 3 lapses, or Again in half of 4+ answers    | Current history only; visible, never acted on               |
+| 2026-11-05 | Offline Slipping cards use only the lapse counter           | A download is not a verified Review history                 |
