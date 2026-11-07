@@ -57,6 +57,7 @@ import {
 } from './practice-outbox';
 import { cancelReviewDelivery, deliverReviews, onReviewOutboxChange } from './review-outbox';
 import { projectConfirmedReview } from './review-projection';
+import { clearHeldRecoveryCodes } from './storage';
 
 import type { CollectionDiagnostic, CollectionStage } from './collection-failure';
 import type { PendingNoteCreate } from './note-creation';
@@ -174,6 +175,7 @@ async function transitionReads(local: boolean) {
 
 /** Revocation happens before transport; late pulls/account requests cannot re-enable this visit. */
 export function revokeOffline(explicit = false) {
+  clearHeldRecoveryCodes();
   clearCollectionProjection();
   confirmedReviewCards.clear();
   cancelDeckCreationDelivery();
@@ -214,6 +216,9 @@ export function revokeOffline(explicit = false) {
 /** Only explicit successful authentication lifts a local sign-out, never a background account read. */
 export function beginOnlineAccount() {
   revokeOffline();
+  // A refetch keeps the previous data and error while it runs. A new session
+  // must start with neither, and cannot join an old session's account check.
+  client?.clear();
   try {
     localStorage.removeItem(SIGNED_OUT_KEY);
   } catch {
@@ -884,6 +889,7 @@ export function initializeOffline(queryClient: QueryClient) {
   window.addEventListener('storage', (event) => {
     if (event.key === SIGNED_OUT_KEY) {
       if (event.newValue === 'true') {
+        clearHeldRecoveryCodes();
         confirmedReviewCards.clear();
         cancelDeckCreationDelivery();
         cancelRenameDelivery();
@@ -913,6 +919,7 @@ export function initializeOffline(queryClient: QueryClient) {
       } else emit({ signedOut: false });
     }
     if (event.key === CONTEXT_KEY && event.newValue !== state.accountId) {
+      clearHeldRecoveryCodes();
       confirmedReviewCards.clear();
       cancelDeckCreationDelivery();
       cancelRenameDelivery();

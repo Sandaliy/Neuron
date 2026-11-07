@@ -7,6 +7,7 @@ import type { MessageKey } from '@neuron/shared';
 import { useTranslate } from '../../i18n/locale';
 import { authClient, describeAuthError, twoFactor } from '../../lib/auth-client';
 import { hasServerAuthority } from '../../lib/capabilities';
+import { accountEpoch } from '../../lib/offline';
 import { Button } from '../../ui/button';
 import { DIALOG_FORM, DialogBody, DialogFooter } from '../../ui/dialog';
 import { useToast } from '../../ui/toast';
@@ -102,7 +103,9 @@ export function TotpEnrollment({
     setError(undefined);
     setBusy(true);
 
+    const visit = accountEpoch();
     const answer = await twoFactor.verifyTotp({ code: value });
+    if (visit !== accountEpoch()) return;
 
     setBusy(false);
 

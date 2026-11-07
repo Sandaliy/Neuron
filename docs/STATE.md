@@ -94,9 +94,9 @@ Complete the integration gates in `integration-status.md` before new feature wor
 (#71), Import hardening (#74), progressive directions (#86, Draft) and Slipping Cards (#87) require
 critical review. Integrate #86 before combined #87 validation. Content checks (#89) has owner visual
 acceptance; installed-iPhone acceptance remains open. The offline sync chaos harness exercises
-combined delivery faults against the built PWA and disposable PostgreSQL. See [Offline sync chaos
-testing](offline-sync-chaos.md) for reproduction and integration coverage. A separate real-auth
-reproduction leaves the browser on Sign in after expired-session recovery and awaits critical review.
+combined delivery faults against the built PWA and disposable PostgreSQL. It also checks that
+real Better Auth sign-in after session expiry validates the new visit in the same document.
+See [Offline sync chaos testing](offline-sync-chaos.md) for reproduction and integration coverage.
 Shared menu viewport recovery (#91) is released with green main CI and production health. A further
 Doctor query-plan repair addresses cold-account scale failures before the held branches are refreshed.
 

@@ -37,9 +37,7 @@ async function signIn(page: Page) {
   await page.getByRole('textbox', { name: 'Email', exact: true }).fill('fixture@neuron.test');
   await page.getByLabel('Password', { exact: true }).fill('fixture-password');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('neuron.offline.signedOut')))
-    .toBeNull();
+  await expect(page.getByRole('link', { name: 'Library', exact: true })).toBeVisible();
 }
 
 async function create(page: Page, kind: 'folder' | 'deck') {
@@ -416,9 +414,7 @@ if (seedOverride === undefined) {
     await test.step('validate another account without delivering or exposing the original work', async () => {
       a.origin.authenticate('other');
       await signIn(page);
-      // A fresh navigation exercises recovery independently of the confirmed
-      // in-place reauthentication defect reproduced by reauth.ts.
-      await page.goto('/library');
+      await page.getByRole('link', { name: 'Library', exact: true }).click();
       await expect(page.getByRole('button', { name: /^Other account deck/ })).toBeVisible();
       await expect(page.getByRole('button', { name: /^Synthetic saved folder/ })).toHaveCount(0);
       await converges(page, other, lab.apps.other);
@@ -432,8 +428,13 @@ if (seedOverride === undefined) {
     });
 
     await test.step('restore the original session and settle both intents exactly once', async () => {
+      await page.getByRole('link', { name: 'Settings', exact: true }).click();
+      await page.getByRole('button', { name: 'What works offline', exact: true }).click();
+      a.origin.authenticate('expired');
+      await page.getByRole('button', { name: 'Check connection', exact: true }).click();
+      await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
       a.origin.authenticate('owner');
-      await page.goto(settings);
+      await signIn(page);
       await expect
         .poll(async () => {
           const state = await snapshot(page, owner);

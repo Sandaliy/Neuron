@@ -17,6 +17,20 @@ export const STORAGE_KEYS = {
   openDecks: 'neuron.library.open',
 } as const;
 
+export const RECOVERY_CODE_KEYS = {
+  account: 'neuron.account-codes.pending',
+  'two-factor': 'neuron.two-factor-codes.pending',
+} as const;
+
+/** Unconfirmed credentials may survive a reload within the same account visit. */
+export function clearHeldRecoveryCodes() {
+  try {
+    for (const key of Object.values(RECOVERY_CODE_KEYS)) sessionStorage.removeItem(key);
+  } catch {
+    /* Session storage is optional. */
+  }
+}
+
 /**
  * Reads a value.
  *
