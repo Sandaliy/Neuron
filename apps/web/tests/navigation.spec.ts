@@ -193,20 +193,40 @@ test('Study drafts survive tab and history visits; one-off time ends with the se
 }) => {
   await usePreferences(page, { locale: 'en', theme: 'dark' });
   await useFixtures(page);
+  // Slow cold route modules so clicking a tab cannot stand in for a committed visit.
+  await page.route(/\/assets\/(?:library|settings)-[^/]+\.js$/, async (route) => {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 300);
+    });
+    await route.continue();
+  });
   await page.goto('/');
   const setup = page.getByRole('button', { name: 'Study setup', exact: true });
   await setup.click();
   await page.getByRole('combobox', { name: 'Time for this session' }).selectOption('10');
   await page.getByRole('combobox', { name: 'Study mode' }).selectOption('recognition');
   await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+  await expectTab(page, 'Library');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await expectTab(page, 'Settings');
   await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+  await expectTab(page, 'Library');
   await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expectTab(page, 'Today');
+  await expect(setup).toHaveAttribute('aria-expanded', 'false');
   await setup.click();
   await expect(page.getByRole('combobox', { name: 'Time for this session' })).toHaveValue('10');
   await expect(page.getByRole('combobox', { name: 'Study mode' })).toHaveValue('recognition');
   await page.getByRole('button', { name: 'Study', exact: true }).click();
+  await expect(page.locator('[data-learning-screen]')).toBeVisible();
   await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expectTab(page, 'Today');
+  await expect(setup).toHaveAttribute('aria-expanded', 'false');
   await setup.click();
   await expect(page.getByRole('combobox', { name: 'Time for this session' })).toHaveValue('');
   await expect(page.getByRole('combobox', { name: 'Study mode' })).toHaveValue('recognition');
