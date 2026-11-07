@@ -1,4 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
@@ -141,7 +140,6 @@ export function RecoveryScreen() {
 export function NewPasswordScreen({ remaining }: { readonly remaining?: number }) {
   const t = useTranslate();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{
@@ -167,7 +165,6 @@ export function NewPasswordScreen({ remaining }: { readonly remaining?: number }
     }
 
     beginOnlineAccount();
-    await queryClient.invalidateQueries();
     void navigate({ to: '/' });
   };
 

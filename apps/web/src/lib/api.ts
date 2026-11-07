@@ -1,8 +1,9 @@
-import { apiErrorSchema } from '@neuron/shared';
+import { EXPECTED_ACCOUNT_HEADER, apiErrorSchema } from '@neuron/shared';
 import type { ApiErrorCode, MessageKey, MessageValues } from '@neuron/shared';
 
 import {
   accountEpoch,
+  accountChanged,
   confirmConnection,
   requestStalled,
   probeStalledRequest,
@@ -159,6 +160,7 @@ interface RequestOptions {
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, signal } = options;
   const visit = accountEpoch();
+  const expectedAccount = path === '/account' && method === 'GET' ? null : offlineState().accountId;
   const connection = connectionEpoch();
   const started = Date.now();
   // The read-only server planner warms alongside account validation. Its
@@ -201,7 +203,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       // Same origin by definition, so this is belt and braces rather than a
       // requirement. It also documents that these calls carry a session.
       credentials: 'same-origin',
-      headers: body === undefined ? {} : { 'content-type': 'application/json' },
+      headers: {
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(expectedAccount ? { [EXPECTED_ACCOUNT_HEADER]: expectedAccount } : {}),
+      },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       ...(signal ? { signal } : {}),
     });
@@ -283,6 +288,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   const { code, status, correlationId, details } = envelope.data.error;
+  if (code === 'account_changed') accountChanged();
   if (code === 'not_authenticated' || code === 'password_change_required')
     revokeOffline(code === 'not_authenticated');
 
