@@ -1,11 +1,9 @@
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-
 import { expect, test } from '@playwright/test';
 
 import { reviewResultSchema, undoReviewResultSchema } from '@neuron/shared';
 
 import { usePreferences } from './fixtures';
+import { builtShell } from './live-shell';
 
 import type { PendingReview } from '../src/lib/review-outbox';
 import type { Page } from '@playwright/test';
@@ -41,6 +39,7 @@ test('an admitted offline sitting reopens its durable events and retries a lost 
     'Requires the guarded throwaway database and built PWA.',
   );
   test.setTimeout(180_000);
+  await import('../../api/src/db/testing/ws-proxy.js');
   const { serve } = await import('../../api/node_modules/@hono/node-server/dist/index.mjs');
   const { testDatabase, createUser, appClient } =
     await import('../../api/src/db/testing/database.js');
@@ -85,31 +84,7 @@ test('an admitted offline sitting reopens its durable events and retries a lost 
       }
       return app.fetch(request);
     }
-    const asset =
-      url.pathname.startsWith('/assets/') ||
-      ['/sw.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'].includes(
-        url.pathname,
-      )
-        ? url.pathname.slice(1)
-        : 'index.html';
-    const type = asset.endsWith('.js')
-      ? 'application/javascript'
-      : asset.endsWith('.css')
-        ? 'text/css'
-        : asset.endsWith('.png')
-          ? 'image/png'
-          : asset.endsWith('.svg')
-            ? 'image/svg+xml'
-            : asset.endsWith('.webmanifest')
-              ? 'application/manifest+json'
-              : 'text/html';
-    try {
-      return new Response(await readFile(path.join(process.cwd(), 'dist', asset)), {
-        headers: { 'content-type': type },
-      });
-    } catch {
-      return new Response(null, { status: 404 });
-    }
+    return builtShell(url.pathname);
   };
   let server = serve({ fetch, hostname: '127.0.0.1', port: 0 });
   await new Promise<void>((resolve) =>
@@ -192,11 +167,7 @@ test('an admitted offline sitting reopens its durable events and retries a lost 
     await expect
       .poll(async () => (await events(page, accountId))[0]?.failure)
       .toBe('internal_error');
-    await page
-      .getByRole('region', { name: 'Study answers' })
-      .getByRole('button', { name: 'Try again', exact: true })
-      .first()
-      .click();
+    // A transient delivery failure stays pending and retries automatically.
     await expect
       .poll(async () => (await events(page, accountId)).map((entry) => entry.state))
       .toEqual(['synchronized', 'synchronized', 'synchronized']);
