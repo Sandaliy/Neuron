@@ -125,5 +125,6 @@ records and direct public health requests. No production account was inspected w
 
 Integrate #86 only after critical review and its owner ends Draft. Then refresh #87 and validate
 progression, suspension/resume, Undo, restart/reset and Slipping Cards together. Keep #71/#74 behind
-their independent critical security/data-integrity gate. Offline Sync Chaos Testing has not started
-and must wait until this pass completes or the remaining work is explicitly held on critical review.
+their independent critical security/data-integrity gate. The offline sync chaos harness starts from
+protected main while these branches remain under critical review. The [future integration
+cases](offline-sync-chaos.md#held-branches) apply after their respective reviews.
