@@ -1048,6 +1048,7 @@ test('live PostgreSQL Import reopens a committed lost response and reconciles ex
     ).rows;
     await closeTab(page);
     const resumed = await context.newPage();
+    await resumed.bringToFront();
     await routeApi(resumed);
     await resumed.goto(`/import?deckId=${target.id}`);
     await resumed.getByRole('button', { name: 'Carry on from where it stopped' }).click();
@@ -1103,6 +1104,67 @@ test('live PostgreSQL Import reopens a committed lost response and reconciles ex
       (await pool.query('select * from reviews where card_id=$1 order by id', [oldCard.id])).rows,
     ).toEqual(reviews);
     await resumed.screenshot({ path: info.outputPath('live-import-completed.png') });
+    // The interactive Import has already met its deadline. Continue through the
+    // background pull of every revision on this large collection before Undo.
+    test.setTimeout(840_000);
+    const opening = initialCards[0] as { id: string; note_id: string };
+    const downloaded = () =>
+      resumed.evaluate(
+        async ({ accountId, noteId, cardId }) => {
+          function read<T>(request: IDBRequest<T>): Promise<T> {
+            return new Promise((resolve, reject) => {
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+          }
+          const db = await read(indexedDB.open(`neuron.collection:${accountId}`));
+          try {
+            const tx = db.transaction(['meta', 'notes', 'cards']);
+            const [sync, note, card] = await Promise.all([
+              read(tx.objectStore('meta').get('sync')) as Promise<
+                { cursor: number; complete: boolean } | undefined
+              >,
+              read(tx.objectStore('notes').get(noteId)) as Promise<
+                { deleted: boolean } | undefined
+              >,
+              read(tx.objectStore('cards').get(cardId)) as Promise<
+                { deleted: boolean } | undefined
+              >,
+            ]);
+            return {
+              cursor: sync?.cursor,
+              complete: sync?.complete,
+              noteDeleted: note?.deleted,
+              cardDeleted: card?.deleted,
+            };
+          } finally {
+            db.close();
+          }
+        },
+        { accountId: account, noteId: opening.note_id, cardId: opening.id },
+      );
+    await expect.poll(downloaded, { timeout: 360_000 }).toEqual({
+      cursor: await repo.sync.revision(),
+      complete: true,
+      noteDeleted: false,
+      cardDeleted: false,
+    });
+    await resumed.getByRole('button', { name: 'Take this import back', exact: true }).click();
+    await resumed
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Take this import back', exact: true })
+      .click();
+    await expect(resumed.getByText('Import undone', { exact: true })).toBeVisible();
+    await expect.poll(downloaded, { timeout: 360_000 }).toEqual({
+      cursor: await repo.sync.revision(),
+      complete: true,
+      noteDeleted: true,
+      cardDeleted: true,
+    });
+    expect(await repo.importBatches.contents(batch)).toMatchObject({ notes: 0, cards: 0 });
+    expect(
+      (await pool.query('select * from reviews where card_id=$1 order by id', [oldCard.id])).rows,
+    ).toEqual(reviews);
   } finally {
     await Promise.all(context.pages().map(closeTab));
     server.close();

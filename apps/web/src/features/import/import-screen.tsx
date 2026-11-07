@@ -32,7 +32,7 @@ import { metadata, openCollection } from '../../lib/collection-db';
 import { localNotes } from '../../lib/collection-read';
 import { DECK_TREE_KEY, findDeck, settingsFor, useDeckTree } from '../../lib/decks';
 import { findDuplicates, NOTE_KEY, noteQueryString } from '../../lib/notes';
-import { accountEpoch, connectionEpoch, useOffline } from '../../lib/offline';
+import { accountEpoch, connectionEpoch, retryDownload, useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel, Panel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
@@ -368,6 +368,18 @@ function ImportEditor({
     };
   }, [parsed, checkParsed, connection]);
 
+  function refreshImportReads() {
+    // Import writes run outside the usual collection mutation observers.
+    void Promise.allSettled([
+      queryClient.invalidateQueries({ queryKey: [NOTE_KEY] }),
+      queryClient.invalidateQueries({ queryKey: DECK_TREE_KEY }),
+      queryClient.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['practice-notes'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['practice-summary'], refetchType: 'none' }),
+      retryDownload(),
+    ]);
+  }
+
   async function start() {
     if (!parsed || applying.current || !hasServerAuthority()) return;
     applying.current = true;
@@ -575,18 +587,7 @@ function ImportEditor({
       if (!(await draft.persist())) throw new Error('import_draft_storage');
       current();
 
-      // The list and tree are intentionally fresh for five minutes between
-      // collection screens. This write happened outside the normal note
-      // mutations, so mark both stale before the person returns to the deck.
-      // Otherwise the destination remounts its pre-import cached page and
-      // looks empty until a full reload or the freshness window expires.
-      void Promise.allSettled([
-        queryClient.invalidateQueries({ queryKey: [NOTE_KEY] }),
-        queryClient.invalidateQueries({ queryKey: DECK_TREE_KEY }),
-        queryClient.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' }),
-        queryClient.invalidateQueries({ queryKey: ['practice-notes'], refetchType: 'none' }),
-        queryClient.invalidateQueries({ queryKey: ['practice-summary'], refetchType: 'none' }),
-      ]);
+      refreshImportReads();
 
       // Warm the exact destination first page, including when its old query is inactive.
       const destination = noteQueryString({ deckId: plan.deckId, sort: 'created' });
@@ -628,6 +629,7 @@ function ImportEditor({
     const current = importDraftVisit(initialDraft.accountId);
     await request(`/imports/${batchId}/undo`, { method: 'POST' });
     current();
+    refreshImportReads();
 
     setConfirmUndo(undefined);
     toast.show(t('import.undone'));
