@@ -187,12 +187,18 @@ Phase 9.1, visible learning waves, is implemented on `work/learning-waves`. A De
 cut into waves of 50 in source order; Unsure Notes start first inside their wave (owner decision,
 2026-11-01); the time-based throttle still decides how many start. The Deck screen shows the current
 wave, what Study lets in today or why it lets in none, when the next wave starts and how much waits after
-it. Today names the wave instead of every new Note. Rank order for waves and the problem-card area remain.
+it. Today names the wave instead of every new Note. Rank order for waves remains.
 
-Phase 9.2, progressive directions, is implemented on `claude/festive-shannon-rd4p9b`. Later ladder rungs
+Phase 9.2, Progressive Directions, is on protected `main` (PR #86). Later ladder rungs
 open from the preceding rung's FSRS stability (Recall at 14 days, Typing at 21 by default), on the server,
 once per direction; opened directions are new Cards under the throttle, ahead of new Notes in wave order;
 the Note screen explains each direction and keeps Open now.
+
+Phase 9.3, Slipping Cards (PR #87), adds discovery
+from repeated lapses or frequent Again in each Card's current history, an explanation from the latest
+answers, Note editing with list return, and per-Card set aside / resume that keeps the schedule. It
+changes no content or schedule on its own. Splitting a problematic Note is deferred until an
+integrity-safe contract for moving history or identity exists. See `docs/problem-cards.md`.
 
 **Core deliverables**
 
@@ -202,7 +208,7 @@ the Note screen explains each direction and keeps Open now.
   (Phase 9.2, server-opened from the ladder's FSRS stability thresholds)
 - Explain when new material is paused and when capacity is likely to return. (Phase 9.1, per Deck)
 - Build a problem-card review area from lapse history, with editing, mnemonic/context improvements, splitting,
-  and temporary suspension.
+  and temporary suspension. (Phase 9.3 without splitting)
 - Preserve a useful manual alternative for every automated decision.
 
 **Dependencies**
