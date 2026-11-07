@@ -67,9 +67,9 @@ export function testServer(database: TestDatabase, userId: string, client?: Data
 }
 
 /** A server that believes nobody is signed in. */
-export function signedOutServer(database: TestDatabase): Hono {
+export function signedOutServer(database: TestDatabase, client?: Database): Hono {
   const auth = { api: { getSession: () => Promise.resolve(null) } } as unknown as Auth;
-  const db = appClient(database);
+  const db = client ?? appClient(database);
 
   return mountCollection(
     new Hono(),

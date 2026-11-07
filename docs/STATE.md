@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-06.
+Last updated: 2026-11-07.
 
 ## Release
 
@@ -101,7 +101,10 @@ installed-iPhone acceptance.
 Complete the integration gates in `integration-status.md` before new feature work. Account export
 (#71), Import hardening (#74), progressive directions (#86, Draft) and Slipping Cards (#87) require
 critical review. Integrate #86 before combined #87 validation. Content checks (#89) has owner visual
-acceptance; installed-iPhone acceptance remains open. Offline Sync Chaos Testing has not started.
+acceptance; installed-iPhone acceptance remains open. The offline sync chaos harness exercises
+combined delivery faults against the built PWA and disposable PostgreSQL. See [Offline sync chaos
+testing](offline-sync-chaos.md) for reproduction and integration coverage. A separate real-auth
+reproduction leaves the browser on Sign in after expired-session recovery and awaits critical review.
 Shared menu viewport recovery (#91) is released with green main CI and production health. A further
 Doctor query-plan repair addresses cold-account scale failures before the held branches are refreshed.
 
