@@ -1,11 +1,9 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
-import { uuidV7 } from '@neuron/shared';
+import { EXPECTED_ACCOUNT_HEADER, uuidV7 } from '@neuron/shared';
 
 import { createAuth } from './auth.js';
-import { EXPECTED_ACCOUNT_HEADER } from '@neuron/shared';
-
 import {
   addressFromHeaders,
   assertExpectedAccount,
