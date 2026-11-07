@@ -54,6 +54,12 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   current wave, what Study lets in today or why it lets in none, when the next wave starts and what waits
   after it; Today's rows name the wave instead of every new Note.
 
+- Slipping cards (9.3, problem cards; this branch, not merged) lists Cards with 3 or more lapses or
+  frequent Again in their current learning history (Undo, restart and reset respected; each direction
+  separate), explains each from its latest answers, opens the Note editor with list return, and sets a
+  Card aside or resumes it through the existing schedule-preserving endpoints. A complete download
+  lists the lapse rule from Card counters; Card writes need a connection. See `problem-cards.md`.
+
 Recent Notes (#81) adds Recently added (`createdAt`) and Recently changed (`updatedAt`) to Library's
 existing Note browser, with dates, locations, filters and editor return. Migration 0019 adds read indexes
 with no-wait locking and local execution/idle limits; runtime schema compatibility alone does not prove
@@ -61,8 +67,8 @@ these indexes were applied, so release verification also checks their journal ha
 The category/duplicate journey commits its search and waits for Note rows before opening the editor.
 Installed-iPhone acceptance remains open. See `recent-notes.md` for semantics and acceptance steps.
 
-Not built: offline Import application, rank-ordered waves, Phase 9 progressive directions and the
-problem-card area, Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
+Not built: offline Import application, rank-ordered waves, Phase 9 progressive directions (PR #86 in
+review), splitting problem Notes, Phase 10 personal plans, mail delivery, a `sync_conflicts` recovery screen.
 
 Owner acceptance on the installed iPhone is the gate for interaction work. The last full acceptance was
 Phase 8.4 (PR #53) and offline Study (PR #54/#55). PR #56 was not accepted: the app still felt slow,
@@ -112,7 +118,9 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
    pending Notes, reconnection and account switching. See `possible-duplicates.md`.
 2. Rank order for waves. Waves follow file order today; a frequency list imported out of order would
    need waves by its rank column, which is a per-Deck choice for the owner.
-3. Phase 9 continues: progressive directions from demonstrated stability, then the problem-card area.
+3. Phase 9 continues: progressive directions (PR #86) and Slipping cards (problem cards) are in review
+   as separate pull requests. Slipping-card thresholds need owner testing; splitting needs an
+   integrity-safe identity/history contract first.
 4. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
 5. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
@@ -175,6 +183,7 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
 | Visual system, motion, words                              | `design-system.md`           |
 | Offline collection and outboxes                           | `offline-collection.md`      |
 | Offline Study, delivery and recovery                      | `offline-study.md`           |
+| Slipping cards: policy, reads, offline, acceptance        | `problem-cards.md`           |
 | Measured performance and its limits                       | `interaction-performance.md` |
 | Browser tests by product area, and how to run them        | `apps/web/tests/README.md`   |
 | Milestones                                                | `ROADMAP.md`                 |
@@ -204,3 +213,5 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
 | 2026-11-01 | Waves of 50 order new material; the throttle sets how much  | Finite and visible without a daily quota                   |
 | 2026-11-01 | Unsure first inside its wave (owner decision)               | Settles uncertainty early, moves nothing past one wave     |
 | 2026-11-01 | CI runs the database tests against PostgreSQL 17            | Green CI had been skipping every RLS and repository test   |
+| 2026-11-05 | Slipping cards: 3 lapses, or Again in half of 4+ answers    | Current history only; visible, never acted on              |
+| 2026-11-05 | Offline Slipping cards use only the lapse counter           | A download is not a verified Review history                |

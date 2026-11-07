@@ -213,6 +213,35 @@ export {
   createOfflineNoteResultSchema,
 } from './api/notes.js';
 export {
+  PROBLEM_CARD_SORTS,
+  PROBLEM_CARD_STATES,
+  problemCardCursor,
+  problemCardSchema,
+  problemCardsPageSchema,
+  problemCardsQuerySchema,
+  problemCountersSchema,
+  problemHistorySchema,
+  readProblemCardCursor,
+} from './api/problem-cards.js';
+export type {
+  ProblemCard,
+  ProblemCardCursor,
+  ProblemCardSort,
+  ProblemCardStateFilter,
+  ProblemCardsPage,
+  ProblemCardsQuery,
+  ProblemHistory,
+} from './api/problem-cards.js';
+export {
+  PROBLEM_CARD_MINIMUM_ANSWERS,
+  PROBLEM_CARD_POLICY,
+  PROBLEM_REASONS,
+  countAnswers,
+  isRecovering,
+  problemReasons,
+} from './problem-cards.js';
+export type { CountedAnswer, ProblemCounts, ProblemReason } from './problem-cards.js';
+export {
   possibleDuplicateGroupsQuerySchema,
   possibleDuplicateNotesQuerySchema,
   possibleDuplicateGroupSchema,
