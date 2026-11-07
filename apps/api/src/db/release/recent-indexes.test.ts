@@ -29,8 +29,10 @@ function migrationCopy(behind = false) {
   if (behind) {
     const journalFile = join(folder, 'meta', '_journal.json');
     const journal = JSON.parse(readFileSync(journalFile, 'utf8')) as { entries: { tag: string }[] };
-    expect(journal.entries.at(-1)?.tag).toBe(tip);
-    journal.entries.pop();
+    // Later migrations may follow; the copy stops just before this one.
+    const at = journal.entries.findIndex((entry) => entry.tag === tip);
+    expect(at).toBeGreaterThan(0);
+    journal.entries.splice(at);
     writeFileSync(journalFile, JSON.stringify(journal));
   }
   return folder;
@@ -46,8 +48,14 @@ async function fingerprint() {
   return withPool(ownerUrl, async (pool) => {
     const rows = [];
     for (const table of ['notes', 'cards', 'reviews', 'decks', 'user']) {
+      // Only the two columns introduced after the index migration are outside
+      // this comparison. Preserve existing columns and nested JSON nulls.
+      const projection =
+        table === 'cards'
+          ? "to_jsonb(t) - 'unlock_reason' - 'unlocked_by_review_id'"
+          : 'to_jsonb(t)';
       const result = await pool.query(
-        `select count(*)::int as count, md5(string_agg(row_to_json(t)::text, '' order by id)) as digest from "${table}" t`,
+        `select count(*)::int as count, md5(string_agg((${projection})::text, '' order by id)) as digest from "${table}" t`,
       );
       rows.push({ table, ...result.rows[0] });
     }

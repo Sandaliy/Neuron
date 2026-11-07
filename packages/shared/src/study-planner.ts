@@ -141,14 +141,19 @@ export function planDailyStudy(input: {
     }),
     // Today's share comes from the plan over every language, which is where the
     // account's one automatic allowance is divided between Decks.
-    waves: waves.decks.map((wave) => ({
-      ...wave,
-      today: new Set(
-        aggregate.cards
-          .filter((card) => card.deckId === wave.deckId && card.scheduling.state === 'new')
-          .map((card) => card.noteId),
-      ).size,
-    })),
+    waves: waves.decks.map((wave) => {
+      const starting = aggregate.cards.filter(
+        (card) => card.deckId === wave.deckId && card.scheduling.state === 'new',
+      );
+      return {
+        ...wave,
+        // New Notes only: a started Note's next direction is not wave progress.
+        today: new Set(
+          starting.filter((card) => !waves.started.has(card.noteId)).map((card) => card.noteId),
+        ).size,
+        directionsToday: starting.filter((card) => waves.started.has(card.noteId)).length,
+      };
+    }),
     availableCount: supported.filter(available).length,
     nextDue: future(supported),
   };

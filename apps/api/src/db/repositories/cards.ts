@@ -2,10 +2,12 @@ import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 import type { CardDirection, SchedulingState } from '@neuron/core';
 import { uuidV7 } from '@neuron/shared';
+import type { UnlockReason } from '@neuron/shared';
 
-import { cards, decks, notes } from '../schema/index.js';
+import { cards, decks, notes, user } from '../schema/index.js';
 
 import { fromSchedulingState, toSchedulingState } from './mapping.js';
+import { sweepProgression } from './progression.js';
 import { requireLiveDeck, RestoreDependency } from './restoration.js';
 import { nextRev } from './session.js';
 
@@ -27,6 +29,10 @@ export interface CreateCard {
   readonly due: Date;
   /** When this direction opened, for the ladder. */
   readonly unlockedAt?: Date | null;
+  /** How it opened; see `cards.unlock_reason`. */
+  readonly unlockReason?: UnlockReason | null;
+  /** The answer whose stability opened it, for progression only. */
+  readonly unlockedByReviewId?: string | null;
   /** Only for a card being restored from an existing state, such as a seed. */
   readonly scheduling?: SchedulingState;
 }
@@ -96,6 +102,24 @@ export interface CardRepository {
    */
   softDeleteMany: (ids: readonly string[]) => Promise<number>;
   restore: (id: string) => Promise<boolean>;
+  /**
+   * Opens a direction by hand, under the account lock.
+   *
+   * Returns nothing when the direction already has a live Card, whether it was
+   * opened earlier, by another device, or by progression a moment ago. The
+   * lock and the partial unique key together mean two such requests, or one
+   * racing an answer that qualifies the direction, leave exactly one Card.
+   */
+  /**
+   * Opens the directions existing Notes in these Decks already qualify for.
+   * See `sweepProgression`; takes the account lock only when there is work.
+   */
+  sweepProgression: (deckIds: readonly string[], now: Date) => Promise<CardRow[]>;
+  openByHand: (
+    noteId: string,
+    planned: readonly { direction: CardDirection; slot: number }[],
+    now: Date,
+  ) => Promise<CardRow[] | undefined>;
 }
 
 const DEFAULT_DUE_LIMIT = 200;
@@ -174,6 +198,8 @@ export function cardRepository(
       ...scheduling,
       placedDue: scheduling.state === 'new' ? null : scheduling.due,
       unlockedAt: input.unlockedAt ?? null,
+      unlockReason: input.unlockReason ?? null,
+      unlockedByReviewId: input.unlockedByReviewId ?? null,
       rev,
     };
   }
@@ -229,6 +255,57 @@ export function cardRepository(
         }
 
         return written;
+      });
+    },
+
+    async sweepProgression(deckIds, now) {
+      return run((tx) => sweepProgression(tx, userId, deckIds, now));
+    },
+
+    async openByHand(noteId, planned, now) {
+      return run(async (tx) => {
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update');
+        const directions = [...new Set(planned.map((card) => card.direction))];
+        const existing = await tx
+          .select({ id: cards.id })
+          .from(cards)
+          .where(
+            and(
+              eq(cards.userId, userId),
+              eq(cards.noteId, noteId),
+              inArray(cards.direction, directions),
+              isNull(cards.deletedAt),
+            ),
+          )
+          .limit(1);
+        if (existing.length > 0 || planned.length === 0) return undefined;
+        const deckId = (await decksOfNotes(tx, [noteId])).get(noteId);
+        if (deckId === undefined) throw new NoteNotFound(noteId);
+        const rev = await nextRev(tx, userId);
+        const written = await tx
+          .insert(cards)
+          .values(
+            planned.map((card) =>
+              toValues(
+                {
+                  noteId,
+                  direction: card.direction,
+                  slot: card.slot,
+                  due: now,
+                  unlockedAt: now,
+                  unlockReason: 'manual',
+                },
+                deckId,
+                rev,
+              ),
+            ),
+          )
+          .onConflictDoNothing({
+            target: [cards.noteId, cards.direction, cards.slot],
+            where: sql`${cards.deletedAt} is null`,
+          })
+          .returning();
+        return written.length > 0 ? written : undefined;
       });
     },
 

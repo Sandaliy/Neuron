@@ -57,6 +57,14 @@ export function LearningWaveCard({
           {t('waves.waiting', { count: wave.waiting })}
           {wave.unsure > 0 && ` ${t('waves.unsure', { count: wave.unsure })}`}
         </p>
+        {wave.directionsWaiting > 0 && (
+          <p>
+            {t('waves.directions', {
+              count: wave.directionsWaiting,
+              today: wave.directionsToday,
+            })}
+          </p>
+        )}
         <p className="text-primary">
           {wave.today > 0
             ? t('waves.today', { count: wave.today })

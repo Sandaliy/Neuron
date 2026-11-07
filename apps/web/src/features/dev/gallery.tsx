@@ -163,6 +163,8 @@ function WaveSpecimen() {
     unsure: 6,
     later: 2850,
     today: 8,
+    directionsWaiting: 0,
+    directionsToday: 0,
   };
   const open = { allowed: 8, reason: 'withinBudget' } as const;
   return (

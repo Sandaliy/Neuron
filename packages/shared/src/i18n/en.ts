@@ -313,9 +313,23 @@ export const en = {
   'library.cardCounts': 'Cards: {due} due · {fresh} new',
   'note.studyStatus': 'Study status',
   'study.moreDirections': 'Study directions',
-  'study.directionHint':
-    'Enable an independently scheduled direction for this note. Existing progress stays unchanged.',
   'study.acceptedAnswers': 'Accepted production answers, one per line',
+  'directions.hint':
+    'A new word starts with one direction. The next opens by itself once the one before it holds long enough. Each keeps its own schedule.',
+  'directions.open': 'Studying',
+  'directions.openNew': 'Open, not started yet',
+  'directions.openSuspended': 'Set aside',
+  'directions.ready': 'Opens with your next Study plan.',
+  'directions.next': 'Opens when {after} holds for {threshold} days. Now {days} of {threshold}.',
+  'directions.nextUnanswered':
+    'Opens when {after} holds for {threshold} days. {after} is not answered yet.',
+  'directions.waiting': 'Opens after {after}.',
+  'directions.pausedSuspended': 'Waits while {after} is set aside.',
+  'directions.pausedInactive': 'Waits until this Note is back in Study.',
+  'directions.manual': 'Opens only by hand.',
+  'directions.openNow': 'Open now',
+  'directions.openNowLabel': 'Open {direction} now',
+  'directions.summary': 'Next: {direction}',
 
   'practice.exit': 'Exit Practice',
   'time.today': 'Today',
@@ -1270,6 +1284,7 @@ export const en = {
   'waves.progress': 'Notes started in this wave',
   'waves.waiting': 'Waiting in this wave: {count}.',
   'waves.unsure': 'Unsure go first: {count}.',
+  'waves.directions': 'Next directions of started Notes go first: {today} today, {count} waiting.',
   'waves.today': 'Study lets in {count} today.',
   'waves.paused.backlogActive':
     'None today: reviews are behind, and new Notes wait until they catch up.',
