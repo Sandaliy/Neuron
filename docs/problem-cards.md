@@ -55,7 +55,8 @@ Cards, and Decks under deleted or orphaned Folders, are excluded.
   return to the same filters, Card and scroll position, and a keyboard user's focus returns to that
   Card's Edit control. The list reads the server again on return.
 - **Set aside** and **Resume** use the existing `POST /cards/:id/suspend` and `/unsuspend`. They change
-  `suspended_at` and the revision only: due date, memory state, counters and every Review are kept. The
+  `suspended_at` and the revision. Set aside also records suspension history for Progressive
+  Directions Undo. The due date, memory state, counters and every Review are kept. The
   row updates in place, the list is marked stale without moving, Study planning and the Deck tree are
   invalidated, and the download is refreshed. A set-aside Card stays listed with its evidence. If its
   date passed while set aside, it is due when resumed.
