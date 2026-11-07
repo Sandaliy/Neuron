@@ -504,7 +504,7 @@ export function cardRepository(
 
         const [row] = await tx
           .update(cards)
-          .set({ suspendedAt: now, updatedAt: now, rev })
+          .set({ suspendedAt: now, wasSuspended: true, updatedAt: now, rev })
           .where(
             and(
               eq(cards.userId, userId),

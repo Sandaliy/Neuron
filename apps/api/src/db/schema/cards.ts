@@ -106,6 +106,8 @@ export const cards = pgTable(
      * erased on its own schedule and the Card must not depend on it.
      */
     unlockedByReviewId: uuid('unlocked_by_review_id'),
+    /** A suspension protects a direction from retraction even after it resumes. */
+    wasSuspended: boolean('was_suspended').notNull().default(false),
     /**
      * Set while the card is put aside. Null while it is being studied.
      *
@@ -162,7 +164,7 @@ export const cards = pgTable(
     ),
     check(
       'cards_unlocking_review_is_ladder',
-      sql`${table.unlockedByReviewId} is null or ${table.unlockReason} = 'ladder'`,
+      sql`${table.unlockedByReviewId} is null or ${table.unlockReason} is not distinct from 'ladder'`,
     ),
     check('cards_direction_known', sql`${table.direction} in (${literalList(CARD_DIRECTIONS)})`),
     check('cards_state_known', sql`${table.state} in (${literalList(CARD_STATES)})`),

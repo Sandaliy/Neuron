@@ -486,7 +486,8 @@ The rule, in order:
 - Opening is one-way. A lapse that later lowers the preceding rung's stability never takes a direction
   back: the opened Card has its own FSRS state and Review history from its first moment. The only way back
   is Undo of the very answer that opened it, while the opened Card has never been answered, suspended or
-  reset, and only if the Note no longer qualifies once that answer is cancelled.
+  reset, and only if the Note no longer qualifies once that answer is cancelled. Suspension is
+  remembered after Resume, and the Card keeps the identity of the answer that opened it.
 - Resets and Restart learning keep every opened direction. They return the predecessor to New, so it opens
   nothing further until it earns the threshold again.
 

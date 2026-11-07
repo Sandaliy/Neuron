@@ -194,6 +194,7 @@ export async function progressNotes(
         card.reps === 0 &&
         card.state === 'new' &&
         card.suspendedAt === null &&
+        !card.wasSuspended &&
         card.resetAt === null &&
         (
           await tx

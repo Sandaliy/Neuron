@@ -277,6 +277,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "was_suspended": {
+          "name": "was_suspended",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "suspended_at": {
           "name": "suspended_at",
           "type": "timestamp with time zone",
@@ -490,7 +497,7 @@
         },
         "cards_unlocking_review_is_ladder": {
           "name": "cards_unlocking_review_is_ladder",
-          "value": "\"cards\".\"unlocked_by_review_id\" is null or \"cards\".\"unlock_reason\" = 'ladder'"
+          "value": "\"cards\".\"unlocked_by_review_id\" is null or \"cards\".\"unlock_reason\" is not distinct from 'ladder'"
         },
         "cards_direction_known": {
           "name": "cards_direction_known",

@@ -237,6 +237,38 @@ describe.skipIf(!database)('progressive directions', () => {
     expect(await directions(note.id)).toEqual(['recall', 'recognition']);
   });
 
+  it.each(['routes', 'sync'] as const)(
+    'keeps the same opened direction after suspend and resume through %s',
+    async (transport) => {
+      const { note, card } = await word(10);
+      const reviewId = uuidV7();
+      await answer(card.id, 'good', reviewId);
+      const recall = (await repositories.cards.forNote(note.id)).find(
+        (row) => row.direction === 'recall',
+      )!;
+      if (transport === 'routes') {
+        await post(`cards/${recall.id}/suspend`, {});
+        await post(`cards/${recall.id}/unsuspend`, {});
+      } else {
+        const change = (updatedAt: string, suspendedAt: string | null) => ({
+          entity: 'cards',
+          id: recall.id,
+          updatedAt,
+          data: { suspendedAt },
+        });
+        const suspendedAt = new Date(Date.now() + 1000).toISOString();
+        const resumedAt = new Date(Date.now() + 2000).toISOString();
+        await post('sync', { changes: [change(suspendedAt, suspendedAt)] });
+        await post('sync', { changes: [change(resumedAt, null)] });
+      }
+      await post('reviews/undo', { id: uuidV7(), reviewId });
+      expect(
+        (await repositories.cards.forNote(note.id)).find((row) => row.id === recall.id),
+      ).toMatchObject({ unlockReason: 'ladder', unlockedByReviewId: reviewId, suspendedAt: null });
+      expect(await repositories.reviews.countForCards([card.id, recall.id])).toBe(1);
+    },
+  );
+
   it('never takes a direction back for a lapse', async () => {
     const { note, card } = await word(10);
     await answer(card.id, 'good');
