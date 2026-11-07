@@ -79,6 +79,11 @@ ancestry and production-statement EXPLAIN plans over 6,000 heavily tagged Notes 
 Live files need the throwaway database (`DATABASE_URL_TEST`) and an opt-in variable named at the top of
 each file. They skip otherwise, and a skip is not a pass.
 
+The [offline sync chaos harness](../../../docs/offline-sync-chaos.md) runs separately against the built
+PWA and a disposable PostgreSQL database. Its dedicated config fails if the database or built shell is
+missing. CI runs the Chromium regression selection. The runbook includes seeded stress and single-case
+reproduction commands.
+
 ## Running them
 
 Account export has focused Chromium desktop/phone and iPhone WebKit acceptance in
