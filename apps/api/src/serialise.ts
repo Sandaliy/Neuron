@@ -83,6 +83,7 @@ export function serialiseCard(row: CardRow): Card {
     learningStep: row.learningStep,
     suspendedAt: moment(row.suspendedAt),
     unlockedAt: moment(row.unlockedAt),
+    unlockReason: row.unlockReason as Card['unlockReason'],
     updatedAt: row.updatedAt.toISOString(),
     rev: row.rev,
   };

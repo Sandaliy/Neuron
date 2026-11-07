@@ -36,6 +36,7 @@ function presentRow(change: SyncRow) {
     if (
       key === 'userId' ||
       key === 'deletedWithNote' ||
+      key === 'wasSuspended' ||
       key === 'deletionId' ||
       key === 'purgedAt'
     ) {

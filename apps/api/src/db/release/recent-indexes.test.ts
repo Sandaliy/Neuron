@@ -29,8 +29,10 @@ function migrationCopy(behind = false) {
   if (behind) {
     const journalFile = join(folder, 'meta', '_journal.json');
     const journal = JSON.parse(readFileSync(journalFile, 'utf8')) as { entries: { tag: string }[] };
-    expect(journal.entries.at(-1)?.tag).toBe(tip);
-    journal.entries.pop();
+    // Later migrations may follow; the copy stops just before this one.
+    const at = journal.entries.findIndex((entry) => entry.tag === tip);
+    expect(at).toBeGreaterThan(0);
+    journal.entries.splice(at);
     writeFileSync(journalFile, JSON.stringify(journal));
   }
   return folder;
@@ -46,8 +48,14 @@ async function fingerprint() {
   return withPool(ownerUrl, async (pool) => {
     const rows = [];
     for (const table of ['notes', 'cards', 'reviews', 'decks', 'user']) {
+      // Only the columns introduced by direction progression are outside
+      // this comparison. Preserve existing columns and nested JSON nulls.
+      const projection =
+        table === 'cards'
+          ? "to_jsonb(t) - 'unlock_reason' - 'unlocked_by_review_id' - 'was_suspended'"
+          : 'to_jsonb(t)';
       const result = await pool.query(
-        `select count(*)::int as count, md5(string_agg(row_to_json(t)::text, '' order by id)) as digest from "${table}" t`,
+        `select count(*)::int as count, md5(string_agg((${projection})::text, '' order by id)) as digest from "${table}" t`,
       );
       rows.push({ table, ...result.rows[0] });
     }
@@ -199,6 +207,27 @@ describe.skipIf(!configured)('recent Note index migration safety', () => {
     expect(await fingerprint()).toEqual(baseline);
   });
 
+  it('rolls back earlier migration statements when 0020 finds an occupied Card table', async () => {
+    await withPool(ownerUrl, async (pool) => {
+      const reader = await pool.connect();
+      try {
+        await reader.query('begin');
+        await reader.query('lock table cards in access share mode');
+        const failure = await applyMigrations(ownerUrl).then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+        expect(sqlState(failure)).toBe('55P03');
+      } finally {
+        await reader.query('rollback');
+        reader.release();
+      }
+    });
+    expect((await inspectMigrationJournal(ownerUrl)).state).toBe('behind');
+    expect(await recentIndexes()).toEqual([]);
+    expect(await fingerprint()).toEqual(baseline);
+  });
+
   it('applies through the trusted production policy, keeps all data/timestamps and retains restricted-role RLS', async () => {
     const started = performance.now();
     const result = await ensureProductionMigrations({
@@ -228,6 +257,21 @@ describe.skipIf(!configured)('recent Note index migration safety', () => {
       expect(index['definition']).toContain('purged_at IS NULL');
     }
     expect(await fingerprint()).toEqual(baseline);
+    await withPool(ownerUrl, async (pool) => {
+      const result = await pool.query(
+        'select unlock_reason, unlocked_by_review_id, was_suspended from cards',
+      );
+      expect(result.rows).toEqual(
+        Array(2).fill({
+          unlock_reason: null,
+          unlocked_by_review_id: null,
+          was_suspended: false,
+        }),
+      );
+      await expect(
+        pool.query('update cards set unlocked_by_review_id = gen_random_uuid()'),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'cards_unlocking_review_is_ladder' });
+    });
     await withPool(appUrl, async (pool) => {
       await pool.query('begin');
       await pool.query("select set_config('app.user_id', 'index-owner', true)");

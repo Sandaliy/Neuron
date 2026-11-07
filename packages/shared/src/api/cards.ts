@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { CARD_DIRECTIONS, CARD_STATES } from '@neuron/core';
 import type { CardDirection, CardState } from '@neuron/core';
 
+import { UNLOCK_REASONS } from '../direction-progression.js';
+
 import { idSchema, limitSchema } from './common.js';
 
 /**
@@ -41,6 +43,11 @@ export const cardSchema = z.object({
   learningStep: z.number().int(),
   suspendedAt: z.string().nullable(),
   unlockedAt: z.string().nullable(),
+  /**
+   * How the direction opened: with the Note, by hand, or by progression from
+   * the rung before it. Absent from servers and downloads older than migration 0020.
+   */
+  unlockReason: z.enum(UNLOCK_REASONS).nullish(),
   updatedAt: z.string(),
   rev: z.number().int(),
 });
