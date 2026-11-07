@@ -57,6 +57,7 @@ import {
 } from './practice-outbox';
 import { cancelReviewDelivery, deliverReviews, onReviewOutboxChange } from './review-outbox';
 import { projectConfirmedReview } from './review-projection';
+import { clearHeldRecoveryCodes } from './storage';
 
 import type { CollectionDiagnostic, CollectionStage } from './collection-failure';
 import type { PendingNoteCreate } from './note-creation';
@@ -138,7 +139,7 @@ export function useOffline() {
   }, offlineState);
 }
 
-function contextId(): string | null {
+export function rememberedAccountId(): string | null {
   try {
     if (locallySignedOut()) return null;
     return localStorage.getItem(CONTEXT_KEY);
@@ -146,6 +147,8 @@ function contextId(): string | null {
     return null;
   }
 }
+
+const contextId = rememberedAccountId;
 
 function forgetContext() {
   try {
@@ -174,6 +177,21 @@ async function transitionReads(local: boolean) {
 
 /** Revocation happens before transport; late pulls/account requests cannot re-enable this visit. */
 export function revokeOffline(explicit = false) {
+  resetVisit();
+  if (explicit) {
+    try {
+      localStorage.setItem(SIGNED_OUT_KEY, 'true');
+    } catch {
+      /* IndexedDB access is optional. */
+    }
+    emit({ signedOut: true });
+  }
+  forgetContext();
+  clearReads();
+}
+
+function resetVisit(nextAccountId?: string) {
+  clearHeldRecoveryCodes(nextAccountId);
   clearCollectionProjection();
   confirmedReviewCards.clear();
   cancelDeckCreationDelivery();
@@ -191,14 +209,6 @@ export function revokeOffline(explicit = false) {
   controller?.abort();
   db?.close();
   db = undefined;
-  if (explicit) {
-    try {
-      localStorage.setItem(SIGNED_OUT_KEY, 'true');
-    } catch {
-      /* IndexedDB access is optional. */
-    }
-  }
-  forgetContext();
   emit({
     accountId: null,
     validated: false,
@@ -207,13 +217,23 @@ export function revokeOffline(explicit = false) {
     checking: false,
     revision: null,
     failure: null,
-    signedOut: explicit || state.signedOut,
   });
+}
+
+/** A request detected a cookie replacement before the cross-tab notice arrived. */
+export function accountChanged() {
+  const previousAccount = state.accountId;
+  resetVisit();
+  if (contextId() === previousAccount) forgetContext();
   clearReads();
+  void client?.resetQueries({ queryKey: ['account'], exact: true });
 }
 /** Only explicit successful authentication lifts a local sign-out, never a background account read. */
 export function beginOnlineAccount() {
   revokeOffline();
+  // A refetch keeps the previous data and error while it runs. A new session
+  // must start with neither, and cannot join an old session's account check.
+  client?.clear();
   try {
     localStorage.removeItem(SIGNED_OUT_KEY);
   } catch {
@@ -884,61 +904,17 @@ export function initializeOffline(queryClient: QueryClient) {
   window.addEventListener('storage', (event) => {
     if (event.key === SIGNED_OUT_KEY) {
       if (event.newValue === 'true') {
-        confirmedReviewCards.clear();
-        cancelDeckCreationDelivery();
-        cancelRenameDelivery();
-        cancelNoteDelivery();
-        cancelNoteCreationDelivery();
-        cancelReviewDelivery();
-        cancelPracticeDelivery();
-        epoch++;
-        connection++;
-        validatingConnection = false;
-        clearTimeout(reconnectTimer);
-        reconnectTimer = undefined;
-        controller?.abort();
-        db?.close();
-        db = undefined;
-        emit({
-          accountId: null,
-          validated: false,
-          download: 'idle',
-          available: false,
-          checking: false,
-          revision: null,
-          failure: null,
-          signedOut: true,
-        });
+        if (!locallySignedOut()) return;
+        resetVisit();
+        emit({ signedOut: true });
         client?.clear();
-      } else emit({ signedOut: false });
+      } else if (!locallySignedOut()) emit({ signedOut: false });
     }
     if (event.key === CONTEXT_KEY && event.newValue !== state.accountId) {
-      confirmedReviewCards.clear();
-      cancelDeckCreationDelivery();
-      cancelRenameDelivery();
-      cancelNoteDelivery();
-      cancelNoteCreationDelivery();
-      cancelReviewDelivery();
-      cancelPracticeDelivery();
-      epoch++;
-      connection++;
-      validatingConnection = false;
-      clearTimeout(reconnectTimer);
-      reconnectTimer = undefined;
-      controller?.abort();
-      db?.close();
-      db = undefined;
-      emit({
-        accountId: null,
-        validated: false,
-        download: 'idle',
-        available: false,
-        checking: false,
-        revision: null,
-        failure: null,
-      });
-      client?.clear();
-      if (!locallySignedOut()) void client?.invalidateQueries({ queryKey: ['account'] });
+      if (contextId() !== event.newValue || locallySignedOut()) return;
+      resetVisit(event.newValue ?? undefined);
+      clearReads();
+      void client?.resetQueries({ queryKey: ['account'], exact: true });
     }
   });
   const foreground = () => {

@@ -17,6 +17,56 @@ export const STORAGE_KEYS = {
   openDecks: 'neuron.library.open',
 } as const;
 
+export const RECOVERY_CODE_KEYS = {
+  account: 'neuron.account-codes.pending',
+  'two-factor': 'neuron.two-factor-codes.pending',
+} as const;
+
+const REGISTRATION_ACCOUNT_KEY = 'neuron.account-codes.owner';
+let registrationAccount: string | undefined;
+const registrationCodeListeners = new Set<() => void>();
+
+export function registrationCodeOwner() {
+  try {
+    return registrationAccount ?? sessionStorage.getItem(REGISTRATION_ACCOUNT_KEY) ?? undefined;
+  } catch {
+    return registrationAccount;
+  }
+}
+
+export function setRegistrationCodeOwner(accountId: string) {
+  registrationAccount = accountId;
+  try {
+    sessionStorage.setItem(REGISTRATION_ACCOUNT_KEY, accountId);
+  } catch {
+    /* The current tab still knows the owner. */
+  }
+}
+
+export function onRegistrationCodesCleared(listener: () => void) {
+  registrationCodeListeners.add(listener);
+  return () => {
+    registrationCodeListeners.delete(listener);
+  };
+}
+
+/** Unconfirmed credentials may survive a reload within the same account visit. */
+export function clearHeldRecoveryCodes(nextAccountId?: string) {
+  const clearRegistration =
+    nextAccountId === undefined || nextAccountId !== registrationCodeOwner();
+  if (clearRegistration) registrationAccount = undefined;
+  try {
+    if (clearRegistration) {
+      sessionStorage.removeItem(RECOVERY_CODE_KEYS.account);
+      sessionStorage.removeItem(REGISTRATION_ACCOUNT_KEY);
+    }
+    sessionStorage.removeItem(RECOVERY_CODE_KEYS['two-factor']);
+  } catch {
+    /* Session storage is optional. */
+  }
+  if (clearRegistration) registrationCodeListeners.forEach((listener) => listener());
+}
+
 /**
  * Reads a value.
  *

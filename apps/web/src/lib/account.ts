@@ -11,6 +11,7 @@ import {
   beginAccountValidation,
   endAccountValidation,
   connectionEpoch,
+  offlineState,
   locallySignedOut,
   connectionUncertain,
   accountValidationFailed,
@@ -43,7 +44,7 @@ export function accountQuery() {
     queryKey: ACCOUNT_KEY,
     networkMode: 'always',
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      if (locallySignedOut())
+      if (offlineState().signedOut || locallySignedOut())
         throw new ApiFailure({
           code: 'not_authenticated',
           status: 401,
@@ -85,16 +86,23 @@ export function accountQuery() {
         if (
           error instanceof ApiFailure &&
           (error.code === 'network_unreachable' || error.status >= 500) &&
-          epoch === accountEpoch()
+          !signal.aborted &&
+          epoch === accountEpoch() &&
+          connection === connectionEpoch()
         ) {
-          if (connection === connectionEpoch()) {
-            if (error.code === 'network_unreachable')
-              accountValidationFailed(started, error.correlationId !== 'account-deadline');
-            else accountServerUnavailable(started);
-          }
+          if (error.code === 'network_unreachable')
+            accountValidationFailed(started, error.correlationId !== 'account-deadline');
+          else accountServerUnavailable(started);
           const remembered =
             retainedAccount() ?? (await rememberedAccount().catch(() => undefined));
-          if (remembered) return remembered;
+          if (
+            remembered &&
+            !signal.aborted &&
+            epoch === accountEpoch() &&
+            connection === connectionEpoch() &&
+            remembered.id === offlineState().accountId
+          )
+            return remembered;
         }
         throw error;
       } finally {

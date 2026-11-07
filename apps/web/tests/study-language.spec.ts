@@ -220,96 +220,132 @@ test('language, mode and supporting display survive a short collection visit', a
   await expect(page.getByRole('checkbox', { name: 'Example', exact: true })).not.toBeChecked();
 });
 
-test('a confirmed language change continuously resizes expanded Study setup', async ({
-  page,
-}, info) => {
-  await usePreferences(page, { locale: 'en', theme: 'dark' });
-  await useFixtures(page, { decks: [{ ...folder, children: [de, en] }], notes });
-  await page.route('**/api/study/session', (route) =>
-    route.fulfill({
-      json: plan([card(0, 'recognition')], route.request().postDataJSON().targetLanguage),
-    }),
-  );
-  await page.goto('/');
-  const setup = page.getByRole('button', { name: 'Study setup', exact: true });
-  await setup.click();
-  await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
-  await setup.evaluate(async (button) => {
-    await Promise.all(
-      document
-        .getElementById(button.getAttribute('aria-controls')!)!
-        .getAnimations()
-        .map((animation) => animation.finished),
-    );
-  });
-  await setup.evaluate((button) => {
-    const content = document.getElementById(button.getAttribute('aria-controls')!)!;
-    // Arm in the page before dispatch; concurrent locator RPCs can otherwise
-    // begin recording after the transition has already started.
-    const measured = new Promise<{ heights: number[]; times: number[] }>((resolve) => {
-      content.querySelector('select')!.addEventListener(
-        'change',
-        () => {
-          const heights = [content.getBoundingClientRect().height];
-          const times = [Number(document.timeline.currentTime)];
-          // A timer queued in rAF can run after a React commit but before its
-          // resize observation. It then reads the new intrinsic height before
-          // the disclosure's animation restores the previous height for paint.
-          // Observe layout after that earlier, component-owned observer instead.
-          const observer = new ResizeObserver(() => {
-            const height = content.getBoundingClientRect().height;
-            // All resize deliveries in a rendering update share the frame clock;
-            // callback execution time is not elapsed animation time.
+for (const immediate of [false, true]) {
+  test(
+    immediate
+      ? 'the Study resize measurement rejects a jump after a delayed response'
+      : 'a confirmed language change continuously resizes expanded Study setup',
+    async ({ page }, info) => {
+      if (immediate)
+        await page.addInitScript(() => {
+          const animate = Element.prototype.animate;
+          Element.prototype.animate = function (keyframes, options) {
+            if (this.classList.contains('neu-disclosure-clip')) {
+              return animate.call(this, keyframes, {
+                ...(typeof options === 'object' ? options : {}),
+                duration: 0,
+              });
+            }
+            return animate.call(this, keyframes, options);
+          };
+        });
+      await usePreferences(page, { locale: 'en', theme: 'dark' });
+      await useFixtures(page, { decks: [{ ...folder, children: [de, en] }], notes });
+      await page.route('**/api/study/session', async (route) => {
+        const language = route.request().postDataJSON().targetLanguage;
+        if (immediate && language === 'en')
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        await route.fulfill({ json: plan([card(0, 'recognition')], language) });
+      });
+      await page.goto('/');
+      const setup = page.getByRole('button', { name: 'Study setup', exact: true });
+      await setup.click();
+      await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
+      await setup.evaluate(async (button) => {
+        await Promise.all(
+          document
+            .getElementById(button.getAttribute('aria-controls')!)!
+            .getAnimations()
+            .map((animation) => animation.finished),
+        );
+      });
+      await setup.evaluate((button) => {
+        const content = document.getElementById(button.getAttribute('aria-controls')!)!;
+        // Arm in the page before dispatch; concurrent locator RPCs can otherwise
+        // begin recording after the transition has already started.
+        const measured = new Promise<{ heights: number[]; times: number[] }>((resolve) => {
+          const heights: number[] = [];
+          const times: number[] = [];
+          let height = content.getBoundingClientRect().height;
+          const sample = () => {
             const time = Number(document.timeline.currentTime);
-            if (height !== heights.at(-1) || time !== times.at(-1)) {
+            // Resize observation runs after animation-frame callbacks. Reading in
+            // a timer can instead force the next layout before the component's
+            // observer starts its animation. Keep the final observed geometry per
+            // rendering opportunity, including any repeated observation passes.
+            if (time === times.at(-1)) heights[heights.length - 1] = height;
+            else {
               heights.push(height);
               times.push(time);
             }
+          };
+          const observer = new ResizeObserver(() => {
+            height = content.getBoundingClientRect().height;
+            sample();
           });
-          observer.observe(content);
-          setTimeout(() => {
-            observer.disconnect();
-            resolve({ heights, times });
-          }, 600);
-        },
-        { once: true, capture: true },
+          observer.observe(content.firstElementChild!);
+          content.querySelector('select')!.addEventListener(
+            'change',
+            () => {
+              sample();
+              const start = performance.now();
+              const frame = () => {
+                // Retain unchanged frames too: a delayed response must not
+                // dilute an eventual jump over the whole network wait.
+                sample();
+                if (performance.now() - start > 600) {
+                  observer.disconnect();
+                  resolve({ heights, times });
+                } else requestAnimationFrame(frame);
+              };
+              requestAnimationFrame(frame);
+            },
+            { once: true, capture: true },
+          );
+        });
+        Object.assign(window, { languageLayoutFrames: measured });
+      });
+      await page.getByRole('combobox', { name: 'Study language', exact: true }).selectOption('en');
+      const { heights, times } = await page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              languageLayoutFrames: Promise<{ heights: number[]; times: number[] }>;
+            }
+          ).languageLayoutFrames,
       );
-    });
-    Object.assign(window, { languageLayoutFrames: measured });
-  });
-  await page.getByRole('combobox', { name: 'Study language', exact: true }).selectOption('en');
-  const { heights, times } = await page.evaluate(
-    () =>
-      (
-        window as unknown as {
-          languageLayoutFrames: Promise<{ heights: number[]; times: number[] }>;
-        }
-      ).languageLayoutFrames,
+      await info.attach('language-layout-frames', {
+        body: JSON.stringify({ heights, times }),
+        contentType: 'application/json',
+      });
+      const min = Math.min(...heights),
+        max = Math.max(...heights);
+      expect(max - min).toBeGreaterThan(100);
+      expect(heights[0]).toBe(max);
+      expect(heights.at(-1)).toBe(min);
+      expect(heights.slice(1).every((height, index) => height <= heights[index]!)).toBe(true);
+      const speed = Math.max(
+        ...heights
+          .slice(1)
+          .map(
+            (height, index) =>
+              Math.abs(height - heights[index]!) / (times[index + 1]! - times[index]!),
+          ),
+      );
+      const limit = ((max - min) * 4) / 240;
+      if (immediate) {
+        // The same sampler must reject a real jump; a measurement fix must not
+        // make a missing animation pass the normal continuity bound.
+        expect(speed).toBeGreaterThan(limit);
+      } else {
+        expect(
+          heights.filter((height) => height > min + 1 && height < max - 1).length,
+        ).toBeGreaterThan(3);
+        expect(speed).toBeLessThan(limit);
+      }
+    },
   );
-  await info.attach('language-layout-frames', {
-    body: JSON.stringify({ heights, times }),
-    contentType: 'application/json',
-  });
-  const min = Math.min(...heights),
-    max = Math.max(...heights);
-  expect(max - min).toBeGreaterThan(100);
-  expect(heights[0]).toBe(max);
-  expect(heights.at(-1)).toBe(min);
-  expect(heights.slice(1).every((height, index) => height <= heights[index]!)).toBe(true);
-  expect(heights.filter((height) => height > min + 1 && height < max - 1).length).toBeGreaterThan(
-    3,
-  );
-  expect(
-    Math.max(
-      ...heights
-        .slice(1)
-        .map(
-          (height, index) =>
-            Math.abs(height - heights[index]!) / (times[index + 1]! - times[index]!),
-        ),
-    ),
-  ).toBeLessThan(((max - min) * 4) / 240);
-});
+}
 
 for (const theme of ['light', 'dark'] as const) {
   test(`aggregate Ready stays in setup with hierarchy choices in ${theme}`, async ({

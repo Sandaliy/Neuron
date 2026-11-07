@@ -23,6 +23,8 @@ import { z } from 'zod';
 export const API_ERROR_CODES = [
   /** No session, or one that has expired. */
   'not_authenticated',
+  /** The active session belongs to a different account than the requesting tab. */
+  'account_changed',
   /** Signed in, but not allowed to do this. */
   'not_allowed',
   /** The thing asked for is not there, or belongs to somebody else. */
@@ -117,6 +119,7 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 /** The status each code is answered with, so both ends agree on one mapping. */
 export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
   not_authenticated: 401,
+  account_changed: 409,
   not_allowed: 403,
   not_found: 404,
   invalid_request: 400,

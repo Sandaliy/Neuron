@@ -339,6 +339,15 @@ export function NoteListScreen({
         </Button>
       )}
       {deckId && (
+        <Button
+          variant="text"
+          className="self-start"
+          onClick={() => void navigate({ to: '/library/slipping', search: { deckId } })}
+        >
+          {t('problems.title')}
+        </Button>
+      )}
+      {deckId && (
         <PracticeEntry
           deckId={deckId}
           onOpen={(entry) => {

@@ -1,10 +1,16 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
-import { uuidV7 } from '@neuron/shared';
+import { EXPECTED_ACCOUNT_HEADER, uuidV7 } from '@neuron/shared';
 
 import { createAuth } from './auth.js';
-import { addressFromHeaders, clientAddress, requireSession, signedIn } from './context.js';
+import {
+  addressFromHeaders,
+  assertExpectedAccount,
+  clientAddress,
+  requireSession,
+  signedIn,
+} from './context.js';
 import { createAuthDb, createDb } from './db/client.js';
 import { requireCompatibleApplicationSchema } from './db/compatibility.js';
 import { readDatabaseTime } from './db/health.js';
@@ -18,8 +24,10 @@ import {
   AUTH_LIMIT,
   SYNC_LIMIT,
   WRITE_LIMIT,
+  EXPORT_LIMIT,
   createRateLimiter,
 } from './rate-limit.js';
+import { accountExportRoutes } from './routes/account-export.js';
 import { accountRoutes } from './routes/account.js';
 import { cardRoutes, unlockRoute } from './routes/cards.js';
 import { deckRoutes } from './routes/decks.js';
@@ -98,7 +106,7 @@ export function mountApp(app: Hono, parts: AppParts): Hono {
       origin: (origin) => (isTrustedOrigin(env.APP_ORIGIN, origin) ? origin : null),
       credentials: true,
       allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['content-type'],
+      allowHeaders: ['content-type', EXPECTED_ACCOUNT_HEADER],
     }),
   );
 
@@ -177,6 +185,11 @@ export function mountApp(app: Hono, parts: AppParts): Hono {
    * make a log line nicer.
    */
   app.on(['GET', 'POST'], '/api/auth/*', async (context) => {
+    const headers = context.req.raw.headers;
+    if (headers.has(EXPECTED_ACCOUNT_HEADER)) {
+      const session = await auth.api.getSession({ headers });
+      assertExpectedAccount(headers, session?.user.id);
+    }
     const response = await auth.handler(context.req.raw);
 
     return response.ok ? response : traceable(response, context);
@@ -256,6 +269,16 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
    */
   const api = new Hono<RequestBindings>();
 
+  // Includes authentication failures, before the session middleware can refuse.
+  api.use('/account/export', async (context, next) => {
+    context.header('Cache-Control', 'private, no-store, max-age=0');
+    context.header('CDN-Cache-Control', 'no-store');
+    context.header('Vercel-CDN-Cache-Control', 'no-store');
+    context.header('X-Content-Type-Options', 'nosniff');
+    context.header('Referrer-Policy', 'no-referrer');
+    await next();
+  });
+
   /**
    * Each resource twice: the collection and everything under it.
    *
@@ -293,6 +316,7 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
   // pushes a burst and that burst is the system working.
   api.use('/sync', perAccount(SYNC_LIMIT));
   api.use('/sync/*', perAccount(SYNC_LIMIT));
+  api.use('/account/export', perAccount(EXPORT_LIMIT));
 
   api.route('/decks', deckRoutes());
   api.route('/notes', noteRoutes());
@@ -304,6 +328,7 @@ export function mountCollection(app: Hono, parts: ServerParts, baseUrl: string):
   api.route('/reviews', reviewRoutes());
   api.route('/sync', syncRoutes());
   api.route('/account', accountRoutes(parts));
+  api.route('/account', accountExportRoutes(parts));
 
   /**
    * The api described, behind a session.

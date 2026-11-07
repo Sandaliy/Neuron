@@ -28,28 +28,35 @@ export function NoteHeader({
   const duplicateOrigin = useRouterState({
     select: (state) => state.location.state.duplicateOrigin,
   });
+  const problemOrigin = useRouterState({
+    select: (state) => state.location.state.problemOrigin,
+  });
   const qualityOrigin = useRouterState({ select: (state) => state.location.state.qualityOrigin });
   const offline = useOffline();
   const t = useTranslate();
   const fromSearch = origin?.accountId === offline.accountId && origin?.visit === accountEpoch();
   const fromDuplicates =
     duplicateOrigin?.accountId === offline.accountId && duplicateOrigin?.visit === accountEpoch();
+  const fromProblems =
+    problemOrigin?.accountId === offline.accountId && problemOrigin?.visit === accountEpoch();
   const fromQuality =
     qualityOrigin?.accountId === offline.accountId && qualityOrigin?.visit === accountEpoch();
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {fromSearch || fromDuplicates || fromQuality ? (
+      {fromSearch || fromDuplicates || fromProblems || fromQuality ? (
         <div className="flex min-w-0 items-center gap-8">
           <Button variant="text" className="shrink-0" onClick={() => router.history.back()}>
             <ChevronLeft size={20} strokeWidth={1.5} aria-hidden="true" />
             {t(
-              fromQuality
-                ? 'quality.title'
-                : fromDuplicates
-                  ? 'duplicates.title'
-                  : origin?.recent
-                    ? 'notes.recent'
-                    : 'notes.find',
+              fromProblems
+                ? 'problems.title'
+                : fromQuality
+                  ? 'quality.title'
+                  : fromDuplicates
+                    ? 'duplicates.title'
+                    : origin?.recent
+                      ? 'notes.recent'
+                      : 'notes.find',
             )}
           </Button>
           <CollectionPath tree={decks} id={deckId} />
@@ -69,6 +76,7 @@ declare module '@tanstack/react-router' {
   interface HistoryState {
     noteSearchOrigin?: { accountId: string | null; visit: number; recent?: boolean };
     duplicateOrigin?: { accountId: string | null; visit: number };
+    problemOrigin?: { accountId: string | null; visit: number };
     qualityOrigin?: { accountId: string | null; visit: number };
   }
 }

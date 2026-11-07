@@ -35,6 +35,12 @@ The cross-workspace journey holds search/member responses, commits the debounced
 and opens a named Note only after the selected group's loading state. This distinguishes group rows
 from member rows and preserves the editor heading and return-breadcrumb assertions.
 
+`problem-cards.spec.ts` covers Slipping cards: Library and Deck entries, 3,000 Notes with 600 listed
+and bounded mounted rows, evidence and schedule text kept apart, set aside and resume in place with
+focus and scroll kept, keyboard and Back editor return, and a complete download offline (lapse rule
+only, no Card write). Real PostgreSQL/RLS, Undo/restart/reset semantics and the 200,000-Review case live
+in `apps/api/src/routes/problem-cards.test.ts`. It also runs in mobile WebKit.
+
 | Area                                         | Files                                                                                                                                                                                                           |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Smoke                                        | `smoke.spec.ts`                                                                                                                                                                                                 |
@@ -86,6 +92,17 @@ reproduction commands.
 
 ## Running them
 
+Account export has focused Chromium desktop/phone and iPhone WebKit acceptance in
+`account-export.spec.ts`. Run all three against the built app with:
+
+```
+pnpm --filter @neuron/web test:screens:ci --config=playwright.export.config.ts --project=webkit-phone-interaction
+```
+
+The file covers exact downloaded bytes/name, scope, busy/cancel/retry, interrupted and malformed streams,
+account/session changes, size failures and Share cancellation. OS Files and installed-PWA acceptance
+remain manual; see `docs/account-export.md`.
+
 ```
 pnpm --filter @neuron/web test:screens tests/study.spec.ts --project=phone-interaction
 pnpm --filter @neuron/web test:screens:ci
@@ -105,6 +122,12 @@ For a suspected pre-existing failure, compare the same test and configuration in
 the base revision. Preserve any unrelated local work.
 
 ## Diagnosing a failed run
+
+For an intentional Library reference refresh, use an explicit update mode and a scoped selection:
+`pnpm --filter @neuron/web exec playwright test tests/screens.spec.ts --project=phone --project=desktop --grep library --update-snapshots=all`.
+This captures the selected references even when a small new control fits the existing comparison
+tolerance. Inspect the images, then repeat the selection without the update flag. An explicit mode
+also prevents a following file path from being interpreted as the update mode.
 
 Download the failed job's report before rerunning it. Keep the trace, error context and attached
 measurements together: the HTML report references files under `playwright-report/data`. Artifact paths

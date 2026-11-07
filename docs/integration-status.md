@@ -14,8 +14,8 @@ remain binding even when hosted checks pass. Auto-merge is disabled for held wor
 | [#85](https://github.com/Sandaliy/Neuron/pull/85) | Merged after refresh against #82 and #90.                                                                       | `0687ec3`; all five required checks passed on refreshed head `0fca2e7`. Current audit retains 1 critical, 3 high, 1 moderate and 3 low findings, as documented.                                                        |
 | [#71](https://github.com/Sandaliy/Neuron/pull/71) | Unmerged for critical security/data-integrity review. Conflicts and diagnosed CI failures repaired.             | Account-export allowlists, RLS/read-only snapshot, late authorization, purge redaction and completion validation need integration-owner sign-off. Hosted streaming and installed-iPhone Files/Share remain unverified. |
 | [#74](https://github.com/Sandaliy/Neuron/pull/74) | Unmerged for critical security/data-integrity review. Search/Import conflicts resolved preserving both changes. | Review atomic bulk writes, bounded revisions, immutable source/IDs, header concurrency and recovery after lost acknowledgements. Physical termination/eviction/near-limit memory acceptance remains open.              |
-| [#86](https://github.com/Sandaliy/Neuron/pull/86) | Draft, unmerged; critical learning-correctness review required.                                                 | Resolve the suspend/resume/Undo concern below. Keep the draft state until its owner completes review.                                                                                                                  |
-| [#87](https://github.com/Sandaliy/Neuron/pull/87) | Unmerged; critical learning review and #86 integration required before combined validation.                     | Resolve equal-time recovery evidence below. Eight Library references are refreshed; verify combined behavior after #86.                                                                                                |
+| [#86](https://github.com/Sandaliy/Neuron/pull/86) | Merged with migration 0020.                                                                                     | `2f11bd3`; all five required checks passed on `a76b2c7`. Installed-iPhone acceptance is open.                                                                                                                          |
+| [#87](https://github.com/Sandaliy/Neuron/pull/87) | Critical review complete on the combined Progressive Directions tree.                                           | Equal-time recovery follows replay order. The combined candidate passed 41 tests and 12 built browser cases.                                                                                                           |
 | [#89](https://github.com/Sandaliy/Neuron/pull/89) | Owner accepted the shown visuals on 2026-11-06; integrate after fresh required checks against #92 main.         | Required checks passed on earlier refreshed head `dcfb711`; installed-iPhone acceptance remains open.                                                                                                                  |
 | [#91](https://github.com/Sandaliy/Neuron/pull/91) | Merged: shared menu viewport repair and integration handoff.                                                    | `ba23f21`; all required checks passed on `f42b166`; resulting main CI and production migrations passed.                                                                                                                |
 | [#92](https://github.com/Sandaliy/Neuron/pull/92) | Merged: bounded cold-statistics integrity query plans.                                                          | `fa196fc`; all five required checks passed on `855db2c` in run `42285525318`; 59 local PostgreSQL Doctor/safety cases passed.                                                                                          |
@@ -72,48 +72,16 @@ records and direct public health requests. No production account was inspected w
 
 ## Critical review handoff
 
-1. **#86: suspend, resume, then Undo can retract a used direction.**
-   `progression.ts:193` considers a new direction untouched when its current `suspendedAt` is null,
-   it has no Reviews and no reset. `cards.ts:522` clears `suspendedAt` on resume without clearing the
-   opening-answer provenance. Reproduction: a qualifying Recognition answer opens Recall; suspend
-   Recall, resume it, then Undo that Recognition answer while it no longer meets the threshold.
-   A disposable PostgreSQL 17 real-route regression reproduced the deletion: expected Recall to
-   remain; received only Recognition. The regression patch and failed-run evidence are retained for
-   review. The persistent provenance policy and regression must be resolved by the critical reviewer.
+1. **#86: suspension history and migration 0020.**
+   Undo previously retracted a direction after suspend and resume. The server now retains the
+   suspension flag independently of current state and preserves the original Review ID. The
+   regression exercises both Card routes and Sync against PostgreSQL 17. The migration refuses a
+   busy Card table, validates its checks in a bounded statement and leaves old data and RLS intact.
 
-   Reproduce inside `progressive-directions.test.ts`, using its existing helpers:
-
-   ```ts
-   const { note, card } = await word(10);
-   const reviewId = uuidV7();
-   await answer(card.id, 'good', reviewId);
-   const recall = (await repositories.cards.forNote(note.id)).find(
-     (row) => row.direction === 'recall',
-   )!;
-   await post(`cards/${recall.id}/suspend`, {});
-   await post(`cards/${recall.id}/unsuspend`, {});
-   await post('reviews/undo', { id: uuidV7(), reviewId });
-   expect(await directions(note.id)).toContain('recall');
-   ```
-
-2. **#87: recovery evidence loses equal-time answers.**
-   `problem-cards.ts:134` counts only `reviewed_at > last_again_at`, while the same query orders
-   history using time, revision and identity. Reproduction: a qualifying history ends with Again
-   followed by three Good events at that same timestamp with later canonical ordering. The shared
-   sequence counter reports three successes; SQL reports zero. A disposable PostgreSQL 17 real-route
-   regression reproduced `sinceLastAgain: 0` where three was expected. Its patch and failed-run evidence
-   are retained for review. Confirm the canonical tie-breaker and align the description. Membership thresholds
-   and scheduling must stay unchanged.
-
-   Reproduce inside `problem-cards.test.ts`, using its existing helpers:
-
-   ```ts
-   const { recognition } = await vocab('same-time recovery');
-   const sameTime = clock + DAY;
-   await answer(recognition.id, [A, A, A, A, G, G, G], () => sameTime);
-   const item = (await page()).items.find((entry) => entry.card.id === recognition.id);
-   expect(item?.evidence).toMatchObject({ kind: 'history', sinceLastAgain: 3 });
-   ```
+2. **#87: equal-time recovery evidence.**
+   Recovery counts answers after the last Again by timestamp, revision and Review ID, the same
+   order as canonical replay. A PostgreSQL regression submits reverse-ordered IDs at one timestamp
+   and checks recovery before and after Undo. Membership and scheduling rules remain unchanged.
 
 3. **#71 after #86:** its schema-coverage test requires an explicit export decision for
    `unlock_reason` and `unlocked_by_review_id`. Whichever branch merges second must cover the new
@@ -123,8 +91,7 @@ records and direct public health requests. No production account was inspected w
    the combined tree. The existing fill-blank merge retry limitation remains documented in
    `import-performance.md`; no new immutable merge receipt is claimed.
 
-Integrate #86 only after critical review and its owner ends Draft. Then refresh #87 and validate
-progression, suspension/resume, Undo, restart/reset and Slipping Cards together. Keep #71/#74 behind
+Keep #71 and #74 behind
 their independent critical security/data-integrity gate. The offline sync chaos harness starts from
 protected main while these branches remain under critical review. The [future integration
 cases](offline-sync-chaos.md#held-branches) apply after their respective reviews.

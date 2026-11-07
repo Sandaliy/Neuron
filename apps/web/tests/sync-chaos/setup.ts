@@ -9,8 +9,7 @@ export default async function setup() {
     throw new Error(
       'Set SYNC_CHAOS_DISPOSABLE_DB=true and configure the disposable test database.',
     );
-  if (process.env['SYNC_CHAOS_REAUTH_REPRO'] === 'true' && !database.authUrl)
-    throw new Error('The reauthentication reproduction needs DATABASE_URL_AUTH.');
+  if (!database.authUrl) throw new Error('The sync chaos suite needs DATABASE_URL_AUTH.');
   await Promise.all([access('dist/index.html'), access('dist/sw.js')]);
   await setupDatabase();
 }
