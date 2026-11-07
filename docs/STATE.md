@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-08 (session recovery merged at `46d7908`).
+Last updated: 2026-11-08 (Progressive Directions merged at `2f11bd3`).
 
 ## Release
 
@@ -62,7 +62,7 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   next and why the rest wait, with Open now for each locked direction. Migration 0020. See
   "Progressive directions" in `algorithm.md`.
 
-- Slipping cards (9.3, problem cards; this branch, not merged) lists Cards with 3 or more lapses or
+- Slipping Cards (9.3, PR #87) lists Cards with 3 or more lapses or
   frequent Again in their current learning history (Undo, restart and reset respected; each direction
   separate), explains each from its latest answers, opens the Note editor with list return, and sets a
   Card aside or resumes it through the existing schedule-preserving endpoints. A complete download
@@ -105,8 +105,7 @@ installed-iPhone acceptance.
 ## Next
 
 Complete the integration gates in `integration-status.md` before new feature work. Account export
-(#71), Import hardening (#74) and Slipping Cards (#87) remain in the release backlog. Refresh #87
-after the Progressive Directions release. Content checks (#89) has owner visual
+(#71), Import hardening (#74) remain in the release backlog. Content checks (#89) has owner visual
 acceptance; installed-iPhone acceptance remains open. The offline sync chaos harness exercises
 combined delivery faults against the built PWA and disposable PostgreSQL. It also checks that
 real Better Auth sign-in after session expiry validates the new visit in the same document.
@@ -171,8 +170,7 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
   for very long supplementary-Unicode terms. Server groups remain authoritative; see
   `possible-duplicates.md`. The existing normalization and Import contract are unchanged.
 - Account export (#71) and Import hardening (#74) are prepared for separate critical review.
-  Slipping Cards (#87) still needs its protected release checks on the refreshed base. See
-  `integration-status.md` for evidence and next actions.
+  See `integration-status.md` for evidence and next actions.
 - Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.
   Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue.
 - Local new-card admission offline is conservative over the last complete download and this device's
