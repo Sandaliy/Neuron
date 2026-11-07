@@ -308,9 +308,9 @@ export function noteRoutes(): Hono<RequestBindings> {
     const written = await repositories.transaction(async (inner) => {
       const existing = await inner.notes.byId(id, { forUpdate: true });
       const command =
-        body.importAttemptId && body.noteType
+        body.importMerge && body.noteType
           ? {
-              attemptId: body.importAttemptId,
+              ...body.importMerge,
               noteType: body.noteType,
               fields: parseFields(body.noteType, body.fields),
             }
@@ -319,6 +319,7 @@ export function noteRoutes(): Hono<RequestBindings> {
         ? await inner.importBatches.pendingMerge(
             command.attemptId,
             id,
+            command.deckId,
             command.noteType,
             command.fields,
           )
@@ -328,6 +329,9 @@ export function noteRoutes(): Hono<RequestBindings> {
       if (!existing) {
         return undefined;
       }
+
+      if (command && existing.deckId !== command.deckId.toLowerCase())
+        throw new ApiError('import_conflict');
 
       const typeNames = await inner.noteTypes.namesById();
       const currentType = (typeNames.get(existing.noteTypeId) ?? 'basic') as NoteTypeName;

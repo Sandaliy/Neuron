@@ -64,8 +64,8 @@ original IDs. Browser responses have a fixed 30 ms delay; database work is measu
   progress. The existing fill-blank PATCH remains authoritative; two requests may travel together,
   and each fully acknowledged group of twenty commits a merge checkpoint. Only the unconfirmed
   suffix replays. The server stores a digest-only receipt for each attempt and Note. An exact retry
-  acknowledges the commit without reapplying the edit, even if a later edit cleared a field. Merges
-  remain outside Import Undo.
+  acknowledges the commit without reapplying the edit, even if a later edit cleared a field. The
+  first delivery requires the Note to remain in the frozen destination. Merges remain outside Import Undo.
 - Completion used to wait for cache refetching after its durable summary had already committed.
   It now marks destination queries stale and shows completion while warming them in the background.
   A server summary with missing or unexpected additions retains recovery instead of claiming success.

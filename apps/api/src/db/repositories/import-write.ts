@@ -177,13 +177,14 @@ export function pendingImportMerge(
   run: Runner,
   attemptId: string,
   noteId: string,
+  deckId: string,
   noteType: NoteTypeName,
   fields: NoteFields,
 ) {
   return run(async (tx) => {
     const fingerprint = `import-merge:${attemptId.toLowerCase()}:${noteId.toLowerCase()}`;
     const digest = createHash('sha256')
-      .update(JSON.stringify([noteType, fields]))
+      .update(JSON.stringify([deckId.toLowerCase(), noteType, fields]))
       .digest('hex');
     const [receipt] = await tx
       .select({ outcome: syncReceipts.outcome })

@@ -70,6 +70,7 @@ export interface ImportBatchRepository {
   pendingMerge: (
     attemptId: string,
     noteId: string,
+    deckId: string,
     noteType: NoteTypeName,
     fields: NoteFields,
   ) => ReturnType<typeof pendingImportMerge>;

@@ -132,7 +132,10 @@ for (const storedLocale of ['en', 'ru'] as const) {
           merge: true,
           noteType: 'vocab',
           fields: { term: 'mixed', translation: 'meaning' },
-          importAttemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+          importMerge: {
+            attemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+            deckId: IMPORT_DECK_ID,
+          },
         },
       },
     ]);
@@ -266,7 +269,10 @@ test('final import merges an exact destination duplicate without creating an emp
         merge: true,
         noteType: 'vocab',
         fields: { term: 'destination only', translation: 'fill this if blank' },
-        importAttemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        importMerge: {
+          attemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+          deckId: IMPORT_DECK_ID,
+        },
       },
     },
   ]);
@@ -724,7 +730,7 @@ test('merge-only delivery checkpoints confirmed groups and resumes the unconfirm
     if (route.request().method() !== 'PATCH') return route.fallback();
     const id = new URL(route.request().url()).pathname.split('/').at(-1)!;
     patches.push(id);
-    attempts.push((route.request().postDataJSON() as { importAttemptId?: string }).importAttemptId);
+    attempts.push((route.request().postDataJSON() as { importMerge?: unknown }).importMerge);
     accepted.add(id);
     await new Promise((resolve) => setTimeout(resolve, 15));
     if (fail && id === ids[25]) {
@@ -749,7 +755,12 @@ test('merge-only delivery checkpoints confirmed groups and resumes the unconfirm
   await expect(page.getByText('Existing notes processed: 41.', { exact: true })).toBeVisible();
   expect(patches.slice(at).every((id) => !ids.slice(0, 20).includes(id))).toBe(true);
   expect(accepted.size).toBe(41);
-  expect(new Set(attempts)).toEqual(new Set([frozen.delivery!.attempt.batchId]));
+  expect(attempts).toEqual(
+    Array(attempts.length).fill({
+      attemptId: frozen.delivery!.attempt.batchId,
+      deckId: IMPORT_DECK_ID,
+    }),
+  );
   expect(checks).toBe(checksBeforeResume);
   expect((await storedDrafts(page))[0]!.delivery).toMatchObject({
     attempt: frozen.delivery!.attempt,

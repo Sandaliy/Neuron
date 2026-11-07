@@ -527,7 +527,7 @@ function ImportEditor({
                   fields: merge.fields,
                   noteType: plan.noteType,
                   merge: true,
-                  importAttemptId: plan.batchId,
+                  importMerge: { attemptId: plan.batchId, deckId: plan.deckId },
                 },
               });
             }
