@@ -132,6 +132,10 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
 
 ## Open threads
 
+- Account export (#71) remains under critical review. Settings prepares a versioned server snapshot
+  with stored triage and immutable history; device-only work and archive import/restore are excluded.
+  Hosted streaming and installed-iPhone Files/Share acceptance remain open. See `account-export.md`.
+
 - Content checks adds one schema-valid example-pair consistency check and three optional vocabulary
   enrichment checks. Owner visual acceptance is complete; installed-iPhone acceptance remains open.
   Rules, measurements and the device checklist are in `content-quality.md`.

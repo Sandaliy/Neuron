@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   apiErrorSchema,
+  exportRequestSchema,
   bulkStatusSchema,
   triageDecisionsSchema,
   triageListSchema,
@@ -73,6 +74,7 @@ import {
  */
 
 const registry: Record<string, z.ZodType> = {
+  ExportRequest: exportRequestSchema,
   ApiError: apiErrorSchema,
   DeckTree: deckTreeSchema,
   DeletedDeck: deletedDeckSchema,
@@ -207,6 +209,22 @@ export function openApiDocument(baseUrl: string) {
     },
     security: [{ session: [] }],
     paths: {
+      '/account/export': {
+        post: {
+          summary: 'Export synchronized learning data in one read-only snapshot',
+          description:
+            'Versioned UTF-8 JSON Lines stream. A final complete record is required; HTTP 200 alone is not success. See docs/account-export.md. Private, no-store. Maximum 128 MiB and 120 seconds generation.',
+          requestBody: body('ExportRequest'),
+          responses: {
+            200: {
+              description:
+                'Manifest, records, then completion; errors terminate without completion',
+              content: { 'application/x-ndjson': { schema: { type: 'string' } } },
+            },
+            ...commonErrors,
+          },
+        },
+      },
       '/health': {
         get: {
           summary: 'Whether the server and its required database schema are ready',

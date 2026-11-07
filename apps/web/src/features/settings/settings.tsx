@@ -27,6 +27,7 @@ import { CodeInput } from '../auth/code-input';
 import { PasswordField } from '../auth/password-field';
 import { RecoveryCodes, heldCodes, releaseCodes } from '../auth/recovery-codes';
 
+import { AccountExport } from './account-export';
 import { OfflineAccess } from './offline-access';
 import { TotpEnrollment, TotpRemoval } from './totp';
 
@@ -54,6 +55,7 @@ export function SettingsScreen() {
         <>
           <Appearance />
           <OfflineAccess />
+          <AccountExport />
           <Security />
           <Account
             email={account.data.email}

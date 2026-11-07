@@ -381,6 +381,13 @@ every one of these in every state.
 | `tests/triage.spec.ts`                   | Triage flows: batching, Undo, reload, list, keyboard, completion, offline     |
 | `tests/learning-waves.spec.ts`           | Wave card states on the Deck screen and the wave label in Today's rows        |
 
+Account export: `packages/shared/src/account-export.ts` owns the versioned JSON Lines envelope and
+streaming delivery validator. `apps/api/src/db/repositories/account-export.ts` owns field allowlists
+and the read-only snapshot; `apps/api/src/routes/account-export.ts` streams it behind the account
+session. `apps/web/src/features/settings/account-export.tsx` and `apps/web/src/lib/account-export.ts`
+own preparation, account-bound validation and file delivery. The contract and acceptance steps are in
+`docs/account-export.md`.
+
 ## Documentation
 
 | File                              | Holds                                                                                          |
