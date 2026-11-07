@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/sync-chaos',
-  testMatch: process.env['SYNC_CHAOS_REAUTH_REPRO'] === 'true' ? 'reauth.ts' : 'scenarios.ts',
+  testMatch: ['reauth.ts', 'scenarios.ts', 'account-isolation.ts'],
   globalSetup: './tests/sync-chaos/setup.ts',
   forbidOnly: true,
   workers: 1,

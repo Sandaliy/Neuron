@@ -1227,6 +1227,7 @@ export const en = {
   'note.case.genitive': 'Genitive',
 
   'error.not_authenticated': 'Sign in to continue.',
+  'error.account_changed': 'The signed-in account changed. Try again after the app reconnects.',
   'error.not_allowed': 'That action was refused. Reload the page and try again.',
   'error.review_id_reused':
     'That Study event identity is already used for a different answer. Keep the saved recovery record.',

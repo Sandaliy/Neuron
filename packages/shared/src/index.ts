@@ -129,6 +129,8 @@ export {
   tagSchema,
 } from './api/common.js';
 
+export { EXPECTED_ACCOUNT_HEADER } from './api/auth.js';
+
 export {
   API_ERROR_CODES,
   API_ERROR_STATUS,

@@ -1,12 +1,22 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { isAcceptablePassword } from '@neuron/shared';
 import type { MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describeAuthError, signUp } from '../../lib/auth-client';
-import { beginOnlineAccount } from '../../lib/offline';
+import {
+  accountEpoch,
+  beginOnlineAccount,
+  locallySignedOut,
+  rememberedAccountId,
+} from '../../lib/offline';
+import {
+  onRegistrationCodesCleared,
+  registrationCodeOwner,
+  setRegistrationCodeOwner,
+} from '../../lib/storage';
 import { Button } from '../../ui/button';
 import { FormField } from '../../ui/form-field';
 import { Input } from '../../ui/input';
@@ -35,7 +45,14 @@ export function SignUpScreen() {
   }>();
   // Restored on mount, so a reload in the middle of the codes screen comes
   // back to the codes rather than to an account nobody can recover.
-  const [codes, setCodes] = useState<readonly string[] | undefined>(() => heldCodes());
+  const [codes, setCodes] = useState<readonly string[] | undefined>(() => {
+    const owner = registrationCodeOwner();
+    const current = rememberedAccountId();
+    return !locallySignedOut() && owner && (!current || current === owner)
+      ? heldCodes()
+      : undefined;
+  });
+  useEffect(() => onRegistrationCodesCleared(() => setCodes(undefined)), []);
 
   if (codes) {
     /*
@@ -73,6 +90,7 @@ export function SignUpScreen() {
     setError(undefined);
     setBusy(true);
 
+    const visit = accountEpoch();
     const answer = await signUp.email({
       email,
       password,
@@ -82,6 +100,7 @@ export function SignUpScreen() {
     });
 
     setBusy(false);
+    if (visit !== accountEpoch()) return;
 
     if (answer.error) {
       setError(describeAuthError(answer.error));
@@ -92,7 +111,8 @@ export function SignUpScreen() {
     beginOnlineAccount();
     const issued = readCodes(answer.data);
 
-    if (issued) {
+    if (issued && answer.data?.user.id) {
+      setRegistrationCodeOwner(answer.data.user.id);
       holdCodes(issued);
       setCodes(issued);
 

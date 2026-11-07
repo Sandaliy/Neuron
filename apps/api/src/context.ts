@@ -1,3 +1,5 @@
+import { EXPECTED_ACCOUNT_HEADER } from '@neuron/shared';
+
 import { createRepositories } from './db/repositories/index.js';
 import { ApiError } from './errors.js';
 
@@ -74,6 +76,8 @@ export function requireSession(parts: ServerParts): MiddlewareHandler<RequestBin
       throw new ApiError('not_authenticated');
     }
 
+    assertExpectedAccount(context.req.raw.headers, session.user.id);
+
     /**
      * A session opened with a recovery code may do exactly one thing.
      *
@@ -110,6 +114,12 @@ export function requireSession(parts: ServerParts): MiddlewareHandler<RequestBin
 
     return next();
   };
+}
+
+/** The cookie grants authority. The expected account only narrows that authority. */
+export function assertExpectedAccount(headers: Headers, userId: string | undefined) {
+  const expected = headers.get(EXPECTED_ACCOUNT_HEADER);
+  if (expected !== null && expected !== userId) throw new ApiError('account_changed');
 }
 
 /** The signed in person. Only callable behind requireSession. */
