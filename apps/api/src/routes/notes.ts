@@ -34,6 +34,7 @@ import { applyCardChange, createOpeningCards, planCardChange } from '../note-car
 import { serialiseCard, serialiseNote } from '../serialise.js';
 import { readBody, readParams, readQuery } from '../validation.js';
 
+import { contentQualityRoutes } from './content-quality.js';
 import { possibleDuplicateRoutes } from './possible-duplicates.js';
 
 import type { RequestBindings } from '../context.js';
@@ -48,6 +49,7 @@ import type { RequestBindings } from '../context.js';
  */
 export function noteRoutes(): Hono<RequestBindings> {
   const routes = new Hono<RequestBindings>();
+  routes.route('/content-quality', contentQualityRoutes());
   routes.route('/possible-duplicates', possibleDuplicateRoutes());
 
   routes.get('/', async (context) => {
