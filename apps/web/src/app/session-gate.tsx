@@ -54,7 +54,7 @@ export function SessionGate({ children }: { readonly children: ReactNode }) {
   // Already through the door. A later request that failed is not a reason to
   // close it: the session is still good as far as anybody knows, and the
   // screens keep whatever they last had.
-  if (account.data) {
+  if (account.data && account.data.id === offline.accountId) {
     return (
       <div key={account.data.id} className="contents">
         {children}
