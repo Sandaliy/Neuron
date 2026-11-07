@@ -325,6 +325,7 @@ export function deckRepository(
                 slot: card.slot,
                 due: now,
                 unlockedAt: now,
+                unlockReason: 'opening' as const,
                 rev,
               })),
           );

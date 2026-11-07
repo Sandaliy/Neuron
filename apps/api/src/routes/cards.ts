@@ -1,6 +1,11 @@
 import { Hono } from 'hono';
 
-import { dueCardsSchema, idParamSchema, templatesFor, unlockDirectionSchema } from '@neuron/shared';
+import {
+  dueCardsSchema,
+  idParamSchema,
+  possibleCards,
+  unlockDirectionSchema,
+} from '@neuron/shared';
 import type { NoteFields, NoteTypeName } from '@neuron/shared';
 
 import { repositoriesOf } from '../context.js';
@@ -112,29 +117,25 @@ export function unlockRoute(): Hono<RequestBindings> {
 
     const typeNames = await repositories.noteTypes.namesById();
     const typeName = (typeNames.get(note.noteTypeId) ?? 'basic') as NoteTypeName;
-    const possible = templatesFor(typeName, note.fields as NoteFields);
+    const planned = possibleCards(typeName, note.fields as NoteFields).filter(
+      (card) => card.direction === body.direction,
+    );
 
-    if (!possible.some((template) => template.direction === body.direction)) {
+    if (planned.length === 0) {
       // The note cannot produce this direction: a cloze note, for example,
       // has only one way of being asked.
       throw new ApiError('direction_unavailable');
     }
 
-    const existing = await repositories.cards.forNote(id);
+    // Already open, including by progression or another device a moment ago.
+    // The Card exists exactly once either way; the caller refreshes the Note.
+    const written = await repositories.cards.openByHand(id, planned, new Date());
 
-    if (existing.some((card) => card.direction === body.direction)) {
+    if (!written?.[0]) {
       throw new ApiError('direction_unavailable');
     }
 
-    const now = new Date();
-    const card = await repositories.cards.create({
-      noteId: id,
-      direction: body.direction,
-      due: now,
-      unlockedAt: now,
-    });
-
-    return context.json({ card: serialiseCard(card) }, 201);
+    return context.json({ card: serialiseCard(written[0]) }, 201);
   });
 
   return routes;

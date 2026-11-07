@@ -20,7 +20,8 @@ grow at different rates. Putting them on one schedule gets both wrong: the easy 
 often and the hard one not often enough.
 
 The cost is that one imported list of 5000 words can become 15000 cards. That is why directions open one
-at a time rather than all at once, which is what the `ladder` setting on a deck describes.
+at a time rather than all at once, which is what the `ladder` setting on a deck describes. Later rungs open
+from demonstrated FSRS stability; see "Progressive directions" in `algorithm.md` and below.
 
 ### Folders and decks share one hierarchy
 
@@ -871,9 +872,10 @@ for the active Study language. Preferences remain independent per language. List
 a target language; a device without a compatible voice explains the limitation and still allows
 typed/Show answer fallback. Language recovery opens individual Deck settings. Voice loss leaves typing
 and Show answer available. There is
-no speech recognition. Vocabulary directions can be enabled explicitly using the existing manual card
-endpoint; no existing card is replaced and no progressive unlocking rule is introduced. Practice remains
-the independent schedule-free mode.
+no speech recognition. Any direction a Note can produce can be opened by hand from the Note's Directions
+section through the existing manual card endpoint; no existing card is replaced. Progressive opening is
+described under "Progressive directions are opened by the server". Practice remains the independent
+schedule-free mode.
 
 Study Card display is session-local presentation state. Vocabulary meaning may prefer Translation or
 Definition, falling back to Translation when needed. Optional populated supporting fields use quiet
@@ -894,8 +896,35 @@ Leaf Deck settings expose explicit zero-stability ladder rungs for Recognition, 
 Listening. Saving these settings creates only missing eligible Cards on live, unpurged Notes in the
 same user-bound transaction. The user revision lock serializes retries with Note/import planning;
 existing identities, independently deleted directions, schedules and Reviews remain unchanged.
-New Notes use the same ladder. This does not introduce progressive unlocking; new Cards still need
-workload-backed admission before Study. Folder settings remain inherited defaults, not bulk activation.
+New Notes use the same ladder. Switching a skill on makes it an opening rung; later rungs open by
+progression (below). New Cards still need workload-backed admission before Study. Folder settings remain
+inherited defaults, not bulk activation.
+
+### Progressive directions are opened by the server
+
+`apps/api/src/db/repositories/progression.ts` is the only writer of Cards opened by the ladder. It runs in
+three places, always inside a transaction that holds the account lock (the `user` row `for update`, the
+same lock Review recording, Undo, manual opening and revision allocation serialize on):
+
+- `reviews.record`, after the answer's projection, for that answer's Note. Retries of an applied answer
+  return early and open nothing again.
+- `reviews.undo`, for the undone answer's Note: a direction whose `unlocked_by_review_id` is the undone
+  answer is soft-deleted (a sync tombstone) when the Note no longer qualifies and the Card has no Review
+  row, no reset and no suspension. Otherwise it stays.
+- `POST /study/session`, which sweeps the planned Decks before it reads. The sweep reads the Decks' Cards
+  with their Note's type and status in one statement, evaluates them in memory, and takes the lock only
+  when some Note qualifies; it then decides again on full rows and writes in batches of 500. A plan can
+  therefore write Cards, and its `planningContext.revision` is read after the sweep.
+
+Migration 0020 records provenance on every Card: `unlock_reason` (`opening`, `manual` or `ladder`; null on
+Cards written before it) and `unlocked_by_review_id` (only for `ladder`, enforced by a check; not a
+foreign key, because the Review log is erased on its own schedule). Duplicate prevention has two barriers:
+the account lock around check-and-insert, and the partial unique key on (note, direction, slot) for live
+Cards, which every progression and manual insert targets with `on conflict do nothing`. Manual opening
+keeps its contract (201 with the Card, 409 `direction_unavailable` if the direction is already open), now
+decided under the lock, so it can no longer fail with a unique violation when it races an answer that
+qualifies the same direction. Devices never create these Cards; the ladder resolves from the Deck chain
+only, exactly as opening Cards do (`settingsForDeck`).
 
 Mark as known changes Note participation only. Return to study restores participation without changing
 Card schedules. Restart learning uses the existing explicit reset event and preserves immutable Reviews.
