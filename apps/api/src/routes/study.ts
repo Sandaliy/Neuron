@@ -79,6 +79,11 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
               .map((deck) => deck.id),
         ),
       ].sort();
+      // Directions existing Notes already qualify for open before planning
+      // reads, so the plan, its forecast and its revision include them.
+      const opened = await repositories.cards.sweepProgression(scopeDeckIds, now);
+      const planningRevision =
+        opened.length > 0 ? (await repositories.account.read()).currentRev : account.currentRev;
       const [rows, unsure] = await Promise.all([
         repositories.cards.forSession({ deckIds: scopeDeckIds }),
         repositories.notes.unsureIn(scopeDeckIds),
@@ -114,7 +119,7 @@ export function dailyStudyRoutes(): Hono<RequestBindings> {
 
       return {
         ...session,
-        planningContext: { accountId: account.id, revision: account.currentRev },
+        planningContext: { accountId: account.id, revision: planningRevision },
         notes: notes.map((note) => serialiseNote(note, typeNames)),
         cards: session.cards.flatMap((card) => {
           const row = byId.get(card.id);
