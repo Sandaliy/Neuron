@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RATING } from '@neuron/core';
 import { ExportValidator, uuidV7 } from '@neuron/shared';
 
+import { harnessFor, registerFresh } from '../auth/testing/harness.js';
 import { mountCollection } from '../create-app.js';
 import { EXPORT_TABLES, exportVersion, ExportLimit } from '../db/repositories/account-export.js';
 import { AUTH_TABLES, schema } from '../db/schema/index.js';
@@ -379,6 +380,53 @@ describe.skipIf(!database)('private synchronized account export on PostgreSQL', 
     ).rejects.toThrow();
   });
 
+  it('exports the recorded opening Review and suspension history without altering either', async () => {
+    const deck = await repo.decks.create({ name: 'Direction provenance' });
+    const note = await repo.notes.create({
+      deckId: deck.id,
+      noteType: 'vocab',
+      fields: { term: 'prüfen', translation: 'check' },
+    });
+    const opening = await repo.cards.create({
+      noteId: note.id,
+      direction: 'recognition',
+      unlockReason: 'opening',
+      due: new Date(),
+    });
+    const answer = await repo.reviews.record({
+      cardId: opening.id,
+      rating: RATING.good,
+      now: new Date(),
+    });
+    const unlocked = await repo.cards.create({
+      noteId: note.id,
+      direction: 'recall',
+      unlockReason: 'ladder',
+      unlockedByReviewId: answer.review.id,
+      due: new Date(),
+    });
+    await repo.cards.suspend(unlocked.id);
+    await repo.cards.unsuspend(unlocked.id);
+    const before = await repo.sync.revision();
+    const { lines } = await archive();
+    expect(rows(lines, 'cards').find((row) => row['id'] === opening.id)).toMatchObject({
+      unlockReason: 'opening',
+      unlockedByReviewId: null,
+      wasSuspended: false,
+    });
+    expect(rows(lines, 'cards').find((row) => row['id'] === unlocked.id)).toMatchObject({
+      unlockReason: 'ladder',
+      unlockedByReviewId: answer.review.id,
+      wasSuspended: true,
+      suspendedAt: null,
+    });
+    expect(rows(lines, 'reviews').find((row) => row['id'] === answer.review.id)).toMatchObject({
+      cardId: opening.id,
+      cancelsReviewId: null,
+    });
+    expect(await repo.sync.revision()).toBe(before);
+  });
+
   it('keeps one snapshot while a concurrent transaction renames a Deck and edits its Note', async () => {
     const deck = await repo.decks.create({ name: 'Before snapshot' });
     const note = await repo.notes.create({
@@ -420,6 +468,41 @@ describe.skipIf(!database)('private synchronized account export on PostgreSQL', 
     expect(await repo.sync.revision()).toBe(before);
     expect((await archive()).validator.complete).toBe(true);
   });
+
+  it.skipIf(!database?.authUrl)(
+    'rejects completion after the real session expires mid-stream',
+    async () => {
+      const harness = harnessFor(db);
+      const registered = await registerFresh(harness, 'export-expiry');
+      const origin = harness.env.APP_ORIGIN.canonical;
+      const response = await harness.app.request(new URL('/api/account/export', origin), {
+        method: 'POST',
+        headers: { origin, cookie: registered.jar.header(), 'content-type': 'application/json' },
+        body: JSON.stringify({ accountId: registered.userId }),
+      });
+      expect(response.status).toBe(200);
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      try {
+        const first = await reader.read();
+        expect(decoder.decode(first.value)).toContain('"type":"manifest"');
+        await owner!.query(
+          'update "session" set expires_at = now() - interval \'1 minute\' where user_id = $1',
+          [registered.userId],
+        );
+        let remainder = '';
+        for (;;) {
+          const next = await reader.read();
+          if (next.done) break;
+          remainder += decoder.decode(next.value, { stream: true });
+        }
+        expect(remainder).toContain('"type":"error"');
+        expect(remainder).not.toContain('"type":"complete"');
+      } finally {
+        await reader.cancel();
+      }
+    },
+  );
 
   it.each(['expired', 'changed'])(
     'does not complete after the authenticated session has %s',

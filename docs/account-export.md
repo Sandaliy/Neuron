@@ -16,7 +16,7 @@ is added. All relationships use the stored IDs, including deleted and purged tom
 | `noteTypes`        | Built-in and account-owned definitions, field descriptions, Card templates and lifecycle timestamps                                                                                         |
 | `decks`            | Folders and Decks, parent/path/order, names, settings overrides, deletion operation and lifecycle                                                                                           |
 | `notes`            | Type/Deck/Import IDs, every supported vocab/basic/cloze field, grammar and accepted answers, tags, source, rank, status, triage and lifecycle                                               |
-| `cards`            | Note/Deck IDs, direction/slot, full stored scheduling state, placed due, unlock/suspend/reset and deletion lifecycle                                                                        |
+| `cards`            | Note/Deck IDs, direction/slot, full stored scheduling state, placed due, opening reason and Review ID, suspension history, reset and deletion lifecycle                                     |
 | `reviews`          | Every stored immutable answer, cancellation and reset, target/restart IDs, original and accepted timestamps, durations, historical memory/scheduling values, captured prior state, revision |
 | `learningRestarts` | Operation IDs, Deck/optional Note scope, Card count and timestamps, including empty restarts                                                                                                |
 | `studyPresets`     | Global/Deck scope, name, stored configuration, default flag and lifecycle                                                                                                                   |
@@ -79,7 +79,9 @@ is retained. `null` means absent/not captured/not applicable, not zero. `rev` an
 stored account revision counters. Stability and intervals are in days; durations are in milliseconds.
 Cancellation/reset rows carry storage placeholders in answer fields: inspect `cancelsReviewId` and
 `resetsLearning` first. Missing historical `priorState` or `submittedAt` stays null. Current Card state
-is exported separately and is never presented as an immutable event.
+is exported separately and is never presented as an immutable event. Direction provenance includes
+the opening reason and triggering Review ID when recorded. Legacy opening reasons remain null.
+`wasSuspended` records a suspension since migration 0020 and remains true after Resume.
 
 Breaking interpretation or envelope changes require a new format version. Additional optional fields
 can be documented within version 1. New persisted learning entities require a coverage decision,

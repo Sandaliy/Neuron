@@ -19,50 +19,50 @@ export function accountExportRoutes(parts: ServerParts): Hono<RequestBindings> {
     context.header('Content-Disposition', 'attachment; filename="neuron-export.jsonl"');
     const controller = new AbortController();
     const abort = () => controller.abort();
+    if (context.req.raw.signal.aborted) abort();
     context.req.raw.signal.addEventListener('abort', abort, { once: true });
     const timeout = setTimeout(abort, 125_000);
     return stream(context, async (output) => {
       output.onAbort(abort);
+      const stopOutput = () => output.abort();
+      controller.signal.addEventListener('abort', stopOutput, { once: true });
+      if (controller.signal.aborted) stopOutput();
+      const write = async (line: string) => {
+        // Bound backpressure for the archive and for a terminal failure line.
+        controller.signal.throwIfAborted();
+        let onAbort = () => {};
+        const cancelled = new Promise<never>((_, reject) => {
+          onAbort = () => reject(new Error('export_aborted'));
+          controller.signal.addEventListener('abort', onAbort, { once: true });
+        });
+        try {
+          await Promise.race([output.write(line), cancelled]);
+        } finally {
+          controller.signal.removeEventListener('abort', onAbort);
+        }
+      };
       try {
-        await repositoriesOf(context).accountExport.write(
-          async (line) => {
-            // A stalled receiver cannot retain a database snapshot indefinitely.
-            let rejectAbort = () => {};
-            const cancelled = new Promise<never>((_, reject) => {
-              rejectAbort = () => reject(new Error('export_aborted'));
-              if (controller.signal.aborted) rejectAbort();
-              else controller.signal.addEventListener('abort', rejectAbort, { once: true });
-            });
-            try {
-              await Promise.race([output.write(line), cancelled]);
-            } finally {
-              controller.signal.removeEventListener('abort', rejectAbort);
-            }
-          },
-          controller.signal,
-          async () => {
-            const current = await parts.auth.api.getSession({ headers: context.req.raw.headers });
-            if (
-              !current ||
-              current.user.id !== body.accountId ||
-              current.session.passwordChangeRequired ||
-              (parts.requireVerifiedEmail && !current.user.emailVerified)
-            )
-              throw new ApiError('not_authenticated');
-          },
-        );
+        await repositoriesOf(context).accountExport.write(write, controller.signal, async () => {
+          const current = await parts.auth.api.getSession({ headers: context.req.raw.headers });
+          if (
+            !current ||
+            current.user.id !== body.accountId ||
+            current.session.passwordChangeRequired ||
+            (parts.requireVerifiedEmail && !current.user.emailVerified)
+          )
+            throw new ApiError('not_authenticated');
+        });
       } catch (error) {
         // No driver errors, row contents or request bodies enter logs or diagnostics.
         if (!controller.signal.aborted) {
-          await output
-            .write(
-              `${JSON.stringify({ type: 'error', code: error instanceof ExportLimit ? 'export_limit' : 'export_failed' })}\n`,
-            )
-            .catch(() => undefined);
+          await write(
+            `${JSON.stringify({ type: 'error', code: error instanceof ExportLimit ? 'export_limit' : 'export_failed' })}\n`,
+          ).catch(() => undefined);
         }
       } finally {
         clearTimeout(timeout);
         context.req.raw.signal.removeEventListener('abort', abort);
+        controller.signal.removeEventListener('abort', stopOutput);
         controller.abort();
       }
     });

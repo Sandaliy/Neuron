@@ -98,6 +98,9 @@ export const EXPORT_TABLES = [
       'slot',
       ...scheduling,
       'unlockedAt',
+      'unlockReason',
+      'unlockedByReviewId',
+      'wasSuspended',
       'suspendedAt',
       'resetAt',
       'deletedWithNote',
@@ -190,7 +193,10 @@ export function exportVersion(entity: string, value: unknown): unknown {
   }
   const definition = EXPORT_TABLES.find((table) => table.entity === entity);
   if (!definition || entity === 'conflicts' || entity === 'preferences') return {};
-  const result = pick(value, [...definition.columns, 'noteType', 'triage']);
+  const result = pick(
+    value,
+    entity === 'notes' ? [...definition.columns, 'noteType'] : definition.columns,
+  );
   if ('fields' in result) result['fields'] = fields(result['fields']);
   if ('priorState' in result)
     result['priorState'] =
@@ -215,6 +221,8 @@ export const EXPORT_GUIDE = {
     'decks.parentId/path -> decks.id; notes.deckId -> decks.id, noteTypeId -> noteTypes.id, importBatchId -> importBatches.id; cards.noteId/deckId -> notes/decks; reviews.cardId -> cards.id, cancelsReviewId -> reviews.id, restartId -> learningRestarts.id; presets/imports/practice/restarts.deckId -> decks.id; restarts.noteId -> notes.id when present.',
   history:
     'Cards are current projections, not events. Reviews preserve answers, cancellations and resets as stored, including priorState when captured. Null priorState/submittedAt is historical absence. Rating/timing fields on cancellation/reset rows are storage placeholders, not answers. Never infer missing events from Card counters. FSRS stability is in days; difficulty is dimensionless; durations are milliseconds.',
+  directions:
+    'Cards preserve how a direction opened, the triggering Review ID when recorded, and whether it has been suspended since this tracking began. Historical Cards may have no recorded opening reason. An opening Review ID is provenance and can outlive the referenced row.',
   deletion:
     'Soft-deleted rows retain content for recovery. Purged rows are redacted tombstones; retained immutable learning history still references their IDs. Purged content cannot be restored. Conflicts for purged targets expose metadata only.',
   practice:
