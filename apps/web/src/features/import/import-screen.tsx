@@ -523,7 +523,12 @@ function ImportEditor({
               const merge = plan.merge[next++]!;
               await request(`/notes/${merge.noteId}`, {
                 method: 'PATCH',
-                body: { fields: merge.fields, noteType: plan.noteType, merge: true },
+                body: {
+                  fields: merge.fields,
+                  noteType: plan.noteType,
+                  merge: true,
+                  importAttemptId: plan.batchId,
+                },
               });
             }
           } catch (error) {

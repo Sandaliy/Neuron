@@ -1,12 +1,13 @@
+import { createHash } from 'node:crypto';
+
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { openingCards, parseNoteFields, resolveDeckSettings, uuidV7 } from '@neuron/shared';
 import type { DeckSettings, NoteFields, NoteStatus, NoteTypeName } from '@neuron/shared';
 
-import { decks, importBatches, notes, noteTypes, user } from '../schema/index.js';
+import { decks, importBatches, notes, noteTypes, syncReceipts, user } from '../schema/index.js';
 
 import { requireLiveDeck } from './restoration.js';
-import { nextRev } from './session.js';
 
 import type { Runner } from './session.js';
 
@@ -44,7 +45,12 @@ export async function appendImport(
   }));
   if (new Set(parsed.map((note) => note.id)).size !== parsed.length) throw new ImportConflict();
   return run(async (tx) => {
-    const rev = await nextRev(tx, userId);
+    const [account] = await tx
+      .select({ revision: user.currentRev })
+      .from(user)
+      .where(eq(user.id, userId))
+      .for('update');
+    if (!account) throw new ImportConflict();
     const [batch] = await tx
       .select()
       .from(importBatches)
@@ -114,14 +120,13 @@ export async function appendImport(
     );
     const noteRevisions = Math.ceil(pending.length / REVISION_ROWS);
     const revisions = noteRevisions + Math.ceil(planned.length / REVISION_ROWS);
-    // nextRev already owns the user lock. Reserve the remaining contiguous range
-    // in one statement, so bounded pull revisions do not add a request waterfall.
+    // Reserve the whole range once, after confirming that this chunk has new rows.
+    const rev = account.revision + 1;
     const batchRev = rev + revisions - 1;
-    if (revisions > 1)
-      await tx
-        .update(user)
-        .set({ currentRev: batchRev, updatedAt: new Date() })
-        .where(eq(user.id, userId));
+    await tx
+      .update(user)
+      .set({ currentRev: batchRev, updatedAt: new Date() })
+      .where(eq(user.id, userId));
     const values = pending.map((note, index) => ({
       ...note,
       noteTypeId: typeIds.get(note.noteType),
@@ -149,8 +154,8 @@ export async function appendImport(
         rev: rev + noteRevisions + Math.floor((start + index) / REVISION_ROWS),
       }));
       await tx.execute(sql`
-        insert into cards (id, user_id, note_id, deck_id, direction, slot, due, unlocked_at, rev)
-        select r.id, ${userId}, r."noteId", ${batch.deckId}::uuid, r.direction, r.slot, ${now}::timestamptz, ${now}::timestamptz, r.rev
+        insert into cards (id, user_id, note_id, deck_id, direction, slot, due, unlocked_at, unlock_reason, rev)
+        select r.id, ${userId}, r."noteId", ${batch.deckId}::uuid, r.direction, r.slot, ${now}::timestamptz, ${now}::timestamptz, 'opening', r.rev
         from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as r(id uuid, "noteId" uuid, direction text, slot integer, rev bigint)
       `);
     }
@@ -163,5 +168,35 @@ export async function appendImport(
       })
       .where(and(eq(importBatches.userId, userId), eq(importBatches.id, id)));
     return { notes: pending.length, cards: planned.length, skipped: existing.length };
+  });
+}
+
+/** The caller holds the account lock and commits the receipt with the fill-blank edit. */
+export function pendingImportMerge(
+  userId: string,
+  run: Runner,
+  attemptId: string,
+  noteId: string,
+  noteType: NoteTypeName,
+  fields: NoteFields,
+) {
+  return run(async (tx) => {
+    const fingerprint = `import-merge:${attemptId.toLowerCase()}:${noteId.toLowerCase()}`;
+    const digest = createHash('sha256')
+      .update(JSON.stringify([noteType, fields]))
+      .digest('hex');
+    const [receipt] = await tx
+      .select({ outcome: syncReceipts.outcome })
+      .from(syncReceipts)
+      .where(and(eq(syncReceipts.userId, userId), eq(syncReceipts.fingerprint, fingerprint)));
+    if (receipt) {
+      if (receipt.outcome.importMerge?.digest !== digest) throw new ImportConflict();
+      return undefined;
+    }
+    return async () => {
+      await tx
+        .insert(syncReceipts)
+        .values({ userId, fingerprint, outcome: { clamped: false, importMerge: { digest } } });
+    };
   });
 }

@@ -160,6 +160,8 @@ export const updateNoteSchema = z
     fields: z.record(z.string(), z.unknown()).optional(),
     /** Fill blanks on the same note type, without changing metadata or removing cards. */
     merge: z.literal(true).optional(),
+    /** Stable identity for retrying a fill-blank merge without applying it twice. */
+    importAttemptId: idSchema.optional(),
     tags: z.array(tagSchema).max(50).optional(),
     status: noteStatusSchema.optional(),
     deckId: idSchema.optional(),
@@ -181,11 +183,17 @@ export const updateNoteSchema = z
   })
   .refine((value) => Object.keys(value).length > 0, 'needs something to change')
   .refine(
+    (value) => value.importAttemptId === undefined || value.merge === true,
+    'importAttemptId requires merge',
+  )
+  .refine(
     (value) =>
       value.merge !== true ||
       (value.fields !== undefined &&
         value.noteType !== undefined &&
-        Object.keys(value).every((key) => ['merge', 'fields', 'noteType'].includes(key))),
+        Object.keys(value).every((key) =>
+          ['merge', 'fields', 'noteType', 'importAttemptId'].includes(key),
+        )),
     'merge needs fields and the same note type, without metadata changes',
   );
 

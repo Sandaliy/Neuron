@@ -307,6 +307,23 @@ export function noteRoutes(): Hono<RequestBindings> {
 
     const written = await repositories.transaction(async (inner) => {
       const existing = await inner.notes.byId(id, { forUpdate: true });
+      const command =
+        body.importAttemptId && body.noteType
+          ? {
+              attemptId: body.importAttemptId,
+              noteType: body.noteType,
+              fields: parseFields(body.noteType, body.fields),
+            }
+          : undefined;
+      const recordMerge = command
+        ? await inner.importBatches.pendingMerge(
+            command.attemptId,
+            id,
+            command.noteType,
+            command.fields,
+          )
+        : undefined;
+      if (command && !recordMerge) return 'acknowledged' as const;
 
       if (!existing) {
         return undefined;
@@ -318,7 +335,7 @@ export function noteRoutes(): Hono<RequestBindings> {
       // The old fields are re-checked against the new type on purpose. A type
       // change with no fields to go with it leaves a row nothing can read back,
       // and this is where that is caught, by name, before anything is written.
-      const incoming = parseFields(noteType, body.fields ?? existing.fields);
+      const incoming = command?.fields ?? parseFields(noteType, body.fields ?? existing.fields);
 
       if (body.merge) {
         if (noteType !== currentType || noteTermKey(incoming) !== noteTermKey(existing.fields)) {
@@ -378,12 +395,17 @@ export function noteRoutes(): Hono<RequestBindings> {
         row = await inner.notes.moveToDeck(id, body.deckId);
       }
 
+      if (recordMerge) {
+        await recordMerge();
+        return 'acknowledged' as const;
+      }
       return row;
     });
 
     if (!written) {
       throw new ApiError('not_found');
     }
+    if (written === 'acknowledged') return context.body(null, 204);
 
     const [cards, typeNames] = await Promise.all([
       repositories.cards.forNote(id),

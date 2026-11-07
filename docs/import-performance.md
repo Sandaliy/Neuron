@@ -63,7 +63,9 @@ original IDs. Browser responses have a fixed 30 ms delay; database work is measu
 - Merge-only imports previously replayed every merge after interruption and displayed no merge
   progress. The existing fill-blank PATCH remains authoritative; two requests may travel together,
   and each fully acknowledged group of twenty commits a merge checkpoint. Only the unconfirmed
-  suffix replays. Merges remain outside Import Undo.
+  suffix replays. The server stores a digest-only receipt for each attempt and Note. An exact retry
+  acknowledges the commit without reapplying the edit, even if a later edit cleared a field. Merges
+  remain outside Import Undo.
 - Completion used to wait for cache refetching after its durable summary had already committed.
   It now marks destination queries stale and shows completion while warming them in the background.
   A server summary with missing or unexpected additions retains recovery instead of claiming success.
@@ -186,8 +188,10 @@ quota exhaustion and eviction, reopening after a shell update, and scrolling/typ
 Desktop mobile WebKit and CPU throttling do not replace those checks. Browser eviction can remove all
 local work. Opening Import still loads retained drafts, so many very large saved drafts can consume
 additional memory. Independent Imports may intentionally create identical content under distinct IDs;
-exact retry deduplication is by identity, not a new uniqueness rule on terms. Fill-blank merges evaluate
-current server fields on an unconfirmed retry and do not provide an immutable merge receipt.
+exact retry deduplication uses the frozen identities. Replaying a committed header or an entirely
+committed chunk leaves the account revision unchanged. Opening Cards use the same inherited ladder
+and provenance as ordinary Note creation. Legacy merge requests without an attempt ID cannot establish
+whether a previous request committed.
 
 Integration overlap is limited to the Import portion of `apps/api/src/routes/study.ts`, the Import
 batch repository, the Import duplicate helper in `apps/web/src/lib/notes.ts`, shared error/i18n

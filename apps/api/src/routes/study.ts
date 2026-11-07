@@ -230,7 +230,9 @@ export function importRoutes(): Hono<RequestBindings> {
         ? await inner.importBatches.append(batch.id, parsed)
         : { notes: 0, cards: 0, skipped: 0 };
       if (!applied) throw new ApiError('not_found');
-      return { batch, ...applied };
+      const committed = applied.notes ? await inner.importBatches.byId(batch.id) : batch;
+      if (!committed) throw new ApiError('not_found');
+      return { batch: committed, ...applied };
     });
 
     return context.json(

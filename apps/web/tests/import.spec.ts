@@ -128,7 +128,12 @@ for (const storedLocale of ['en', 'ru'] as const) {
     expect(patches).toEqual([
       {
         path: `/api/notes/${duplicateIds.right}`,
-        body: { merge: true, noteType: 'vocab', fields: { term: 'mixed', translation: 'meaning' } },
+        body: {
+          merge: true,
+          noteType: 'vocab',
+          fields: { term: 'mixed', translation: 'meaning' },
+          importAttemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        },
       },
     ]);
     const chunk = writes.find((write) => write.path.endsWith('/notes'))!.body['notes'] as {
@@ -261,6 +266,7 @@ test('final import merges an exact destination duplicate without creating an emp
         merge: true,
         noteType: 'vocab',
         fields: { term: 'destination only', translation: 'fill this if blank' },
+        importAttemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       },
     },
   ]);
@@ -712,18 +718,20 @@ test('merge-only delivery checkpoints confirmed groups and resumes the unconfirm
   });
   let fail = true;
   const patches: string[] = [];
+  const attempts: unknown[] = [];
   const accepted = new Set<string>();
   await page.route('**/api/notes/*', async (route) => {
     if (route.request().method() !== 'PATCH') return route.fallback();
     const id = new URL(route.request().url()).pathname.split('/').at(-1)!;
     patches.push(id);
+    attempts.push((route.request().postDataJSON() as { importAttemptId?: string }).importAttemptId);
     accepted.add(id);
     await new Promise((resolve) => setTimeout(resolve, 15));
     if (fail && id === ids[25]) {
       fail = false;
       return route.abort('failed');
     }
-    await route.fulfill({ json: {} });
+    await route.fulfill({ status: 204 });
   });
   await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
   await page.locator('textarea').fill(terms.map((term) => `${term}\tmeaning`).join('\n'));
@@ -741,6 +749,7 @@ test('merge-only delivery checkpoints confirmed groups and resumes the unconfirm
   await expect(page.getByText('Existing notes processed: 41.', { exact: true })).toBeVisible();
   expect(patches.slice(at).every((id) => !ids.slice(0, 20).includes(id))).toBe(true);
   expect(accepted.size).toBe(41);
+  expect(new Set(attempts)).toEqual(new Set([frozen.delivery!.attempt.batchId]));
   expect(checks).toBe(checksBeforeResume);
   expect((await storedDrafts(page))[0]!.delivery).toMatchObject({
     attempt: frozen.delivery!.attempt,
@@ -843,6 +852,7 @@ test('live PostgreSQL Import reopens a committed lost response and reconciles ex
     'Requires the guarded throwaway database',
   );
   test.setTimeout(180_000);
+  await import('../../api/src/db/testing/ws-proxy.js');
   const { serve } = await import('../../api/node_modules/@hono/node-server/dist/index.mjs');
   const { testDatabase, createUser, appClient, rawOwnerPool } =
     await import('../../api/src/db/testing/database.js');

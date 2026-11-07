@@ -1,10 +1,11 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { uuidV7 } from '@neuron/shared';
+import type { NoteFields, NoteTypeName } from '@neuron/shared';
 
 import { cards, importBatches, notes, studyPresets, user } from '../schema/index.js';
 
-import { appendImport, ImportConflict } from './import-write.js';
+import { appendImport, ImportConflict, pendingImportMerge } from './import-write.js';
 import { requireLiveDeck } from './restoration.js';
 import { nextRev } from './session.js';
 
@@ -66,6 +67,12 @@ export interface ImportBatchRepository {
    */
   create: (input: CreateImportBatch) => Promise<ImportBatchRow>;
   append: (id: string, notes: readonly ImportWriteNote[]) => ReturnType<typeof appendImport>;
+  pendingMerge: (
+    attemptId: string,
+    noteId: string,
+    noteType: NoteTypeName,
+    fields: NoteFields,
+  ) => ReturnType<typeof pendingImportMerge>;
   byId: (id: string) => Promise<ImportBatchRow | undefined>;
   list: () => Promise<ImportBatchRow[]>;
   /** Adds to the running count as chunks land. */
@@ -187,12 +194,32 @@ export function presetRepository(userId: string, run: Runner): PresetRepository 
 export function importBatchRepository(userId: string, run: Runner): ImportBatchRepository {
   return {
     append: (id, notes) => appendImport(userId, run, id, notes),
+    pendingMerge: (...args) => pendingImportMerge(userId, run, ...args),
     async create(input) {
       return run(async (tx) => {
-        const rev = await nextRev(tx, userId);
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update');
         await requireLiveDeck(tx, userId, input.deckId, 'deck');
 
         const id = input.id ?? uuidV7();
+        if (input.id) {
+          const [existing] = await tx
+            .select()
+            .from(importBatches)
+            .where(and(eq(importBatches.userId, userId), eq(importBatches.id, id)))
+            .limit(1);
+          if (existing) {
+            if (
+              existing.deckId !== input.deckId.toLowerCase() ||
+              existing.source !== input.source ||
+              existing.format !== (input.format ?? 'json') ||
+              existing.undoneAt ||
+              existing.deletedAt
+            )
+              throw new ImportConflict();
+            return existing;
+          }
+        }
+        const rev = await nextRev(tx, userId);
 
         const [row] = await tx
           .insert(importBatches)
@@ -208,29 +235,8 @@ export function importBatchRepository(userId: string, run: Runner): ImportBatchR
           .onConflictDoNothing()
           .returning();
 
-        if (row) {
-          return row;
-        }
-
-        // Already there, which means this request has been sent before. The
-        // batch that exists is the one the notes are attached to.
-        const [existing] = await tx
-          .select()
-          .from(importBatches)
-          .where(and(eq(importBatches.userId, userId), eq(importBatches.id, id)))
-          .limit(1);
-
-        if (
-          !existing ||
-          existing.deckId !== input.deckId.toLowerCase() ||
-          existing.source !== input.source ||
-          existing.format !== (input.format ?? 'json') ||
-          existing.undoneAt ||
-          existing.deletedAt
-        )
-          throw new ImportConflict();
-
-        return existing;
+        if (!row) throw new ImportConflict();
+        return row;
       });
     },
 

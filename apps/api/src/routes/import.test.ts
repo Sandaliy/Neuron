@@ -92,9 +92,11 @@ describe.skipIf(!database)('importing', () => {
 
     const id = uuidV7();
     const first = await startBatch('Sent twice', id);
+    const revision = await repositories.sync.revision();
     const second = await startBatch('Sent twice', id);
 
     expect(second.import.id).toBe(first.import.id);
+    expect(await repositories.sync.revision()).toBe(revision);
     expect((await repositories.importBatches.list()).filter((row) => row.id === id)).toHaveLength(
       1,
     );
@@ -109,10 +111,21 @@ describe.skipIf(!database)('importing', () => {
     const chunk = [note('Wiederholung'), note('Verbindung')];
 
     const first = await sendChunk(started.import.id, chunk);
+    const revision = await repositories.sync.revision();
     const second = await sendChunk(started.import.id, chunk);
 
     expect(first).toEqual({ notes: 2, cards: 2, skipped: 0 });
     expect(second).toEqual({ notes: 0, cards: 0, skipped: 2 });
+    expect(await repositories.sync.revision()).toBe(revision);
+    const opening = await repositories.cards.forNote(chunk[0]!.id);
+    expect(opening).toEqual([
+      expect.objectContaining({
+        direction: 'recognition',
+        unlockReason: 'opening',
+        unlockedByReviewId: null,
+        wasSuspended: false,
+      }),
+    ]);
 
     const summary = await json<{ notes: number; cards: number }>(
       await server.request(`/api/imports/${started.import.id}`),
