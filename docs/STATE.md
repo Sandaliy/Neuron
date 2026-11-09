@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-08 (Progressive Directions merged at `2f11bd3`).
+Last updated: 2026-11-09 (release backlog integrated at `fc49ad4`).
 
 ## Release
 
@@ -67,6 +67,16 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   separate), explains each from its latest answers, opens the Note editor with list return, and sets a
   Card aside or resumes it through the existing schedule-preserving endpoints. A complete download
   lists the lapse rule from Card counters; Card writes need a connection. See `problem-cards.md`.
+- Session recovery (#94): after a session expires, signing in again restores the app in the same tab.
+  Each request carries the account the tab shows, so a tab left on one account cannot read or store
+  another account's data after a second tab signs in elsewhere.
+- Account export (#71): Settings downloads a private JSON Lines archive of synchronized learning data
+  from one read-only snapshot under RLS, with explicit column allowlists, direction provenance and
+  redacted purged rows. It is not an import or restore format. See `account-export.md`.
+- Import hardening (#74): each chunk writes Notes and opening Cards in bulk in one transaction, with
+  bounded revisions. Exact retries after a lost response change nothing, fill-blank merges commit a
+  receipt with the edit, and Undo publishes tombstones in bounded revisions without touching Reviews.
+  See `import-performance.md`.
 
 Recent Notes (#81) adds Recently added (`createdAt`) and Recently changed (`updatedAt`) to Library's
 existing Note browser, with dates, locations, filters and editor return. Migration 0019 adds read indexes
@@ -104,14 +114,16 @@ installed-iPhone acceptance.
 
 ## Next
 
-Complete the integration gates in `integration-status.md` before new feature work. Account export
-(#71), Import hardening (#74) remain in the release backlog. Content checks (#89) has owner visual
-acceptance; installed-iPhone acceptance remains open. The offline sync chaos harness exercises
-combined delivery faults against the built PWA and disposable PostgreSQL. It also checks that
-real Better Auth sign-in after session expiry validates the new visit in the same document.
-See [Offline sync chaos testing](offline-sync-chaos.md) for reproduction and integration coverage.
-Shared menu viewport recovery (#91) is released with green main CI and production health. A further
-Doctor query-plan repair addresses cold-account scale failures before the held branches are refreshed.
+The release backlog is integrated: Session recovery (#94), Progressive directions (#86), Slipping
+Cards (#87), Account export (#71) and Import hardening (#74) are on protected `main`, deployed, with
+production migrations and health checks passing. See `integration-status.md`. What remains is
+installed-iPhone acceptance. The offline sync chaos harness exercises combined delivery faults
+against the built PWA and disposable PostgreSQL, including real sign-in after session expiry; see
+[Offline sync chaos testing](offline-sync-chaos.md).
+
+Required CI finishes in five minutes (#95): independent checks run as parallel jobs and each browser
+interaction project runs on six runners balanced by measured file duration. Keep it there without
+dropping checks; see "The five-minute CI budget" in `apps/web/tests/README.md`.
 
 1. Installed-iPhone acceptance of the integrated release: the scenarios in "Acceptance on the iPhone"
    below, then the quality pass and earlier offline features (screen and card motion, folders and
@@ -126,7 +138,8 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
 2. Rank order for waves. Waves follow file order today; a frequency list imported out of order would
    need waves by its rank column, which is a per-Deck choice for the owner.
 3. Accept progressive directions and Slipping Cards on the installed iPhone. Slipping-card thresholds
-   need owner testing. Splitting needs an integrity-safe identity and history contract.
+   need owner testing. Splitting needs an integrity-safe identity and history contract. Also accept
+   Account export (download through Files/Share) and a large Import with Undo on the device.
 4. Dark-theme depth: cards sit close to the canvas, and with Liquid glass on cards they render darker
    than it. A lighter glass attempt was rejected; any next attempt is shown as screenshots first.
 5. A refused Review answer still pauses all new online Study. Narrowing that to the affected cards is a
@@ -150,9 +163,9 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
 
 ## Open threads
 
-- Account export (#71) remains under critical review. Settings prepares a versioned server snapshot
-  with stored triage and immutable history; device-only work and archive import/restore are excluded.
-  Hosted streaming and installed-iPhone Files/Share acceptance remain open. See `account-export.md`.
+- Account export (#71) excludes device-only work and has no import or restore path. A real
+  mid-stream session expiry and a 67.7 MB synthetic archive streamed correctly from PostgreSQL;
+  installed-iPhone Files/Share acceptance remains open. See `account-export.md`.
 
 - Content checks adds one schema-valid example-pair consistency check and three optional vocabulary
   enrichment checks. Owner visual acceptance is complete; installed-iPhone acceptance remains open.
@@ -173,8 +186,9 @@ Doctor query-plan repair addresses cold-account scale failures before the held b
 - Preliminary offline duplicate keys retain the inherited UTF-16 prefix difference from PostgreSQL
   for very long supplementary-Unicode terms. Server groups remain authoritative; see
   `possible-duplicates.md`. The existing normalization and Import contract are unchanged.
-- Account export (#71) and Import hardening (#74) are prepared for separate critical review.
-  See `integration-status.md` for evidence and next actions.
+- Import hardening (#74): physical-device termination, eviction and near-limit memory during a
+  large Import remain unverified on the installed iPhone. Browser runs on Chromium and mobile WebKit
+  covered a lost response, frozen-ID convergence and Undo tombstones.
 - Study passes over Cards whose Note no longer produces a displayable face, so a sitting can finish.
   Legacy cloze Cards at slot 0 can still count as ready, use a new-card place, or remain overdue.
 - Local new-card admission offline is conservative over the last complete download and this device's
