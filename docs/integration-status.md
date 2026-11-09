@@ -1,29 +1,37 @@
 # Integration status
 
-Integration pass: 2026-11-06. The protected ruleset requires an up-to-date branch, squash merging,
+Integration pass: 2026-11-09. The protected ruleset requires an up-to-date branch, squash merging,
 Secret scan, Typecheck/lint/test/build, Browser and screenshot tests, and both Vercel projects.
 It requires no approving GitHub review. The separate critical and visual acceptance gates below
-remain binding even when hosted checks pass. Auto-merge is disabled for held work.
+remain binding even when hosted checks pass. Auto-merge is disabled for held work. Every squash merge
+uses its own subject and body, never the default message (see the authorship note below).
 
 ## Release ledger
 
-| PR                                                | State and next action                                                                                           | Merge / verification                                                                                                                                                                                                   |
-| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [#82](https://github.com/Sandaliy/Neuron/pull/82) | Merged: README, synthetic mobile gallery and simulation presentation.                                           | `e5a458d`; all five required checks passed on refreshed head `fd28453`.                                                                                                                                                |
-| [#90](https://github.com/Sandaliy/Neuron/pull/90) | Merged: explicit-account, read-only Database Integrity Doctor.                                                  | `66437fe`; all five required checks passed on refreshed head `7cca368`.                                                                                                                                                |
-| [#85](https://github.com/Sandaliy/Neuron/pull/85) | Merged after refresh against #82 and #90.                                                                       | `0687ec3`; all five required checks passed on refreshed head `0fca2e7`. Current audit retains 1 critical, 3 high, 1 moderate and 3 low findings, as documented.                                                        |
-| [#71](https://github.com/Sandaliy/Neuron/pull/71) | Unmerged for critical security/data-integrity review. Conflicts and diagnosed CI failures repaired.             | Account-export allowlists, RLS/read-only snapshot, late authorization, purge redaction and completion validation need integration-owner sign-off. Hosted streaming and installed-iPhone Files/Share remain unverified. |
-| [#74](https://github.com/Sandaliy/Neuron/pull/74) | Unmerged for critical security/data-integrity review. Search/Import conflicts resolved preserving both changes. | Review atomic bulk writes, bounded revisions, immutable source/IDs, header concurrency and recovery after lost acknowledgements. Physical termination/eviction/near-limit memory acceptance remains open.              |
-| [#86](https://github.com/Sandaliy/Neuron/pull/86) | Merged with migration 0020.                                                                                     | `2f11bd3`; all five required checks passed on `a76b2c7`. Installed-iPhone acceptance is open.                                                                                                                          |
-| [#87](https://github.com/Sandaliy/Neuron/pull/87) | Critical review complete on the combined Progressive Directions tree.                                           | Equal-time recovery follows replay order. The combined candidate passed 41 tests and 12 built browser cases.                                                                                                           |
-| [#89](https://github.com/Sandaliy/Neuron/pull/89) | Owner accepted the shown visuals on 2026-11-06; integrate after fresh required checks against #92 main.         | Required checks passed on earlier refreshed head `dcfb711`; installed-iPhone acceptance remains open.                                                                                                                  |
-| [#91](https://github.com/Sandaliy/Neuron/pull/91) | Merged: shared menu viewport repair and integration handoff.                                                    | `ba23f21`; all required checks passed on `f42b166`; resulting main CI and production migrations passed.                                                                                                                |
-| [#92](https://github.com/Sandaliy/Neuron/pull/92) | Merged: bounded cold-statistics integrity query plans.                                                          | `fa196fc`; all five required checks passed on `855db2c` in run `42285525318`; 59 local PostgreSQL Doctor/safety cases passed.                                                                                          |
+| PR                                                | State and next action                                                                                   | Merge / verification                                                                                                                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [#82](https://github.com/Sandaliy/Neuron/pull/82) | Merged: README, synthetic mobile gallery and simulation presentation.                                   | `e5a458d`; all five required checks passed on refreshed head `fd28453`.                                                                                         |
+| [#90](https://github.com/Sandaliy/Neuron/pull/90) | Merged: explicit-account, read-only Database Integrity Doctor.                                          | `66437fe`; all five required checks passed on refreshed head `7cca368`.                                                                                         |
+| [#85](https://github.com/Sandaliy/Neuron/pull/85) | Merged after refresh against #82 and #90.                                                               | `0687ec3`; all five required checks passed on refreshed head `0fca2e7`. Current audit retains 1 critical, 3 high, 1 moderate and 3 low findings, as documented. |
+| [#71](https://github.com/Sandaliy/Neuron/pull/71) | Merged: account export with direction provenance.                                                       | `ca3b63d`; all required checks passed on `69d6db6`; 1,478 local tests passed against PostgreSQL. Installed-iPhone Files/Share remains open.                     |
+| [#74](https://github.com/Sandaliy/Neuron/pull/74) | Merged: bulk Import writes, exact retries, bounded Undo revisions.                                      | `fc49ad4`; all required checks passed on `57ab328`; 1,491 local tests passed against PostgreSQL. Physical termination/eviction/near-limit memory remains open.  |
+| [#86](https://github.com/Sandaliy/Neuron/pull/86) | Merged with migration 0020.                                                                             | `dd18a02`; all five required checks passed on `a76b2c7`. Installed-iPhone acceptance is open.                                                                   |
+| [#87](https://github.com/Sandaliy/Neuron/pull/87) | Merged: Slipping Cards with replay-order recovery.                                                      | `e2a81b7`; the combined candidate passed 41 tests and 12 built browser cases. Installed-iPhone acceptance is open.                                              |
+| [#94](https://github.com/Sandaliy/Neuron/pull/94) | Merged: session recovery and per-tab account binding.                                                   | `46d7908`; all five required checks passed.                                                                                                                     |
+| [#95](https://github.com/Sandaliy/Neuron/pull/95) | Merged: required CI within five minutes.                                                                | `c04004f`; full run 4 min 33 s with the same 474 phone and 471 desktop browser tests.                                                                           |
+| [#89](https://github.com/Sandaliy/Neuron/pull/89) | Owner accepted the shown visuals on 2026-11-06; integrate after fresh required checks against #92 main. | Required checks passed on earlier refreshed head `dcfb711`; installed-iPhone acceptance remains open.                                                           |
+| [#91](https://github.com/Sandaliy/Neuron/pull/91) | Merged: shared menu viewport repair and integration handoff.                                            | `ba23f21`; all required checks passed on `f42b166`; resulting main CI and production migrations passed.                                                         |
+| [#92](https://github.com/Sandaliy/Neuron/pull/92) | Merged: bounded cold-statistics integrity query plans.                                                  | `fa196fc`; all five required checks passed on `855db2c` in run `42285525318`; 59 local PostgreSQL Doctor/safety cases passed.                                   |
 
-Both production projects for #82, #90, #85 and #91 reported successful deployments at their exact merge SHAs.
+Both production projects for #82, #90, #85, #91, #71, #95 and #74 reported successful deployments at their exact merge SHAs.
 Their trusted production-migration workflows passed. The web root, API `/health` with compatible
 schema, and `/db-check` returned 200 after each integration; API requests ran in `fra1`.
 Main CI passed for #90, #85 and #91; #82's superseded run is covered by those later integrated runs.
+#86 and #87 were first merged as `2f11bd3` and `b0fb141` with GitHub's default squash message, which
+copied co-author lines from the branch commits. On 2026-11-09, with the owner's approval, the
+ruleset was paused for one force push that replaced them with `dd18a02` and `e2a81b7`: same trees,
+author and dates, without those lines. The ruleset was restored unchanged and production redeployed
+the identical tree with health checks at 200.
 The Vercel connector lacked team access, so deployment evidence came from GitHub deployment/status
 records and direct public health requests. No production account was inspected with the Doctor.
 
@@ -70,28 +78,18 @@ records and direct public health requests. No production account was inspected w
   checks that were not executed remain unverified. An exploratory full browser run before dependency
   integration was intentionally stopped; it is not passing evidence.
 
-## Critical review handoff
+## Critical review outcome
 
-1. **#86: suspension history and migration 0020.**
-   Undo previously retracted a direction after suspend and resume. The server now retains the
-   suspension flag independently of current state and preserves the original Review ID. The
-   regression exercises both Card routes and Sync against PostgreSQL 17. The migration refuses a
-   busy Card table, validates its checks in a bounded statement and leaves old data and RLS intact.
+1. **#86: suspension history and migration 0020.** Undo no longer retracts a direction after suspend
+   and resume; the suspension flag and original Review ID are kept. The migration refuses a busy Card
+   table and validates its checks in a bounded statement.
+2. **#87: equal-time recovery.** Recovery counts answers after the last Again by timestamp, revision
+   and Review ID, the canonical replay order, before and after Undo.
+3. **#71 after #86:** the schema-coverage test now exports `unlock_reason`, `unlocked_by_review_id` and
+   the suspension flag deliberately. Cancellation is exercised at the streaming route.
+4. **#74 after #86:** bulk Import Cards record `unlocked_at` and `unlock_reason = 'opening'` with the
+   same scheduling defaults as single-Note creation. Exact retries leave the account revision alone, and
+   a fill-blank merge commits its receipt with the edit.
 
-2. **#87: equal-time recovery evidence.**
-   Recovery counts answers after the last Again by timestamp, revision and Review ID, the same
-   order as canonical replay. A PostgreSQL regression submits reverse-ordered IDs at one timestamp
-   and checks recovery before and after Undo. Membership and scheduling rules remain unchanged.
-
-3. **#71 after #86:** its schema-coverage test requires an explicit export decision for
-   `unlock_reason` and `unlocked_by_review_id`. Whichever branch merges second must cover the new
-   provenance deliberately; do not bypass the guard or assume the independent green runs compose.
-4. **#74 after #86:** the bulk Import Card insert currently predates opening-direction provenance.
-   Review metadata parity with ordinary Note creation and repeat exact retry/Undo/revision tests on
-   the combined tree. The existing fill-blank merge retry limitation remains documented in
-   `import-performance.md`; no new immutable merge receipt is claimed.
-
-Keep #71 and #74 behind
-their independent critical security/data-integrity gate. The offline sync chaos harness starts from
-protected main while these branches remain under critical review. The [future integration
-cases](offline-sync-chaos.md#held-branches) apply after their respective reviews.
+The offline sync chaos [integration cases](offline-sync-chaos.md#held-branches) now run against the
+combined main.
