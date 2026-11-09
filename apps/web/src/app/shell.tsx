@@ -1,5 +1,5 @@
-import { Outlet, useLinkProps, useRouterState } from '@tanstack/react-router';
-import { Suspense, useState } from 'react';
+import { Outlet, useLinkProps, useRouter, useRouterState } from '@tanstack/react-router';
+import { Suspense, useEffect, useState } from 'react';
 
 import type { MessageKey } from '@neuron/shared';
 
@@ -19,12 +19,64 @@ const TABS: readonly { to: '/' | '/library' | '/settings'; label: MessageKey }[]
   { to: '/settings', label: 'nav.settings' },
 ];
 
+/** The tab an address belongs to, read from the address alone. */
+function tabOf(pathname: string): number {
+  if (pathname === '/') return 0;
+  if (pathname === '/settings') return 2;
+  return /^\/(library|notes|import)(\/|$)/.test(pathname) ? 1 : -1;
+}
+
+/*
+ * Whether the person just asked to move, by a press or a key inside the app.
+ *
+ * A Back arrival animates only then. When the browser goes back by itself, an
+ * edge swipe on an iPhone above all, Safari has already slid the previous page
+ * in; the app animating it again from the left drew a second, late slide with
+ * a strip of bare canvas along the edge. A click rather than a pointerdown,
+ * because a swipe that the system takes over starts with a pointerdown too.
+ */
+let lastIntent = Number.NEGATIVE_INFINITY;
+if (typeof window !== 'undefined') {
+  const mark = () => {
+    lastIntent = performance.now();
+  };
+  window.addEventListener('click', mark, { capture: true, passive: true });
+  window.addEventListener('keydown', mark, { capture: true, passive: true });
+}
+const askedJustNow = () => performance.now() - lastIntent < 1000;
+
 export function Shell() {
   const t = useTranslate();
+  const router = useRouter();
+  /*
+   * The three tab screens are loaded once the first screen is up and the
+   * browser is idle. Switching tabs then waits for nothing but a render; it
+   * used to wait for the next screen's module on its first visit.
+   */
+  useEffect(() => {
+    const preload = () => {
+      for (const tab of TABS) void router.preloadRoute({ to: tab.to }).catch(() => undefined);
+    };
+    if ('requestIdleCallback' in window) {
+      const handle = window.requestIdleCallback(preload, { timeout: 3000 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const timer = setTimeout(preload, 1500);
+    return () => clearTimeout(timer);
+  }, [router]);
   // The committed match owns both the screen and its tab, including collection
   // screens outside /library. A pending address must not remount the old screen.
   const match = useRouterState({ select: (state) => state.matches.at(-1) });
   const current = TABS.findIndex((tab) => tab.to === match?.staticData.navTab);
+  /*
+   * Where the pill sits: the tab of the address being opened, from the moment
+   * it is pressed. The committed screen still owns aria-current. The pill used
+   * to wait for the next screen to load and render, so after the press
+   * feedback faded on the new tab it sat on the old one for a beat, which read
+   * as the bar snapping back.
+   */
+  const destination = useRouterState({ select: (state) => tabOf(state.location.pathname) });
+  const pill = destination >= 0 ? destination : current;
   const index = useRouterState({
     select: (state) => (state.location.state as { __TSR_index?: number }).__TSR_index ?? 0,
   });
@@ -46,7 +98,14 @@ export function Shell() {
   if (arrival.path !== match?.pathname)
     setArrival({
       path: match?.pathname,
-      kind: current !== arrival.tab ? 'tab' : index < arrival.index ? 'back' : 'forward',
+      kind:
+        current !== arrival.tab
+          ? 'tab'
+          : index < arrival.index
+            ? askedJustNow()
+              ? 'back'
+              : undefined
+            : 'forward',
       index,
       tab: current,
     });
@@ -89,14 +148,14 @@ export function Shell() {
         style={
           {
             '--seg-count': TABS.length,
-            '--seg-index': current < 0 ? 0 : current,
+            '--seg-index': pill < 0 ? 0 : pill,
           } as CSSProperties
         }
       >
         <span
           data-slot="tab-pill"
           aria-hidden="true"
-          className={current < 0 ? 'opacity-0' : undefined}
+          className={pill < 0 ? 'opacity-0' : undefined}
         />
         <OfflineStatus />
 
