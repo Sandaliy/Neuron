@@ -312,6 +312,18 @@ function ManualKey({ uri }: { readonly uri: string }) {
           >
             {t('auth.twoFactor.secretCopy')}
           </Button>
+
+          {/*
+            The same otpauth uri the QR carries. On a phone with an authenticator
+            app installed, this adds the account without copying anything, which
+            is the only practical route when the QR is on the phone's own screen.
+          */}
+          <a
+            href={uri}
+            className="flex min-h-44 items-center justify-center rounded-12 px-12 text-15 font-semibold text-accent hover:bg-fill-neutral"
+          >
+            {t('auth.twoFactor.openApp')}
+          </a>
         </div>
       ) : undefined}
     </div>

@@ -84,3 +84,44 @@ test.describe('the dialogs, on a phone', () => {
     });
   }
 });
+
+/**
+ * Setting up the second factor on one phone means leaving Neuron for the
+ * authenticator app with the setup key, and coming back for the code. Leaving
+ * used to close the dialog, so the key on screen was gone by the time the
+ * person returned.
+ */
+test('two-factor setup survives leaving the app and coming back', async ({ page }) => {
+  await usePreferences(page, { theme: 'dark', locale: 'en' });
+  await useFixtures(page);
+  await page.goto('/settings');
+  await page.getByRole('button', { name: 'Two-factor authentication' }).click();
+  await page.getByLabel('Your password').fill('correct horse battery staple');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Enter the key by hand instead' }).click();
+  const key = page.getByRole('textbox', { name: 'Enter the key by hand instead' });
+  await expect(key).toHaveValue('JBSWY3DPEHPK3PXPJBSWY3DP');
+
+  await page.evaluate(() => {
+    const visibility = (hidden: boolean) => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => (hidden ? 'hidden' : 'visible'),
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
+    window.dispatchEvent(new Event('blur'));
+    visibility(true);
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    visibility(false);
+    window.dispatchEvent(new Event('focus'));
+  });
+
+  await expect(page.getByRole('dialog', { name: 'Two-factor authentication' })).toBeVisible();
+  await expect(key).toHaveValue('JBSWY3DPEHPK3PXPJBSWY3DP');
+  await page.getByRole('button', { name: 'I have added it' }).click();
+  await page.getByLabel('Six digit code').fill('123456');
+  await expect(page.getByText('4KQPX-2M7JW-DRTKM')).toBeVisible();
+});

@@ -295,8 +295,11 @@ near the 60 Hz display cap are not evidence of a general production speedup.
 
 Transform and opacity only for layout and entrances. Never height, width, top, left, or filter.
 The bounded 160px Practice completion ring is the sole paint exception: its SVG stroke-dashoffset
-and numeric percentage may advance together for at most `--dur-4`, without delaying controls.
-Its accessible percentage is final immediately; reduced motion displays the final result.
+and numeric percentage advance together over `--dur-completion` (720 ms, the one duration outside
+the four), on `--ease-inout`, after the panel's own `--dur-2` entrance, without delaying controls.
+At 340 ms the count ran mostly under the entrance fade and jumped several percent a frame, which
+read as cheap. Its accessible percentage is final immediately; reduced motion displays the final
+result.
 
 **Every entrance fills `backwards`, never `both`.** `both` holds the last keyframe on the element for
 as long as it lives, and a held transform, even `none`, keeps that element on a composited layer of its
@@ -795,7 +798,7 @@ the controls automatically. Persistent Deck skills remain separate, deliberate s
 Audio has a 44px target and 24px glyph on visible target-language content. A missing voice in Listening
 shows its fallback immediately; a normal word's audio action explains unavailability on tap. Playback
 never exposes a hidden target outside Listening and never blocks Reveal. Completion draws clockwise and
-counts for 340ms without gating controls; reduced motion starts at the final value. An interrupted
+counts over `--dur-completion` without gating controls; reduced motion starts at the final value. An interrupted
 counter continues from its displayed value rather than restarting at zero.
 
 Library Folders retain substantial, subtly outlined 18px surfaces and a 96px minimum row height. Leaf Decks

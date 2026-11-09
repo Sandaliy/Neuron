@@ -1,12 +1,34 @@
 /** Temporary interaction feedback must end before a route leaves. */
 export const NAVIGATION_EVENT = 'neuron:navigate';
 
-export function resetInteractions(): void {
+/**
+ * The app went to the background: another app, the home screen, a lock.
+ *
+ * Only transient layers listen for it, a menu or a pressed row. A dialog does
+ * not: it holds work in progress, and closing it when the person switched apps
+ * threw that work away. Setting up two-factor authentication is the case that
+ * made this visible. The setup key has to be copied into an authenticator app,
+ * and leaving Neuron to do it closed the dialog and lost the key on screen.
+ */
+export const BACKGROUND_EVENT = 'neuron:background';
+
+function clearPresses(): void {
   document.querySelectorAll('[data-pressed]').forEach((element) => {
     element.removeAttribute('data-pressed');
   });
+}
+
+/** A route is about to change: every overlay closes and focus is released. */
+export function resetInteractions(): void {
+  clearPresses();
   window.dispatchEvent(new Event(NAVIGATION_EVENT));
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+}
+
+/** The page was hidden or restored. Presses and menus end; dialogs and focus stay. */
+export function releaseInteractions(): void {
+  clearPresses();
+  window.dispatchEvent(new Event(BACKGROUND_EVENT));
 }
 
 /**
@@ -51,11 +73,8 @@ export function trackPresses(): void {
   document.addEventListener('pointercancel', clear, { passive: true });
   document.addEventListener('scroll', clear, { passive: true, capture: true });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      clear();
-      window.dispatchEvent(new Event(NAVIGATION_EVENT));
-    }
+    if (document.hidden) releaseInteractions();
   });
-  window.addEventListener('pagehide', resetInteractions);
-  window.addEventListener('pageshow', resetInteractions);
+  window.addEventListener('pagehide', releaseInteractions);
+  window.addEventListener('pageshow', releaseInteractions);
 }
