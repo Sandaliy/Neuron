@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import type { DeckNode } from '@neuron/shared';
@@ -11,19 +12,29 @@ import { DECK_TREE_KEY, useDeckActions, useDeckTree } from '../../lib/decks';
 import { NOTE_KEY } from '../../lib/notes';
 import { Button } from '../../ui/button';
 import { Dialog, DialogBody, DialogFooter } from '../../ui/dialog';
-import { Menu, MenuItem } from '../../ui/menu';
+import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
 import { ErrorState } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { DeckSettingsDialog } from '../library/deck-dialogs';
 
-export function RestartLearning({
+/**
+ * Everything about a Deck that is not studying it, in one menu.
+ *
+ * Study skills, the two checks scoped to this Deck, pausing it in Daily Study
+ * and restarting it used to be a text button, two links and a menu spread down
+ * the head of the screen, each on its own 44-pixel row with nothing to say
+ * which belonged together. The screen's own content now starts under the title.
+ */
+export function DeckMenu({
   deck,
-  skillsOnly = false,
+  available,
 }: {
   readonly deck: DeckNode;
-  readonly skillsOnly?: boolean;
+  /** Whether the server can take Deck changes now. The checks open either way. */
+  readonly available: boolean;
 }) {
   const deckId = deck.id;
+  const navigate = useNavigate();
   const t = useTranslate();
   const client = useQueryClient();
   const toast = useToast();
@@ -33,7 +44,7 @@ export function RestartLearning({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const participation = actions.update;
   function canAct() {
-    if (hasServerAuthority() && !tree.local) return true;
+    if (available && hasServerAuthority() && !tree.local) return true;
     toast.show(t('offline.serverRequired'));
     return false;
   }
@@ -52,14 +63,6 @@ export function RestartLearning({
   });
   return (
     <>
-      <Button
-        className="self-start"
-        variant="text"
-        hidden={!skillsOnly}
-        onClick={() => setSettingsOpen(true)}
-      >
-        {t('study.skills')}
-      </Button>
       <DeckSettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
@@ -74,33 +77,44 @@ export function RestartLearning({
             .catch((error) => toast.show(t(describe(error).key)));
         }}
       />
-      {!skillsOnly && (
-        <Menu label={t('library.settings')}>
-          <MenuItem
-            disabled={participation.isPending}
-            onSelect={() =>
-              canAct() &&
-              participation.mutate({
-                id: deck.id,
-                settings: {
-                  ...deck.settings,
-                  dailyStudyIncluded: deck.settings?.dailyStudyIncluded === false,
-                },
-              })
-            }
-          >
-            {t(deck.settings?.dailyStudyIncluded === false ? 'study.included' : 'study.pause')}
-          </MenuItem>
-          <MenuItem
-            onSelect={() => {
-              restart.reset();
-              setOperation(uuidV7());
-            }}
-          >
-            {t('learning.restart')}
-          </MenuItem>
-        </Menu>
-      )}
+      <Menu label={t('deck.menu')}>
+        <MenuItem unavailable={!available} onSelect={() => canAct() && setSettingsOpen(true)}>
+          {t('study.skills')}
+        </MenuItem>
+        <MenuItem onSelect={() => void navigate({ to: '/library/duplicates', search: { deckId } })}>
+          {t('duplicates.title')}
+        </MenuItem>
+        <MenuItem onSelect={() => void navigate({ to: '/library/slipping', search: { deckId } })}>
+          {t('problems.title')}
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem
+          unavailable={!available}
+          disabled={participation.isPending}
+          onSelect={() =>
+            canAct() &&
+            participation.mutate({
+              id: deck.id,
+              settings: {
+                ...deck.settings,
+                dailyStudyIncluded: deck.settings?.dailyStudyIncluded === false,
+              },
+            })
+          }
+        >
+          {t(deck.settings?.dailyStudyIncluded === false ? 'study.included' : 'study.pause')}
+        </MenuItem>
+        <MenuItem
+          unavailable={!available}
+          onSelect={() => {
+            if (!canAct()) return;
+            restart.reset();
+            setOperation(uuidV7());
+          }}
+        >
+          {t('learning.restart')}
+        </MenuItem>
+      </Menu>
       <Dialog
         open={!!operation}
         onOpenChange={(open) => {

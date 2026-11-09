@@ -189,28 +189,40 @@ export function TreeChildren({
 export function DenseRow({
   word,
   meaning,
+  detail,
   trailing,
   onClick,
   selected,
 }: {
   readonly word: ReactNode;
   readonly meaning: ReactNode;
+  /**
+   * A third, quieter line: where the Note sits, or when it changed. Part of the
+   * row, so it shares its surface and its press. It used to be a separate strip
+   * under the row with the card's own background, which read as a different
+   * item between two Notes.
+   */
+  readonly detail?: ReactNode;
   readonly trailing?: ReactNode;
   readonly onClick?: () => void;
   readonly selected?: boolean | undefined;
 }) {
+  const height = detail === undefined ? 'h-52' : 'h-72';
   const content = (
     <>
       <span className="flex min-w-0 flex-1 flex-col text-left">
         <span className="truncate text-14 text-primary">{word}</span>
-        <span className="truncate text-12 text-tertiary">{meaning}</span>
+        <span className="truncate text-12 text-secondary">{meaning}</span>
+        {detail !== undefined && <span className="truncate text-12 text-tertiary">{detail}</span>}
       </span>
       {trailing}
     </>
   );
 
   if (!onClick) {
-    return <div className="flex h-52 w-full min-w-0 items-center gap-12 px-16">{content}</div>;
+    return (
+      <div className={`flex ${height} w-full min-w-0 items-center gap-12 px-16`}>{content}</div>
+    );
   }
 
   return (
@@ -221,7 +233,7 @@ export function DenseRow({
       onClick={onClick}
       // min-w-0: a row beside other controls must be able to shrink, or a long
       // meaning pushes its status and the delete button past the edge.
-      className="flex h-52 w-full min-w-0 items-center gap-12 px-16 hover:bg-raised"
+      className={`flex ${height} w-full min-w-0 items-center gap-12 px-16 hover:bg-raised`}
     >
       {content}
     </button>

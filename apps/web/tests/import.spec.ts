@@ -1570,7 +1570,8 @@ test('reopening prefers the last selected saved draft even when another draft is
 }) => {
   await installOfflineImportFixtures(page);
   await page.locator('textarea').fill('First — older draft');
-  await page.getByRole('button', { name: 'New import draft', exact: true }).click();
+  await page.getByRole('button', { name: 'More import actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'New import draft', exact: true }).click();
   await page.locator('textarea').fill('Second — newer draft');
   await page.getByRole('button', { name: 'Saved import drafts', exact: true }).click();
   await page.getByRole('button', { name: /^Draft 1 · Offline import deck/ }).click();

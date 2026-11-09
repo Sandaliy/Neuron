@@ -253,46 +253,49 @@ the api anywhere in browser code would cost the session cookie.
 
 ### Screens (`src/features/`)
 
-| Path                                            | Holds                                                                                           |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `auth/sign-up.tsx`                              | Registering, then the ten codes, which it does not navigate away from                           |
-| `auth/sign-in.tsx`                              | Email and password, and the hand off to the second factor when there is one                     |
-| `auth/recovery.tsx`                             | Signing in with a code, then the new password that session owes                                 |
-| `auth/recovery-codes.tsx`                       | The codes, the warning, copy, download, and the box that has to be ticked. Held across a reload |
-| `auth/two-factor.tsx`                           | The six digit challenge, with the lost phone codes on the same screen                           |
-| `auth/code-input.tsx`                           | One field, not six boxes: it takes a paste and submits itself when full                         |
-| `auth/password-field.tsx`                       | The policy from `packages/shared`, judged when leaving the field rather than on every keystroke |
-| `settings/settings.tsx`                         | Theme, language, password, codes, the second factor, and leaving                                |
-| `settings/pending-renames.tsx`                  | Account-bound saved names, delivery status, original versions and explicit conflict recovery    |
-| `settings/pending-notes.tsx`                    | Saved Note versions, delivery states and explicit conflict recovery                             |
-| `settings/pending-creations.tsx`                | New Notes the server could not add: choose a Deck, copy, or archive                             |
-| `settings/pending-reviews.tsx`                  | Grouped Study delivery status, one retry/recovery action and retained rejected-session recovery |
-| `settings/pending-practice.tsx`                 | Practice kept on two devices or for a missing Deck: leads to the choice or discards on request  |
-| `settings/offline-access.tsx`, `saved-work.tsx` | Offline & sync: one status, decisions only, what works offline; when work counts as settled     |
-| `settings/totp.tsx`                             | Enrollment in three steps that cannot be skipped, and removal                                   |
-| `library/library.tsx`                           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion  |
-| `library/collection-search*.ts(x)`              | Collection name search, flat path index, measured results and history return                    |
-| `library/note-categories.tsx`                   | Read-only Tags & Sources discovery, measured value rows and entry into filtered Notes           |
-| `library/deck-dialogs.tsx`                      | Deck naming, safe move picker and inherited language/level settings                             |
-| `library/collection-picker.tsx`                 | Hierarchy-aware deck destination picker                                                         |
-| `library/collection-path.tsx`                   | Navigable folder/deck path chips on collection-scoped screens                                   |
-| `today/today.tsx`                               | What is due, what is new, and the estimate that says "about"                                    |
-| `today/study.tsx`                               | Local Daily Study reveal/advance, interval previews, verified answers, Undo, and completion     |
-| `today/practice.tsx`                            | Schedule-free configurable field practice with repeated learning rounds                         |
-| `notes/note-list.tsx`                           | Virtualized note browse, search, filters, sorts and selection                                   |
-| `notes/possible-duplicates.tsx`                 | Scoped duplicate inspection, account-visit return state and measured virtual rows               |
-| `notes/content-quality.tsx`                     | Vocabulary checks and filters; quality-rows.tsx holds measured editor-return rows               |
-| `notes/note-editor.tsx`                         | Online creation, durable existing-Note content autosave and Card preview                        |
-| `notes/note-field.tsx`, `notes/note-header.tsx` | Shared field labels/value presentation and Note header/breadcrumbs for editing and reading      |
-| `notes/read-only-note.tsx`                      | Conditional read-only field/header composition                                                  |
-| `notes/note-selection.tsx`                      | Bulk known, move, tag and delete actions                                                        |
-| `notes/card-preview.tsx`                        | The cards a note will keep, add or remove                                                       |
-| `notes/triage.tsx`                              | Triage sweep, Undo, decisions list, completion and the Deck entry                               |
-| `notes/learning-wave.tsx`                       | The Deck's current wave from the default plan, and the `showsWave` rule Today shares            |
-| `notes/note-directions.tsx`                     | A Note's directions: open, next, why locked, and Open now                                       |
-| `import/import-screen.tsx`                      | Parse, map, preview, deduplicate, chunk, resume, finish and undo an import                      |
-| `import/import-drafts.ts`                       | Local drafts/checkpoints; `use-import-draft.ts` owns autosave and navigation                    |
-| `import/prompt-dialog.tsx`                      | Prompt variant, substituted deck context, example and clipboard action                          |
+| Path                                            | Holds                                                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `auth/sign-up.tsx`                              | Registering, then the ten codes, which it does not navigate away from                             |
+| `auth/sign-in.tsx`                              | Email and password, and the hand off to the second factor when there is one                       |
+| `auth/recovery.tsx`                             | Signing in with a code, then the new password that session owes                                   |
+| `auth/recovery-codes.tsx`                       | The codes, the warning, copy, download, and the box that has to be ticked. Held across a reload   |
+| `auth/two-factor.tsx`                           | The six digit challenge, with the lost phone codes on the same screen                             |
+| `auth/code-input.tsx`                           | One field, not six boxes: it takes a paste and submits itself when full                           |
+| `auth/password-field.tsx`                       | The policy from `packages/shared`, judged when leaving the field rather than on every keystroke   |
+| `settings/settings.tsx`                         | Theme, language, password, codes, the second factor, and leaving                                  |
+| `settings/pending-renames.tsx`                  | Account-bound saved names, delivery status, original versions and explicit conflict recovery      |
+| `settings/pending-notes.tsx`                    | Saved Note versions, delivery states and explicit conflict recovery                               |
+| `settings/pending-creations.tsx`                | New Notes the server could not add: choose a Deck, copy, or archive                               |
+| `settings/pending-reviews.tsx`                  | Grouped Study delivery status, one retry/recovery action and retained rejected-session recovery   |
+| `settings/pending-practice.tsx`                 | Practice kept on two devices or for a missing Deck: leads to the choice or discards on request    |
+| `settings/offline-access.tsx`, `saved-work.tsx` | Offline & sync: one status, decisions only, what works offline; when work counts as settled       |
+| `settings/totp.tsx`                             | Enrollment in three steps that cannot be skipped, and removal                                     |
+| `library/library.tsx`                           | Folder navigation and tree disclosure, leaf decks, creation, moves, defaults and soft deletion    |
+| `library/library-tools.tsx`                     | The Library's search entry and its Recent, Tags & Sources and Checks buttons                      |
+| `library/library-checks.tsx`                    | The Checks list, and `CheckBack` for the three check screens                                      |
+| `library/search-scope.tsx`, `scope-select.tsx`  | Notes or Folders & Decks search switch; a labelled "Look in" scope select                         |
+| `library/collection-search*.ts(x)`              | Collection name search, flat path index, measured results, history return and `useCollectionHead` |
+| `library/note-categories.tsx`                   | Read-only Tags & Sources discovery, measured value rows and entry into filtered Notes             |
+| `library/deck-dialogs.tsx`                      | Deck naming, safe move picker and inherited language/level settings                               |
+| `library/collection-picker.tsx`                 | Hierarchy-aware deck destination picker                                                           |
+| `library/collection-path.tsx`                   | `CollectionBack` (Back to the parent) and `CollectionLocation` (the path line under a title)      |
+| `today/today.tsx`                               | What is due, what is new, and the estimate that says "about"                                      |
+| `today/study.tsx`                               | Local Daily Study reveal/advance, interval previews, verified answers, Undo, and completion       |
+| `today/practice.tsx`                            | Schedule-free configurable field practice with repeated learning rounds                           |
+| `notes/note-list.tsx`                           | Virtualized note browse, search, filters, sorts and selection                                     |
+| `notes/possible-duplicates.tsx`                 | Scoped duplicate inspection, account-visit return state and measured virtual rows                 |
+| `notes/content-quality.tsx`                     | Vocabulary checks and filters; quality-rows.tsx holds measured editor-return rows                 |
+| `notes/note-editor.tsx`                         | Online creation, durable existing-Note content autosave and Card preview                          |
+| `notes/note-field.tsx`, `notes/note-header.tsx` | Shared field labels/value presentation and Note header/breadcrumbs for editing and reading        |
+| `notes/read-only-note.tsx`                      | Conditional read-only field/header composition                                                    |
+| `notes/note-selection.tsx`                      | Bulk known, move, tag and delete actions                                                          |
+| `notes/card-preview.tsx`                        | The cards a note will keep, add or remove                                                         |
+| `notes/triage.tsx`                              | Triage sweep, Undo, decisions list, completion and the Deck entry                                 |
+| `notes/learning-wave.tsx`                       | The Deck's current wave from the default plan, and the `showsWave` rule Today shares              |
+| `notes/note-directions.tsx`                     | A Note's directions: open, next, why locked, and Open now                                         |
+| `import/import-screen.tsx`                      | Parse, map, preview, deduplicate, chunk, resume, finish and undo an import                        |
+| `import/import-drafts.ts`                       | Local drafts/checkpoints; `use-import-draft.ts` owns autosave and navigation                      |
+| `import/prompt-dialog.tsx`                      | Prompt variant, substituted deck context, example and clipboard action                            |
 
 ### The design system (`src/ui/`)
 
@@ -303,7 +306,7 @@ every one of these in every state.
 | File                                      | Holds                                                                                   |
 | ----------------------------------------- | --------------------------------------------------------------------------------------- |
 | `button.tsx`                              | Primary, quiet, text, destructive. 44 px tall at the smallest, 48 when it fills a form  |
-| `collection-header.tsx`                   | Collection head: Back and path with the actions, then the full-width title              |
+| `page-header.tsx`                         | Every screen's head: Back and actions, title, optional location and one description     |
 | `read-only-slot.tsx`                      | Recognizable unavailable control regions without measured empty slots                   |
 | `server-controls.tsx`                     | Stable server-action regions with accessible restrictions and contextual feedback       |
 | `collection.tsx`                          | Shared opaque hierarchy surfaces and Folder/Deck identities for Library and pickers     |
@@ -430,7 +433,7 @@ hierarchies and note dependencies, and `purge-action.tsx` owns irreversible conf
 - `apps/web/src/features/today/study-draft.tsx`: account-visit Study setup draft and sitting boundaries.
 - `apps/web/src/features/today/study-scope.tsx`: temporary leaf Deck selection through Folder ancestry.
 - `apps/web/src/features/today/card-display.tsx`: session-local meaning/support choices and semantic reveals.
-- `apps/web/src/features/notes/restart-learning.tsx`: Deck participation and explicit restart actions.
+- `apps/web/src/features/notes/deck-menu.tsx`: the Deck options menu: study skills, the Deck's checks, participation and restart.
 - `apps/web/src/ui/learning-card.tsx`: common reading surface for Daily Study and Practice.
 
 - `packages/core/src/workload/availability.ts`: exact learning-step and study-day review admission.

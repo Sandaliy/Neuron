@@ -58,7 +58,7 @@ export function SwipeDelete({
   return (
     <div
       ref={root}
-      className="neu-swipe relative h-52 select-none overflow-hidden"
+      className="neu-swipe relative select-none overflow-hidden"
       style={{ touchAction: 'pan-y' }}
       onPointerDown={(event) => {
         if (
@@ -174,10 +174,7 @@ export function SwipeDelete({
       >
         <Trash2 size={20} aria-hidden="true" />
       </button>
-      <div
-        ref={surface}
-        className="flex h-52 bg-base transition-transform dur-reveal hover:bg-raised"
-      >
+      <div ref={surface} className="flex bg-base transition-transform dur-reveal hover:bg-raised">
         {children}
       </div>
     </div>

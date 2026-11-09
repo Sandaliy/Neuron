@@ -404,11 +404,12 @@ test('Tags & Sources includes a device-only creation once and labels its synchro
     .poll(async () => (await records(page)).creations[0]?.working.tags)
     .toEqual(['new category', unfinished.trim()]);
   await page.goto('/library/categories');
-  await expect(page.getByText(/including saved local changes/)).toBeVisible();
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'new category Notes: 1', exact: true }),
   ).toBeVisible();
   await page.getByRole('button', { name: `${unfinished.trim()} Notes: 1`, exact: true }).click();
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
     unfinished.trim(),
   );
@@ -417,7 +418,7 @@ test('Tags & Sources includes a device-only creation once and labels its synchro
   await row.click();
   await expect(page).toHaveURL(new RegExp(`/notes/${created.entityId}$`));
   expect(state.creates).toEqual([]);
-  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await page.getByRole('button', { name: unfinished.trim(), exact: true }).click();
   await reconnect(page, state);
   await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(

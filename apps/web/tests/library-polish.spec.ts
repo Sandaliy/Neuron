@@ -149,7 +149,11 @@ test('missing progress counts do not claim there are no Cards', async ({ page })
   await expect(page.getByText('No cards', { exact: true })).toHaveCount(0);
 });
 
-const findCollections = 'Find Folders & Decks';
+/** Library search, switched to collection names. */
+async function openCollectionSearch(page: Page) {
+  await page.getByRole('button', { name: 'Search the Library', exact: true }).click();
+  await page.getByText('Folders & Decks', { exact: true }).click();
+}
 async function collectionSearchFixture(page: Page, count = 2) {
   const leaves = manyDecks(count).map((row, at) => ({
     ...row,
@@ -189,7 +193,7 @@ test('collection search reaches collapsed descendants, distinguishes names and p
   await page.goto('/library');
   const disclosure = page.getByRole('button', { name: 'Show what is inside', exact: true });
   await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
-  await page.getByRole('button', { name: findCollections, exact: true }).click();
+  await openCollectionSearch(page);
   const search = page.getByRole('searchbox', { name: 'Search collection names' });
   await search.fill(' LESSON ');
   await expect(page.getByRole('status').filter({ hasText: '3 of 5 collections' })).toBeVisible();
@@ -220,7 +224,7 @@ test('collection search reaches collapsed descendants, distinguishes names and p
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page).toHaveURL(/\/library$/);
   await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.getByRole('button', { name: 'Find Notes', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Search the Library', exact: true })).toBeVisible();
   expect(writes).toEqual([]);
   // Current tree revisions own visibility and location; old matches are never retained.
   roots[0]!.name = 'Renamed parent';
@@ -229,7 +233,7 @@ test('collection search reaches collapsed descendants, distinguishes names and p
   ];
   await page.route('**/api/decks', (route) => route.fulfill({ json: { decks: roots } }));
   await page.reload();
-  await page.getByRole('button', { name: findCollections, exact: true }).click();
+  await openCollectionSearch(page);
   await search.fill('Lesson');
   await expect(page.getByRole('status').filter({ hasText: '2 of 4 collections' })).toBeVisible();
   await expect(
@@ -244,15 +248,15 @@ test('large collection search returns from a Deck with the query, measured scrol
   page,
 }) => {
   await collectionSearchFixture(page, 2500);
-  await page.goto('/library?folderId=nested');
-  await page.getByRole('button', { name: findCollections, exact: true }).click();
+  await page.goto('/library');
+  await openCollectionSearch(page);
   const search = page.getByRole('searchbox');
   await search.fill('lesson');
   await expect(
     page.getByRole('status').filter({ hasText: '2501 of 2503 collections' }),
   ).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 6000));
-  const results = page.getByRole('list', { name: findCollections });
+  const results = page.getByRole('list', { name: 'Folders & Decks' });
   const visible = results.getByRole('button').filter({ visible: true });
   const row = visible.nth(6);
   // Wait for the requested virtual window before focusing; CSS visibility includes stale rows.
@@ -284,7 +288,7 @@ test('large collection search returns from a Deck with the query, measured scrol
   await expect(search).toHaveValue('lesson');
   expect(await results.getByRole('listitem').count()).toBeLessThan(40);
   await page.getByRole('button', { name: 'Library', exact: true }).click();
-  await expect(page).toHaveURL(/\/library\?folderId=nested$/);
+  await expect(page).toHaveURL(/\/library$/);
 });
 
 test('collection search wraps complete Cyrillic paths and supports empty results and the phone keyboard', async ({
@@ -374,5 +378,5 @@ test('collection search explains an incomplete offline download without presenti
   ).toBeVisible();
   await expect(search).toHaveValue('English');
   await expect(page.getByRole('listitem')).toHaveCount(0);
-  await expect(page.getByText(/Searching the downloaded Library/)).toHaveCount(0);
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toHaveCount(0);
 });

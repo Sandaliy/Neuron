@@ -684,10 +684,7 @@ export const en = {
   'library.search.title': 'Find Folders & Decks',
   'library.search.back': 'Search results',
   'library.search.label': 'Search collection names',
-  'library.search.hint': 'Find a Folder or Deck anywhere in your Library.',
   'library.search.results': '{count} of {total} collections',
-  'library.search.downloaded':
-    'Searching the downloaded Library. Changes from other devices appear after reconnecting.',
   'library.search.stale':
     'Collection information could not be refreshed. These results may be out of date.',
   'library.search.pendingUnavailable':
@@ -826,12 +823,22 @@ export const en = {
   'card.direction.listening': 'Listen and say',
 
   'notes.title': 'Notes',
+  'search.title': 'Search',
+  'search.library': 'Search the Library',
+  'search.scope': 'Search in',
+  'search.notes': 'Notes',
+  'search.collections': 'Folders & Decks',
+  'library.tools.recent': 'Recent',
+  'checks.title': 'Checks',
+  'checks.duplicates': 'Notes that share the same word',
+  'checks.quality': 'Missing examples, translations and definitions',
+  'checks.slipping': 'Cards you keep forgetting',
+  'deck.menu': 'Deck options',
+  'offline.results': 'Offline results from this device.',
   'quality.title': 'Content checks',
-  'quality.hint':
-    'Review vocabulary context. Examples and definitions are optional; missing context does not make a Note invalid.',
   'quality.allChecks': 'All checks',
-  'quality.scope': 'Inspection Deck',
-  'quality.library': 'All Library Decks',
+  'quality.scope': 'Look in',
+  'quality.library': 'Whole Library',
   'quality.search': 'Search vocabulary content',
   'quality.consistency': 'Consistency check',
   'quality.enrichment': 'Optional context',
@@ -847,12 +854,7 @@ export const en = {
     'No example sentence is saved. Add context if it would help you study.',
   'quality.meaning.missing-definition':
     'No definition is saved. A translation may already be enough.',
-  'quality.online': 'Server results. Device-only changes appear after synchronization.',
-  'quality.downloaded':
-    'Complete downloaded collection, including locally saved edits and pending Notes. Other devices may have newer content.',
-  'quality.coverage': 'Vocabulary Notes in this view: {count}',
-  'quality.countHint':
-    'Counts follow the search and Deck filters. One Note can appear in several checks. Basic and Cloze Notes are outside these checks.',
+  'quality.coverage': 'Vocabulary Notes checked: {count}',
   'quality.results': 'Shown: {count} of {total}',
   'quality.notes': 'Matching Notes',
   'quality.more': 'Load more',
@@ -866,25 +868,18 @@ export const en = {
     'These checks apply to vocabulary Notes. Basic and Cloze Notes need no vocabulary fields.',
   'duplicates.title': 'Possible duplicates',
   'duplicates.groups': 'All groups',
-  'duplicates.hint':
-    'Matching terms may have different meanings, uses or sources. Inspect each Note before deciding what to change in its editor. Nothing is combined or classified here.',
-  'duplicates.scope': 'Collection scope',
+  'duplicates.groupHint':
+    'Open a Note to edit or delete it. Deleted Notes can be restored from Deleted.',
+  'duplicates.scope': 'Look in',
   'duplicates.library': 'Whole Library',
   'duplicates.search': 'Search duplicate groups',
   'duplicates.count': '{count} Notes with this term',
   'duplicates.noSource': 'No source recorded',
-  'duplicates.downloaded':
-    'Complete downloaded collection, including saved local changes and Notes awaiting synchronization. Other devices may have newer changes.',
-  'duplicates.online':
-    'Server results. Notes and edits awaiting synchronization may appear after they are delivered.',
   'duplicates.empty': 'No matching groups',
-  'duplicates.emptyHint':
-    'Only terms shared by at least two available Notes in this scope appear. Case and whitespace are normalized; accents are preserved. Only the first 200 characters are compared.',
+  'duplicates.emptyHint': 'Notes show up here when two or more share the same word.',
   'duplicates.more': 'Load more',
   'problems.title': 'Slipping cards',
-  'problems.hint':
-    'Cards you keep forgetting, from your own answers. This is not a mistake in the note: a clearer meaning, an example or a memory aid may help, or it may need time. Nothing changes unless you change it.',
-  'problems.scope': 'Collection scope',
+  'problems.scope': 'Look in',
   'problems.library': 'Whole Library',
   'problems.search': 'Search slipping cards',
   'problems.direction': 'Direction',
@@ -915,24 +910,18 @@ export const en = {
   'problems.resume': 'Resume',
   'problems.suspended': 'Card set aside. It stays out of Study until you resume it.',
   'problems.resumed': 'Card back in Study',
-  'problems.online':
-    'From your answer history on the server. Answers not yet delivered count after they are sent.',
   'problems.downloaded':
-    'Downloaded collection: cards forgotten 3 or more times after learning, from card counts as of the last download. Frequent Again and the dated history need a connection.',
+    'Offline, only cards forgotten 3 or more times are listed. Connect for the full list.',
   'problems.empty': 'Nothing is slipping here',
   'problems.emptyHint':
-    'A card is listed after you forget it 3 times once learned, or when Again is at least half of 4 or more answers. Undone answers and answers before a restart do not count.',
+    'A card shows up here after you forget it 3 times, or answer Again in half of 4 or more answers.',
   'problems.more': 'Load more',
-  'notes.find': 'Find Notes',
   'categories.title': 'Tags & Sources',
-  'categories.hint': 'Explore Notes by their saved tags and sources.',
   'categories.tags': 'Tags',
+  'categories.tag': 'Tag',
   'categories.sources': 'Sources',
+  'categories.source': 'Source',
   'categories.search': 'Search tags and sources',
-  'categories.online':
-    'Counts include synchronized Notes. Changes saved only on this device may differ.',
-  'categories.downloaded':
-    'From this device’s complete download, including saved local changes. These may not be synchronized yet.',
   'categories.results': 'Shown: {count} of {total}',
   'categories.notes': 'Notes: {count}',
   'categories.more': 'Show more',
@@ -940,9 +929,7 @@ export const en = {
   'categories.emptyHint': 'Saved tags and non-empty sources on available Notes will appear here.',
   'categories.noMatches': 'No matching categories',
   'categories.trySearch': 'Try another name or clear the search.',
-  'notes.findHint': 'Search across all Folders and Decks.',
   'notes.locationUnavailable': 'Deck location unavailable',
-  'notes.downloadedResults': 'Results from this device’s download. Connect to check for changes.',
   'notes.allDecks': 'Every deck',
   'notes.count': 'Notes: {count}',
   'notes.countMore': 'Notes: {count} and more',
@@ -968,8 +955,6 @@ export const en = {
   'notes.sort.created-desc': 'Recently added',
   'notes.sort.updated-desc': 'Recently changed',
   'notes.recent': 'Recent Notes',
-  'notes.recentHint':
-    'Newest first across the Library. Changed dates include content, status, tags and location updates.',
   'notes.pendingRecent':
     'Device-saved edits keep the last recorded update date until synchronization.',
   'notes.refreshRecent': 'Refresh',
@@ -1051,17 +1036,16 @@ export const en = {
     'Cannot read row {row}. Check that its columns are assigned to supported fields.',
 
   'import.title': 'Import',
+  'import.more': 'More import actions',
   'import.saveDraft': 'Save draft on this device',
   'import.saveSeparateDraft': 'Save these changes as a separate draft',
   'import.saveSource': 'Save a copy of the source',
   'import.newDraft': 'New import draft',
   'import.savedDrafts': 'Saved import drafts',
   'import.draftName': 'Draft {number} · {deck}',
-  'import.draftSaved':
-    'Draft saved on this device. Preparation is local; nothing is imported until you apply it online.',
+  'import.draftSaved': 'Draft saved on this device.',
   'import.checkpointSaved': 'Recovery checkpoint saved on this device.',
-  'import.draftPending':
-    'Import preparation stays on this device. Changes are saved automatically.',
+  'import.draftPending': 'Changes are saved on this device automatically.',
   'import.draftFailed':
     'The latest draft could not be saved. Keep this screen open, save a copy of the source and retry saving.',
   'import.draftConflict':
@@ -1375,8 +1359,6 @@ export const en = {
   'waves.next': 'The next wave starts when every Note in this one has started.',
   'waves.nextDay': 'At today’s pace, the next wave starts tomorrow.',
   'waves.nextDays': 'At today’s pace, the next wave starts in about {count} days.',
-  'waves.later': '{count} more wait in later waves. They take no time until they start.',
-  'waves.last': 'This is the last wave.',
 } as const;
 
 /** Every key the interface can ask for. */

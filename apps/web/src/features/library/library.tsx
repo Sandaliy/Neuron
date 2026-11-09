@@ -9,8 +9,6 @@ import {
   Pencil,
   Plus,
   Settings2,
-  Search,
-  Clock,
   Trash2,
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -30,18 +28,19 @@ import { accountEpoch, useOffline } from '../../lib/offline';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
 import { Button } from '../../ui/button';
 import { CollectionIcon, collectionSurface } from '../../ui/collection';
-import { CollectionHeader } from '../../ui/collection-header';
 import { Dialog, DialogFooter } from '../../ui/dialog';
 import { Fold } from '../../ui/disclosure';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
+import { PageHeader } from '../../ui/page-header';
 import { TreeChildren, Row } from '../../ui/row';
 import { ServerControls } from '../../ui/server-controls';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 
 import { CollectionDrag, CollectionHandle, CollectionDrop } from './collection-drag';
-import { CollectionSearchPath } from './collection-search-path';
+import { useCollectionHead } from './collection-search-path';
 import { DeckNameDialog, DeckSettingsDialog, MoveDeckDialog } from './deck-dialogs';
+import { LibraryTools } from './library-tools';
 
 /**
  * The library, now writable.
@@ -99,6 +98,7 @@ export function LibraryScreen() {
     : (decks.data ?? []);
   const { folderId } = useSearch({ from: '/app/library' });
   const folder = folderId ? findDeck(tree, folderId) : undefined;
+  const head = useCollectionHead(tree, folder?.id ?? '');
   const visible = folder?.kind === 'folder' ? folder.children : tree;
   function showDialog(next: DialogState) {
     setDialog(
@@ -140,22 +140,12 @@ export function LibraryScreen() {
   return (
     <CollectionDrag tree={tree} actions={actions} readOnly={readOnly}>
       <section data-screen="" data-library-view="" className="flex flex-col gap-20">
-        <CollectionHeader
-          readOnly={offline.offline}
+        <PageHeader
           title={folder?.name ?? t('library.title')}
-          path={folder && <CollectionSearchPath tree={tree} id={folder.id} />}
+          back={folder ? head.back : undefined}
+          location={folder ? head.location : undefined}
           actions={
             <>
-              <ServerControls available={capability.server}>
-                <Button
-                  variant="quiet"
-                  className="size-44 px-12"
-                  aria-label={t('deleted.title')}
-                  onClick={() => void navigate({ to: '/library/deleted' })}
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                </Button>
-              </ServerControls>
               <ServerControls available={capability.server || capability.localCollection}>
                 <Button
                   variant="quiet"
@@ -190,60 +180,7 @@ export function LibraryScreen() {
           }
         />
 
-        <div className="flex flex-wrap items-center gap-x-12 gap-y-4">
-          <Button
-            variant="quiet"
-            onClick={() =>
-              void navigate({
-                to: '/library/find',
-                state: {
-                  collectionSearchEntry: { accountId: offline.accountId, visit: accountEpoch() },
-                },
-              })
-            }
-          >
-            <Search size={16} strokeWidth={1.5} aria-hidden="true" />
-            {t('library.search.title')}
-          </Button>
-          <Button
-            variant="quiet"
-            className="self-start"
-            onClick={() => void navigate({ to: '/notes' })}
-          >
-            <Search size={16} strokeWidth={1.5} aria-hidden="true" />
-            {t('notes.find')}
-          </Button>
-          <Button variant="quiet" onClick={() => void navigate({ to: '/library/categories' })}>
-            {t('categories.title')}
-          </Button>
-          <Menu
-            label={t('notes.recent')}
-            trigger={
-              <Button variant="quiet">
-                <Clock size={16} aria-hidden="true" />
-                {t('notes.recent')}
-              </Button>
-            }
-          >
-            <MenuItem onSelect={() => void navigate({ to: '/notes', search: { recent: 'added' } })}>
-              {t('notes.sort.created-desc')}
-            </MenuItem>
-            <MenuItem
-              onSelect={() => void navigate({ to: '/notes', search: { recent: 'changed' } })}
-            >
-              {t('notes.sort.updated-desc')}
-            </MenuItem>
-          </Menu>
-          <Button variant="quiet" onClick={() => void navigate({ to: '/library/duplicates' })}>
-            {t('duplicates.title')}
-          </Button>
-          <Button variant="quiet" onClick={() => void navigate({ to: '/library/quality' })}>
-            {t('quality.title')}
-          </Button>
-          <Button variant="quiet" onClick={() => void navigate({ to: '/library/slipping' })}>
-            {t('problems.title')}
-          </Button>
-        </div>
+        {!folder && <LibraryTools deletedAvailable={capability.server} />}
 
         {folder?.rev === 0 && (
           <p role="status" className="text-14 text-secondary">

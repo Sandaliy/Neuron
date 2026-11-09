@@ -91,18 +91,15 @@ test('a large Deck shows its current wave, what Study lets in today and what wai
   await expect(
     page.getByRole('progressbar', { name: 'Notes started in this wave' }),
   ).toHaveAttribute('aria-valuenow', '36');
-  await expect(
-    page.getByText('Waiting in this wave: 32. Unsure go first: 6.', { exact: true }),
-  ).toBeVisible();
   await expect(page.getByText('Study lets in 8 today.', { exact: true })).toBeVisible();
   await expect(
-    page.getByText('At today’s pace, the next wave starts in about 4 days.', { exact: true }),
+    page.getByText(
+      'Waiting in this wave: 32. Unsure go first: 6. At today’s pace, the next wave starts in about 4 days.',
+      { exact: true },
+    ),
   ).toBeVisible();
-  await expect(
-    page.getByText('2850 more wait in later waves. They take no time until they start.', {
-      exact: true,
-    }),
-  ).toBeVisible();
+  // The title says which wave of how many; the later waves are not repeated as a sentence.
+  await expect(page.getByText(/more wait in later waves/)).toHaveCount(0);
 });
 
 test('when reviews fill the minutes, the wave says why nothing new comes in', async ({ page }) => {
@@ -117,9 +114,7 @@ test('when reviews fill the minutes, the wave says why nothing new comes in', as
     ),
   ).toBeVisible();
   await expect(
-    page.getByText('The next wave starts when every Note in this one has started.', {
-      exact: true,
-    }),
+    page.getByText(/The next wave starts when every Note in this one has started\.$/),
   ).toBeVisible();
 });
 

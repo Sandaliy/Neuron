@@ -1,21 +1,50 @@
 import { useRouter, useRouterState } from '@tanstack/react-router';
-import { ChevronLeft } from 'lucide-react';
 
-import type { DeckNode } from '@neuron/shared';
+import type { DeckNode, MessageKey } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { accountEpoch, useOffline } from '../../lib/offline';
-import { Button } from '../../ui/button';
-import { CollectionPath } from '../library/collection-path';
+import { BackLink, PageHeader } from '../../ui/page-header';
+import { CollectionBack, CollectionLocation } from '../library/collection-path';
 
 import type { ReactNode } from 'react';
+
+/**
+ * Where a Note was opened from, if that was a list rather than its Deck.
+ *
+ * Search, Recent, Tags & Sources and the checks each leave a mark in history
+ * state when they open a Note. Back then returns to that list, at its scroll
+ * position, and the Deck path moves under the title, because the list was not
+ * the Note's place.
+ */
+function useNoteOrigin(): string | undefined {
+  const state = useRouterState({ select: (current) => current.location.state });
+  const offline = useOffline();
+  const t = useTranslate();
+  const current = (origin: { accountId: string | null; visit: number } | undefined) =>
+    origin?.accountId === offline.accountId && origin?.visit === accountEpoch();
+  const key: MessageKey | undefined = current(state.problemOrigin)
+    ? 'problems.title'
+    : current(state.qualityOrigin)
+      ? 'quality.title'
+      : current(state.duplicateOrigin)
+        ? 'duplicates.title'
+        : current(state.noteSearchOrigin)
+          ? state.noteSearchOrigin?.recent
+            ? 'notes.recent'
+            : 'search.title'
+          : undefined;
+  // A tag or source list is titled with its value, so Back names the value too.
+  if (key === 'search.title' && state.noteSearchOrigin?.category)
+    return state.noteSearchOrigin.category;
+  return key && t(key);
+}
 
 export function NoteHeader({
   title,
   decks,
   deckId,
   actions,
-  readOnly = false,
 }: {
   readonly title: string;
   readonly decks: readonly DeckNode[];
@@ -24,57 +53,31 @@ export function NoteHeader({
   readonly readOnly?: boolean;
 }) {
   const router = useRouter();
-  const origin = useRouterState({ select: (state) => state.location.state.noteSearchOrigin });
-  const duplicateOrigin = useRouterState({
-    select: (state) => state.location.state.duplicateOrigin,
-  });
-  const problemOrigin = useRouterState({
-    select: (state) => state.location.state.problemOrigin,
-  });
-  const qualityOrigin = useRouterState({ select: (state) => state.location.state.qualityOrigin });
-  const offline = useOffline();
-  const t = useTranslate();
-  const fromSearch = origin?.accountId === offline.accountId && origin?.visit === accountEpoch();
-  const fromDuplicates =
-    duplicateOrigin?.accountId === offline.accountId && duplicateOrigin?.visit === accountEpoch();
-  const fromProblems =
-    problemOrigin?.accountId === offline.accountId && problemOrigin?.visit === accountEpoch();
-  const fromQuality =
-    qualityOrigin?.accountId === offline.accountId && qualityOrigin?.visit === accountEpoch();
+  const origin = useNoteOrigin();
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      {fromSearch || fromDuplicates || fromProblems || fromQuality ? (
-        <div className="flex min-w-0 items-center gap-8">
-          <Button variant="text" className="shrink-0" onClick={() => router.history.back()}>
-            <ChevronLeft size={20} strokeWidth={1.5} aria-hidden="true" />
-            {t(
-              fromProblems
-                ? 'problems.title'
-                : fromQuality
-                  ? 'quality.title'
-                  : fromDuplicates
-                    ? 'duplicates.title'
-                    : origin?.recent
-                      ? 'notes.recent'
-                      : 'notes.find',
-            )}
-          </Button>
-          <CollectionPath tree={decks} id={deckId} />
-        </div>
-      ) : (
-        <CollectionPath tree={decks} id={deckId} trail within />
-      )}
-      <header className={`flex items-center justify-between gap-12 ${readOnly ? 'min-h-44' : ''}`}>
-        <h1 className="font-display text-24 tracking-tight text-primary">{title}</h1>
-        {actions}
-      </header>
-    </div>
+    <PageHeader
+      title={title}
+      actions={actions}
+      back={
+        origin ? (
+          <BackLink label={origin} onClick={() => router.history.back()} />
+        ) : (
+          <CollectionBack tree={decks} id={deckId} within />
+        )
+      }
+      location={origin ? <CollectionLocation tree={decks} id={deckId} includeSelf /> : undefined}
+    />
   );
 }
 
 declare module '@tanstack/react-router' {
   interface HistoryState {
-    noteSearchOrigin?: { accountId: string | null; visit: number; recent?: boolean };
+    noteSearchOrigin?: {
+      accountId: string | null;
+      visit: number;
+      recent?: boolean;
+      category?: string;
+    };
     duplicateOrigin?: { accountId: string | null; visit: number };
     problemOrigin?: { accountId: string | null; visit: number };
     qualityOrigin?: { accountId: string | null; visit: number };

@@ -419,7 +419,7 @@ test('nested Back actions clear menus and pending edits reach the same Deck', as
   await page.getByRole('button', { name: 'Words', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/notes\\?deckId=${deckId}$`));
   await page.getByRole('button', { name: 'German', exact: true }).click();
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page).toHaveURL(/\/library$/);
 });
 

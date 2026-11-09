@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { ChevronLeft, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { CONTENT_CHECKS, CONTENT_CHECK_KIND } from '@neuron/shared';
@@ -12,10 +12,13 @@ import { useContentQuality } from '../../lib/content-quality';
 import { flatten, useDeckTree } from '../../lib/decks';
 import { accountEpoch, useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
+import { RowGroup } from '../../ui/card';
 import { Input } from '../../ui/input';
+import { BackLink, PageHeader } from '../../ui/page-header';
 import { Row, RowChevron } from '../../ui/row';
-import { Select } from '../../ui/select';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
+import { CheckBack } from '../library/library-checks';
+import { ScopeSelect } from '../library/scope-select';
 
 import { QualityRows } from './quality-rows';
 
@@ -77,25 +80,24 @@ function QualityBrowser() {
   const category = browse.category;
   return (
     <section data-screen="" className="flex min-w-0 flex-col gap-16">
-      <header className="flex min-w-0 flex-col gap-4">
-        <Button
-          variant="text"
-          className="self-start"
-          onClick={() => {
-            if (category) {
-              update({ category: undefined, returning: undefined });
-              window.scrollTo({ top: 0, behavior: 'instant' });
-            } else void navigate({ to: '/library' });
-          }}
-        >
-          <ChevronLeft size={20} aria-hidden="true" />
-          {t(category ? 'quality.allChecks' : 'library.title')}
-        </Button>
-        <h1 className="font-display text-24 tracking-tight text-primary">{t('quality.title')}</h1>
-        <p className="text-14 text-secondary">{t('quality.hint')}</p>
-      </header>
-      <Select
-        aria-label={t('quality.scope')}
+      <PageHeader
+        title={t('quality.title')}
+        back={
+          category ? (
+            <BackLink
+              label={t('quality.allChecks')}
+              onClick={() => {
+                update({ category: undefined, returning: undefined });
+                window.scrollTo({ top: 0, behavior: 'instant' });
+              }}
+            />
+          ) : (
+            <CheckBack />
+          )
+        }
+      />
+      <ScopeSelect
+        label={t('quality.scope')}
         value={browse.deckId ?? ''}
         onChange={(event) =>
           update({ deckId: event.target.value || undefined, returning: undefined })
@@ -107,7 +109,7 @@ function QualityBrowser() {
             {deck.label}
           </option>
         ))}
-      </Select>
+      </ScopeSelect>
       <div className="relative">
         <Search
           size={16}
@@ -135,9 +137,11 @@ function QualityBrowser() {
           }}
         />
       </div>
-      <p role="status" className="text-13 text-secondary">
-        {t(unavailable ? 'offline.incomplete' : local ? 'quality.downloaded' : 'quality.online')}
-      </p>
+      {(unavailable || local) && (
+        <p role="status" className="text-13 text-secondary">
+          {t(unavailable ? 'offline.incomplete' : 'offline.results')}
+        </p>
+      )}
       {!unavailable && (
         <>
           {category && (
@@ -193,38 +197,37 @@ function QualityBrowser() {
                   )
                 ) : (
                   <>
-                    <p className="text-13 text-secondary">{t('quality.countHint')}</p>
                     {(['consistency', 'enrichment'] as const).map((kind) => (
                       <div key={kind} className="flex flex-col gap-8">
-                        <h2 className="text-14 font-semibold text-primary">
+                        <h2 className="font-mono text-12 tracking-wide text-tertiary uppercase">
                           {t(`quality.${kind}`)}
                         </h2>
-                        {CONTENT_CHECKS.filter((check) => CONTENT_CHECK_KIND[check] === kind).map(
-                          (check) => (
-                            <Row
-                              key={check}
-                              title={t(`quality.check.${check}`)}
-                              subtitle={
-                                <span className="text-14">{t(`quality.meaning.${check}`)}</span>
-                              }
-                              trailing={
-                                <span className="flex shrink-0 items-center gap-8">
-                                  <span
-                                    data-numeric=""
-                                    className="font-mono text-13 text-secondary"
-                                  >
-                                    {summary.counts[check]}
+                        <RowGroup>
+                          {CONTENT_CHECKS.filter((check) => CONTENT_CHECK_KIND[check] === kind).map(
+                            (check) => (
+                              <Row
+                                key={check}
+                                standalone={false}
+                                title={t(`quality.check.${check}`)}
+                                trailing={
+                                  <span className="flex shrink-0 items-center gap-8">
+                                    <span
+                                      data-numeric=""
+                                      className={`text-14 ${summary.counts[check] === 0 ? 'text-tertiary' : 'text-primary'}`}
+                                    >
+                                      {summary.counts[check]}
+                                    </span>
+                                    <RowChevron />
                                   </span>
-                                  <RowChevron />
-                                </span>
-                              }
-                              onClick={() => {
-                                update({ category: check, returning: undefined });
-                                window.scrollTo({ top: 0, behavior: 'instant' });
-                              }}
-                            />
-                          ),
-                        )}
+                                }
+                                onClick={() => {
+                                  update({ category: check, returning: undefined });
+                                  window.scrollTo({ top: 0, behavior: 'instant' });
+                                }}
+                              />
+                            ),
+                          )}
+                        </RowGroup>
                       </div>
                     ))}
                     {!summary.vocabularyCount && (

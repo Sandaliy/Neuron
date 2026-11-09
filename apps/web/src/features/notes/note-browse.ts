@@ -53,7 +53,8 @@ export function useNoteBrowse(
       ...(recent
         ? { sort: (recent === 'added' ? 'created-desc' : 'updated-desc') as NoteSort }
         : {}),
-      ...(kind && value ? { [kind]: value, [`${kind}Filter`]: value, filtersOpen: true } : {}),
+      // The value is the screen's title; the filter holding it stays folded.
+      ...(kind && value ? { [kind]: value, [`${kind}Filter`]: value } : {}),
     }),
     [kind, value, recent],
   );

@@ -305,9 +305,10 @@ test('Tags & Sources counts local tag edits, preserves selection through reconne
     .poll(async () => (await stored(page))[0]?.working.tags)
     .toEqual(['local category', 'repeated']);
   await page.goto('/library/categories');
-  await expect(page.getByText(/From this device’s complete download/)).toBeVisible();
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'original Notes: 1', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'local category Notes: 1', exact: true }).click();
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
     'local category',
   );
@@ -317,14 +318,14 @@ test('Tags & Sources counts local tag edits, preserves selection through reconne
   await expect(page.getByRole('textbox', { name: 'Tags', exact: true })).toHaveValue(
     'local category, repeated',
   );
-  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await page.getByRole('button', { name: 'local category', exact: true }).click();
   await reconnect(page, state);
   await expect.poll(() => state.note.tags).toEqual(['local category', 'repeated']);
   await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
     'local category',
   );
   await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
-  await expect(page.getByText(/Counts include synchronized Notes/)).toBeVisible();
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toHaveCount(0);
   await expect(
     page.getByRole('button', { name: 'local category Notes: 1', exact: true }),
   ).toBeVisible();

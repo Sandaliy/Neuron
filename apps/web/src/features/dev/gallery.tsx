@@ -1,5 +1,7 @@
-import { FolderInput, Pencil, Trash2 } from 'lucide-react';
+import { FolderInput, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+
+import type { DeckNode } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { GLASS_LEVELS } from '../../preferences/glass';
@@ -14,6 +16,7 @@ import { Input } from '../../ui/input';
 import { LearningCard } from '../../ui/learning-card';
 import { Menu, MenuItem, MenuSeparator } from '../../ui/menu';
 import { ModeHeader } from '../../ui/mode-header';
+import { BackLink, PageHeader } from '../../ui/page-header';
 import { Progress } from '../../ui/progress';
 import { Range } from '../../ui/range';
 import { DenseRow, Row, RowChevron, TreeChildren, TreeRow } from '../../ui/row';
@@ -24,6 +27,7 @@ import { EmptyState, ErrorState, Skeleton, SkeletonRows } from '../../ui/states'
 import { Switch } from '../../ui/switch';
 import { TextArea } from '../../ui/textarea';
 import { TypedResponse } from '../../ui/typed-response';
+import { CollectionLocation } from '../library/collection-path';
 import { LearningWaveCard } from '../notes/learning-wave';
 import { TriageCard, TriageDone, TriageEntryCard, TriageRow } from '../notes/triage';
 
@@ -318,6 +322,7 @@ function Inventory() {
       <Fields />
       <Choices />
       <Rows />
+      <Headers />
       <Containers />
       <Status />
       <ScreenStates />
@@ -609,8 +614,77 @@ function Rows() {
       </RowGroup>
       <State>dense · two lines, 52px, no avatar, no icon</State>
 
+      <RowGroup>
+        <DenseRow
+          word="gehorchen"
+          meaning="слушаться, подчиняться"
+          detail="Deutsch / Grammatik · Updated Nov 3, 2026"
+          trailing={<Chip>2 мес.</Chip>}
+          onClick={() => {}}
+        />
+      </RowGroup>
+      <State>dense with detail · where it sits or when it changed, 72px, one surface</State>
+
       <Row title="dienen" subtitle="disabled" disabled onClick={() => {}} />
       <State>disabled</State>
+    </Section>
+  );
+}
+
+/** A small hierarchy for the location line, shaped like the tree the api sends. */
+const HEADER_TREE = [
+  {
+    id: 'g-folder',
+    kind: 'folder',
+    name: 'Deutsch',
+    parentId: null,
+    path: [],
+    children: [
+      {
+        id: 'g-sub',
+        kind: 'folder',
+        name: 'Grammatik',
+        parentId: 'g-folder',
+        path: ['g-folder'],
+        children: [
+          {
+            id: 'g-deck',
+            kind: 'deck',
+            name: 'Verben mit Dativ',
+            parentId: 'g-sub',
+            path: ['g-folder', 'g-sub'],
+            children: [],
+          },
+        ],
+      },
+    ],
+  },
+] as unknown as DeckNode[];
+
+function Headers() {
+  return (
+    <Section title="Page header">
+      <PageHeader
+        title="Library"
+        actions={
+          <Button variant="primary" aria-label="New Deck">
+            <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+          </Button>
+        }
+      />
+      <State>top of a tab: title and actions share a row</State>
+      <PageHeader
+        title="Verben mit Dativ"
+        back={<BackLink label="Grammatik" onClick={() => undefined} />}
+        actions={<Button variant="quiet">Import</Button>}
+      />
+      <State>nested: Back names the parent, title below</State>
+      <PageHeader
+        title="Note"
+        back={<BackLink label="Possible duplicates" onClick={() => undefined} />}
+        location={<CollectionLocation tree={HEADER_TREE} id="g-deck" includeSelf />}
+      />
+      <State>opened from a list: the location moves under the title</State>
     </Section>
   );
 }

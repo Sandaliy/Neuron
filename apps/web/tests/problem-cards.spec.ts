@@ -240,9 +240,9 @@ test('Library entry explains the evidence and sets a Card aside and back in plac
 }) => {
   const state = await fixture(page);
   await page.goto('/library');
-  await page.getByRole('button', { name: 'Slipping cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Checks', exact: true }).click();
+  await page.getByRole('button', { name: /^Slipping cards / }).click();
   await expect(page.getByRole('heading', { name: 'Slipping cards', exact: true })).toBeVisible();
-  await expect(page.getByText(/^From your answer history on the server/)).toBeVisible();
   await expect(page.getByText('Cards listed: 600', { exact: true })).toBeVisible();
   const first = rowOf(page, 0);
   await expect(first.getByText('Forgot 3 times after learning it, in 14 answers')).toBeVisible();
@@ -272,6 +272,7 @@ test('Library entry explains the evidence and sets a Card aside and back in plac
   // The recommendation stays: a set-aside Card keeps its evidence.
   await expect(first.getByText('Forgot 3 times after learning it, in 14 answers')).toBeVisible();
 
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await page.getByRole('combobox', { name: 'Schedule', exact: true }).selectOption('suspended');
   await expect(page.getByText('Cards listed: 1', { exact: true })).toBeVisible();
   await rowOf(page, 0).getByRole('button', { name: 'Resume', exact: true }).click();
@@ -283,6 +284,7 @@ test('Library entry explains the evidence and sets a Card aside and back in plac
 test('editing a Note returns to the same filters, Card and position', async ({ page }) => {
   await fixture(page);
   await page.goto('/library/slipping');
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await page.getByRole('combobox', { name: 'Order', exact: true }).selectOption('recent');
   await page.getByRole('combobox', { name: 'Direction', exact: true }).selectOption('recognition');
   await expect(page.getByText('Cards listed: 600', { exact: true })).toBeVisible();
@@ -319,7 +321,8 @@ test('editing a Note returns to the same filters, Card and position', async ({ p
 test('a Deck entry scopes the list and returns to its Notes', async ({ page }) => {
   const state = await fixture(page);
   await page.goto(`/notes?deckId=${german.id}`);
-  await page.getByRole('button', { name: 'Slipping cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Deck options', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Slipping cards', exact: true }).click();
   await expect(page.getByText('Cards listed: 300', { exact: true })).toBeVisible();
   expect(
     state.requests.some(
@@ -327,10 +330,8 @@ test('a Deck entry scopes the list and returns to its Notes', async ({ page }) =
         url.pathname === '/api/cards/problems' && url.searchParams.get('deckId') === german.id,
     ),
   ).toBe(true);
-  await expect(page.getByRole('combobox', { name: 'Collection scope', exact: true })).toHaveValue(
-    german.id,
-  );
-  await page.getByRole('button', { name: 'Notes', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Look in', exact: true })).toHaveValue(german.id);
+  await page.getByRole('button', { name: german.name, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/notes\\?deckId=${german.id}`));
 });
 
@@ -346,13 +347,12 @@ test('a complete download lists lapse counts offline and never changes a Card lo
     page.getByText('Collection downloaded for offline reading.', { exact: true }),
   ).toBeVisible({ timeout: 180_000 });
   await page.goto('/library');
-  await expect(page.getByRole('button', { name: 'Slipping cards', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Checks', exact: true })).toBeVisible();
   state.offline = true;
   await page.evaluate(() => dispatchEvent(new Event('offline')));
-  await page.getByRole('button', { name: 'Slipping cards', exact: true }).click();
-  await expect(
-    page.getByText(/^Downloaded collection: cards forgotten 3 or more times/),
-  ).toBeVisible();
+  await page.getByRole('button', { name: 'Checks', exact: true }).click();
+  await page.getByRole('button', { name: /^Slipping cards / }).click();
+  await expect(page.getByText(/^Offline, only cards forgotten 3 or more times/)).toBeVisible();
   // Frequent Again needs the history: only the lapse counter is evaluated offline.
   await expect(page.getByText('Cards listed: 480', { exact: true })).toBeVisible();
   const row = page.locator('[data-problem-id]').first();
@@ -368,7 +368,7 @@ test('a complete download lists lapse counts offline and never changes a Card lo
   expect(state.writes).toEqual([]);
   state.offline = false;
   await page.evaluate(() => dispatchEvent(new Event('online')));
-  await expect(page.getByText(/^From your answer history on the server/)).toBeVisible({
+  await expect(page.getByText(/^Offline, only cards forgotten/)).toHaveCount(0, {
     timeout: 30_000,
   });
   await expect(page.getByText('Cards listed: 600', { exact: true })).toBeVisible();

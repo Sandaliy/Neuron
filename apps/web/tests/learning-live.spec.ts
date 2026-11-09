@@ -58,7 +58,8 @@ test('real Deck activation, Study ratings and schedule-free Practice', async ({ 
       },
     );
     await page.goto(`/notes?deckId=${deck.id}`);
-    await page.getByRole('button', { name: 'Study skills', exact: true }).click();
+    await page.getByRole('button', { name: 'Deck options', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Study skills', exact: true }).click();
     await page.getByRole('switch', { name: 'Typing', exact: true }).click();
     await page.getByRole('switch', { name: 'Listening', exact: true }).click();
     await page.getByRole('button', { name: 'Save', exact: true }).click();

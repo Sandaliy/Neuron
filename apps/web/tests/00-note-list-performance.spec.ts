@@ -177,7 +177,7 @@ test.describe('the note list', () => {
           .poll(() =>
             page.locator('[data-rows]').evaluate((node) => node.getBoundingClientRect().height),
           )
-          .toBeGreaterThan((at + 1) * 76_000);
+          .toBeGreaterThan((at + 1) * 72_000);
       }
       await page.evaluate(() => window.scrollTo(0, 0));
       const samples = [];
