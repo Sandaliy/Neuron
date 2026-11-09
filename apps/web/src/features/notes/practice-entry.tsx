@@ -84,7 +84,7 @@ export function PracticeEntry({
   const total = statuses.length;
   return (
     <Card className="flex flex-col gap-16">
-      <div className="flex w-full flex-wrap items-baseline justify-between gap-8">
+      <div className="flex w-full flex-wrap items-center justify-between gap-8">
         <h2 className="text-17 text-primary">{t('practice.title')}</h2>
         {run && total > 0 && (
           <span className="text-13 text-primary tabular-nums">
@@ -102,21 +102,28 @@ export function PracticeEntry({
         />
       ) : undefined}
       <>
-        {run && total > 0 && (
-          <div className="flex flex-col gap-8">
-            <Progress value={known} max={total} label={t('practice.knownProgress')} />
-            {known < total && (
-              <p className="text-13 text-secondary tabular-nums">
-                {[
+        {/*
+          The bar and its line keep their space before the saved summary
+          arrives and when there is none, so the buttons and the Notes under
+          this card never move when it lands.
+        */}
+        <div className="flex flex-col gap-8" aria-hidden={!run || undefined}>
+          <div className="h-4">
+            {run && total > 0 && (
+              <Progress value={known} max={total} label={t('practice.knownProgress')} />
+            )}
+          </div>
+          <p className="h-20 truncate text-13 text-secondary tabular-nums">
+            {run && known < total
+              ? [
                   learning > 0 ? t('practice.learningSummary', { count: learning }) : '',
                   unseen > 0 ? t('practice.unseenSummary', { count: unseen }) : '',
                 ]
                   .filter(Boolean)
-                  .join(' · ')}
-              </p>
-            )}
-          </div>
-        )}
+                  .join(' · ')
+              : ''}
+          </p>
+        </div>
         <div className="flex flex-col gap-8">
           <Button
             full
