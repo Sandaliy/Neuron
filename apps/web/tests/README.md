@@ -121,6 +121,18 @@ when the change affects shared browser behavior.
 For a suspected pre-existing failure, compare the same test and configuration in a clean checkout of
 the base revision. Preserve any unrelated local work.
 
+### The five-minute CI budget
+
+A pull request's required checks finish in five minutes. Each interaction project runs on six
+runners, one worker each, so frame measurements still have a machine to themselves.
+`scripts/shard-browser-tests.mjs` gives each runner whole files, longest first, to the least loaded
+runner, using the seconds in `browser-durations.json`. A file the table has not measured counts as
+20 seconds. Refresh the table with `node scripts/browser-durations.mjs <run-id>`, using a run with
+full browser selection, when a file's duration changes by more than a minute or a shard approaches
+four minutes. If that is not enough, add a runner or make the
+slow test faster. Never lengthen a timeout, skip a test or move a check out of the required run to
+stay inside the budget.
+
 ## Diagnosing a failed run
 
 For an intentional Library reference refresh, use an explicit update mode and a scoped selection:

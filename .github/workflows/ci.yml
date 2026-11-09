@@ -16,10 +16,16 @@ concurrency:
 permissions:
   contents: read
 
+# Budget: the whole run finishes in five minutes. Independent checks run as
+# parallel jobs, and the browser suites are split across runners by measured
+# duration (scripts/shard-browser-tests.mjs). When a job approaches the budget,
+# split it further or make the slow test faster. Do not drop or weaken checks.
+
 jobs:
   secrets:
     name: Secret scan
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - name: Check out the repository
@@ -32,9 +38,76 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # These checks used to run one after another in this job. They are
+  # independent, so they run side by side and this job reports their combined
+  # result under the name the ruleset requires.
   verify:
     name: Typecheck, lint, test, build
+    needs: [static, unit, migration-safety, sync-chaos]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every verification job
+        env:
+          VERIFY_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          node -e '
+            const needs = JSON.parse(process.env.VERIFY_NEEDS);
+            const failed = Object.entries(needs).filter(([, job]) => job.result !== "success");
+            for (const [name, job] of failed) console.error(`${name}: ${job.result}`);
+            if (!failed.length) console.log("All verification jobs passed.");
+            process.exit(failed.length ? 1 : 0);
+          '
+
+  static:
+    name: Format, types, lint, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test CI scripts
+        run: node --test apps/web/scripts/screens-ci.test.mjs scripts/dependency-compatibility.test.mjs
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Verify Preview build is owner-free
+        run: pnpm --filter @neuron/api db:verify-vercel
+        env:
+          VERCEL_ENV: preview
+
+      - name: Build
+        run: pnpm build
+
+  unit:
+    name: Tests ${{ matrix.shard }}/2
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
 
     services:
       postgres:
@@ -77,36 +150,87 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test browser verification commands
-        run: node --test apps/web/scripts/screens-ci.test.mjs
-
-      - name: Test dependency compatibility
-        run: node --test scripts/dependency-compatibility.test.mjs
-
-      - name: Check formatting
-        run: pnpm format:check
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint
-
       # The database tests empty every table, so they get a database of their
       # own beside the one the application role is configured for. The roles
       # exist first, with the passwords these connection strings carry; the
       # migrations then only grant to them.
+      # The tests import the compiled workspace packages. The old serial job got
+      # them as a side effect of typecheck, which builds dependencies first.
+      - name: Build workspace packages
+        run: pnpm --filter "@neuron/api^..." build
+
       - name: Prepare the test database
         run: |
-          psql postgresql://postgres:postgres@localhost:5432/neuron -v ON_ERROR_STOP=1             -c "create database neuron_test"             -c "create role neuron_app with login password 'runtimeapp123' noinherit nosuperuser nocreatedb nocreaterole nobypassrls"             -c "create role neuron_auth with login password 'runtimeauth123' noinherit nosuperuser nocreatedb nocreaterole nobypassrls"
+          psql postgresql://postgres:postgres@localhost:5432/neuron -v ON_ERROR_STOP=1 \
+            -c "create database neuron_test" \
+            -c "create role neuron_app with login password 'runtimeapp123' noinherit nosuperuser nocreatedb nocreaterole nobypassrls" \
+            -c "create role neuron_auth with login password 'runtimeauth123' noinherit nosuperuser nocreatedb nocreaterole nobypassrls"
 
+      # Each shard has its own PostgreSQL service, so the halves never share rows.
       - name: Test
-        run: pnpm test
+        run: pnpm exec vitest run --shard=${{ matrix.shard }}/2
         env:
           DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/neuron_test
           DATABASE_URL: postgresql://neuron_app:runtimeapp123@postgres:5432/neuron
           DATABASE_URL_AUTH: postgresql://neuron_auth:runtimeauth123@postgres:5432/neuron
           DATABASE_URL_TEST_WS_PROXY: localhost:5433/v1
+
+  migration-safety:
+    name: Migration safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: neuron
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d neuron"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      postgres-websocket:
+        image: ghcr.io/neondatabase/wsproxy:latest
+        env:
+          ALLOW_ADDR_REGEX: '^postgres:5432$'
+        ports:
+          - 5433:80
+        options: >-
+          --health-cmd "curl --fail http://localhost:2112/metrics"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The tests import the compiled workspace packages. The old serial job got
+      # them as a side effect of typecheck, which builds dependencies first.
+      - name: Build workspace packages
+        run: pnpm --filter "@neuron/api^..." build
+
+      - name: Prepare the roles
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/neuron -v ON_ERROR_STOP=1 \
+            -c "create role neuron_app with login password 'runtimeapp123' noinherit nosuperuser nocreatedb nocreaterole nobypassrls" \
+            -c "create role neuron_auth with login password 'runtimeauth123' noinherit nosuperuser nocreatedb nocreaterole nobypassrls"
 
       - name: Test migration safety against a behind schema
         run: node node_modules/vitest/vitest.mjs run --config apps/api/vitest.release.config.ts
@@ -116,15 +240,63 @@ jobs:
           DATABASE_URL_AUTH: postgresql://neuron_auth:runtimeauth123@postgres:5432/neuron
           DATABASE_URL_TEST_WS_PROXY: localhost:5433/v1
 
-      - name: Verify Preview build is owner-free
-        run: pnpm --filter @neuron/api db:verify-vercel
-        env:
-          VERCEL_ENV: preview
-
       - name: Check migrations
         run: pnpm db:check
         env:
           DATABASE_URL_OWNER: postgresql://postgres:postgres@localhost:5432/neuron
+
+  sync-chaos:
+    name: Offline sync faults
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: neuron
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d neuron"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      postgres-websocket:
+        image: ghcr.io/neondatabase/wsproxy:latest
+        env:
+          ALLOW_ADDR_REGEX: '^postgres:5432$'
+        ports:
+          - 5433:80
+        options: >-
+          --health-cmd "curl --fail http://localhost:2112/metrics"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare the test database
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/neuron -v ON_ERROR_STOP=1 \
+            -c "create database neuron_test" \
+            -c "create role neuron_app with login password 'runtimeapp123' noinherit nosuperuser nocreatedb nocreaterole nobypassrls" \
+            -c "create role neuron_auth with login password 'runtimeauth123' noinherit nosuperuser nocreatedb nocreaterole nobypassrls"
 
       - name: Build
         run: pnpm build
@@ -175,7 +347,7 @@ jobs:
           BROWSER_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           BROWSER_FULL: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          node --test scripts/select-browser-tests.test.mjs scripts/browser-gate.test.mjs
+          node --test scripts/select-browser-tests.test.mjs scripts/browser-gate.test.mjs scripts/shard-browser-tests.test.mjs
           node scripts/select-browser-tests.mjs
 
   phone-interaction:
@@ -220,7 +392,7 @@ jobs:
     # Start independently of both interaction runners and retain failure diagnostics.
     if: ${{ needs.browser-selection.outputs.visual == 'true' }}
     runs-on: windows-2022
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
