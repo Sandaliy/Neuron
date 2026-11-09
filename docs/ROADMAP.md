@@ -279,6 +279,10 @@ statistics deserve the home screen should be decided from real use.
 
 ### Milestone 11: Product readiness and public presentation
 
+User data export is brought forward as an independent deliverable before the rest of this milestone.
+It covers synchronized account-owned learning data and preserves the existing deletion lifecycle;
+device backup/restore and archive import are outside this slice. See `account-export.md`.
+
 **Purpose**
 
 Close cross-cutting gaps after the full personal learning loop exists, then present the project credibly to

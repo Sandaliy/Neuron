@@ -92,6 +92,17 @@ reproduction commands.
 
 ## Running them
 
+Account export has focused Chromium desktop/phone and iPhone WebKit acceptance in
+`account-export.spec.ts`. Run all three against the built app with:
+
+```
+pnpm --filter @neuron/web test:screens:ci --config=playwright.export.config.ts --project=webkit-phone-interaction
+```
+
+The file covers exact downloaded bytes/name, scope, busy/cancel/retry, interrupted and malformed streams,
+account/session changes, size failures and Share cancellation. OS Files and installed-PWA acceptance
+remain manual; see `docs/account-export.md`.
+
 ```
 pnpm --filter @neuron/web test:screens tests/study.spec.ts --project=phone-interaction
 pnpm --filter @neuron/web test:screens:ci

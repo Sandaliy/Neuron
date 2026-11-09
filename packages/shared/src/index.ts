@@ -443,6 +443,7 @@ export * from './typed-answer.js';
 export * from './content-quality.js';
 
 export { planDailyStudy } from './study-planner.js';
+export * from './account-export.js';
 export { WAVE_SIZE, deckWaveSchema, learningWaves, waveRank } from './learning-waves.js';
 export { UNLOCK_REASONS, directionProgress, ladderProgresses } from './direction-progression.js';
 export type {

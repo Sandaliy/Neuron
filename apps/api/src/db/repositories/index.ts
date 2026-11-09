@@ -1,3 +1,4 @@
+import { accountExportRepository } from './account-export.js';
 import { accountRepository } from './account.js';
 import { cardRepository } from './cards.js';
 import { collectionCreationRepository } from './collection-creation.js';
@@ -45,6 +46,7 @@ import type { TriageRepository } from './triage.js';
  */
 
 export interface Repositories {
+  readonly accountExport: ReturnType<typeof accountExportRepository>;
   readonly contentQuality: ReturnType<typeof contentQualityRepository>;
   readonly possibleDuplicates: ReturnType<typeof possibleDuplicateRepository>;
   readonly collectionCreation: ReturnType<typeof collectionCreationRepository>;
@@ -75,6 +77,7 @@ export interface Repositories {
 
 function build(db: Database, userId: string, run: Runner): Repositories {
   return {
+    accountExport: accountExportRepository(db, userId),
     contentQuality: contentQualityRepository(userId, run),
     possibleDuplicates: possibleDuplicateRepository(userId, run),
     collectionCreation: collectionCreationRepository(userId, run),
