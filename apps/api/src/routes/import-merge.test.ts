@@ -36,11 +36,16 @@ describe.skipIf(!database)('safe import merge', () => {
       )
     ).note;
   }
-  function merge(id: string, fields: Record<string, unknown>, noteType: NoteTypeName = 'vocab') {
+  function merge(
+    id: string,
+    fields: Record<string, unknown>,
+    noteType: NoteTypeName = 'vocab',
+    importMerge?: { attemptId: string; deckId: string },
+  ) {
     return server.request(`/api/notes/${id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ merge: true, noteType, fields }),
+      body: JSON.stringify({ merge: true, noteType, fields, importMerge }),
     });
   }
 
@@ -75,6 +80,26 @@ describe.skipIf(!database)('safe import merge', () => {
     expect(await repositories.cards.forNote(note.id)).toEqual(beforeCards);
   });
 
+  it('acknowledges a lost merge response without refilling a deliberately cleared field', async () => {
+    const note = await create({ term: 'Clear after merge', translation: 'existing meaning' });
+    const command = { attemptId: uuidV7(), deckId };
+    const fields = { term: 'Clear after merge', translation: 'incoming meaning', note: 'added' };
+    expect((await merge(note.id, fields, 'vocab', command)).status).toBe(204);
+    expect((await repositories.notes.byId(note.id))?.fields).toMatchObject({ note: 'added' });
+    await repositories.notes.updateFields(note.id, {
+      term: 'Clear after merge',
+      translation: 'existing meaning',
+    });
+    const before = await repositories.notes.byId(note.id);
+    const revision = await repositories.sync.revision();
+    expect((await merge(note.id, fields, 'vocab', command)).status).toBe(204);
+    expect((await merge(note.id, { ...fields, note: 'changed' }, 'vocab', command)).status).toBe(
+      409,
+    );
+    expect(await repositories.notes.byId(note.id)).toEqual(before);
+    expect(await repositories.sync.revision()).toBe(revision);
+  });
+
   it('serializes concurrent additions so neither writer erases the other', async () => {
     const note = await create({ term: 'Parallel', translation: 'parallel' });
     const responses = await Promise.all([
@@ -87,6 +112,23 @@ describe.skipIf(!database)('safe import merge', () => {
       note: 'first addition',
       mnemonic: 'second addition',
     });
+  });
+
+  it('refuses a first merge after its frozen target moved to another Deck', async () => {
+    const note = await create({ term: 'Moved duplicate', translation: 'existing meaning' });
+    const destination = await repositories.decks.create({ name: 'Other destination' });
+    await repositories.notes.moveToDeck(note.id, destination.id);
+    const before = await repositories.notes.byId(note.id);
+    const revision = await repositories.sync.revision();
+    const response = await merge(
+      note.id,
+      { term: 'Moved duplicate', translation: 'existing meaning', note: 'must not be added' },
+      'vocab',
+      { attemptId: uuidV7(), deckId },
+    );
+    expect(response.status).toBe(409);
+    expect(await repositories.notes.byId(note.id)).toEqual(before);
+    expect(await repositories.sync.revision()).toBe(revision);
   });
 
   it('rejects ambiguous same-type targets but ignores incompatible matches for eligibility', async () => {

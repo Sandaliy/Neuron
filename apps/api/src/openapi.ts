@@ -446,7 +446,11 @@ export function openApiDocument(baseUrl: string) {
         patch: {
           summary: 'Edit a note, or move it to another deck',
           requestBody: body('UpdateNote'),
-          responses: { 200: answer('The note'), ...commonErrors },
+          responses: {
+            200: answer('The note'),
+            204: { description: 'The identified Import merge was applied or already committed' },
+            ...commonErrors,
+          },
         },
         delete: {
           summary: 'Soft delete a note and its cards',

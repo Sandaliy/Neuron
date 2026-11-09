@@ -7,18 +7,16 @@ import {
   dailyStudySessionRequestSchema,
   idParamSchema,
   importChunkSchema,
-  openingCards,
   resolveDeckSettings,
   planDailyStudy,
   studyDecks,
   updatePresetSchema,
 } from '@neuron/shared';
-import type { DeckSettings, NoteFields, NoteStatus, NoteTypeName } from '@neuron/shared';
+import type { DeckSettings } from '@neuron/shared';
 
 import { repositoriesOf } from '../context.js';
 import { toSchedulingState } from '../db/repositories/index.js';
 import { ApiError } from '../errors.js';
-import { settingsForDeck } from '../note-cards.js';
 import {
   serialiseCard,
   serialiseImportBatch,
@@ -30,7 +28,6 @@ import { readBody, readParams } from '../validation.js';
 import { parseFields } from './notes.js';
 
 import type { RequestBindings } from '../context.js';
-import type { Repositories } from '../db/repositories/index.js';
 
 /** Builds a Daily Study plan without persisting a session or changing settings. */
 export function dailyStudyRoutes(): Hono<RequestBindings> {
@@ -229,7 +226,13 @@ export function importRoutes(): Hono<RequestBindings> {
         ...(body.format === undefined ? {} : { format: body.format }),
       });
 
-      return { batch, ...(await addImportedNotes(inner, batch, parsed)) };
+      const applied = parsed.length
+        ? await inner.importBatches.append(batch.id, parsed)
+        : { notes: 0, cards: 0, skipped: 0 };
+      if (!applied) throw new ApiError('not_found');
+      const committed = applied.notes ? await inner.importBatches.byId(batch.id) : batch;
+      if (!committed) throw new ApiError('not_found');
+      return { batch: committed, ...applied };
     });
 
     return context.json(
@@ -259,15 +262,8 @@ export function importRoutes(): Hono<RequestBindings> {
       fields: parseFields(note.noteType, note.fields),
     }));
 
-    const written = await repositories.transaction(async (inner) => {
-      const batch = await inner.importBatches.byId(id);
-
-      if (!batch) {
-        throw new ApiError('not_found');
-      }
-
-      return addImportedNotes(inner, batch, parsed);
-    });
+    const written = await repositories.importBatches.append(id, parsed);
+    if (!written) throw new ApiError('not_found');
 
     return context.json(written);
   });
@@ -302,93 +298,4 @@ export function importRoutes(): Hono<RequestBindings> {
   });
 
   return routes;
-}
-
-/** A note on its way into an import, with its fields already checked. */
-interface ParsedImportNote {
-  readonly id?: string | undefined;
-  readonly noteType: NoteTypeName;
-  readonly fields: NoteFields;
-  readonly tags?: readonly string[] | undefined;
-  readonly source?: string | null | undefined;
-  readonly rank?: number | null | undefined;
-  readonly status?: NoteStatus | undefined;
-}
-
-/**
- * Writes a chunk of imported notes and the cards they open with.
- *
- * Batched rather than one note at a time. Written the obvious way, a chunk of
- * five hundred is a couple of thousand round trips to a database in another
- * country, which is minutes and well past what a serverless function is given.
- * This is four statements: the notes, the deck's settings, the cards, and the
- * running count.
- *
- * The cards come from `openingCards` in packages/shared, which is the same
- * function the editor calls, so an imported word and a typed one arrive with
- * exactly the same cards.
- *
- * @param repositories the repositories, inside the transaction
- * @param batch the batch the notes belong to
- * @param notes the notes, already checked against their types
- * @returns how many notes and cards were written, and how many were already there
- */
-async function addImportedNotes(
-  repositories: Repositories,
-  batch: { readonly id: string; readonly deckId: string; readonly source: string },
-  notes: readonly ParsedImportNote[],
-) {
-  if (notes.length === 0) {
-    return { notes: 0, cards: 0, skipped: 0 };
-  }
-
-  const written = await repositories.notes.createMany(
-    notes.map((note) => ({
-      ...(note.id === undefined ? {} : { id: note.id }),
-      deckId: batch.deckId,
-      noteType: note.noteType,
-      fields: note.fields,
-      ...(note.tags === undefined ? {} : { tags: note.tags }),
-      source: note.source ?? batch.source,
-      rank: note.rank ?? null,
-      ...(note.status === undefined ? {} : { status: note.status }),
-      importBatchId: batch.id,
-    })),
-    { skipExisting: true },
-  );
-
-  if (written.length === 0) {
-    return { notes: 0, cards: 0, skipped: notes.length };
-  }
-
-  const settings = await settingsForDeck(repositories, batch.deckId);
-  const byId = new Map(
-    notes.filter((note) => note.id !== undefined).map((note) => [note.id, note]),
-  );
-  const now = new Date();
-
-  const planned = written.flatMap((row, index) => {
-    // A note with no client id can only be matched by position, and the insert
-    // returns them in the order they were sent.
-    const note = byId.get(row.id) ?? notes[index];
-
-    if (!note) {
-      return [];
-    }
-
-    return openingCards(note.noteType, note.fields, settings.ladder).map((card) => ({
-      noteId: row.id,
-      direction: card.direction,
-      slot: card.slot,
-      due: now,
-      unlockedAt: now,
-      unlockReason: 'opening' as const,
-    }));
-  });
-
-  const cards = await repositories.cards.createMany(planned);
-
-  await repositories.importBatches.addNoteCount(batch.id, written.length);
-
-  return { notes: written.length, cards: cards.length, skipped: notes.length - written.length };
 }

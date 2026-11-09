@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import {
   IMPORT_FIELDS,
@@ -10,8 +10,6 @@ import {
   parseImport,
   noteFieldsSchemas,
   openingCards,
-  rowProblems,
-  termCounts,
   termOf,
   PRACTICE_FIELDS,
   practiceFieldLabel,
@@ -24,15 +22,17 @@ import type {
   NoteTypeName,
   ParseResult,
   ParsedRow,
+  RowProblems,
 } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
-import { describe, request } from '../../lib/api';
+import { ApiFailure, describe, request } from '../../lib/api';
 import { hasServerAuthority, useCapabilities } from '../../lib/capabilities';
+import { metadata, openCollection } from '../../lib/collection-db';
 import { localNotes } from '../../lib/collection-read';
 import { DECK_TREE_KEY, findDeck, settingsFor, useDeckTree } from '../../lib/decks';
 import { findDuplicates, NOTE_KEY, noteQueryString } from '../../lib/notes';
-import { accountEpoch, connectionEpoch, useOffline } from '../../lib/offline';
+import { accountEpoch, connectionEpoch, retryDownload, useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
 import { Card, GroupLabel, Panel } from '../../ui/card';
 import { Chip } from '../../ui/chip';
@@ -47,7 +47,13 @@ import { CollectionPath } from '../library/collection-path';
 import { CardPreview } from '../notes/card-preview';
 
 import { importDrafts, importDraftVisit, newImportDraft, saveImportDraft } from './import-drafts';
-import { createAttempt, groupMatches, planRows, resolveDuplicate } from './import-plan';
+import {
+  analyseImport,
+  createAttempt,
+  groupMatches,
+  planRows,
+  resolveDuplicate,
+} from './import-plan';
 import { ImportSource, fieldLabelKey } from './import-source';
 import { PromptDialog } from './prompt-dialog';
 import { useImportDraft } from './use-import-draft';
@@ -65,6 +71,8 @@ type Stage =
       readonly batchId?: string;
       readonly done: number;
       readonly total: number;
+      readonly merged: number;
+      readonly phase: 'notes' | 'merges' | 'reconcile';
       readonly failed?: boolean;
     }
   | {
@@ -73,6 +81,7 @@ type Stage =
       readonly batchId?: string;
       readonly notes: number;
       readonly cards: number;
+      readonly merged: number;
     };
 
 /**
@@ -178,6 +187,7 @@ function ImportEditor({
         kind: 'done',
         notes: delivery.summary.notes,
         cards: delivery.summary.cards,
+        merged: delivery.attempt.merge.length,
         ...(delivery.attempt.create.length ? { batchId: delivery.attempt.batchId } : {}),
       };
     if (delivery)
@@ -186,6 +196,13 @@ function ImportEditor({
         attempt: delivery.attempt,
         done: delivery.done,
         total: Math.ceil(delivery.attempt.create.length / IMPORT_CHUNK_SIZE),
+        merged: delivery.merged ?? 0,
+        phase:
+          delivery.done < Math.ceil(delivery.attempt.create.length / IMPORT_CHUNK_SIZE)
+            ? 'notes'
+            : (delivery.merged ?? 0) < delivery.attempt.merge.length
+              ? 'merges'
+              : 'reconcile',
         failed: true,
       };
     const p = initialDraft.preparation;
@@ -206,10 +223,20 @@ function ImportEditor({
   const [changedDuplicates, setChangedDuplicates] = useState(false);
   const [checking, setChecking] = useState(false);
   const checkSequence = useRef(0);
+  const duplicateRequest = useRef<AbortController | undefined>(undefined);
+  const finalDuplicateRequest = useRef<AbortController | undefined>(undefined);
   const [failure, setFailure] = useState<unknown>();
   const [prompt, setPrompt] = useState(false);
   const applying = useRef(false);
   const uploading = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      finalDuplicateRequest.current?.abort();
+    };
+  }, []);
   const switchingDraft = useRef(false);
   const [switching, setSwitching] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState<
@@ -217,7 +244,7 @@ function ImportEditor({
   >();
 
   const tree = decks.data ?? [];
-  const chosenFormat = format === '' ? detectFormat(raw) : format;
+  const chosenFormat = useMemo(() => format || detectFormat(raw), [format, raw]);
 
   async function chooseDraft(next?: ImportDraft, separate = false) {
     if (switchingDraft.current) return;
@@ -254,6 +281,10 @@ function ImportEditor({
 
   const checkParsed = useCallback(
     async (parsed: ParseResult) => {
+      if (applying.current) return;
+      duplicateRequest.current?.abort();
+      const controller = new AbortController();
+      duplicateRequest.current = controller;
       const sequence = ++checkSequence.current;
       const current = importDraftVisit(initialDraft.accountId);
       setFailure(undefined);
@@ -265,8 +296,21 @@ function ImportEditor({
       try {
         const terms = parsed.rows.map((row) => termOf(row.fields)).filter((term) => term !== '');
         let found: DuplicateMatch[] = [];
-        if (capability.server && deck) found = await findDuplicates(deck, terms);
-        else if (offline.available && deck) {
+        let localAvailable = offline.available;
+        if (!capability.server && !localAvailable && deck) {
+          // Loss can interrupt the downloader after committing its final page,
+          // before publishing availability. Trust the durable boundary for local
+          // preview only; application still requires fresh server validation.
+          const db = await openCollection(initialDraft.accountId);
+          try {
+            localAvailable = (await metadata(db)).complete;
+          } finally {
+            db.close();
+          }
+          current();
+        }
+        if (capability.server && deck) found = await findDuplicates(deck, terms, controller.signal);
+        else if (localAvailable && deck) {
           const keys = new Set(parsed.rows.map((row) => noteTermKey(row.fields)));
           let cursor: string | undefined;
           do {
@@ -291,7 +335,7 @@ function ImportEditor({
           setDuplicateStatus(
             capability.server && deck
               ? 'confirmed'
-              : offline.available && deck
+              : localAvailable && deck
                 ? 'local'
                 : 'unavailable',
           );
@@ -320,22 +364,44 @@ function ImportEditor({
     return () => {
       active = false;
       sequence.current++;
+      duplicateRequest.current?.abort();
     };
   }, [parsed, checkParsed, connection]);
+
+  function refreshImportReads() {
+    // Import writes run outside the usual collection mutation observers.
+    void Promise.allSettled([
+      queryClient.invalidateQueries({ queryKey: [NOTE_KEY] }),
+      queryClient.invalidateQueries({ queryKey: DECK_TREE_KEY }),
+      queryClient.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['practice-notes'], refetchType: 'none' }),
+      queryClient.invalidateQueries({ queryKey: ['practice-summary'], refetchType: 'none' }),
+      retryDownload(),
+    ]);
+  }
 
   async function start() {
     if (!parsed || applying.current || !hasServerAuthority()) return;
     applying.current = true;
     setChecking(true);
-    const current = importDraftVisit(initialDraft.accountId);
-    const sequence = ++checkSequence.current;
+    const visit = importDraftVisit(initialDraft.accountId);
+    const current = () => {
+      visit();
+      if (!mounted.current) throw new Error('import_visit_ended');
+    };
+    checkSequence.current++;
+    duplicateRequest.current?.abort();
+    const controller = new AbortController();
+    finalDuplicateRequest.current = controller;
+    const preparation = draft.current.current.preparation;
     try {
       const found = await findDuplicates(
         deck,
         parsed.rows.map((row) => termOf(row.fields)).filter(Boolean),
+        controller.signal,
       );
       current();
-      if (!hasServerAuthority() || sequence !== checkSequence.current) return;
+      if (!hasServerAuthority() || preparation !== draft.current.current.preparation) return;
       setFailure(undefined);
       setDuplicates(found);
       setDuplicateStatus('confirmed');
@@ -352,9 +418,10 @@ function ImportEditor({
       const choices = draft.current.current.preparation;
       await upload(createAttempt(parsed, found, choices.resolution, choices.overrides, deck));
     } catch (error) {
-      setFailure(error);
+      if (!controller.signal.aborted && mounted.current) setFailure(error);
     } finally {
       applying.current = false;
+      finalDuplicateRequest.current = undefined;
       setChecking(false);
     }
   }
@@ -370,13 +437,14 @@ function ImportEditor({
       toast.show(t('offline.serverRequired'));
       return;
     }
-    const current = importDraftVisit(initialDraft.accountId);
+    const visit = importDraftVisit(initialDraft.accountId);
+    const current = () => {
+      visit();
+      if (!mounted.current) throw new Error('import_visit_ended');
+    };
     const batchId = plan.create.length > 0 ? plan.batchId : undefined;
-    const chunks: (typeof plan.create)[] = [];
-
-    for (let start = 0; start < plan.create.length; start += IMPORT_CHUNK_SIZE) {
-      chunks.push(plan.create.slice(start, start + IMPORT_CHUNK_SIZE));
-    }
+    const total = Math.ceil(plan.create.length / IMPORT_CHUNK_SIZE);
+    let merged = draft.current.current.delivery?.merged ?? 0;
 
     uploading.current = true;
     setFailure(undefined);
@@ -385,11 +453,13 @@ function ImportEditor({
       attempt: plan,
       ...(batchId === undefined ? {} : { batchId }),
       done: from,
-      total: chunks.length,
+      total,
+      merged,
+      phase: from < total ? 'notes' : merged < plan.merge.length ? 'merges' : 'reconcile',
     });
 
     try {
-      draft.delivery({ attempt: plan, done: from });
+      draft.delivery({ attempt: plan, done: from, merged });
       if (!(await draft.persist())) throw new Error('import_draft_storage');
       current();
       if (!hasServerAuthority()) throw new Error('import_connection_required');
@@ -405,8 +475,9 @@ function ImportEditor({
         });
       }
 
-      for (let index = from; index < chunks.length; index += 1) {
+      for (let index = from; index < total; index += 1) {
         current();
+        if (!hasServerAuthority()) throw new Error('import_connection_required');
         if (!batchId) {
           throw new Error('an import chunk needs a batch');
         }
@@ -414,18 +485,20 @@ function ImportEditor({
         await request(`/imports/${batchId}/notes`, {
           method: 'POST',
           body: {
-            notes: (chunks[index] ?? []).map((row) => ({
-              id: row.id,
-              noteType: plan.noteType,
-              fields: row.fields,
-              tags: row.tags,
-              ...(row.rank === undefined ? {} : { rank: row.rank }),
-            })),
+            notes: plan.create
+              .slice(index * IMPORT_CHUNK_SIZE, (index + 1) * IMPORT_CHUNK_SIZE)
+              .map((row) => ({
+                id: row.id,
+                noteType: plan.noteType,
+                fields: row.fields,
+                tags: row.tags,
+                ...(row.rank === undefined ? {} : { rank: row.rank }),
+              })),
           },
         });
 
         current();
-        draft.delivery({ attempt: plan, done: index + 1 });
+        draft.delivery({ attempt: plan, done: index + 1, merged });
         if (!(await draft.persist())) throw new Error('import_draft_storage');
 
         setStage({
@@ -433,49 +506,92 @@ function ImportEditor({
           attempt: plan,
           batchId,
           done: index + 1,
-          total: chunks.length,
+          total,
+          merged,
+          phase: 'notes',
         });
       }
 
-      // Merges are one request each, and there are usually few. They fill in
-      // only what is empty on the note that is already there, so a note being
-      // reviewed keeps every word of it.
-      for (const merge of plan.merge) {
+      // Keep the server's existing fill-blank merge validation. Two requests may
+      // travel together; only a fully acknowledged group advances recovery.
+      for (; merged < plan.merge.length;) {
+        setStage({
+          kind: 'importing',
+          attempt: plan,
+          ...(batchId ? { batchId } : {}),
+          done: total,
+          total,
+          merged,
+          phase: 'merges',
+        });
+        const end = Math.min(merged + 20, plan.merge.length);
+        let next = merged;
+        let stopped = false;
+        async function mergeNext() {
+          try {
+            while (!stopped && next < end) {
+              current();
+              if (!hasServerAuthority()) throw new Error('import_connection_required');
+              const merge = plan.merge[next++]!;
+              await request(`/notes/${merge.noteId}`, {
+                method: 'PATCH',
+                body: {
+                  fields: merge.fields,
+                  noteType: plan.noteType,
+                  merge: true,
+                  importMerge: { attemptId: plan.batchId, deckId: plan.deckId },
+                },
+              });
+            }
+          } catch (error) {
+            stopped = true;
+            throw error;
+          }
+        }
+        const outcomes = await Promise.allSettled([mergeNext(), mergeNext()]);
+        const refused = outcomes.find((outcome) => outcome.status === 'rejected');
+        if (refused?.status === 'rejected') throw refused.reason;
         current();
-        await request(`/notes/${merge.noteId}`, {
-          method: 'PATCH',
-          body: { fields: merge.fields, noteType: plan.noteType, merge: true },
-        });
+        merged = end;
+        draft.delivery({ attempt: plan, done: total, merged });
+        if (!(await draft.persist())) throw new Error('import_draft_storage');
       }
 
+      current();
+      setStage({
+        kind: 'importing',
+        attempt: plan,
+        ...(batchId ? { batchId } : {}),
+        done: total,
+        total,
+        merged,
+        phase: 'reconcile',
+      });
       const summary = batchId
         ? await request<{ notes: number; cards: number }>(`/imports/${batchId}`)
         : { notes: 0, cards: 0 };
       current();
+      if (
+        !Number.isSafeInteger(summary.notes) ||
+        summary.notes !== plan.create.length ||
+        !Number.isSafeInteger(summary.cards) ||
+        summary.cards < 0
+      )
+        throw new Error('import_reconciliation');
       draft.delivery({
         attempt: plan,
-        done: chunks.length,
+        done: total,
+        merged,
         summary: { notes: summary.notes, cards: summary.cards },
       });
       if (!(await draft.persist())) throw new Error('import_draft_storage');
-
-      // The list and tree are intentionally fresh for five minutes between
-      // collection screens. This write happened outside the normal note
-      // mutations, so mark both stale before the person returns to the deck.
-      // Otherwise the destination remounts its pre-import cached page and
-      // looks empty until a full reload or the freshness window expires.
-      await Promise.allSettled([
-        queryClient.invalidateQueries({ queryKey: [NOTE_KEY] }),
-        queryClient.invalidateQueries({ queryKey: DECK_TREE_KEY }),
-        queryClient.invalidateQueries({ queryKey: ['study-plan'], refetchType: 'none' }),
-        queryClient.invalidateQueries({ queryKey: ['practice-notes'], refetchType: 'none' }),
-        queryClient.invalidateQueries({ queryKey: ['practice-summary'], refetchType: 'none' }),
-      ]);
       current();
 
+      refreshImportReads();
+
       // Warm the exact destination first page, including when its old query is inactive.
-      const destination = noteQueryString({ deckId: deck, sort: 'created' });
-      await queryClient
+      const destination = noteQueryString({ deckId: plan.deckId, sort: 'created' });
+      void queryClient
         .fetchInfiniteQuery({
           queryKey: [NOTE_KEY, 'list', destination],
           initialPageParam: undefined as string | undefined,
@@ -493,6 +609,7 @@ function ImportEditor({
         ...(batchId === undefined ? {} : { batchId }),
         notes: summary.notes,
         cards: summary.cards,
+        merged,
       });
     } catch (error) {
       setFailure(error);
@@ -512,6 +629,7 @@ function ImportEditor({
     const current = importDraftVisit(initialDraft.accountId);
     await request(`/imports/${batchId}/undo`, { method: 'POST' });
     current();
+    refreshImportReads();
 
     setConfirmUndo(undefined);
     toast.show(t('import.undone'));
@@ -540,7 +658,9 @@ function ImportEditor({
                 ? 'import.draftConflict'
                 : 'import.draftFailed'
               : draft.status === 'saved'
-                ? 'import.draftSaved'
+                ? draft.draft.delivery
+                  ? 'import.checkpointSaved'
+                  : 'import.draftSaved'
                 : 'import.draftPending',
           )}
         </p>
@@ -577,7 +697,9 @@ function ImportEditor({
           >
             {t('import.newDraft')}
           </Button>
-          {draft.conflict && !draft.draft.delivery ? (
+          {draft.conflict &&
+          (!draft.draft.delivery ||
+            draft.draft.delivery.attempt.batchId !== draft.committedAttempt.current) ? (
             <Button
               variant="quiet"
               disabled={switching}
@@ -676,6 +798,7 @@ function ImportEditor({
             onResolution={(resolution) => draft.edit({ resolution })}
             onBack={() => {
               checkSequence.current++;
+              finalDuplicateRequest.current?.abort();
               draft.edit({ preview: false });
               setStage({ kind: 'source' });
             }}
@@ -685,15 +808,32 @@ function ImportEditor({
 
         {stage.kind === 'importing' ? (
           <Card className="flex flex-col gap-16">
-            <p className="text-15 text-primary">{t('import.importing')}</p>
+            <p role="status" className="text-15 text-primary">
+              {t(
+                stage.phase === 'merges'
+                  ? 'import.merging'
+                  : stage.phase === 'reconcile'
+                    ? 'import.reconciling'
+                    : 'import.importing',
+              )}
+            </p>
 
             <Progress
-              value={stage.total === 0 ? 1 : stage.done / stage.total}
+              value={
+                (Math.min(stage.done * IMPORT_CHUNK_SIZE, stage.attempt.create.length) +
+                  stage.merged) /
+                Math.max(1, stage.attempt.create.length + stage.attempt.merge.length)
+              }
               label={t('import.importing')}
             />
 
             <p className="text-13 text-tertiary" data-numeric="">
-              {t('import.progress', { done: stage.done, total: stage.total })}
+              {stage.phase === 'merges'
+                ? t('import.mergeProgress', {
+                    done: stage.merged,
+                    total: stage.attempt.merge.length,
+                  })
+                : t('import.progress', { done: stage.done, total: stage.total })}
             </p>
 
             {stage.failed ? (
@@ -701,6 +841,17 @@ function ImportEditor({
                 <p className="text-14 leading-body text-error">
                   {t('import.failed', { done: stage.done, total: stage.total })}
                 </p>
+                {failure instanceof ApiFailure ||
+                (failure instanceof Error && failure.message === 'import_reconciliation') ? (
+                  <p role="alert" className="text-14 leading-body text-error">
+                    {t(
+                      failure instanceof ApiFailure
+                        ? describe(failure).key
+                        : 'import.reconcileFailed',
+                      failure instanceof ApiFailure ? describe(failure).values : {},
+                    )}
+                  </p>
+                ) : undefined}
                 <Button
                   variant="primary"
                   disabled={!capability.server}
@@ -721,6 +872,11 @@ function ImportEditor({
             <p className="text-14 leading-body text-secondary" data-numeric="">
               {t('import.doneBody', { notes: stage.notes, cards: stage.cards })}
             </p>
+            {stage.merged > 0 ? (
+              <p className="text-14 leading-body text-secondary" data-numeric="">
+                {t('import.doneMerged', { count: stage.merged })}
+              </p>
+            ) : undefined}
             {stage.batchId ? (
               <>
                 <p className="text-14 leading-body text-secondary">{t('import.undoBoundary')}</p>
@@ -879,23 +1035,19 @@ function Preview({
   const t = useTranslate();
   const decks = useDeckTree();
   const [showCards, setShowCards] = useState(false);
-  const counts = useMemo(() => termCounts(parsed.rows), [parsed]);
+  const analysis = useMemo(() => analyseImport(parsed), [parsed]);
   const known = useMemo(() => groupMatches(duplicates), [duplicates]);
   const plan = useMemo(
-    () => planRows(parsed, duplicates, resolution, overrides),
-    [parsed, duplicates, resolution, overrides],
+    () => planRows(parsed, duplicates, resolution, overrides, analysis),
+    [parsed, duplicates, resolution, overrides, analysis],
   );
-  const firstValid = parsed.rows.find(
-    (row) => rowProblems(row, parsed.noteType, counts).missing.length === 0,
-  );
+  const firstValid = parsed.rows.find((_, index) => analysis[index]!.problems.missing.length === 0);
   const firstFields = firstValid && noteFieldsSchemas[parsed.noteType].safeParse(firstValid.fields);
   const cards = firstFields?.success
     ? openingCards(parsed.noteType, firstFields.data, settingsFor(decks.data ?? [], deckId).ladder)
     : [];
 
-  const problems = parsed.rows.filter((row) => {
-    const found = rowProblems(row, parsed.noteType, counts);
-
+  const problems = analysis.filter(({ problems: found }) => {
     return found.missing.length > 0 || found.exampleMisses || found.duplicateInFile;
   });
 
@@ -1021,7 +1173,7 @@ function Preview({
           data-rows=""
           className="flex flex-col overflow-hidden rounded-24 border border-glass"
         >
-          {shown.map((row) => {
+          {shown.map((row, index) => {
             const matches = known.get(noteTermKey(row.fields)) ?? [];
             const decision = resolveDuplicate(
               matches,
@@ -1035,7 +1187,7 @@ function Preview({
                 <PreviewRow
                   row={row}
                   noteType={parsed.noteType}
-                  counts={counts}
+                  problems={analysis[index]!.problems}
                   {...(decision.target === undefined
                     ? {}
                     : {
@@ -1102,19 +1254,19 @@ function Preview({
   );
 }
 
-function PreviewRow({
+const PreviewRow = memo(function PreviewRow({
   row,
   noteType,
-  counts,
+  problems,
   duplicateIn,
 }: {
   readonly row: ParsedRow;
   readonly noteType: NoteTypeName;
-  readonly counts: ReadonlyMap<string, number>;
+  readonly problems: RowProblems;
   readonly duplicateIn?: string;
 }) {
   const t = useTranslate();
-  const problems = rowProblems(row, noteType, counts);
+  const [grammarOpen, setGrammarOpen] = useState(false);
   const meaning =
     typeof row.fields['translation'] === 'string'
       ? row.fields['translation']
@@ -1153,25 +1305,35 @@ function PreviewRow({
         </span>
       ) : undefined}
       {noteType === 'vocab' && !!row.fields['grammar'] && (
-        <Disclosure quiet className="w-full" title={t('note.section.grammar')}>
-          <dl className="grid grid-cols-2 gap-12 text-13 text-secondary">
-            {PRACTICE_FIELDS.filter(
-              (field) =>
-                field.startsWith('grammar.') && practiceValue(row.fields, field) !== undefined,
-            ).map((field) => {
-              const value = practiceValue(row.fields, field);
-              return (
-                <div key={field}>
-                  <dt className="text-12 text-secondary">{t(practiceFieldLabel(field))}</dt>
-                  <dd className="whitespace-pre-line text-primary">
-                    {typeof value === 'boolean' ? t(value ? 'practice.yes' : 'practice.no') : value}
-                  </dd>
-                </div>
-              );
-            })}
-          </dl>
+        <Disclosure
+          quiet
+          className="w-full"
+          title={t('note.section.grammar')}
+          open={grammarOpen}
+          onOpenChange={setGrammarOpen}
+        >
+          {grammarOpen ? (
+            <dl className="grid grid-cols-2 gap-12 text-13 text-secondary">
+              {PRACTICE_FIELDS.filter(
+                (field) =>
+                  field.startsWith('grammar.') && practiceValue(row.fields, field) !== undefined,
+              ).map((field) => {
+                const value = practiceValue(row.fields, field);
+                return (
+                  <div key={field}>
+                    <dt className="text-12 text-secondary">{t(practiceFieldLabel(field))}</dt>
+                    <dd className="whitespace-pre-line text-primary">
+                      {typeof value === 'boolean'
+                        ? t(value ? 'practice.yes' : 'practice.no')
+                        : value}
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          ) : undefined}
         </Disclosure>
       )}
     </div>
   );
-}
+});
