@@ -136,7 +136,8 @@
   --type-learning-long: clamp(26px, 6vw, 40px);
   --type-learning-longer: clamp(20px, 4.8vw, 30px);
   --dur-learning: 340ms;
-  --dur-completion: 340ms;
+  /* The Practice completion count only. Long enough to read the count, never gating controls. */
+  --dur-completion: 720ms;
   --dur-4: 340ms; /* a sheet rising */
 
   /*

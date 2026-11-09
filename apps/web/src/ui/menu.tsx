@@ -3,7 +3,7 @@ import { MoreHorizontal } from 'lucide-react';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 
-import { NAVIGATION_EVENT } from '../lib/interactions';
+import { BACKGROUND_EVENT, NAVIGATION_EVENT } from '../lib/interactions';
 
 import type { ReactNode } from 'react';
 
@@ -46,7 +46,11 @@ export function Menu({
   useEffect(() => {
     const close = () => setOpen(false);
     window.addEventListener(NAVIGATION_EVENT, close);
-    return () => window.removeEventListener(NAVIGATION_EVENT, close);
+    window.addEventListener(BACKGROUND_EVENT, close);
+    return () => {
+      window.removeEventListener(NAVIGATION_EVENT, close);
+      window.removeEventListener(BACKGROUND_EVENT, close);
+    };
   }, []);
   return (
     <CloseMenu.Provider value={() => flushSync(() => setOpen(false))}>
