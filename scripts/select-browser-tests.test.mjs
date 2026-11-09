@@ -60,6 +60,8 @@ for (const path of [
   '.github/workflows/browser-interaction.yml',
   'scripts/browser-gate.mjs',
   'scripts/browser-gate.test.mjs',
+  'scripts/shard-browser-tests.mjs',
+  'scripts/shard-browser-tests.test.mjs',
 ]) {
   test(`${path} exercises the complete browser gate`, () => {
     assert.deepEqual(selectBrowserTests([path]), { full: true, visual: true, files: [] });
