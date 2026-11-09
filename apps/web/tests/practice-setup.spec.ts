@@ -89,8 +89,14 @@ test('Known progress persists across rounds, resume, Undo and eligible membershi
   await expect(progress).toHaveAttribute('aria-valuenow', '25');
   await expect(page.getByRole('button', { name: 'Undo last answer', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
-  // The entry retains classified semantics independently of the active bar.
-  await expect(page.getByText('4 / 4 classified', { exact: true })).toBeVisible();
+  // Every Note was answered, but only one is Known: the entry counts Known as
+  // progress and says what is still being learned, never "4 / 4".
+  await expect(page.getByText('1 of 4 known', { exact: true })).toBeVisible();
+  await expect(page.getByText('3 still learning', { exact: true })).toBeVisible();
+  await expect(page.getByRole('progressbar', { name: 'Known Notes' })).toHaveAttribute(
+    'aria-valuenow',
+    '25',
+  );
   await page.getByRole('button', { name: 'Resume practice', exact: true }).click();
   await expect(progress).toHaveAttribute('aria-valuenow', '25');
   pool = pool.slice(1);
@@ -468,7 +474,8 @@ test('Practice keeps setup accessible, resumes exactly, and confirms a changed r
   await expect(page.getByText('Baum', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Practice setup', exact: true })).toBeVisible();
-  await expect(page.getByText('1 / 2 classified', { exact: true })).toBeVisible();
+  await expect(page.getByText('1 of 2 known', { exact: true })).toBeVisible();
+  await expect(page.getByText('1 not practiced yet', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('practice-entry.png'), animations: 'disabled' });
   await page.getByRole('button', { name: /Resume practice/ }).click();
   await expect(page.getByText('Baum', { exact: true })).toBeVisible();
