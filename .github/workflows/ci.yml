@@ -154,6 +154,11 @@ jobs:
       # own beside the one the application role is configured for. The roles
       # exist first, with the passwords these connection strings carry; the
       # migrations then only grant to them.
+      # The tests import the compiled workspace packages. The old serial job got
+      # them as a side effect of typecheck, which builds dependencies first.
+      - name: Build workspace packages
+        run: pnpm --filter "@neuron/api^..." build
+
       - name: Prepare the test database
         run: |
           psql postgresql://postgres:postgres@localhost:5432/neuron -v ON_ERROR_STOP=1 \
@@ -215,6 +220,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # The tests import the compiled workspace packages. The old serial job got
+      # them as a side effect of typecheck, which builds dependencies first.
+      - name: Build workspace packages
+        run: pnpm --filter "@neuron/api^..." build
 
       - name: Prepare the roles
         run: |
@@ -302,6 +312,7 @@ jobs:
           SYNC_CHAOS_DISPOSABLE_DB: 'true'
           DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/neuron_test
           DATABASE_URL: postgresql://neuron_app:runtimeapp123@postgres:5432/neuron
+          DATABASE_URL_AUTH: postgresql://neuron_auth:runtimeauth123@postgres:5432/neuron
           DATABASE_URL_TEST_WS_PROXY: localhost:5433/v1
 
       - name: Keep sync chaos failure evidence
