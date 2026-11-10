@@ -427,6 +427,9 @@ const routeTree = rootRoute.addChildren([
 
 export const router = createRouter({
   routeTree,
+  // A link's screen starts loading on hover or touch, not on release, so the
+  // tap that follows commits without waiting for the module.
+  defaultPreload: 'intent',
   // Restore by history entry after the route commit. Native automatic restore
   // can run before an async module finishes, then be overwritten by route reset.
   scrollRestoration: true,
