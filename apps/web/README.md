@@ -15,7 +15,10 @@ absolute url to the api.
 ## Deployment
 
 The Vercel project `neuron-web` in the `parkour-clan` team, connected to GitHub, so every push to `main`
-deploys `https://neuron-web-parkour-clan.vercel.app`. The settings as configured in Vercel:
+deploys `https://neuron-learn.vercel.app`. The original `https://neuron-web-parkour-clan.vercel.app`
+still serves the same deployment, and `APP_ORIGIN` on `neuron-api` lists the new address first and
+keeps the old one, so a device that installed the app from it keeps working. The settings as
+configured in Vercel:
 
 | Setting          | Value            |
 | ---------------- | ---------------- |

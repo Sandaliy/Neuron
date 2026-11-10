@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-10 (#97 merged; #98 and #100 open).
+Last updated: 2026-11-11 (#97, #98 and #100 merged; production at `neuron-learn.vercel.app`).
 
 ## Release
 
@@ -118,24 +118,23 @@ installed-iPhone acceptance.
 
 ## Next
 
-Open pull requests:
+Merged and deployed on 2026-11-10: #98 (the tab pill moves on the press, tab screens preload, and an
+iPhone edge-swipe Back no longer plays the app's own slide over Safari's; the swipe still needs a real
+iPhone) and #100 (one page header, one Library search with four entries, a Deck options menu, and Note
+rows with word and meaning first and place and day on one quieter line; approved by the owner).
 
-- #98, tab bar and swipe Back: the tab pill moves on the press, tab screens preload, and an iPhone
-  edge-swipe Back no longer plays the app's own slide over Safari's. Green and set to merge itself;
-  every merge to `main` puts it behind again, and the swipe fix still needs a real iPhone.
-- #100, one header and a simpler Library: shared page header, one Library search with four entries,
-  a Deck options menu, and Note rows that carry place and date in the row (word and meaning first,
-  place and day on one quieter line). Not merged until the owner approves the look; the shared
-  header and the stronger meaning colour in rows are part of that approval.
+Production moved to `https://neuron-learn.vercel.app`, a free Vercel address added to `neuron-web`.
+`APP_ORIGIN` on `neuron-api` lists it first and keeps `https://neuron-web-parkour-clan.vercel.app`
+and the preview pattern, so both addresses sign in. An installed iPhone app belongs to the address it
+was installed from: its downloads and unsent offline work stay there, so the owner moves once nothing
+is waiting in Settings > Offline & sync. No redirect from the old address until then.
 
-After those, in order: Deck languages (a target and a translation language required on new Decks,
-online and offline, with a backward-compatible offline creation format and a path for existing Decks;
-this is also the prerequisite for additional translations in `ROADMAP.md`); plainer Offline & sync and
-Export copy in Settings; the wider Import screen (keeping progress, retry, recovery, Undo and offline
-drafts); the logo (the owner chose an N built from dots; the original reference is needed before
-refining it, and nothing ships without approval); the custom domain (needs Vercel access: add it to
-`neuron-web`, then put it first in `APP_ORIGIN` on `neuron-api` and keep the old address until sign-in,
-cookies and the PWA are verified on it).
+In progress, each on its own branch and each waiting for owner approval before anything visible
+merges: the "Rising dots" logo with app icons and refreshed README images; Deck languages (a target
+and a translation language required on new Decks, online and offline, with a backward-compatible
+offline creation format and a path for existing Decks; the prerequisite for additional translations
+in `ROADMAP.md`); plainer Offline & sync and Export copy in Settings, then the wider Import screen
+(keeping progress, retry, recovery, Undo and offline drafts).
 
 The release backlog is integrated: Session recovery (#94), Progressive directions (#86), Slipping
 Cards (#87), Account export (#71) and Import hardening (#74) are on protected `main`, deployed, with
