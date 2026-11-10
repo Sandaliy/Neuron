@@ -372,7 +372,7 @@ every one of these in every state.
 | `theme/use-theme.ts`                              | The theme as a device preference, and the hook that reads it                                      |
 | `styles/global.css`                               | Tailwind wired to the tokens, the glass primitive, the keyframes, the control craft               |
 | `vercel.ts`                                       | Same-origin api rewrites for production, preview branches, and local Vercel builds                |
-| `scripts/icons.mjs`                               | Draws the icons in `public/` from the same tokens                                                 |
+| `scripts/icons.mjs`                               | Draws the logo in `public/`: icon, favicon and home-screen PNGs, from the `--logo-*` tokens       |
 
 ### The gallery and the browser tests
 

@@ -43,7 +43,8 @@ export default defineConfig({
               .filter((file) => !file.endsWith('.map'))
               .map((file) => `/${file}`),
             '/manifest.webmanifest',
-            '/icon.svg',
+            '/favicon.svg',
+            '/apple-touch-icon.png',
             '/icon-192.png',
             '/icon-512.png',
           ];

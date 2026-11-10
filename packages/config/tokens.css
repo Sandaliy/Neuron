@@ -79,6 +79,18 @@
    */
   --raw-white: #ffffff;
 
+  /*
+   * The logo: a letter N whose diagonal is a chain of dots, ending in a blue
+   * dot at the foot of the right stem. apps/web/scripts/icons.mjs draws the
+   * app icon and the favicon from these three. The icon sits on home screens
+   * and browser tabs of either theme, so its colours do not follow the theme,
+   * and its blue is brighter than the interface accent so the dot still reads
+   * at sixteen pixels. Nothing in the interface uses them.
+   */
+  --logo-tile: #0b0b0c;
+  --logo-ink: #ececef;
+  --logo-dot: #4d7fe8;
+
   /* Spacing, 4px base. */
   --u-1: 4px;
   --u-2: 8px;

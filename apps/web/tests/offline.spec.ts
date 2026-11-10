@@ -487,9 +487,14 @@ for (const [interrupted, onlineHint, stalled] of [
       }
       const asset =
         pathname.startsWith('/assets/') ||
-        ['/sw.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'].includes(
-          pathname,
-        )
+        [
+          '/sw.js',
+          '/manifest.webmanifest',
+          '/favicon.svg',
+          '/apple-touch-icon.png',
+          '/icon-192.png',
+          '/icon-512.png',
+        ].includes(pathname)
           ? pathname.slice(1)
           : 'index.html';
       try {
@@ -1643,9 +1648,14 @@ test('offline PWA shell reload and reopening retain collection; API responses ar
     }
     const asset =
       url.pathname.startsWith('/assets/') ||
-      ['/sw.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'].includes(
-        url.pathname,
-      )
+      [
+        '/sw.js',
+        '/manifest.webmanifest',
+        '/favicon.svg',
+        '/apple-touch-icon.png',
+        '/icon-192.png',
+        '/icon-512.png',
+      ].includes(url.pathname)
         ? url.pathname.slice(1)
         : 'index.html';
     try {

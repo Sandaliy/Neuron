@@ -107,6 +107,22 @@ Motion: **`--dur-1` 90ms** a control changing state, **`--dur-2` 160ms** a revea
 `ease-enter` arrives and settles, `ease-exit` leaves quickly, `ease-inout` changes on the spot,
 `ease-inout` also governs switch knobs and travelling selection pills, without overshoot.
 
+### The logo
+
+A letter N whose diagonal is a chain of three off-white dots that grow as they fall, ending in a blue
+dot at the foot of the right stem. `apps/web/scripts/icons.mjs` draws every copy from one description
+and the three `--logo-*` tokens, so nothing in `apps/web/public/` is edited by hand: run
+`pnpm --filter @neuron/web icons` and commit the output.
+
+- `icon.svg` and the PNGs (192 and 512 for the manifest, 180 for the iPhone home screen) are the full
+  mark. The PNGs are full-bleed squares because iOS and Android cut their own corners, and the mark
+  stays inside the central circle of 80 percent that a maskable icon may be cropped to.
+- `favicon.svg` is the browser tab. It is drawn on a 16 unit grid with stems two pixels wide and a blue
+  dot four pixels across, because the full mark's thin stems and separate dots blur together at 16
+  pixels.
+- The logo keeps its colours in both themes, and its blue is brighter than the interface accent so the
+  dot still reads at tab size. The interface uses none of the three.
+
 ---
 
 ## Typography
