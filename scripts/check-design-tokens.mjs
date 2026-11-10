@@ -93,7 +93,7 @@ const ALLOWED_IN_BRACKETS = [
 const RAW_DURATION = /\bduration-(?:\[[^\]]*\]|\d+)\b|\b\d+ms\b/;
 
 /** The raw layer, which a component may not reach into. */
-const RAW_TOKEN = /var\(\s*(--(?:n|p|a|sig|u|rad|t|lh|tr|w|dur|ease|g|raw)-[\w-]+)/;
+const RAW_TOKEN = /var\(\s*(--(?:n|p|a|sig|u|rad|t|lh|tr|w|dur|ease|g|raw|logo)-[\w-]+)/;
 
 /** Every file worth reading, recursively. */
 function walk(directory) {

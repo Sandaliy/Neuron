@@ -15,9 +15,14 @@ const contentTypes: Record<string, string> = {
 export async function builtShell(pathname: string): Promise<Response> {
   const asset =
     pathname.startsWith('/assets/') ||
-    ['/sw.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'].includes(
-      pathname,
-    )
+    [
+      '/sw.js',
+      '/manifest.webmanifest',
+      '/favicon.svg',
+      '/apple-touch-icon.png',
+      '/icon-192.png',
+      '/icon-512.png',
+    ].includes(pathname)
       ? pathname.slice(1)
       : 'index.html';
   try {

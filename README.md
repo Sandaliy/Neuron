@@ -26,7 +26,7 @@
   <a href="docs/images/today-mobile.jpg"><img src="docs/images/today-mobile.jpg" width="23%" alt="Daily plan on iPhone: review counts, estimated time and study decks"></a>
   <a href="docs/images/study-mobile.jpg"><img src="docs/images/study-mobile.jpg" width="23%" alt="Recognition review on iPhone: German word, revealed meaning and four ratings"></a>
   <a href="docs/images/practice-mobile.jpg"><img src="docs/images/practice-mobile.jpg" width="23%" alt="Typing practice on iPhone with answer feedback"></a>
-  <a href="docs/images/library-mobile.jpg"><img src="docs/images/library-mobile.jpg" width="23%" alt="Library on iPhone with an expanded German folder containing three vocabulary decks"></a>
+  <a href="docs/images/library-mobile.jpg"><img src="docs/images/library-mobile.jpg" width="23%" alt="Library on iPhone: search, shortcuts to Recent, Tags &amp; Sources, Checks and Deleted, and an open German folder holding a subfolder and a deck"></a>
 </p>
 
 <p align="center">

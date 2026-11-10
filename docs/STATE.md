@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-11 (#97, #98 and #100 merged; production at `neuron-learn.vercel.app`).
+Last updated: 2026-11-11 (#97, #98, #100 and #102 merged; production at `neuron-learn.vercel.app`).
 
 ## Release
 
@@ -81,6 +81,9 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   setup or loses its key, and setup offers an "Open in an authenticator app" link. The Practice card
   counts Known as progress ("7 of 12 known", "5 still learning") instead of "12 / 12 classified", and
   keeps its height while the saved summary loads, so a Deck never practised shows a blank line there.
+- Logo (#102): the Rising dots N the owner chose on 2026-11-10 is the app icon, the 180 px iPhone
+  home-screen icon, a 16 px grid favicon and the README header, all drawn by `scripts/icons.mjs` from
+  the `--logo-*` tokens. See "The logo" in `design-system.md`.
 
 Recent Notes (#81) adds Recently added (`createdAt`) and Recently changed (`updatedAt`) to Library's
 existing Note browser, with dates, locations, filters and editor return. Migration 0019 adds read indexes
