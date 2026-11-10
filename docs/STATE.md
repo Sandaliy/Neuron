@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-09 (release backlog integrated at `fc49ad4`).
+Last updated: 2026-11-11 (#97, #98 and #100 merged; production at `neuron-learn.vercel.app`).
 
 ## Release
 
@@ -77,6 +77,10 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   bounded revisions. Exact retries after a lost response change nothing, fill-blank merges commit a
   receipt with the edit, and Undo publishes tombstones in bounded revisions without touching Reviews.
   See `import-performance.md`.
+- Two-factor setup and Practice progress (#97): switching to an authenticator app no longer closes
+  setup or loses its key, and setup offers an "Open in an authenticator app" link. The Practice card
+  counts Known as progress ("7 of 12 known", "5 still learning") instead of "12 / 12 classified", and
+  keeps its height while the saved summary loads, so a Deck never practised shows a blank line there.
 
 Recent Notes (#81) adds Recently added (`createdAt`) and Recently changed (`updatedAt`) to Library's
 existing Note browser, with dates, locations, filters and editor return. Migration 0019 adds read indexes
@@ -113,6 +117,24 @@ installed-iPhone acceptance.
 | #59 | This file, the browser test index, `test:screens:ci`.                                                                                                                                                                                                                                                                                                 |
 
 ## Next
+
+Merged and deployed on 2026-11-10: #98 (the tab pill moves on the press, tab screens preload, and an
+iPhone edge-swipe Back no longer plays the app's own slide over Safari's; the swipe still needs a real
+iPhone) and #100 (one page header, one Library search with four entries, a Deck options menu, and Note
+rows with word and meaning first and place and day on one quieter line; approved by the owner).
+
+Production moved to `https://neuron-learn.vercel.app`, a free Vercel address added to `neuron-web`.
+`APP_ORIGIN` on `neuron-api` lists it first and keeps `https://neuron-web-parkour-clan.vercel.app`
+and the preview pattern, so both addresses sign in. An installed iPhone app belongs to the address it
+was installed from: its downloads and unsent offline work stay there, so the owner moves once nothing
+is waiting in Settings > Offline & sync. No redirect from the old address until then.
+
+In progress, each on its own branch and each waiting for owner approval before anything visible
+merges: the "Rising dots" logo with app icons and refreshed README images; Deck languages (a target
+and a translation language required on new Decks, online and offline, with a backward-compatible
+offline creation format and a path for existing Decks; the prerequisite for additional translations
+in `ROADMAP.md`); plainer Offline & sync and Export copy in Settings, then the wider Import screen
+(keeping progress, retry, recovery, Undo and offline drafts).
 
 The release backlog is integrated: Session recovery (#94), Progressive directions (#86), Slipping
 Cards (#87), Account export (#71) and Import hardening (#74) are on protected `main`, deployed, with
@@ -162,6 +184,12 @@ dropping checks; see "The five-minute CI budget" in `apps/web/tests/README.md`.
   the Note is not in triage until the server has it. Reconnect: both arrive once.
 
 ## Open threads
+
+- GitHub's repository sidebar still lists a second contributor (checked 2026-11-10). None of the 146
+  commits on `main` has another author, committer or co-author line, and the contributors API lists
+  only the owner, so the sidebar is a stale cache from before the #86/#87 rewrite (see
+  `integration-status.md`). History needs no further rewrite; if the entry stays, GitHub Support can
+  refresh it.
 
 - Account export (#71) excludes device-only work and has no import or restore path. A real
   mid-stream session expiry and a 67.7 MB synthetic archive streamed correctly from PostgreSQL;

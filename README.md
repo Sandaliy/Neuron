@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://neuron-web-parkour-clan.vercel.app"><strong>Open Neuron</strong></a>
+  <a href="https://neuron-learn.vercel.app"><strong>Open Neuron</strong></a>
   &nbsp; · &nbsp; <a href="#features">Features</a>
   &nbsp; · &nbsp; <a href="#how-it-works">How it works</a>
   &nbsp; · &nbsp; <a href="#running-locally-and-tests">Run locally</a>
