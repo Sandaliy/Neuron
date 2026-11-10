@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { uuidV7 } from '@neuron/shared';
 import type { DeckNode, SavedDeckCreation } from '@neuron/shared';
 
-import { overlayDeckCreations, validateDeckCreations } from './deck-creation';
+import { ApiFailure } from './api';
+import { overlayDeckCreations, validateDeckCreations, versionSkew } from './deck-creation';
 
 const accountId = 'device-owner';
 const folder: DeckNode = {
@@ -108,5 +109,44 @@ describe('Library-only saved collection projection', () => {
         accountId,
       ),
     ).toThrow();
+  });
+});
+
+describe('a new deck saved on the device with its languages', () => {
+  const withLanguages = (): SavedDeckCreation => {
+    const saved = entry();
+    return {
+      ...saved,
+      payload: { ...saved.payload, settings: { targetLanguage: 'fr', nativeLanguage: 'en' } },
+    };
+  };
+
+  it('shows its own languages in Library, over what its folder says', () => {
+    const tree = overlayDeckCreations([folder], [withLanguages()], 3);
+
+    expect(tree[0]?.children[0]?.settings).toEqual({ targetLanguage: 'fr', nativeLanguage: 'en' });
+  });
+
+  it('reads records from before languages and records with them side by side', () => {
+    expect(validateDeckCreations([entry(), withLanguages()], accountId)).toHaveLength(2);
+    expect(() =>
+      validateDeckCreations(
+        [{ ...withLanguages(), payload: { ...withLanguages().payload, kind: 'folder' } }],
+        accountId,
+      ),
+    ).toThrow();
+  });
+
+  it('waits for the api that understands languages instead of being marked refused', () => {
+    const refused = (status: number, code: 'invalid_request' | 'not_found') =>
+      new ApiFailure({ status, code, correlationId: 'test' });
+
+    // The previous api refuses the field it does not know: wait and retry.
+    expect(versionSkew(refused(400, 'invalid_request'), withLanguages())).toBe(true);
+    // A creation without languages was never sent to an api that refuses them.
+    expect(versionSkew(refused(400, 'invalid_request'), entry())).toBe(false);
+    // Any other refusal keeps its meaning.
+    expect(versionSkew(refused(404, 'not_found'), withLanguages())).toBe(false);
+    expect(versionSkew(new Error('offline'), withLanguages())).toBe(false);
   });
 });

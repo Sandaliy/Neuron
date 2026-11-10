@@ -1,7 +1,12 @@
 const locale = 'en';
 import { expect, test } from '@playwright/test';
 
-import { manyNotes, useFixtures as stubApi, usePreferences as setPreferences } from './fixtures';
+import {
+  chooseDeckLanguages,
+  manyNotes,
+  useFixtures as stubApi,
+  usePreferences as setPreferences,
+} from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -531,9 +536,14 @@ test('creation sends the kind and moves offer only folders', async ({ page }) =>
     await page.getByRole('button', { name: `New ${kind}`, exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Name', { exact: true }).fill(`New ${kind}`);
+    if (kind === 'deck') await chooseDeckLanguages(dialog);
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(dialog).toHaveCount(0);
     expect(created.at(-1)).toMatchObject({ kind, parentId: null });
+    // A deck carries its two languages; a folder carries none.
+    expect(created.at(-1)?.['settings']).toEqual(
+      kind === 'deck' ? { targetLanguage: 'de', nativeLanguage: 'ru' } : undefined,
+    );
   }
   await page.getByRole('button', { name: 'Actions for Oxford 5000' }).click();
   await expect(page.getByRole('menuitem', { name: 'New deck', exact: true })).toHaveCount(0);

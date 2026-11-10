@@ -1,8 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 
-import { resolveDeckSettings, uuidV7 } from '@neuron/shared';
-import type { Deck, DeckNode, DeckSettings, ResolvedDeckSettings } from '@neuron/shared';
+import { deckLanguagesSchema, resolveDeckSettings, uuidV7 } from '@neuron/shared';
+import type {
+  Deck,
+  DeckLanguages,
+  DeckNode,
+  DeckSettings,
+  ResolvedDeckSettings,
+} from '@neuron/shared';
 
 import { request } from './api';
 import { renames, renameOverlay, saveRename } from './collection-outbox';
@@ -197,12 +203,19 @@ export function useDeckActions() {
       name: string;
       parentId: string | null;
       kind: 'folder' | 'deck';
+      /** Required for a deck, never sent for a folder. */
+      languages?: Partial<DeckLanguages>;
       owner: { accountId: string | null; epoch: number };
       observedAncestors: readonly Deck[];
     }) => {
       const active = () =>
         owner.accountId === offlineState().accountId && owner.epoch === accountEpoch();
       if (!active()) throw new Error('collection_account_changed');
+      // A new deck is never made without both languages, online or offline.
+      const languages =
+        input.kind === 'deck' ? deckLanguagesSchema.safeParse(input.languages) : undefined;
+      if (languages && !languages.success) throw new Error('collection_create_languages');
+      const settings = languages?.data;
       const state = offlineState();
       if (state.available || state.offline || !state.validated) {
         try {
@@ -214,7 +227,13 @@ export function useDeckActions() {
           ) {
             const saved = await saveDeckCreation(
               owner,
-              { entityId: uuidV7(), name: input.name, kind: input.kind, parentId: input.parentId },
+              {
+                entityId: uuidV7(),
+                name: input.name,
+                kind: input.kind,
+                parentId: input.parentId,
+                ...(settings === undefined ? {} : { settings }),
+              },
               input.observedAncestors,
             );
             return { saved };
@@ -233,7 +252,13 @@ export function useDeckActions() {
         method: 'POST',
         // The id is generated here rather than by the server, so that a retry
         // after a timeout that actually landed does not make a second deck.
-        body: { id: uuidV7(), name: input.name, kind: input.kind, parentId: input.parentId },
+        body: {
+          id: uuidV7(),
+          name: input.name,
+          kind: input.kind,
+          parentId: input.parentId,
+          ...(settings === undefined ? {} : { settings }),
+        },
       });
     },
     onSuccess: (response) => {

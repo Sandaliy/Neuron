@@ -86,6 +86,54 @@ test.describe('the dialogs, on a phone', () => {
 });
 
 /**
+ * A new deck asks for a name and its two languages, and the dialog that sets
+ * an older deck's languages asks for those two. Both fit a phone whole, and
+ * with the keyboard up for the name the field and Create are still on screen.
+ */
+test.describe('the deck language dialogs, on a phone', () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  for (const locale of LOCALES) {
+    test(`fit whole in ${locale.code}`, async ({ page }) => {
+      await usePreferences(page, { theme: 'dark', locale: locale.code });
+      await useFixtures(page, { collectionDownload: false });
+      await page.route('**/api/decks/d3/practice', (route) =>
+        route.fulfill({ json: { run: null, version: 0 } }),
+      );
+      await page.goto('/library');
+      await page.getByRole('button', { name: 'New deck', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'New deck' });
+      await expect(dialog.getByLabel('Translation language', { exact: true })).toBeVisible();
+      await fitsWhole(page, 'new deck');
+
+      const name = dialog.getByLabel('Name', { exact: true });
+      await name.focus();
+      await page.evaluate(() => {
+        // About what an iPhone keyboard with its suggestion bar covers.
+        Object.defineProperty(visualViewport, 'height', {
+          configurable: true,
+          value: innerHeight - 336,
+        });
+        visualViewport!.dispatchEvent(new Event('resize'));
+      });
+      const band = 812 - 336;
+      for (const part of [name, dialog.getByRole('button', { name: 'Create', exact: true })]) {
+        const box = await part.boundingBox();
+        expect(box, 'with the keyboard up').not.toBeNull();
+        expect(box!.y).toBeGreaterThanOrEqual(0);
+        expect(box!.y + box!.height, 'above the keyboard').toBeLessThanOrEqual(band);
+      }
+      await page.reload();
+
+      await page.goto('/notes?deckId=d3');
+      await page.getByRole('button', { name: 'Set languages', exact: true }).click();
+      await expect(page.getByRole('dialog', { name: 'Deck languages' })).toBeVisible();
+      await fitsWhole(page, 'deck languages');
+    });
+  }
+});
+
+/**
  * Setting up the second factor on one phone means leaving Neuron for the
  * authenticator app with the setup key, and coming back for the code. Leaving
  * used to close the dialog, so the key on screen was gone by the time the

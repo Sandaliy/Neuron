@@ -4,7 +4,11 @@ import path from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { useFixtures as installFixtures, usePreferences as installPreferences } from './fixtures';
+import {
+  chooseDeckLanguages,
+  useFixtures as installFixtures,
+  usePreferences as installPreferences,
+} from './fixtures';
 import {
   installInteractionMetrics,
   startInteractionMetrics,
@@ -848,6 +852,7 @@ test('a false offline hint cannot overrule a freshly accepted server session', a
   });
   await page.getByRole('button', { name: 'New deck', exact: true }).click();
   await page.getByRole('dialog').getByLabel('Name', { exact: true }).fill('Connection checked');
+  await chooseDeckLanguages(page.getByRole('dialog'));
   await page.getByRole('dialog').getByRole('button', { name: 'Create', exact: true }).click();
   await expect.poll(() => created).toBe(true);
   await expect(page.getByRole('dialog')).toHaveCount(0);

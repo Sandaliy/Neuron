@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import type { Deck, DeckNode, DeckSettings } from '@neuron/shared';
+import type { Deck, DeckLanguages, DeckNode, DeckSettings } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
@@ -23,7 +23,13 @@ import {
   deckCreationsQueryKey,
   overlayDeckCreations,
 } from '../../lib/deck-creation';
-import { creationAncestors, findDeck, useDeckActions, useDeckTree } from '../../lib/decks';
+import {
+  creationAncestors,
+  findDeck,
+  settingsFor,
+  useDeckActions,
+  useDeckTree,
+} from '../../lib/decks';
 import { accountEpoch, useOffline } from '../../lib/offline';
 import { STORAGE_KEYS, read, write } from '../../lib/storage';
 import { Button } from '../../ui/button';
@@ -249,7 +255,7 @@ export function LibraryScreen() {
           state={dialog}
           decks={decks.data ?? []}
           onClose={() => setDialog({ kind: 'none' })}
-          onCreate={async (parentId, name, kind) => {
+          onCreate={async (parentId, name, kind, languages) => {
             if (parentId && findDeck(tree, parentId)?.rev === 0) {
               toast.show(t('offline.collection.dependencies'));
               return;
@@ -258,6 +264,7 @@ export function LibraryScreen() {
               name,
               parentId,
               kind,
+              ...(languages === undefined ? {} : { languages }),
               owner: { accountId: offline.accountId, epoch: accountEpoch() },
               observedAncestors: dialog.kind === 'create' ? (dialog.observedAncestors ?? []) : [],
             });
@@ -633,7 +640,12 @@ function DeckDialogs({
   readonly state: DialogState;
   readonly decks: readonly DeckNode[];
   readonly onClose: () => void;
-  readonly onCreate: (parentId: string | null, name: string, kind: 'folder' | 'deck') => void;
+  readonly onCreate: (
+    parentId: string | null,
+    name: string,
+    kind: 'folder' | 'deck',
+    languages?: DeckLanguages,
+  ) => void;
   readonly onRename: (deck: DeckNode, name: string) => void;
   readonly onMove: (deck: DeckNode, parentId: string | null) => void;
   readonly onSaveSettings: (deck: DeckNode, settings: DeckSettings) => void;
@@ -655,13 +667,19 @@ function DeckDialogs({
             : 'library.newDeck',
         )}
         submitLabel={t('library.createSubmit')}
+        languages={
+          state.kind === 'create' && state.collectionKind === 'deck'
+            ? folderLanguages(decks, state.parentId)
+            : undefined
+        }
         busy={busy}
         error={createError}
-        onSubmit={(name) =>
+        onSubmit={(name, languages) =>
           onCreate(
             state.kind === 'create' ? state.parentId : null,
             name,
             state.kind === 'create' ? state.collectionKind : 'deck',
+            languages,
           )
         }
       />
@@ -708,6 +726,23 @@ function DeckDialogs({
       ) : undefined}
     </>
   );
+}
+
+/**
+ * What a new deck's language choices start at: whatever its folder resolves.
+ *
+ * At the top level, or in a folder with no languages, both start empty.
+ */
+function folderLanguages(
+  decks: readonly DeckNode[],
+  parentId: string | null,
+): Partial<DeckLanguages> {
+  if (parentId === null) return {};
+  const { targetLanguage, nativeLanguage } = settingsFor(decks, parentId);
+  return {
+    ...(targetLanguage === undefined ? {} : { targetLanguage }),
+    ...(nativeLanguage === undefined ? {} : { nativeLanguage }),
+  };
 }
 
 function ConfirmDelete({

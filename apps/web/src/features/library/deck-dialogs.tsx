@@ -1,7 +1,14 @@
 import { Check } from 'lucide-react';
 
-import { CEFR_LEVELS, LANGUAGE_CODES } from '@neuron/shared';
-import type { CefrLevel, DeckNode, DeckSettings, LanguageCode, MessageKey } from '@neuron/shared';
+import { CEFR_LEVELS, LANGUAGE_CODES, deckLanguagesSchema } from '@neuron/shared';
+import type {
+  CefrLevel,
+  DeckLanguages,
+  DeckNode,
+  DeckSettings,
+  LanguageCode,
+  MessageKey,
+} from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { describe } from '../../lib/api';
@@ -26,13 +33,21 @@ import type { FormEvent } from 'react';
  * keyboard up, which `tests/dialogs.spec.ts` checks rather than trusts.
  */
 
-/** Naming a deck, whether it is new or being renamed. */
+/**
+ * Naming a deck, whether it is new or being renamed.
+ *
+ * A new deck also chooses its two languages here, so that it never exists
+ * without them. They arrive filled in from the folder it is made in when that
+ * folder has them, and stay empty otherwise: nothing is guessed, and Create
+ * waits until both are chosen.
+ */
 export function DeckNameDialog({
   open,
   onOpenChange,
   title,
   submitLabel,
   initialName = '',
+  languages,
   busy = false,
   error,
   onSubmit,
@@ -42,20 +57,29 @@ export function DeckNameDialog({
   readonly title: string;
   readonly submitLabel: string;
   readonly initialName?: string;
+  /** Present when a new deck is being made: what to start the two choices at. */
+  readonly languages?: Partial<DeckLanguages> | undefined;
   readonly busy?: boolean;
   readonly error?: unknown;
-  readonly onSubmit: (name: string) => void | Promise<void>;
+  readonly onSubmit: (name: string, languages?: DeckLanguages) => void | Promise<void>;
 }) {
   const t = useTranslate();
   // Refilled every time the dialog opens, so reopening it does not offer
   // whatever was half typed the time before.
   const [name, setName] = useDialogState(open, initialName);
+  const [chosen, setChosen] = useDialogState<Partial<DeckLanguages>>(open, languages ?? {});
+  // Fixed when the dialog opens, so the fields stay put while it closes.
+  const [withLanguages] = useDialogState(open, languages !== undefined);
+  const complete = deckLanguagesSchema.safeParse(chosen);
+  const ready = name.trim() !== '' && (!withLanguages || complete.success);
 
   function submit(event: FormEvent) {
     event.preventDefault();
 
-    if (!busy && name.trim() !== '') {
-      void Promise.resolve(onSubmit(name.trim())).catch(() => undefined);
+    if (!busy && ready) {
+      void Promise.resolve(onSubmit(name.trim(), withLanguages ? complete.data : undefined)).catch(
+        () => undefined,
+      );
     }
   }
 
@@ -78,16 +102,114 @@ export function DeckNameDialog({
               />
             )}
           </FormField>
+
+          {withLanguages && <LanguageChoices value={chosen} onChange={setChosen} />}
         </DialogBody>
 
         <DialogFooter>
-          <Button type="submit" variant="primary" full busy={busy} disabled={name.trim() === ''}>
+          <Button type="submit" variant="primary" full busy={busy} disabled={!ready}>
             {submitLabel}
           </Button>
         </DialogFooter>
       </form>
     </Dialog>
   );
+}
+
+/**
+ * Setting the two languages of a deck that does not have both.
+ *
+ * Decks made before languages were required can be missing one or both. This
+ * asks only for what a deck is about and saves both as the deck's own, which
+ * is what a new deck gets too. Nothing else in the deck changes.
+ */
+export function DeckLanguagesDialog({
+  open,
+  onOpenChange,
+  deck,
+  decks,
+  busy = false,
+  onSave,
+}: {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly deck: DeckNode;
+  readonly decks: readonly DeckNode[];
+  readonly busy?: boolean;
+  readonly onSave: (settings: DeckSettings) => void;
+}) {
+  const t = useTranslate();
+  const resolved = settingsFor(decks, deck.id);
+  const [chosen, setChosen] = useDialogState<Partial<DeckLanguages>>(open, {
+    ...(resolved.targetLanguage === undefined ? {} : { targetLanguage: resolved.targetLanguage }),
+    ...(resolved.nativeLanguage === undefined ? {} : { nativeLanguage: resolved.nativeLanguage }),
+  });
+  const complete = deckLanguagesSchema.safeParse(chosen);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('library.languagesTitle')}
+      description={t('library.languagesBody', { name: deck.name })}
+    >
+      <form
+        className={DIALOG_FORM}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!busy && complete.success) onSave({ ...deck.settings, ...complete.data });
+        }}
+      >
+        <DialogBody>
+          <LanguageChoices value={chosen} onChange={setChosen} />
+        </DialogBody>
+
+        <DialogFooter>
+          <Button type="submit" variant="primary" full busy={busy} disabled={!complete.success}>
+            {t('common.save')}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Dialog>
+  );
+}
+
+/**
+ * The two language choices a deck cannot do without.
+ *
+ * Each starts on a disabled "choose" entry when there is nothing to start from,
+ * so an empty choice can be seen but not picked back once a language is set.
+ */
+function LanguageChoices({
+  value,
+  onChange,
+}: {
+  readonly value: Partial<DeckLanguages>;
+  readonly onChange: (value: Partial<DeckLanguages>) => void;
+}) {
+  const t = useTranslate();
+
+  return (['targetLanguage', 'nativeLanguage'] as const).map((field) => (
+    <FormField key={field} label={t(`library.${field}`)}>
+      {(props) => (
+        <Select
+          {...props}
+          required
+          value={value[field] ?? ''}
+          onChange={(event) => onChange({ ...value, [field]: event.target.value as LanguageCode })}
+        >
+          <option value="" disabled>
+            {t('library.chooseLanguage')}
+          </option>
+          {LANGUAGE_CODES.map((code) => (
+            <option key={code} value={code}>
+              {t(`lang.${code}` as MessageKey)}
+            </option>
+          ))}
+        </Select>
+      )}
+    </FormField>
+  ));
 }
 
 /**
@@ -327,19 +449,23 @@ export function DeckSettingsDialog({
           </fieldset>
         )}
 
-        <LanguageField
-          label={t('library.targetLanguage')}
-          value={draft.targetLanguage}
-          inherited={inherited.targetLanguage}
-          onChange={(value) => setDraft({ ...draft, targetLanguage: value })}
-        />
-
-        <LanguageField
-          label={t('library.nativeLanguage')}
-          value={draft.nativeLanguage}
-          inherited={inherited.nativeLanguage}
-          onChange={(value) => setDraft({ ...draft, nativeLanguage: value })}
-        />
+        {(['targetLanguage', 'nativeLanguage'] as const).map((field) => (
+          <LanguageField
+            key={field}
+            label={t(`library.${field}`)}
+            value={draft[field]}
+            inherited={inherited[field]}
+            // A deck that knows a language keeps knowing it: with nothing to
+            // inherit, "not set" would take it away. A deck that never had one
+            // can still save its other settings without choosing.
+            unsettable={
+              deck.kind === 'folder' ||
+              inherited[field] !== undefined ||
+              deck.settings?.[field] === undefined
+            }
+            onChange={(value) => setDraft({ ...draft, [field]: value })}
+          />
+        ))}
 
         <FormField
           label={t('library.level')}
@@ -384,12 +510,14 @@ function LanguageField({
   label,
   value,
   inherited,
+  unsettable,
   onChange,
 }: {
   readonly label: string;
-  readonly path?: string;
   readonly value: LanguageCode | undefined;
   readonly inherited: LanguageCode | undefined;
+  /** Whether "not set" is offered at all. */
+  readonly unsettable: boolean;
   readonly onChange: (value: LanguageCode | undefined) => void;
 }) {
   const t = useTranslate();
@@ -409,7 +537,7 @@ function LanguageField({
             onChange(event.target.value === '' ? undefined : (event.target.value as LanguageCode))
           }
         >
-          <option value="">{t('library.notSet')}</option>
+          {unsettable && <option value="">{t('library.notSet')}</option>}
           {LANGUAGE_CODES.map((code) => (
             <option key={code} value={code}>
               {t(`lang.${code}` as MessageKey)}

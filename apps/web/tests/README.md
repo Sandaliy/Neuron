@@ -48,7 +48,7 @@ in `apps/api/src/routes/problem-cards.test.ts`. It also runs in mobile WebKit.
 | Today and Study setup                        | `today-setup.spec.ts`, `study-language.spec.ts`, `polish.spec.ts` (setup controls, focus halos, disclosure continuity)                                                                                          |
 | Study sittings, answers, Undo                | `study.spec.ts`, `rich-study.spec.ts` (typed, listening, directions, progressive direction status)                                                                                                              |
 | Practice                                     | `practice-setup.spec.ts`, `stabilization.spec.ts` (also grammar fields)                                                                                                                                         |
-| Library, Folders, Decks, Deleted             | `collection-integrity.spec.ts`, `library-polish.spec.ts`, `recovery-regressions.spec.ts`, `refinement.spec.ts` (creation feedback)                                                                              |
+| Library, Folders, Decks, Deleted             | `collection-integrity.spec.ts`, `library-polish.spec.ts`, `recovery-regressions.spec.ts`, `refinement.spec.ts` (creation feedback), `deck-languages.spec.ts` (required languages, older Decks)                  |
 | Notes and the editor                         | `note-list.spec.ts`, `note-conversion.spec.ts`, `grammar-stabilization.spec.ts`, `iphone-ux.spec.ts` (autosave, Known, restart)                                                                                 |
 | Import                                       | `import.spec.ts`                                                                                                                                                                                                |
 | Triage and learning waves                    | `triage.spec.ts`, `learning-waves.spec.ts` (both also WebKit), `performance.spec.ts` (tap latency at 5000), `screens.spec.ts`                                                                                   |
@@ -73,7 +73,8 @@ through Library, search, Notes and primary screens with 6,000 Notes, 60 Decks an
 
 `library-polish.spec.ts` also covers collection name search, collapsed descendants, duplicate names,
 full paths, keyboard focus and Back/scroll return over 2,500 collections. `offline-collections.spec.ts`
-covers downloaded search, pending identities, reconnection and account boundaries. `performance.spec.ts`
+covers downloaded search, pending identities, reconnection and account boundaries, and a Deck saved
+with its languages next to one an older app saved without them, through an api that refuses the field. `performance.spec.ts`
 measures collection search and virtual scrolling over 5,050 nested collections at 4x CPU slowdown.
 Tags & Sources is covered in `note-list.spec.ts` (exact filters, long values, category pagination and
 keyboard return), `offline-notes.spec.ts`, `offline-note-creation.spec.ts` and `offline.spec.ts`

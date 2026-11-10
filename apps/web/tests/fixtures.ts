@@ -2,9 +2,15 @@ import { expect } from '@playwright/test';
 
 import type { PracticeRecord } from '../src/lib/practice-outbox';
 import type { PendingReview } from '../src/lib/review-outbox';
-import type { Page, Route } from '@playwright/test';
+import type { Locator, Page, Route } from '@playwright/test';
 
 /** Read committed local intents independently of UI progress or recorded HTTP. */
+/** A new deck offers Create only once both of its languages are chosen. */
+export async function chooseDeckLanguages(dialog: Locator, target = 'de', translation = 'ru') {
+  await dialog.getByLabel('Language being learned', { exact: true }).selectOption(target);
+  await dialog.getByLabel('Translation language', { exact: true }).selectOption(translation);
+}
+
 export function storedStudyEvents(page: Page, accountId = 'user_1') {
   return page.evaluate(async (accountId) => {
     const opened = indexedDB.open(`neuron.collection:${accountId}`);
@@ -136,6 +142,19 @@ const DECKS = [
   ]),
   deck('d6', 'Русский', 12, 4, [deck('d7', 'Из книг', 12, 4)]),
 ];
+
+/** The default collection with some decks' own settings replaced, by id. */
+export function decksWithSettings(
+  settings: Record<string, Record<string, unknown>>,
+): Record<string, unknown>[] {
+  const apply = (rows: Record<string, unknown>[]): Record<string, unknown>[] =>
+    rows.map((row) => ({
+      ...row,
+      ...(settings[String(row['id'])] ? { settings: settings[String(row['id'])] } : {}),
+      children: apply(row['children'] as Record<string, unknown>[]),
+    }));
+  return apply(DECKS);
+}
 
 /** A collection big enough to be worth measuring a scroll on. */
 export function manyDecks(count: number): Record<string, unknown>[] {

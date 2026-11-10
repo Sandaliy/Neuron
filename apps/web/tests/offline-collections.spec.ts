@@ -8,7 +8,7 @@ import type {
   SavedDeckCreation,
 } from '@neuron/shared';
 
-import { useFixtures as installFixtures } from './fixtures';
+import { chooseDeckLanguages, useFixtures as installFixtures } from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -57,6 +57,7 @@ export async function createCollection(page: Page, name: string, kind: 'folder' 
     .getByRole('button', { name: kind === 'folder' ? 'New folder' : 'New deck', exact: true })
     .click();
   await page.getByRole('dialog').getByRole('textbox', { name: 'Name', exact: true }).fill(name);
+  if (kind === 'deck') await chooseDeckLanguages(page.getByRole('dialog'));
   await page.getByRole('dialog').getByRole('button', { name: 'Create', exact: true }).click();
 }
 
@@ -81,6 +82,8 @@ async function fixture(page: Page) {
     lose: false,
     badAck: false,
     hold: false,
+    /** Answers like the api of the release before languages: it refuses the field. */
+    skew: false,
     conflict: undefined as 'name_exists' | 'identity_exists' | undefined,
     revision: 1,
     rows: [folder] as Deck[],
@@ -151,6 +154,11 @@ async function fixture(page: Page) {
         },
       });
     if (state.offline || state.hold) return route.abort('connectionreset');
+    if (state.skew && input.settings !== undefined)
+      return route.fulfill({
+        status: 400,
+        json: { error: { code: 'invalid_request', status: 400, correlationId: 'older-api' } },
+      });
     let result = state.receipts.get(input.operationId);
     if (!result) {
       const unavailable = input.parentId && state.removed.has(input.parentId);
@@ -171,7 +179,7 @@ async function fixture(page: Page) {
           kind: input.kind,
           parentId: input.parentId,
           path: input.ancestors.map((row) => row.id),
-          settings: null,
+          settings: input.settings ?? null,
           position: state.rows.length,
           rev: ++state.revision,
           createdAt: date,
@@ -413,6 +421,109 @@ test('Folder and Deck creation survives reopening, retries exactly and blocks un
   await expect(page).toHaveURL(/\/notes\?deckId=/);
 });
 
+test('a Deck saved offline keeps both languages through an older api; an older saved creation still delivers', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await disconnect(page, state);
+  // Saved by an app from before languages: its command has none.
+  const legacy: SavedDeckCreation = {
+    version: 1,
+    accountId: owner,
+    payload: {
+      accountId: owner,
+      operationId: '01900000-0000-7000-8000-000000000921',
+      entityId: '01900000-0000-7000-8000-000000000920',
+      kind: 'deck',
+      name: 'Older app deck',
+      parentId: null,
+      ancestors: [],
+    },
+    ancestors: [],
+    createdAt: date,
+    position: 1,
+    state: 'pending',
+  };
+  await page.evaluate(
+    async ({ accountId, record }) => {
+      const opened = indexedDB.open(`neuron.collection:${accountId}`);
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        opened.onsuccess = () => resolve(opened.result);
+        opened.onerror = () => reject(opened.error);
+      });
+      try {
+        const tx = db.transaction('meta', 'readwrite');
+        tx.objectStore('meta').put(record, `deck-create:${record.payload.entityId}`);
+        await new Promise<void>((resolve, reject) => {
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      } finally {
+        db.close();
+      }
+    },
+    { accountId: owner, record: legacy },
+  );
+
+  await page.getByRole('button', { name: /^Downloaded folder/ }).click();
+  await page.getByRole('button', { name: 'New deck', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  // The folder knows German and nothing more, so only German is filled in.
+  await expect(dialog.getByLabel('Language being learned', { exact: true })).toHaveValue('de');
+  await expect(dialog.getByLabel('Translation language', { exact: true })).toHaveValue('');
+  await dialog.getByLabel('Name', { exact: true }).fill('Offline lesson');
+  await expect(dialog.getByRole('button', { name: 'Create', exact: true })).toBeDisabled();
+  await dialog.getByLabel('Translation language', { exact: true }).selectOption('ru');
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Offline lesson/ })).toBeVisible();
+  const created = (await savedCollections(page)).find(
+    (entry) => entry.payload.name === 'Offline lesson',
+  )!;
+  expect(created.payload.settings).toEqual({ targetLanguage: 'de', nativeLanguage: 'ru' });
+
+  // The web app can arrive before its api: the previous api refuses the new
+  // field. The deck waits instead of being marked refused.
+  state.skew = true;
+  await reconnect(page, state);
+  await expect
+    .poll(() => state.posted.filter((row) => row.settings !== undefined).length)
+    .toBeGreaterThanOrEqual(1);
+  const waiting = await savedCollections(page);
+  expect(waiting.find((entry) => entry.payload.name === 'Older app deck')?.state).toBe(
+    'synchronized',
+  );
+  expect(waiting.find((entry) => entry.payload.name === 'Offline lesson')?.state).toBe('pending');
+  state.skew = false;
+  await expect
+    .poll(async () => (await savedCollections(page)).map((entry) => entry.state), {
+      timeout: 20_000,
+    })
+    .toEqual(['synchronized', 'synchronized']);
+
+  // Every delivery sent exactly what was saved, and each deck exists once.
+  for (const entry of [legacy, created]) {
+    for (const row of state.posted.filter((sent) => sent.entityId === entry.payload.entityId))
+      expect(row).toEqual(entry.payload);
+    expect(state.rows.filter((row) => row.id === entry.payload.entityId)).toHaveLength(1);
+  }
+  expect(state.rows.find((row) => row.id === legacy.payload.entityId)?.settings).toBeNull();
+  expect(state.rows.find((row) => row.id === created.payload.entityId)?.settings).toEqual({
+    targetLanguage: 'de',
+    nativeLanguage: 'ru',
+  });
+
+  // The older deck arrives without languages and says so; the new one does not.
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: /^Older app deck/ }).click();
+  await expect(page.getByRole('heading', { name: 'Older app deck', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Set languages', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: /^Downloaded folder/ }).click();
+  await page.getByRole('button', { name: /^Offline lesson/ }).click();
+  await expect(page.getByRole('heading', { name: 'Offline lesson', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Set languages', exact: true })).toHaveCount(0);
+});
+
 test('a removed parent keeps work for an explicit destination choice with the same identity', async ({
   page,
 }) => {
@@ -447,6 +558,7 @@ test('an open creation keeps its observed ancestry when a background pull moves 
   await page.getByRole('button', { name: 'New deck', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Name', { exact: true }).fill('Original location');
+  await chooseDeckLanguages(dialog);
   const target = {
     ...state.rows[0]!,
     id: '01900000-0000-7000-8000-000000000904',
