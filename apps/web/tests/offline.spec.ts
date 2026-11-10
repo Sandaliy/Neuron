@@ -288,12 +288,12 @@ test('Find Notes searches a downloaded 6000-Note library offline without repeate
   await search.fill('Downloaded');
   await expect(
     page.getByRole('button', {
-      name: /^Saved 1 Downloaded meaning Lesson 1 · Downloaded Folder/,
+      name: /^Saved 1 Downloaded meaning · Lesson 1 · Downloaded Folder/,
     }),
   ).toBeVisible();
   await expect(
     page.getByRole('button', {
-      name: /^Saved 2 Downloaded meaning Lesson 2 · Downloaded Folder \/ Nested Folder/,
+      name: /^Saved 2 Downloaded meaning · Lesson 2 · Downloaded Folder \/ Nested Folder/,
     }),
   ).toBeVisible();
   await expect(page.getByText('Offline results from this device.')).toBeVisible();

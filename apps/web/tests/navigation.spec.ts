@@ -674,6 +674,7 @@ test('a browser Back does not replay the app Back animation; an in-app Back does
   );
   await page.getByRole('button', { name: /^Deutsch/ }).click();
   await expect(page.getByRole('heading', { name: 'Deutsch', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  // The header's Back is named for where it goes: a top-level Folder returns to Library.
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
 });
