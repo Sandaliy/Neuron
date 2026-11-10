@@ -48,7 +48,7 @@ contracts and all 12 enforced performance cases. The broad mobile WebKit run pas
 Chromium-only measurement skipped before the Recent Notes integration; refreshed Recent Notes/search/
 Practice checks then passed 61 cases across all three browser configurations, with the phone-only
 measurement skipped in the desktop selection. TypeScript, lint, formatting and whitespace checks passed. Optional live-database
-journeys that were skipped are not passing evidence, and hosted checks remain a separate delivery gate.
+tests that were skipped are not passing evidence, and hosted checks remain a separate delivery gate.
 
 Published-frontend checks after #84 passed 58 focused Chromium phone/desktop and mobile WebKit cases,
 with two Chromium phone-only measurement skips, plus the 6,000-Note repeated-navigation probe.
@@ -82,7 +82,7 @@ Browser evidence for this slice does not replace its pending installed-iPhone li
 acceptance. Preserve the earlier owner acceptance and the unresolved Windows WebKit drag finding below.
 
 The Phase 8.3 built-app release run on Windows passed 520 phone/desktop interaction cases with one
-worker; four opt-in database journeys and two WebKit-only touch cases were skipped by that selection.
+worker; four opt-in database tests and two WebKit-only touch cases were skipped by that selection.
 All 66 unchanged Windows visual contracts passed. All five controlled performance cases passed with
 `PERFORMANCE_ENFORCE_THRESHOLD=true` at 4× CPU slowdown. The 5,000-Note case mounted 11 rows and
 measured 60.0 FPS; Panels-only, full-glass Deck and mixed collection cases each measured 60.0 FPS.
@@ -90,7 +90,7 @@ The dedicated Note suite passed all 36 Chromium/mobile WebKit cases, including z
 store scans during typing and delivery settlement, preserved DOM identity/focus/caret/scroll and unchanged
 reconciliation geometry. These are controlled browser measurements, not physical-iPhone timings.
 The affected mobile WebKit offline suite passed all 62 cases, and the committed touch-swipe regression
-passed separately. Real offline/PWA and learning journeys also passed in Chromium and mobile WebKit.
+passed separately. Real offline/PWA and learning tests also passed in Chromium and mobile WebKit.
 
 ## Proven causes and repair
 
@@ -198,14 +198,14 @@ not passing evidence. No assertion, baseline, retry policy, timeout or workflow 
 Controlled stabilization verification passed all 1,080 unit/PostgreSQL tests, all package typechecks,
 repository lint/isolation/design checks, tracked-file formatting and the production build. The full
 built phone/desktop interaction gate passed 486 cases with four opt-in skips; the two real-database
-learning journeys passed separately. All 66 unchanged Windows visual contracts passed. Mobile WebKit
+learning tests passed separately. All 66 unchanged Windows visual contracts passed. Mobile WebKit
 held-response reconciliation, direct Practice authority and interrupted-entry regressions passed.
 
 The extended Windows mobile WebKit run initially finished with 151 passes and 10 fixture-delivery
 failures. A controlling service worker bypassed page-level API routes; the inspected trace shows
 earlier fixture responses succeeding and later account/Deck reads reaching the unavailable preview
 proxy with HTTP 502. A diagnostic configuration blocks service workers for route-backed fixtures;
-the explicit offline/PWA tests still allow them. With real PostgreSQL offline and learning journeys
+the explicit offline/PWA tests still allow them. With real PostgreSQL offline and learning tests
 enabled, this run finished with **160 passes and one failure** in 14.1 minutes. The remaining failure
 at `stabilization.spec.ts:778` dropped a child before the destination Folder instead of inside it.
 An isolated rerun passed unchanged in 2.7 seconds. Preserve the failed trace and the intermittent
@@ -272,7 +272,7 @@ cold/warm responsiveness remain owner acceptance steps in `offline-study.md`.
 
 Final built verification passes the serial phone/desktop interaction gate (560 passes, ten opt-in
 selection skips), all 77 targeted mobile WebKit Note/Study cases and both worker-enabled real
-PostgreSQL Review journeys. All 66 unchanged Windows visual contracts pass. All five controlled
+PostgreSQL Review tests. All 66 unchanged Windows visual contracts pass. All five controlled
 performance cases pass with the original 55 FPS threshold enforced at 4× CPU: 5,000 Notes at
 60.0 FPS with 11 mounted rows, 500 Panels-only rows at 60.0 FPS, full-glass Decks at 59.3 FPS and
 mixed collections at 59.0 FPS. The worst frames are 16.8ms for Notes/Panels and 33.4/33.3ms for
@@ -318,7 +318,7 @@ including `0x6b59199`, `0x6b20a28` and `0x69786d1`. Installed Playwright 1.62.1 
 protocol-session leak: 20 closed worker-enabled contexts leave 21 sessions instead of the original
 one; blocked workers leave one. This matches [upstream issue 43009](https://github.com/microsoft/playwright/issues/43009),
 but does not conclusively establish the native SIGSEGV cause. Routed interaction fixtures now block
-incidental workers; real-PWA journeys and existing visual shell-readiness coverage explicitly allow
+incidental workers; real-PWA tests and existing visual shell-readiness coverage explicitly allow
 them. Repeated offline diagnostics include deliberate fixture failures and worker/route interference;
 they are not proof of production collection loss, and diagnostics remain enabled.
 
@@ -327,7 +327,7 @@ tracked-source lint/formatting, core/design checks and builds. The complete buil
 gate passes 570 cases with ten existing opt-in skips (11.6 minutes). The 36 focused Chromium
 phone/desktop and mobile WebKit cases pass, including intermediate disclosure/dialog frames,
 Grammar retention, original language-resize assertions, populated upgrade and interrupted recovery.
-Eight worker-enabled browser/database journeys pass (5.8 minutes), including the actual prior shell
+Eight worker-enabled browser/database tests pass (5.8 minutes), including the actual prior shell
 update and real Note/name/Review/Undo delivery. All 31 browser selection/aggregate tests pass.
 All 66 unchanged Windows visual baselines pass. Initial iteration failures in measured Study resize,
 the Grammar screenshot identifier and account-query cancellation were fixed at their sources.
@@ -490,7 +490,7 @@ The 31 browser-selection/aggregate contract tests pass. All 66 Windows visual co
 reviewing and updating eight intentional Settings references and two phone-dialog references whose
 Settings backdrop moved; dialog geometry is unchanged. No unrelated baseline was refreshed.
 
-Sixteen explicit phone-context journeys pass on Chromium and WebKit, including complete-v2 startup
+Sixteen explicit phone-context tests pass on Chromium and WebKit, including complete-v2 startup
 with a stopped origin or suspended HTTP under either hint, interrupted upgrade/recovery, the actual
 prior PR #50 worker shell's first upgraded launch with the origin already stopped, real PostgreSQL/RLS
 collection hydration and Note/name conflicts/retries, and admitted Study/Undo with a lost real database
@@ -543,7 +543,7 @@ The subsequent full built interaction gate records 595 passes, ten existing skip
 failed document request and an `about:blank` frame, with no scripts or API requests. A resource check
 shows about 22.3 GiB of free memory and fewer than 800 TCP records, without establishing the cause.
 This recurring local runner failure remains unexplained; the full run is not reclassified as green.
-The affected Practice journey subsequently passes separately in both Chromium projects and mobile
+The affected Practice test subsequently passes separately in both Chromium projects and mobile
 WebKit. The correction also passes the web typecheck, changed-source lint, design-token check and
 eight motion contract tests. No assertion, timeout, retry, baseline or protected check was relaxed.
 
@@ -610,7 +610,7 @@ On the final built application, the 4× CPU Chromium sample records 377ms for se
 and 417ms for deliberate Study entry, with no UI-thread entity scans or long tasks. Both real PWA
 cold-offline entries satisfy the unchanged five-second assertion. The full built serial interaction
 checkpoint passes 608 cases with twelve opt-in skips. After the final conservative snapshot/settings
-guards, eleven focused Chromium/WebKit cases and both PostgreSQL/PWA journeys pass; the latter use
+guards, eleven focused Chromium/WebKit cases and both PostgreSQL/PWA tests pass; the latter use
 explicit completed-download and final-response boundaries rather than racing background work.
 All 66 unchanged Windows visual contracts and five enforced performance cases pass, with measured
 scroll rates of 59.7–60 FPS against the unchanged 55 FPS floor. Browser selection/gate contracts pass
@@ -633,11 +633,11 @@ replace useful checks, and six healthy cached navigations add six account probes
 Chromium/mobile WebKit cases retain mounted geometry and authority through that delay, join one
 verification and add no probes during the same healthy navigation sequence.
 
-The worker-enabled real HTTP/PostgreSQL journey also verifies six-second account latency alongside
+The worker-enabled real HTTP/PostgreSQL test also verifies six-second account latency alongside
 healthy API progress, isolated HTTP failure, corroborated API-wide server errors, silent hanging requests, automatic bounded recovery,
 server loss and repeated-check/foreground coalescing in both engines. A separate existing Review
-journey initially waited on a manual Check connection click after automatic recovery removed that
-control; its trace identified the fixture race. Both existing PWA/database journeys pass after
+test initially waited on a manual Check connection click after automatic recovery removed that
+control; its trace identified the fixture race. Both existing PWA/database tests pass after
 observing automatic recovery, retaining their exact event, receipt and canonical scheduling assertions.
 
 Settings readiness reuses the existing account-bound planning worker. Snapshot cloning, history
@@ -648,7 +648,7 @@ remain unchanged. Browser evidence does not reproduce the owner's precise native
 renewed physical-iPhone acceptance and retained content-free transition diagnostics remain necessary.
 
 The corrected release build passes 616 serial phone/desktop interactions (fourteen explicit opt-in
-skips), six real HTTP/PostgreSQL PWA journeys across Chromium/mobile WebKit, five enforced performance
+skips), six real HTTP/PostgreSQL PWA tests across Chromium/mobile WebKit, five enforced performance
 cases and all 66 Windows visuals. Active and sustained swipe pacing measures about 60 FPS in all
 three glass modes; the recorded 5,000-Note and 500-row scroll measurements also remain at 60 FPS.
 All existing thresholds, retries and assertions remain unchanged.
