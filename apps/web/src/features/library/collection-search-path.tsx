@@ -1,41 +1,34 @@
 import { useRouter, useRouterState } from '@tanstack/react-router';
-import { ChevronLeft } from 'lucide-react';
 
 import type { DeckNode } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { accountEpoch, useOffline } from '../../lib/offline';
-import { Button } from '../../ui/button';
+import { BackLink } from '../../ui/page-header';
 
-import { CollectionPath } from './collection-path';
+import { CollectionBack, CollectionLocation } from './collection-path';
 
-/** The return action belongs only to the collection opened from these results. */
-export function CollectionSearchPath({
-  tree,
-  id,
-}: {
-  readonly tree: readonly DeckNode[];
-  readonly id: string;
-}) {
+/**
+ * Back and location for a Folder or Deck screen.
+ *
+ * Opened from collection search results, Back returns to those results and the
+ * location line says where the collection sits, because the results were not
+ * that place. Opened from the hierarchy, Back names the parent and nothing else
+ * is needed: the person walked here and knows the way.
+ */
+export function useCollectionHead(tree: readonly DeckNode[], id: string) {
   const router = useRouter();
   const origin = useRouterState({ select: (state) => state.location.state.collectionSearchOrigin });
   const offline = useOffline();
   const t = useTranslate();
-  if (
-    origin?.id !== id ||
-    origin.accountId !== offline.accountId ||
-    origin.visit !== accountEpoch()
-  )
-    return <CollectionPath tree={tree} id={id} trail />;
-  return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <Button variant="text" className="self-start" onClick={() => router.history.back()}>
-        <ChevronLeft size={20} strokeWidth={1.5} aria-hidden="true" />
-        {t('library.search.back')}
-      </Button>
-      <CollectionPath tree={tree} id={id} />
-    </div>
-  );
+  const fromSearch =
+    origin?.id === id && origin.accountId === offline.accountId && origin.visit === accountEpoch();
+  return fromSearch
+    ? {
+        back: <BackLink label={t('library.search.back')} onClick={() => router.history.back()} />,
+        location: <CollectionLocation tree={tree} id={id} />,
+      }
+    : { back: <CollectionBack tree={tree} id={id} />, location: undefined };
 }
 
 declare module '@tanstack/react-router' {

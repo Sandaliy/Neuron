@@ -258,9 +258,10 @@ test('collection search uses the download offline, gates pending identities and 
   await disconnect(page, state);
   await createCollection(page, 'Pending folder', 'folder');
   await createCollection(page, 'Pending deck');
-  await page.getByRole('button', { name: 'Find Folders & Decks', exact: true }).click();
+  await page.getByRole('button', { name: 'Search the Library', exact: true }).click();
+  await page.getByText('Folders & Decks', { exact: true }).click();
   const search = page.getByRole('searchbox', { name: 'Search collection names' });
-  await expect(page.getByText(/Searching the downloaded Library/)).toBeVisible();
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toBeVisible();
   await search.fill('pending');
   for (const name of [
     'Pending folder Folder · Library Saved on device',

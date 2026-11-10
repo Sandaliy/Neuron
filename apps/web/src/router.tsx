@@ -63,6 +63,10 @@ const LibraryScreen = lazyRouteComponent(
   () => import('./features/library/library'),
   'LibraryScreen',
 );
+const LibraryChecksScreen = lazyRouteComponent(
+  () => import('./features/library/library-checks'),
+  'LibraryChecksScreen',
+);
 const CollectionSearchScreen = lazyRouteComponent(
   () => import('./features/library/collection-search'),
   'CollectionSearchScreen',
@@ -231,6 +235,12 @@ const collectionSearchRoute = createRoute({
   path: '/library/find',
   staticData: { navTab: '/library' },
   component: CollectionSearchScreen,
+});
+const libraryChecksRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/checks',
+  staticData: { navTab: '/library' },
+  component: LibraryChecksScreen,
 });
 const contentQualityRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -403,6 +413,7 @@ const routeTree = rootRoute.addChildren([
     possibleDuplicatesRoute,
     problemCardsRoute,
     contentQualityRoute,
+    libraryChecksRoute,
     noteListRoute,
     // Before the parameter route, or a new note is read as a note whose id is
     // the word new.
@@ -416,6 +427,9 @@ const routeTree = rootRoute.addChildren([
 
 export const router = createRouter({
   routeTree,
+  // A link's screen starts loading on hover or touch, not on release, so the
+  // tap that follows commits without waiting for the module.
+  defaultPreload: 'intent',
   // Restore by history entry after the route commit. Native automatic restore
   // can run before an async module finishes, then be overwritten by route reset.
   scrollRestoration: true,

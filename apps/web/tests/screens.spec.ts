@@ -66,8 +66,10 @@ for (const theme of THEMES) {
       await useFixtures(page);
       await page.goto('/library');
       await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Slipping cards', exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Content checks', exact: true })).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Search the Library', exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Checks', exact: true })).toBeVisible();
       await settle(page);
       await page.screenshot({
         path: testInfo.outputPath('library.png'),
@@ -88,13 +90,41 @@ for (const theme of THEMES) {
       await usePreferences(page, { theme, locale: 'en' });
       await useFixtures(page);
       await page.goto('/library');
-      await expect(page.getByRole('button', { name: 'Slipping cards', exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Content checks', exact: true })).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Search the Library', exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Checks', exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'Show what is inside', exact: true }).first().click();
       await page.getByRole('button', { name: 'Show what is inside', exact: true }).first().click();
       await expect(page.getByRole('button', { name: /^Verben mit Dativ/ })).toBeVisible();
       await settle(page);
       await expect(page).toHaveScreenshot(`library-hierarchy-${theme}.png`, { fullPage: true });
+    });
+
+    test('library checks', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.goto('/library');
+      await page.getByRole('button', { name: 'Checks', exact: true }).click();
+      await expect(page.getByRole('heading', { name: 'Checks', exact: true })).toBeVisible();
+      await settle(page);
+      await expect(page).toHaveScreenshot(`library-checks-${theme}.png`, { fullPage: true });
+    });
+
+    test('deck', async ({ page }) => {
+      await usePreferences(page, { theme, locale: 'en' });
+      await useFixtures(page);
+      await page.route('**/api/decks/d3/practice', (route) =>
+        route.fulfill({ json: { run: null, version: 0 } }),
+      );
+      await page.goto('/notes?deckId=d3');
+      await expect(
+        page.getByRole('heading', { name: 'Verben mit Dativ', exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
+      await expect(page.getByRole('button', { name: /^Sorgfalt/ })).toBeVisible();
+      await settle(page);
+      await expect(page).toHaveScreenshot(`deck-${theme}.png`, { fullPage: true });
     });
 
     test('study composition and visible setup', async ({ page }) => {

@@ -39,11 +39,13 @@ import { Chip } from '../../ui/chip';
 import { Dialog, DialogFooter } from '../../ui/dialog';
 import { Disclosure } from '../../ui/disclosure';
 import { FormField } from '../../ui/form-field';
+import { Menu, MenuItem } from '../../ui/menu';
+import { BackLink, PageHeader } from '../../ui/page-header';
 import { Progress } from '../../ui/progress';
 import { Select } from '../../ui/select';
 import { ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
-import { CollectionPath } from '../library/collection-path';
+import { CollectionBack } from '../library/collection-path';
 import { CardPreview } from '../notes/card-preview';
 
 import { importDrafts, importDraftVisit, newImportDraft, saveImportDraft } from './import-drafts';
@@ -639,64 +641,74 @@ function ImportEditor({
     draft.edit({ preview: false });
   }
 
+  function saveSource() {
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(new Blob([raw], { type: 'text/plain;charset=utf-8' }));
+    link.href = url;
+    link.download = `import-source.${chosenFormat === 'json' ? 'json' : 'txt'}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section data-screen="" className="flex flex-col gap-20">
-      <header className="flex items-center justify-between gap-12">
-        <h1 className="font-display text-24 tracking-tight text-primary">{t('import.title')}</h1>
-
-        <Button variant="quiet" onClick={() => setPrompt(true)}>
-          {t('import.copyPrompt')}
-        </Button>
-      </header>
-      <CollectionPath tree={tree} id={deck} />
+      <PageHeader
+        title={t('import.title')}
+        back={
+          deckId ? (
+            <CollectionBack tree={tree} id={deckId} within />
+          ) : (
+            <BackLink
+              label={t('library.title')}
+              onClick={() => void navigate({ to: '/library' })}
+            />
+          )
+        }
+        actions={
+          <>
+            <Button variant="quiet" onClick={() => setPrompt(true)}>
+              {t('import.copyPrompt')}
+            </Button>
+            <Menu label={t('import.more')}>
+              <MenuItem onSelect={saveSource}>{t('import.saveSource')}</MenuItem>
+              <MenuItem
+                disabled={switching || (stage.kind === 'importing' && !stage.failed)}
+                onSelect={() => void chooseDraft()}
+              >
+                {t('import.newDraft')}
+              </MenuItem>
+            </Menu>
+          </>
+        }
+      />
 
       <div className="flex flex-col gap-8">
-        <p role="status" className="text-14 text-secondary">
-          {t(
-            draft.status === 'failed'
-              ? draft.conflict
-                ? 'import.draftConflict'
-                : 'import.draftFailed'
-              : draft.status === 'saved'
-                ? draft.draft.delivery
-                  ? 'import.checkpointSaved'
-                  : 'import.draftSaved'
-                : 'import.draftPending',
-          )}
-        </p>
-        {storageFailed ? (
-          <p className="text-14 text-error">{t('import.draftsUnavailable')}</p>
-        ) : undefined}
-        <div className="flex flex-wrap gap-8">
+        <div className="flex min-h-44 flex-wrap items-center gap-x-12 gap-y-4">
+          <p role="status" className="text-14 text-secondary">
+            {t(
+              draft.status === 'failed'
+                ? draft.conflict
+                  ? 'import.draftConflict'
+                  : 'import.draftFailed'
+                : draft.status === 'saved'
+                  ? draft.draft.delivery
+                    ? 'import.checkpointSaved'
+                    : 'import.draftSaved'
+                  : 'import.draftPending',
+            )}
+          </p>
           <Button
-            variant="quiet"
+            variant="text"
             busy={draft.status === 'saving' || switching}
             onClick={() => void draft.persist()}
           >
             {t('import.saveDraft')}
           </Button>
-          <Button
-            variant="text"
-            onClick={() => {
-              const link = document.createElement('a');
-              const url = URL.createObjectURL(
-                new Blob([raw], { type: 'text/plain;charset=utf-8' }),
-              );
-              link.href = url;
-              link.download = `import-source.${chosenFormat === 'json' ? 'json' : 'txt'}`;
-              link.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            {t('import.saveSource')}
-          </Button>
-          <Button
-            variant="text"
-            disabled={switching || (stage.kind === 'importing' && !stage.failed)}
-            onClick={() => void chooseDraft()}
-          >
-            {t('import.newDraft')}
-          </Button>
+        </div>
+        {storageFailed ? (
+          <p className="text-14 text-error">{t('import.draftsUnavailable')}</p>
+        ) : undefined}
+        <div className="flex flex-wrap gap-8 empty:hidden">
           {draft.conflict &&
           (!draft.draft.delivery ||
             draft.draft.delivery.attempt.batchId !== draft.committedAttempt.current) ? (

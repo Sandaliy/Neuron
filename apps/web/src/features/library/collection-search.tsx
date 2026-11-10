@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
-import { ChevronLeft, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { DeckNode } from '@neuron/shared';
@@ -15,13 +15,14 @@ import {
 } from '../../lib/deck-creation';
 import { useDeckTree } from '../../lib/decks';
 import { accountEpoch, useOffline } from '../../lib/offline';
-import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
+import { BackLink, PageHeader } from '../../ui/page-header';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 
 import { collectionTerm, indexCollections, searchCollections } from './collection-search-index';
 import { CollectionSearchRows } from './collection-search-rows';
+import { SearchScope } from './search-scope';
 
 import type { CollectionMatch } from './collection-search-index';
 import type { SearchReturn } from './collection-search-rows';
@@ -86,16 +87,11 @@ export function CollectionSearchScreen() {
 
   return (
     <section data-screen="" className="flex flex-col gap-20">
-      <header className="flex min-w-0 flex-col gap-4">
-        <Button variant="text" className="self-start" onClick={back}>
-          <ChevronLeft size={20} strokeWidth={1.5} aria-hidden="true" />
-          {t('library.title')}
-        </Button>
-        <h1 className="font-display text-24 tracking-tight text-primary">
-          {t('library.search.title')}
-        </h1>
-        <p className="text-14 text-secondary">{t('library.search.hint')}</p>
-      </header>
+      <PageHeader
+        title={t('search.title')}
+        back={<BackLink label={t('library.title')} onClick={back} />}
+      />
+      <SearchScope value="collections" />
       <div className="relative">
         <Search
           size={16}
@@ -131,7 +127,7 @@ export function CollectionSearchScreen() {
         <>
           {(decks.local || offline.offline) && (
             <p role="status" className="text-13 text-secondary">
-              {t('library.search.downloaded')}
+              {t('offline.results')}
             </p>
           )}
           {loading ? (

@@ -419,7 +419,7 @@ test('nested Back actions clear menus and pending edits reach the same Deck', as
   await page.getByRole('button', { name: 'Words', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/notes\\?deckId=${deckId}$`));
   await page.getByRole('button', { name: 'German', exact: true }).click();
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page).toHaveURL(/\/library$/);
 });
 
@@ -621,4 +621,60 @@ test('Study completion returns to Today with the correct tab', async ({ page }) 
   await page.getByRole('button', { name: 'Finish', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expectTab(page, 'Today');
+});
+
+test('the tab pill moves with the press and never lags the screen it opens', async ({ page }) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page);
+  await page.goto('/library');
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+  // Record, frame by frame, which tab the pill is under and which screen is shown.
+  await page.evaluate(() => {
+    const frames: { pill: string; screen: string }[] = [];
+    Object.assign(window, { tabFrames: frames });
+    const bar = document.querySelector<HTMLElement>('[data-g="tabbar"]')!;
+    const tick = () => {
+      frames.push({
+        pill: bar.style.getPropertyValue('--seg-index'),
+        screen: document.querySelector('main h1')?.textContent ?? '',
+      });
+      if (frames.length < 90) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await expectTab(page, 'Settings');
+  const frames = await page.evaluate(
+    () => (window as unknown as { tabFrames: { pill: string; screen: string }[] }).tabFrames,
+  );
+  const settingsShown = frames.findIndex((frame) => frame.screen === 'Settings');
+  const pillMoved = frames.findIndex((frame) => frame.pill === '2');
+  expect(settingsShown).toBeGreaterThanOrEqual(0);
+  expect(pillMoved).toBeGreaterThanOrEqual(0);
+  expect(pillMoved).toBeLessThanOrEqual(settingsShown);
+  // Once moved, the pill never returns to Library.
+  expect(frames.slice(pillMoved).every((frame) => frame.pill === '2')).toBe(true);
+});
+
+test('a browser Back does not replay the app Back animation; an in-app Back does', async ({
+  page,
+}) => {
+  await usePreferences(page, { locale: 'en', theme: 'dark' });
+  await useFixtures(page);
+  await page.goto('/library');
+  await page.getByRole('button', { name: /^Deutsch/ }).click();
+  await expect(page.getByRole('heading', { name: 'Deutsch', exact: true })).toBeVisible();
+  // The browser's own Back, like an iPhone edge swipe that Safari has already animated.
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+  await expect(page.locator('main[data-shell-content]')).not.toHaveAttribute(
+    'data-arrival',
+    'back',
+  );
+  await page.getByRole('button', { name: /^Deutsch/ }).click();
+  await expect(page.getByRole('heading', { name: 'Deutsch', exact: true })).toBeVisible();
+  // The header's Back is named for where it goes: a top-level Folder returns to Library.
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
 });

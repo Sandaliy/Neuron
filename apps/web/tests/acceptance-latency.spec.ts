@@ -118,15 +118,13 @@ test('repeated Library, search, Note and primary navigation stays responsive at 
   for (let round = 0; round < 3; round++) {
     const control = (role: 'button' | 'link', name: string) =>
       page.getByRole(role, { name, exact: true });
-    await measure('collection search', control('button', 'Find Folders & Decks'), {
-      heading: 'Find Folders & Decks',
-    });
+    await measure('Library search', control('button', 'Search the Library'), { notes: true });
     await measure('Library return', control('button', 'Library'), { heading: 'Library' });
-    await measure('Find Notes', control('button', 'Find Notes'), { notes: true });
+    await measure('Find Notes', control('button', 'Search the Library'), { notes: true });
     await measure('Note open', page.getByRole('button', { name: /^Wort 1 word 1/ }), {
       editor: true,
     });
-    await measure('Note return', control('button', 'Find Notes'), { notes: true });
+    await measure('Note return', control('button', 'Search'), { notes: true });
     await measure('Settings', control('link', 'Settings'), { heading: 'Settings' });
     await measure('Today', control('link', 'Today'), { heading: 'Today' });
     await measure('Library', control('link', 'Library'), { heading: 'Library' });

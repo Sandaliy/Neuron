@@ -18,17 +18,15 @@ test('Library offers explicit consistency and enrichment checks with exact overl
 }, info) => {
   const state = await installQualityFixture(page);
   await page.goto('/library');
-  await page.getByRole('button', { name: 'Content checks', exact: true }).click();
+  await page.getByRole('button', { name: 'Checks', exact: true }).click();
+  await page.getByRole('button', { name: /^Content checks / }).click();
   await expect(page.getByRole('heading', { name: 'Consistency check', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Optional context', exact: true })).toBeVisible();
-  await expect(
-    page.getByText('Vocabulary Notes in this view: 5500', { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText('Vocabulary Notes checked: 5500', { exact: true })).toBeVisible();
   await expect(check(page, 'Example translation without an example')).toContainText('1375');
   await expect(check(page, 'Example without a translation')).toContainText('1375');
   await expect(check(page, 'No example sentence')).toContainText('2750');
   await expect(check(page, 'No definition')).toContainText('4125');
-  await expect(page.getByText(/missing context does not make a Note invalid/)).toBeVisible();
   await page.screenshot({
     path: info.outputPath('content-checks-overview-dark.png'),
     fullPage: true,
@@ -37,10 +35,8 @@ test('Library offers explicit consistency and enrichment checks with exact overl
   await continuousSearch(page, search, '100%_literal');
   await search.press('Enter');
   await expect(search).not.toBeFocused();
-  await page.getByRole('combobox', { name: 'Inspection Deck' }).selectOption(qualityDeckId);
-  await expect(
-    page.getByText('Vocabulary Notes in this view: 2750', { exact: true }),
-  ).toBeVisible();
+  await page.getByRole('combobox', { name: 'Look in' }).selectOption(qualityDeckId);
+  await expect(page.getByText('Vocabulary Notes checked: 2750', { exact: true })).toBeVisible();
   await expect(check(page, 'No definition')).toContainText('1375');
   await check(page, 'Example translation without an example').click();
   await expect(page.getByText('Shown: 100 of 1375', { exact: true })).toBeVisible();
@@ -158,7 +154,7 @@ test('complete downloads inspect saved edits and pending Notes, then restore ser
   await page.evaluate(() => dispatchEvent(new Event('offline')));
   await startInteractionMetrics(page);
   const started = Date.now();
-  await expect(page.getByText(/^Complete downloaded collection/)).toBeVisible();
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toBeVisible();
   await expect(check(page, 'No example sentence')).toContainText('2750');
   await check(page, 'No example sentence').click();
   await expect(page.getByText('Shown: 100 of 2750', { exact: true })).toBeVisible();
@@ -187,7 +183,8 @@ test('complete downloads inspect saved edits and pending Notes, then restore ser
   await page.getByRole('button', { name: 'Save the note', exact: true }).click();
   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/);
   await page.getByRole('link', { name: 'Library', exact: true }).click();
-  await page.getByRole('button', { name: 'Content checks', exact: true }).click();
+  await page.getByRole('button', { name: 'Checks', exact: true }).click();
+  await page.getByRole('button', { name: /^Content checks / }).click();
   await expect(check(page, 'No example sentence')).toContainText('2750');
   const search = page.getByRole('searchbox', { name: 'Search vocabulary content' });
   await search.fill('Device-only context');
@@ -199,7 +196,12 @@ test('complete downloads inspect saved edits and pending Notes, then restore ser
   state.acceptEdits = false;
   state.offline = false;
   await page.evaluate(() => dispatchEvent(new Event('online')));
-  await expect(page.getByText(/^Server results/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toHaveCount(
+    0,
+    {
+      timeout: 20_000,
+    },
+  );
   await expect(search).toHaveValue('Device-only context');
   await expect(page.getByText('No matching Notes', { exact: true })).toBeVisible();
   await search.fill('');
@@ -211,7 +213,7 @@ test('complete downloads inspect saved edits and pending Notes, then restore ser
   expect(lastFirstPage.url.searchParams.has('cursor')).toBe(false);
   state.offline = true;
   await page.evaluate(() => dispatchEvent(new Event('offline')));
-  await expect(page.getByText(/^Complete downloaded collection/)).toBeVisible();
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toBeVisible();
   state.who = 'second-account';
   state.offline = false;
   await page.evaluate(() => dispatchEvent(new Event('online')));
@@ -314,6 +316,6 @@ test('a late old-account inspection response cannot replace the new account view
   });
   release();
   await expect(search).toHaveValue('');
-  await expect(page.getByText('Vocabulary Notes in this view: 0', { exact: true })).toBeVisible();
+  await expect(page.getByText('Vocabulary Notes checked: 0', { exact: true })).toBeVisible();
   await expect(check(page, 'No example sentence')).toContainText('0');
 });

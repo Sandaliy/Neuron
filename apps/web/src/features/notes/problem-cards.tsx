@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { ChevronLeft, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { CARD_DIRECTIONS } from '@neuron/core';
@@ -15,9 +15,12 @@ import { accountEpoch, useOffline } from '../../lib/offline';
 import { useCardSuspension, useProblemCards } from '../../lib/problem-cards';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
+import { PageHeader } from '../../ui/page-header';
 import { Select } from '../../ui/select';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
+import { CheckBack } from '../library/library-checks';
+import { ScopeSelect } from '../library/scope-select';
 
 import { ProblemCardRows } from './problem-card-rows';
 
@@ -28,6 +31,7 @@ interface Browse {
   direction: CardDirection | undefined;
   state: ProblemCardStateFilter;
   sort: ProblemCardSort;
+  filtersOpen: boolean;
   returning: ProblemReturn | undefined;
 }
 const initial: Browse = {
@@ -35,6 +39,7 @@ const initial: Browse = {
   direction: undefined,
   state: 'all',
   sort: 'again',
+  filtersOpen: false,
   returning: undefined,
 };
 
@@ -103,106 +108,104 @@ function ProblemCardsBrowser({ deckId }: { readonly deckId: string | undefined }
   };
   return (
     <section data-screen="" className="flex min-w-0 flex-col gap-16">
-      <header className="flex min-w-0 flex-col gap-4">
+      <PageHeader title={t('problems.title')} back={<CheckBack deckId={deckId} />} />
+      <ScopeSelect
+        label={t('problems.scope')}
+        value={deckId ?? ''}
+        onChange={(event) =>
+          void navigate({
+            to: '/library/slipping',
+            search: event.target.value ? { deckId: event.target.value } : {},
+          })
+        }
+      >
+        <option value="">{t('problems.library')}</option>
+        {scopes.map((scope) => (
+          <option key={scope.id} value={scope.id}>
+            {scope.label}
+          </option>
+        ))}
+      </ScopeSelect>
+      <div className="flex min-w-0 items-start gap-8">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            size={16}
+            aria-hidden="true"
+            className="pointer-events-none absolute top-16 left-12 z-10 text-secondary"
+          />
+          <Input
+            type="search"
+            className="pl-40"
+            aria-label={t('problems.search')}
+            placeholder={t('problems.search')}
+            value={browse.typed}
+            maxLength={100}
+            enterKeyHint="search"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            busy={query.isFetching || search !== browse.typed.trim()}
+            onChange={(event) => update({ typed: event.target.value, returning: undefined })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                setSearch(browse.typed.trim());
+                event.currentTarget.blur();
+              }
+            }}
+          />
+        </div>
         <Button
-          variant="text"
-          className="self-start"
-          onClick={() =>
-            void navigate({
-              to: deckId ? '/notes' : '/library',
-              ...(deckId ? { search: { deckId } } : {}),
-            })
-          }
+          variant="quiet"
+          aria-expanded={browse.filtersOpen}
+          onClick={() => update({ filtersOpen: !browse.filtersOpen })}
         >
-          <ChevronLeft size={20} aria-hidden="true" />
-          {t(deckId ? 'notes.title' : 'library.title')}
+          {t('notes.filters')}
+          {browse.direction !== undefined ||
+          browse.state !== initial.state ||
+          browse.sort !== initial.sort
+            ? ' ·'
+            : ''}
         </Button>
-        <h1 className="font-display text-24 tracking-tight text-primary">{t('problems.title')}</h1>
-        <p className="text-14 text-secondary">{t('problems.hint')}</p>
-      </header>
-      <div className="grid min-w-0 grid-cols-1 gap-8 sm:grid-cols-2">
-        <Select
-          aria-label={t('problems.scope')}
-          value={deckId ?? ''}
-          onChange={(event) =>
-            void navigate({
-              to: '/library/slipping',
-              search: event.target.value ? { deckId: event.target.value } : {},
-            })
-          }
-        >
-          <option value="">{t('problems.library')}</option>
-          {scopes.map((scope) => (
-            <option key={scope.id} value={scope.id}>
-              {scope.label}
-            </option>
-          ))}
-        </Select>
-        <Select
-          aria-label={t('problems.direction')}
-          value={browse.direction ?? ''}
-          onChange={(event) =>
-            filter({ direction: (event.target.value || undefined) as CardDirection | undefined })
-          }
-        >
-          <option value="">{t('problems.direction.all')}</option>
-          {CARD_DIRECTIONS.map((direction) => (
-            <option key={direction} value={direction}>
-              {t(`card.direction.${direction}`)}
-            </option>
-          ))}
-        </Select>
-        <Select
-          aria-label={t('problems.state')}
-          value={browse.state}
-          onChange={(event) => filter({ state: event.target.value as ProblemCardStateFilter })}
-        >
-          <option value="all">{t('problems.state.all')}</option>
-          <option value="studying">{t('problems.state.studying')}</option>
-          <option value="suspended">{t('problems.state.suspended')}</option>
-        </Select>
-        <Select
-          aria-label={t('problems.sort')}
-          value={browse.sort}
-          onChange={(event) => filter({ sort: event.target.value as ProblemCardSort })}
-        >
-          <option value="again">{t('problems.sort.again')}</option>
-          <option value="recent">{t('problems.sort.recent')}</option>
-        </Select>
       </div>
-      <div className="relative">
-        <Search
-          size={16}
-          aria-hidden="true"
-          className="pointer-events-none absolute top-16 left-12 z-10 text-secondary"
-        />
-        <Input
-          type="search"
-          className="pl-40"
-          aria-label={t('problems.search')}
-          placeholder={t('problems.search')}
-          value={browse.typed}
-          maxLength={100}
-          enterKeyHint="search"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          busy={query.isFetching || search !== browse.typed.trim()}
-          onChange={(event) => update({ typed: event.target.value, returning: undefined })}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-              setSearch(browse.typed.trim());
-              event.currentTarget.blur();
+      {browse.filtersOpen && (
+        <div className="grid min-w-0 grid-cols-1 gap-8 sm:grid-cols-3">
+          <Select
+            aria-label={t('problems.direction')}
+            value={browse.direction ?? ''}
+            onChange={(event) =>
+              filter({ direction: (event.target.value || undefined) as CardDirection | undefined })
             }
-          }}
-        />
-      </div>
+          >
+            <option value="">{t('problems.direction.all')}</option>
+            {CARD_DIRECTIONS.map((direction) => (
+              <option key={direction} value={direction}>
+                {t(`card.direction.${direction}`)}
+              </option>
+            ))}
+          </Select>
+          <Select
+            aria-label={t('problems.state')}
+            value={browse.state}
+            onChange={(event) => filter({ state: event.target.value as ProblemCardStateFilter })}
+          >
+            <option value="all">{t('problems.state.all')}</option>
+            <option value="studying">{t('problems.state.studying')}</option>
+            <option value="suspended">{t('problems.state.suspended')}</option>
+          </Select>
+          <Select
+            aria-label={t('problems.sort')}
+            value={browse.sort}
+            onChange={(event) => filter({ sort: event.target.value as ProblemCardSort })}
+          >
+            <option value="again">{t('problems.sort.again')}</option>
+            <option value="recent">{t('problems.sort.recent')}</option>
+          </Select>
+        </div>
+      )}
       <div role="status" className="flex flex-col gap-4 text-13 text-secondary">
-        <p>
-          {t(
-            unavailable ? 'offline.incomplete' : local ? 'problems.downloaded' : 'problems.online',
-          )}
-        </p>
+        {(unavailable || local) && (
+          <p>{t(unavailable ? 'offline.incomplete' : 'problems.downloaded')}</p>
+        )}
         {!unavailable && total !== undefined && <p>{t('problems.count', { count: total })}</p>}
       </div>
       {!unavailable && (

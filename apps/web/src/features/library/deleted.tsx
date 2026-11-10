@@ -13,6 +13,7 @@ import { Button } from '../../ui/button';
 import { CollectionIcon, collectionSurface } from '../../ui/collection';
 import { Disclosure } from '../../ui/disclosure';
 import { Input } from '../../ui/input';
+import { PageHeader } from '../../ui/page-header';
 import { Row } from '../../ui/row';
 import { Segmented } from '../../ui/segmented';
 import { Select } from '../../ui/select';
@@ -20,7 +21,7 @@ import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { useToast } from '../../ui/toast';
 import { NoteField } from '../notes/note-field';
 
-import { CollectionPath } from './collection-path';
+import { CollectionBack } from './collection-path';
 import {
   browseDeletedDecks,
   indexDeletedDecks,
@@ -55,12 +56,7 @@ export function DeletedScreen() {
 
   return (
     <section data-screen="" className="flex flex-col gap-20">
-      <header className="flex min-w-0 flex-col gap-4">
-        <CollectionPath tree={[]} id="" trail />
-        <h1 className="flex min-h-44 items-center font-display text-24 tracking-tight text-primary">
-          {t('deleted.title')}
-        </h1>
-      </header>
+      <PageHeader title={t('deleted.title')} back={<CollectionBack tree={[]} id="" />} />
       <Segmented
         value={kind}
         onChange={setKind}

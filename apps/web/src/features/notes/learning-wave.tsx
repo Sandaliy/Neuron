@@ -52,10 +52,25 @@ export function LearningWaveCard({
       <div className="h-4">
         <Progress value={wave.started} max={wave.size} label={t('waves.progress')} />
       </div>
-      <div className="flex flex-col gap-8 text-14 leading-body text-secondary">
+      {/*
+        What happens today first, then what is left in this wave and when the
+        next one starts. "N more wait in later waves" was dropped: the title
+        already says which wave of how many this is.
+      */}
+      <div className="flex flex-col gap-4 text-14 leading-body text-secondary">
+        <p className="text-15 text-primary">
+          {wave.today > 0
+            ? t('waves.today', { count: wave.today })
+            : t(`waves.paused.${paused}` as const)}
+        </p>
         <p>
           {t('waves.waiting', { count: wave.waiting })}
-          {wave.unsure > 0 && ` ${t('waves.unsure', { count: wave.unsure })}`}
+          {wave.unsure > 0 && ` ${t('waves.unsure', { count: wave.unsure })}`}{' '}
+          {wave.today === 0
+            ? t('waves.next')
+            : days <= 1
+              ? t('waves.nextDay')
+              : t('waves.nextDays', { count: days })}
         </p>
         {wave.directionsWaiting > 0 && (
           <p>
@@ -65,19 +80,6 @@ export function LearningWaveCard({
             })}
           </p>
         )}
-        <p className="text-primary">
-          {wave.today > 0
-            ? t('waves.today', { count: wave.today })
-            : t(`waves.paused.${paused}` as const)}
-        </p>
-        <p>
-          {wave.today === 0
-            ? t('waves.next')
-            : days <= 1
-              ? t('waves.nextDay')
-              : t('waves.nextDays', { count: days })}
-        </p>
-        <p>{wave.later > 0 ? t('waves.later', { count: wave.later }) : t('waves.last')}</p>
       </div>
     </Card>
   );
