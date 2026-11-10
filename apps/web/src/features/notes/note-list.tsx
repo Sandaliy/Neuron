@@ -59,7 +59,12 @@ import type { NoteQuery } from '../../lib/notes';
 const ROW_HEIGHT = 52;
 /** A row with a location or date line under the meaning. */
 const DETAIL_ROW_HEIGHT = 72;
+/** The day in the row; the minute only on hover, where it costs no width. */
 const dateFormats = {
+  en: new Intl.DateTimeFormat('en', { dateStyle: 'medium' }),
+  ru: new Intl.DateTimeFormat('ru', { dateStyle: 'medium' }),
+};
+const stampFormats = {
   en: new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }),
   ru: new Intl.DateTimeFormat('ru', { dateStyle: 'medium', timeStyle: 'short' }),
 };
@@ -840,22 +845,20 @@ const NoteRow = memo(function NoteRow({
           selected={selecting ? selected : undefined}
           word={termOf(note.fields)}
           meaning={meaning}
-          detail={
-            path === undefined && !dateSort ? undefined : (
+          detail={path}
+          stamp={
+            dateSort && (
               <>
-                {path}
-                {path !== undefined && dateSort && ' · '}
-                {dateSort && (
-                  <>
-                    {t(dateSort === 'created-desc' ? 'notes.addedAt' : 'notes.changedAt')}{' '}
-                    <time
-                      dateTime={recentNoteTime(note, dateSort)}
-                      title={recentNoteTime(note, dateSort)}
-                    >
-                      {dateFormats[locale].format(new Date(recentNoteTime(note, dateSort)))}
-                    </time>
-                  </>
-                )}
+                {/* The sort control already says which date this is. */}
+                <span className="sr-only">
+                  {t(dateSort === 'created-desc' ? 'notes.addedAt' : 'notes.changedAt')}{' '}
+                </span>
+                <time
+                  dateTime={recentNoteTime(note, dateSort)}
+                  title={stampFormats[locale].format(new Date(recentNoteTime(note, dateSort)))}
+                >
+                  {dateFormats[locale].format(new Date(recentNoteTime(note, dateSort)))}
+                </time>
               </>
             )
           }

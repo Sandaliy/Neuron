@@ -618,12 +618,16 @@ function Rows() {
         <DenseRow
           word="gehorchen"
           meaning="слушаться, подчиняться"
-          detail="Deutsch / Grammatik · Updated Nov 3, 2026"
+          detail="Verben mit Dativ · Deutsch / Grammatik / Verben und ihre Ergänzungen"
+          stamp="Nov 3, 2026"
           trailing={<Chip>2 мес.</Chip>}
           onClick={() => {}}
         />
       </RowGroup>
-      <State>dense with detail · where it sits or when it changed, 72px, one surface</State>
+      <State>
+        dense with detail · where it sits, then when it changed; a long path truncates, the date
+        does not · 72px, one surface
+      </State>
 
       <Row title="dienen" subtitle="disabled" disabled onClick={() => {}} />
       <State>disabled</State>

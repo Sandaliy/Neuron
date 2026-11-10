@@ -163,10 +163,12 @@ mark: a fill framed by a white ring read as a radio bullet at twenty pixels, and
 **Row** (`ui/row.tsx`). `Row` is a deck row, a settings row, or anything with a title, a subtitle and
 something at the far end. `TreeRow` and `TreeChildren` are the deck tree: indentation and a hairline,
 never a second noun. `DenseRow` is a note in a list of five hundred: two lines, 52px, no avatar and no
-icon. A list that spans Decks or dates adds a third, quieter line (`detail`: where the Note sits, or
-when it changed) and grows to 72px; that line is part of the row's surface and press, never a strip
-under it. Word, meaning and detail step down primary, secondary, tertiary. A pressable row is a
-button, and its focus ring is inset so a group's overflow cannot clip it.
+icon. The word (15, primary) and its meaning (14, secondary) are what the learner reads, so both are
+set to read at a glance. A list that spans Decks or dates adds a third line at 12 in tertiary and
+grows to 72px: where the Note sits (`detail`), then the day it was added or changed (`stamp`, no time
+of day; the full stamp is its tooltip). A long path truncates, the date never does, and the line never
+widens the list. It is part of the row's surface and press, never a strip under it. A pressable row
+is a button, and its focus ring is inset so a group's overflow cannot clip it.
 
 **Page header** (`ui/page-header.tsx`). Every screen's head, in one order: Back and the screen's
 actions on one row, the title on its own row, then a location line only when Back does not already

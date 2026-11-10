@@ -24,7 +24,7 @@ test('Recent Notes opens restrained Library choices, dates and locations and ret
     'datetime',
     '2026-11-01T00:00:00.000Z',
   );
-  await expect(page.getByText(/^Deck 2 · Added /).first()).toBeVisible();
+  await expect(page.getByText('Deck 2', { exact: true }).first()).toBeVisible();
   await page.screenshot({
     path: info.outputPath('recent-notes-added.png'),
     animations: 'disabled',
@@ -533,10 +533,10 @@ test('Find Notes searches every Deck and returns with filters, sorting and list 
   await search.fill('word');
   await expect.poll(() => requests.at(-1)?.searchParams.get('search')).toBe('word');
   await expect(
-    page.getByRole('button', { name: /^Wort 1 word 1 Lesson 1 · Languages/ }),
+    page.getByRole('button', { name: /^Wort 1 word 1 · Lesson 1 · Languages/ }),
   ).toBeVisible();
   await expect(
-    page.getByRole('button', { name: /^Wort 2 word 2 Lesson 2 · Languages \/ German/ }),
+    page.getByRole('button', { name: /^Wort 2 word 2 · Lesson 2 · Languages \/ German/ }),
   ).toBeVisible();
   await page.screenshot({
     path: info.outputPath('find-notes-results.png'),

@@ -185,11 +185,16 @@ export function TreeChildren({
  *
  * Two lines, fifty two pixels, no avatar and no icon. Five hundred of these
  * scroll on a phone, and every pixel of decoration is paid for on every frame.
+ *
+ * The word and its meaning are what the learner reads, so both are set large
+ * enough to read at a glance. Where the Note sits and when it changed are
+ * context: one smaller, quieter line that never outweighs the meaning.
  */
 export function DenseRow({
   word,
   meaning,
   detail,
+  stamp,
   trailing,
   onClick,
   selected,
@@ -197,23 +202,41 @@ export function DenseRow({
   readonly word: ReactNode;
   readonly meaning: ReactNode;
   /**
-   * A third, quieter line: where the Note sits, or when it changed. Part of the
-   * row, so it shares its surface and its press. It used to be a separate strip
-   * under the row with the card's own background, which read as a different
-   * item between two Notes.
+   * A third, quieter line: where the Note sits. Part of the row, so it shares
+   * its surface and its press. It used to be a separate strip under the row
+   * with the card's own background, which read as a different item between
+   * two Notes. A long path truncates; the stamp after it does not.
    */
   readonly detail?: ReactNode;
+  /** When the Note was added or changed, after the detail on the same line. */
+  readonly stamp?: ReactNode;
   readonly trailing?: ReactNode;
   readonly onClick?: () => void;
   readonly selected?: boolean | undefined;
 }) {
-  const height = detail === undefined ? 'h-52' : 'h-72';
+  const third = detail !== undefined || stamp !== undefined;
+  const height = third ? 'h-72' : 'h-52';
   const content = (
     <>
-      <span className="flex min-w-0 flex-1 flex-col text-left">
-        <span className="truncate text-14 text-primary">{word}</span>
-        <span className="truncate text-12 text-secondary">{meaning}</span>
-        {detail !== undefined && <span className="truncate text-12 text-tertiary">{detail}</span>}
+      {/*
+        w-0 with flex-1: the column still fills the row, but a long path that
+        cannot wrap no longer counts towards the row's minimum width, so it
+        truncates instead of widening whatever list holds the row.
+      */}
+      <span className="flex w-0 min-w-0 flex-1 flex-col text-left">
+        <span className="truncate text-15 text-primary">{word}</span>
+        <span className="truncate text-14 text-secondary">{meaning}</span>
+        {third && (
+          <span className="flex min-w-0 text-12 text-tertiary">
+            {/* Read aloud the row runs on as one name; this keeps the meaning and the place apart. */}
+            <span className="sr-only"> · </span>
+            {detail !== undefined && <span className="min-w-0 truncate">{detail}</span>}
+            {detail !== undefined && stamp !== undefined && (
+              <span className="shrink-0 whitespace-pre">{' · '}</span>
+            )}
+            {stamp !== undefined && <span className="shrink-0">{stamp}</span>}
+          </span>
+        )}
       </span>
       {trailing}
     </>
