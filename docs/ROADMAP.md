@@ -354,6 +354,39 @@ Advanced arbitrary Daily Study recipes and richer Listening/speech work remain u
 Progressive admission of independently scheduled directions stays in Phase 9; Practice-only exercises
 must remain separate from any decision to create new FSRS skills.
 
+### Additional translations on a Note
+
+Not scheduled. A learner studying German with Russian meanings may also want the English word for the
+same concept, without a second English collection that schedules the same concepts twice.
+
+A Note keeps its Deck's main translation and may carry additional translations into other languages,
+for example German to Russian with English as well. It remains one learning entity, not a separate
+vocabulary system:
+
+- One Note, one set of Cards, one schedule. Study, Practice, Recognition, Recall, Typing, Listening
+  and later modes grade what they grade today; an additional translation never gets its own Card,
+  schedule or Review history.
+- Grammar, gender, verb governance, examples and definitions stay on the same Note and are learned in
+  the same sitting as every translation of it.
+- An additional translation reads quieter than the main one and is not what a typed answer is checked
+  against.
+- A Deck chooses its additional languages, inherited like its other language settings. With none
+  chosen, the Note form and the cards do not change.
+
+Prerequisite: every Deck has a target and a translation language. Both are optional today
+(`targetLanguage`, `nativeLanguage` in `deckSettingsSchema`); requiring them on new Decks, including
+offline creation and existing Decks without them, comes first.
+
+Expected shape: an optional per-language map in `notes.fields`, validated by
+`packages/shared/src/note-fields.ts` against the Deck's resolved languages. No new table and no Card or
+Review change. It travels in the existing Note edit outbox, Import can map a column to a language, and
+the card-generation prompt can fill it. Account export picks Note fields by schema, so the map needs its
+own entry there as `grammar` has. Notes without it are unchanged. Search and Possible duplicates keep
+comparing the term.
+
+Open decisions: how many additional languages a Deck may have; whether Recall or Typing may ever prompt
+from an additional translation; whether search should match it.
+
 ### Card generation and assisted authoring
 
 - Optional in-app generation using a user-supplied provider key.

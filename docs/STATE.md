@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-09 (release backlog integrated at `fc49ad4`).
+Last updated: 2026-11-10 (#97 merged; #98 and #100 open).
 
 ## Release
 
@@ -77,6 +77,10 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   bounded revisions. Exact retries after a lost response change nothing, fill-blank merges commit a
   receipt with the edit, and Undo publishes tombstones in bounded revisions without touching Reviews.
   See `import-performance.md`.
+- Two-factor setup and Practice progress (#97): switching to an authenticator app no longer closes
+  setup or loses its key, and setup offers an "Open in an authenticator app" link. The Practice card
+  counts Known as progress ("7 of 12 known", "5 still learning") instead of "12 / 12 classified", and
+  keeps its height while the saved summary loads, so a Deck never practised shows a blank line there.
 
 Recent Notes (#81) adds Recently added (`createdAt`) and Recently changed (`updatedAt`) to Library's
 existing Note browser, with dates, locations, filters and editor return. Migration 0019 adds read indexes
@@ -113,6 +117,25 @@ installed-iPhone acceptance.
 | #59 | This file, the browser test index, `test:screens:ci`.                                                                                                                                                                                                                                                                                                 |
 
 ## Next
+
+Open pull requests:
+
+- #98, tab bar and swipe Back: the tab pill moves on the press, tab screens preload, and an iPhone
+  edge-swipe Back no longer plays the app's own slide over Safari's. Green and set to merge itself;
+  every merge to `main` puts it behind again, and the swipe fix still needs a real iPhone.
+- #100, one header and a simpler Library: shared page header, one Library search with four entries,
+  a Deck options menu, and Note rows that carry place and date in the row (word and meaning first,
+  place and day on one quieter line). Not merged until the owner approves the look; the shared
+  header and the stronger meaning colour in rows are part of that approval.
+
+After those, in order: Deck languages (a target and a translation language required on new Decks,
+online and offline, with a backward-compatible offline creation format and a path for existing Decks;
+this is also the prerequisite for additional translations in `ROADMAP.md`); plainer Offline & sync and
+Export copy in Settings; the wider Import screen (keeping progress, retry, recovery, Undo and offline
+drafts); the logo (the owner chose an N built from dots; the original reference is needed before
+refining it, and nothing ships without approval); the custom domain (needs Vercel access: add it to
+`neuron-web`, then put it first in `APP_ORIGIN` on `neuron-api` and keep the old address until sign-in,
+cookies and the PWA are verified on it).
 
 The release backlog is integrated: Session recovery (#94), Progressive directions (#86), Slipping
 Cards (#87), Account export (#71) and Import hardening (#74) are on protected `main`, deployed, with
@@ -162,6 +185,12 @@ dropping checks; see "The five-minute CI budget" in `apps/web/tests/README.md`.
   the Note is not in triage until the server has it. Reconnect: both arrive once.
 
 ## Open threads
+
+- GitHub's repository sidebar still lists a second contributor (checked 2026-11-10). None of the 146
+  commits on `main` has another author, committer or co-author line, and the contributors API lists
+  only the owner, so the sidebar is a stale cache from before the #86/#87 rewrite (see
+  `integration-status.md`). History needs no further rewrite; if the entry stays, GitHub Support can
+  refresh it.
 
 - Account export (#71) excludes device-only work and has no import or restore path. A real
   mid-stream session expiry and a 67.7 MB synthetic archive streamed correctly from PostgreSQL;
