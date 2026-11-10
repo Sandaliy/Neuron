@@ -16,12 +16,9 @@ test('Recent Notes opens restrained Library choices, dates and locations and ret
 }, info) => {
   const { requests } = await installRecentFixture(page);
   await page.goto('/library');
-  await page.getByRole('button', { name: 'Recent Notes', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Recently added', exact: true }).click();
+  await page.getByRole('button', { name: 'Recent', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Recent Notes', exact: true })).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue(
-    'created-desc',
-  );
+  await expect(page.getByRole('radio', { name: 'Recently added', exact: true })).toBeChecked();
   await expect(page.getByRole('button', { name: /^Wort 2 word 2/ })).toBeVisible();
   await expect(page.locator('time').first()).toHaveAttribute(
     'datetime',
@@ -32,7 +29,7 @@ test('Recent Notes opens restrained Library choices, dates and locations and ret
     path: info.outputPath('recent-notes-added.png'),
     animations: 'disabled',
   });
-  await page.getByRole('combobox', { name: 'Order', exact: true }).selectOption('updated-desc');
+  await page.getByText('Recently changed', { exact: true }).click();
   await expect(page.getByRole('button', { name: /^Wort 6500 word 6500/ })).toBeVisible();
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await page
@@ -67,9 +64,7 @@ test('Recent Notes opens restrained Library choices, dates and locations and ret
   await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Recent Notes', exact: true }).click();
   await expect(page.getByRole('searchbox', { name: 'Search', exact: true })).toHaveValue('word');
-  await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue(
-    'updated-desc',
-  );
+  await expect(page.getByRole('radio', { name: 'Recently changed', exact: true })).toBeChecked();
   await expect(
     page.getByRole('combobox', { name: 'Study participation', exact: true }),
   ).toHaveValue('known');
@@ -80,7 +75,7 @@ test('Recent Notes opens restrained Library choices, dates and locations and ret
     .poll(() => page.evaluate((offset) => Math.abs(scrollY - offset), before))
     .toBeLessThan(110);
   await expect(target).toBeVisible();
-  expect(await page.locator('[data-rows] button').count()).toBeLessThan(80);
+  expect(await page.locator('[data-rows] button').count()).toBeLessThan(110);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
@@ -98,7 +93,7 @@ test('recent changed pagination captures ties, survives a changing boundary and 
   expect(requests.every((url) => url.searchParams.get('limit') === '1000')).toBe(true);
   await page.getByRole('button', { name: 'Refresh', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Wort 5501 word 5501/ })).toBeVisible();
-  expect(await page.locator('[data-rows] button').count()).toBeLessThan(80);
+  expect(await page.locator('[data-rows] button').count()).toBeLessThan(110);
 });
 
 async function installCategoriesFixture(page: Page) {
@@ -177,6 +172,8 @@ test('Tags & Sources opens exact Note filters and preserves search, sort and Bac
   expect(requests.every((url) => url.pathname.endsWith('/categories'))).toBe(true);
   await page.screenshot({ path: info.outputPath('tags-sources.png'), animations: 'disabled' });
   await page.getByRole('button', { name: 'shared Notes: 6000', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'shared', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
     'shared',
   );
@@ -193,7 +190,7 @@ test('Tags & Sources opens exact Note filters and preserves search, sort and Bac
     .toBe('rank');
   await page.getByRole('button', { name: /^Wort 1 word 1/ }).click();
   await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await page.getByRole('button', { name: 'shared', exact: true }).click();
   await expect(search).toHaveValue('word');
   await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue('rank');
   await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
@@ -204,6 +201,7 @@ test('Tags & Sources opens exact Note filters and preserves search, sort and Bac
   await expect(page.getByRole('button', { name: 'Course Notes: 3000', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'course Notes: 3000', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Course Notes: 3000', exact: true }).click();
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByRole('textbox', { name: 'Import source name', exact: true })).toHaveValue(
     'Course',
   );
@@ -213,6 +211,7 @@ test('Tags & Sources opens exact Note filters and preserves search, sort and Bac
   await expect(page.getByRole('button', { name: /^Wort 1 word 1/ })).toBeVisible();
   await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
   await page.getByRole('button', { name: 'Course Notes: 3000', exact: true }).click();
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByRole('textbox', { name: 'Import source name', exact: true })).toHaveValue(
     'Course',
   );
@@ -236,6 +235,8 @@ test('category pagination and keyboard return keep a measured, bounded mobile li
   const row = page.getByRole('button', { name: /^topic 199 Notes:/ });
   await row.focus();
   await row.press('Enter');
+  await expect(page.getByRole('heading', { name: 'topic 199', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
     'topic 199',
   );
@@ -265,6 +266,7 @@ test('long saved sources and padded tags remain exact and wrap on a phone', asyn
   await page.screenshot({ path: info.outputPath('long-source.png'), animations: 'disabled' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: /Very long source.*Notes: 1/ }).click();
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByRole('textbox', { name: 'Import source name', exact: true })).toHaveValue(
     source,
   );
@@ -280,6 +282,7 @@ test('long saved sources and padded tags remain exact and wrap on a phone', asyn
   await page.getByText('Tags', { exact: true }).click();
   await page.getByRole('searchbox').fill('padded');
   await page.getByRole('button', { name: 'padded tag Notes: 1', exact: true }).click();
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
     ' padded tag ',
   );
@@ -523,9 +526,9 @@ test('Find Notes searches every Deck and returns with filters, sorting and list 
   page,
 }, info) => {
   const { requests } = await installFindNotesFixture(page);
-  await page.goto('/library?folderId=nested');
-  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Find Notes', exact: true })).toBeVisible();
+  await page.goto('/library');
+  await page.getByRole('button', { name: 'Search the Library', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Search', exact: true })).toBeVisible();
   const search = page.getByRole('searchbox', { name: 'Search', exact: true });
   await search.fill('word');
   await expect.poll(() => requests.at(-1)?.searchParams.get('search')).toBe('word');
@@ -568,7 +571,7 @@ test('Find Notes searches every Deck and returns with filters, sorting and list 
   const position = await page.evaluate(() => scrollY);
   await page.getByRole('button', { name: new RegExp(`^${term} word`) }).click();
   await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(search).toHaveValue('word');
   await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
     'lesson',

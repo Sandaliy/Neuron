@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useNavigate, useRouter } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { defaultRangeExtractor, useWindowVirtualizer } from '@tanstack/react-virtual';
-import { ChevronLeft, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
@@ -11,6 +11,7 @@ import { noteCategoriesQuery } from '../../lib/note-categories';
 import { accountEpoch, useOffline } from '../../lib/offline';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
+import { BackLink, PageHeader } from '../../ui/page-header';
 import { Row, RowChevron } from '../../ui/row';
 import { Segmented } from '../../ui/segmented';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
@@ -51,20 +52,12 @@ export function NoteCategoriesScreen() {
   const busy = search !== browse.typed.trim();
   return (
     <section data-screen="" className="flex flex-col gap-16">
-      <header className="flex min-w-0 flex-col gap-4">
-        <Button
-          variant="text"
-          className="self-start"
-          onClick={() => void navigate({ to: '/library' })}
-        >
-          <ChevronLeft size={20} strokeWidth={1.5} aria-hidden="true" />
-          {t('library.title')}
-        </Button>
-        <h1 className="font-display text-24 tracking-tight text-primary">
-          {t('categories.title')}
-        </h1>
-        <p className="text-14 text-secondary">{t('categories.hint')}</p>
-      </header>
+      <PageHeader
+        title={t('categories.title')}
+        back={
+          <BackLink label={t('library.title')} onClick={() => void navigate({ to: '/library' })} />
+        }
+      />
       <Segmented
         value={browse.kind}
         label={t('categories.title')}
@@ -107,9 +100,11 @@ export function NoteCategoriesScreen() {
         </p>
       ) : (
         <>
-          <p role="status" className="text-13 text-secondary">
-            {t(local ? 'categories.downloaded' : 'categories.online')}
-          </p>
+          {local && (
+            <p role="status" className="text-13 text-secondary">
+              {t('offline.results')}
+            </p>
+          )}
           {categories.error && (
             <ErrorState
               message={t(describe(categories.error).key, describe(categories.error).values)}
@@ -267,17 +262,6 @@ function CategoryRows({
         );
       })}
     </div>
-  );
-}
-
-export function NoteCategoryBack() {
-  const t = useTranslate();
-  const router = useRouter();
-  return (
-    <Button variant="text" className="self-start" onClick={() => router.history.back()}>
-      <ChevronLeft size={20} strokeWidth={1.5} aria-hidden="true" />
-      {t('categories.title')}
-    </Button>
   );
 }
 

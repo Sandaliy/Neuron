@@ -259,6 +259,12 @@ async function downloaded(page: Page) {
   await page.goBack();
 }
 
+/** Library, then Checks, then Possible duplicates. */
+async function openDuplicates(page: Page) {
+  await page.getByRole('button', { name: 'Checks', exact: true }).click();
+  await page.getByRole('button', { name: /^Possible duplicates / }).click();
+}
+
 test('Tags & Sources and duplicate inspection retain independent editor return and browse state', async ({
   page,
 }) => {
@@ -291,9 +297,7 @@ test('Tags & Sources and duplicate inspection retain independent editor return a
     await route.fallback();
   });
   await page.goto('/library');
-  await expect(
-    page.getByRole('button', { name: 'Possible duplicates', exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Checks', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
   await expect(page.getByText('Shown: 100 of 321', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Show more', exact: true }).click();
@@ -309,15 +313,16 @@ test('Tags & Sources and duplicate inspection retain independent editor return a
     .first()
     .click();
   await expect(page.getByRole('heading', { name: 'Note', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await page.getByRole('button', { name: 'Oxford source', exact: true }).click();
   await expect(search).toHaveValue('Bank');
   await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue('alpha');
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByRole('textbox', { name: 'Import source name', exact: true })).toHaveValue(
     'Oxford source',
   );
   await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
-  await page.getByRole('button', { name: 'Possible duplicates', exact: true }).click();
+  await openDuplicates(page);
   const duplicateSearch = page.getByRole('searchbox', { name: 'Search duplicate groups' });
   await duplicateSearch.fill('River');
   await duplicateSearch.press('Enter');
@@ -346,6 +351,7 @@ test('Tags & Sources and duplicate inspection retain independent editor return a
   await expect(page.getByRole('searchbox', { name: 'Search duplicate groups' })).toHaveValue(
     'River',
   );
+  await page.getByRole('button', { name: 'Checks', exact: true }).click();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
   await expect(page.getByRole('radio', { name: 'Sources', exact: true })).toBeChecked();
@@ -363,7 +369,7 @@ test('Library and Deck entries inspect groups with bounded pages and editor retu
   await installInteractionMetrics(page);
   await page.goto('/library');
   const started = Date.now();
-  await page.getByRole('button', { name: 'Possible duplicates', exact: true }).click();
+  await openDuplicates(page);
   await expect(page.getByRole('button', { name: 'bank 1500 Notes with this term' })).toBeVisible();
   const entryMs = Date.now() - started;
   const search = page.getByRole('searchbox', { name: 'Search duplicate groups' });
@@ -427,7 +433,7 @@ test('Library and Deck entries inspect groups with bounded pages and editor retu
     .toBe(true);
   await page.getByRole('button', { name: 'All groups', exact: true }).click();
   await expect(search).toHaveValue('River');
-  await page.getByRole('combobox', { name: 'Collection scope' }).selectOption(deckId);
+  await page.getByRole('combobox', { name: 'Look in' }).selectOption(deckId);
   await expect(page.getByRole('button', { name: 'bank 750 Notes with this term' })).toBeVisible();
   expect(state.writes).toBe(0);
   const metrics = await readInteractionMetrics(page);
@@ -477,7 +483,7 @@ test('complete downloads support offline inspection, local edits, pending Notes 
   await page.evaluate(() => dispatchEvent(new Event('offline')));
   const start = Date.now();
   await startInteractionMetrics(page);
-  await expect(page.getByText(/Complete downloaded collection/)).toBeVisible();
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'bank 1500 Notes with this term' }).click();
   await expect(page.getByRole('heading', { name: 'bank', exact: true })).toBeVisible();
   const offlineMs = Date.now() - start;
@@ -495,7 +501,7 @@ test('complete downloads support offline inspection, local edits, pending Notes 
   await page.getByRole('button', { name: 'Possible duplicates', exact: true }).click();
   await page.getByRole('button', { name: 'All groups', exact: true }).click();
   await expect(page.getByRole('button', { name: 'bank 1499 Notes with this term' })).toBeVisible();
-  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
   await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
   await expect(page.getByRole('button', { name: 'shared Notes: 6499', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'local category Notes: 1', exact: true }).click();
@@ -503,7 +509,8 @@ test('complete downloads support offline inspection, local edits, pending Notes 
   await expect(page.getByRole('textbox', { name: 'Word', exact: true })).toHaveValue(
     'Unique edited term',
   );
-  await page.getByRole('button', { name: 'Find Notes', exact: true }).click();
+  await page.getByRole('button', { name: 'local category', exact: true }).click();
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByRole('combobox', { name: 'Tag or topic', exact: true })).toHaveValue(
     'local category',
   );
@@ -521,18 +528,24 @@ test('complete downloads support offline inspection, local edits, pending Notes 
     page.getByRole('button', { name: 'local category Notes: 1', exact: true }),
   ).toHaveCount(0);
   await page.getByRole('button', { name: 'Library', exact: true }).click();
-  await page.getByRole('button', { name: 'Possible duplicates', exact: true }).click();
-  await expect(page.getByText(/^Server results/)).toBeVisible({ timeout: 20_000 });
+  await openDuplicates(page);
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toHaveCount(
+    0,
+    {
+      timeout: 20_000,
+    },
+  );
   await expect(page.getByRole('button', { name: 'bank 1500 Notes with this term' })).toBeVisible();
   state.offline = true;
   await page.evaluate(() => dispatchEvent(new Event('offline')));
-  await expect(page.getByText(/Complete downloaded collection/)).toBeVisible();
+  await expect(page.getByText('Offline results from this device.', { exact: true })).toBeVisible();
   state.who = 'second-account';
   state.offline = false;
   await page.evaluate(() => dispatchEvent(new Event('online')));
   await expect(page.getByText('No matching groups', { exact: true })).toBeVisible({
     timeout: 20_000,
   });
+  await page.getByRole('button', { name: 'Checks', exact: true }).click();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await page.getByRole('button', { name: 'Tags & Sources', exact: true }).click();
   await expect(page.getByText('No categories yet', { exact: true })).toBeVisible();
@@ -571,7 +584,7 @@ test('device-only Notes are labeled in complete downloaded groups', async ({ pag
   await page.getByRole('button', { name: 'Save the note', exact: true }).click();
   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/);
   await page.getByRole('link', { name: 'Library', exact: true }).click();
-  await page.getByRole('button', { name: 'Possible duplicates', exact: true }).click();
+  await openDuplicates(page);
   await page.getByRole('button', { name: 'bank 3 Notes with this term' }).click();
   const pending = page.getByRole('button', { name: /Bank Device-only meaning/ });
   await expect(pending).toContainText('Saved on device');

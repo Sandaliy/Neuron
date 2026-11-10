@@ -80,7 +80,7 @@ export function CollectionSearchRows({
     <div
       ref={list}
       role="list"
-      aria-label={t('library.search.title')}
+      aria-label={t('search.collections')}
       className="relative min-w-0"
       style={{ height: virtual.getTotalSize() }}
     >

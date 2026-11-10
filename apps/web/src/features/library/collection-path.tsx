@@ -1,97 +1,109 @@
 import { useNavigate } from '@tanstack/react-router';
-import { ChevronLeft, ChevronRight, Folder, Layers } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 import type { DeckNode } from '@neuron/shared';
 
 import { useTranslate } from '../../i18n/locale';
 import { flatten } from '../../lib/decks';
+import { BackLink } from '../../ui/page-header';
 
-/**
- * Where a collection screen sits, as a row of links.
- *
- * In `trail` mode it is the row above a screen's title: a Back control that
- * goes one level up, then the ancestors, and not the current item, which the
- * title already names. Every nested Library screen (a Folder, a Deck, a Note,
- * Deleted) uses it, so going up is always in the same place. It replaces a
- * path under the title that repeated the title, a back arrow among a Folder's
- * actions, and a different one beside Deleted's title.
- *
- * Without `trail` it is the full path including the item, for a screen that
- * acts on a collection it does not show, like Import.
- */
-export function CollectionPath({
-  tree,
-  id,
-  trail = false,
-  within = false,
-}: {
-  readonly tree: readonly DeckNode[];
-  /** The collection the screen shows. Empty for a screen directly under Library. */
-  readonly id: string;
-  readonly trail?: boolean;
-  /** The screen shows something inside the collection, like a Note in its Deck, so the collection is an ancestor too. */
-  readonly within?: boolean;
-}) {
+/** Opens a Folder, a Deck, or the Library itself. */
+export function useOpenCollection(tree: readonly DeckNode[]) {
   const navigate = useNavigate();
-  const t = useTranslate();
-  const all = flatten(tree);
-  const item = all.find((row) => row.id === id);
-  if (!item && !trail) return null;
-  const ids = item ? [...new Set([...item.path, item.id])] : [];
-  const shown = trail && !within ? ids.filter((key) => key !== id) : ids;
-  const open = (key: string | null) => {
-    const row = key === null ? undefined : all.find((entry) => entry.id === key);
+  return (key: string | null) => {
+    const row = key === null ? undefined : flatten(tree).find((entry) => entry.id === key);
     if (!row) return void navigate({ to: '/library' });
     return void (row.kind === 'folder'
       ? navigate({ to: '/library', search: { folderId: row.id } })
       : navigate({ to: '/notes', search: { deckId: row.id } }));
   };
+}
+
+/**
+ * One level up the hierarchy, named for where it lands.
+ *
+ * `within` is for a screen that shows something inside the collection, like a
+ * Note in its Deck: Back then goes to the collection itself.
+ */
+export function CollectionBack({
+  tree,
+  id,
+  within = false,
+}: {
+  readonly tree: readonly DeckNode[];
+  /** The collection the screen shows. Empty for a screen directly under Library. */
+  readonly id: string;
+  readonly within?: boolean;
+}) {
+  const t = useTranslate();
+  const open = useOpenCollection(tree);
+  const all = flatten(tree);
+  const item = all.find((row) => row.id === id);
+  const targetId = within ? (item?.id ?? null) : (item?.path.at(-1) ?? item?.parentId ?? null);
+  const target = targetId === null ? undefined : all.find((row) => row.id === targetId);
+  return <BackLink label={target?.name ?? t('library.title')} onClick={() => open(targetId)} />;
+}
+
+/**
+ * Where a collection sits, as one quiet line under a title.
+ *
+ * Shown only when Back does not already say it: a Note opened from search or a
+ * check, a Deck opened from search results, an Import aimed at a Deck. Each name
+ * opens that level. It wraps rather than scrolling sideways, so a long path is
+ * readable at once on a phone.
+ */
+export function CollectionLocation({
+  tree,
+  id,
+  includeSelf = false,
+}: {
+  readonly tree: readonly DeckNode[];
+  readonly id: string;
+  /** Name the collection itself as the last step, for a screen about something inside it. */
+  readonly includeSelf?: boolean;
+}) {
+  const t = useTranslate();
+  const open = useOpenCollection(tree);
+  const all = flatten(tree);
+  const item = all.find((row) => row.id === id);
+  if (!item) return null;
+  const ids = [...new Set(includeSelf ? [...item.path, item.id] : item.path)];
+  const steps = ids
+    .map((key) => all.find((row) => row.id === key))
+    .filter((row): row is DeckNode => row !== undefined);
   return (
     <nav
       aria-label={t('note.deck')}
-      className={[
-        'flex min-w-0 max-w-full items-center gap-4 overflow-x-auto text-13 text-tertiary',
-        trail ? '-ml-12' : 'pb-4',
-      ].join(' ')}
+      data-location=""
+      className="flex min-w-0 flex-wrap items-center gap-x-4 text-13 text-secondary"
     >
-      {trail && (
-        <button
-          type="button"
-          aria-label={t('common.back')}
-          className="flex size-44 shrink-0 items-center justify-center rounded-12 text-accent hover:bg-fill-neutral"
-          onClick={() => open(shown.at(-1) ?? null)}
-        >
-          <ChevronLeft size={20} strokeWidth={1.5} aria-hidden="true" />
-        </button>
-      )}
-      <button
-        type="button"
-        className="-ml-4 flex min-h-44 shrink-0 items-center whitespace-nowrap px-4 text-secondary hover:text-primary"
-        onClick={() => open(null)}
-      >
-        {t('library.title')}
-      </button>
-      {shown.map((key) => {
-        const row = all.find((entry) => entry.id === key);
-        if (!row) return null;
-        const Icon = row.kind === 'folder' ? Folder : Layers;
-        return (
-          <span key={key} className="flex shrink-0 items-center gap-4">
-            <ChevronRight size={12} aria-hidden="true" />
-            <button
-              type="button"
-              aria-current={key === id ? 'location' : undefined}
-              className={`flex min-h-44 shrink-0 items-center whitespace-nowrap px-4 text-secondary hover:text-primary ${key === id ? 'text-accent' : ''}`}
-              onClick={() => open(key)}
-            >
-              <span className="flex items-center gap-4">
-                <Icon size={14} aria-hidden="true" />
-                {row.name}
-              </span>
-            </button>
-          </span>
-        );
-      })}
+      <LocationStep label={t('library.title')} onClick={() => open(null)} />
+      {steps.map((row) => (
+        <span key={row.id} className="flex min-w-0 items-center gap-4">
+          <ChevronRight size={12} aria-hidden="true" className="shrink-0 text-tertiary" />
+          <LocationStep label={row.name} onClick={() => open(row.id)} />
+        </span>
+      ))}
     </nav>
+  );
+}
+
+function LocationStep({
+  label,
+  onClick,
+}: {
+  readonly label: string;
+  readonly onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      // Drawn 32 tall so the line stays quiet under the title; the press area
+      // reaches 48 with the margin the pseudo-element adds above and below.
+      className="relative flex min-h-32 min-w-0 items-center rounded-8 hover:text-primary after:absolute after:inset-x-0 after:-inset-y-8 after:content-['']"
+    >
+      <span className="truncate">{label}</span>
+    </button>
   );
 }

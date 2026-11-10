@@ -624,8 +624,9 @@ test('committed swipe removes immediately and failure restores the row', async (
 test('file chooser shows one filename and scoped breadcrumbs remain compact', async ({ page }) => {
   await setup(page, 'en', 'dark');
   await page.goto('/import?deckId=leaf');
-  const path = page.getByRole('navigation', { name: 'Deck', exact: true });
-  await expect(path.getByRole('button', { name: 'German', exact: true })).toBeVisible();
+  // A scoped Import names its Deck once, in Back; no breadcrumb row competes with the title.
+  await expect(page.getByRole('button', { name: 'B1', exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Deck', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Import into', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'File', exact: true }).click();
   await expect(page.getByText('No file selected', { exact: true })).toBeVisible();
@@ -640,6 +641,6 @@ test('file chooser shows one filename and scoped breadcrumbs remain compact', as
   await expect(page.getByText('words.txt', { exact: true })).toHaveCount(1);
   await expect(page.getByText('No file selected', { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await path.getByRole('button', { name: 'German', exact: true }).click();
-  await expect(page).toHaveURL(/folderId=folder/);
+  await page.getByRole('button', { name: 'B1', exact: true }).click();
+  await expect(page).toHaveURL(/deckId=leaf/);
 });

@@ -128,10 +128,11 @@ it.each(['tag', 'source'] as const)(
     const { client, router, wrapper } = browseHarness();
     const category = { kind, value: ` saved ${kind} ` };
     const first = renderHook(() => useNoteBrowse(undefined, category), { wrapper });
+    // The category is the screen's title, so the filter holding it starts folded.
     expect(first.result.current.state).toMatchObject({
       [kind]: category.value,
       [`${kind}Filter`]: category.value,
-      filtersOpen: true,
+      filtersOpen: false,
     });
     act(() => first.result.current.update({ typed: 'meaning', search: 'meaning', sort: 'alpha' }));
     await waitFor(() => expect(first.result.current.state.search).toBe('meaning'));

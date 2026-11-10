@@ -419,7 +419,7 @@ test('nested Back actions clear menus and pending edits reach the same Deck', as
   await page.getByRole('button', { name: 'Words', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/notes\\?deckId=${deckId}$`));
   await page.getByRole('button', { name: 'German', exact: true }).click();
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page).toHaveURL(/\/library$/);
 });
 
@@ -674,6 +674,7 @@ test('a browser Back does not replay the app Back animation; an in-app Back does
   );
   await page.getByRole('button', { name: /^Deutsch/ }).click();
   await expect(page.getByRole('heading', { name: 'Deutsch', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  // The header's Back is named for where it goes: a top-level Folder returns to Library.
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
 });

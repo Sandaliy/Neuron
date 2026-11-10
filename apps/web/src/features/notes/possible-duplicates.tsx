@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { ChevronLeft, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useTranslate } from '../../i18n/locale';
@@ -10,8 +10,10 @@ import { accountEpoch, useOffline } from '../../lib/offline';
 import { usePossibleDuplicates } from '../../lib/possible-duplicates';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
-import { Select } from '../../ui/select';
+import { BackLink, PageHeader } from '../../ui/page-header';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
+import { CheckBack } from '../library/library-checks';
+import { ScopeSelect } from '../library/scope-select';
 
 import { DuplicateRows } from './duplicate-rows';
 
@@ -86,34 +88,21 @@ function DuplicateBrowser({ deckId }: { readonly deckId: string | undefined }) {
     });
   }, [unavailable, browse.group, groups.data, notes.data]);
   const local = offline.offline || query.data?.pages.some((page) => page.local);
-  const back = () => {
-    if (browse.group !== undefined) update({ group: undefined, notesReturn: undefined });
-    else
-      void navigate({
-        to: deckId ? '/notes' : '/library',
-        ...(deckId ? { search: { deckId } } : {}),
-      });
-  };
+  const back = () => update({ group: undefined, notesReturn: undefined });
   return (
     <section data-screen="" className="flex min-w-0 flex-col gap-16">
-      <header className="flex min-w-0 flex-col gap-4">
-        <Button variant="text" className="self-start" onClick={back}>
-          <ChevronLeft size={20} aria-hidden="true" />
-          {t(
-            browse.group !== undefined
-              ? 'duplicates.groups'
-              : deckId
-                ? 'notes.title'
-                : 'library.title',
-          )}
-        </Button>
-        <h1 className="font-display text-24 tracking-tight text-primary">
-          {t('duplicates.title')}
-        </h1>
-        <p className="text-14 text-secondary">{t('duplicates.hint')}</p>
-      </header>
-      <Select
-        aria-label={t('duplicates.scope')}
+      <PageHeader
+        title={t('duplicates.title')}
+        back={
+          browse.group !== undefined ? (
+            <BackLink label={t('duplicates.groups')} onClick={back} />
+          ) : (
+            <CheckBack deckId={deckId} />
+          )
+        }
+      />
+      <ScopeSelect
+        label={t('duplicates.scope')}
         value={deckId ?? ''}
         onChange={(event) =>
           void navigate({
@@ -128,7 +117,7 @@ function DuplicateBrowser({ deckId }: { readonly deckId: string | undefined }) {
             {deck.label}
           </option>
         ))}
-      </Select>
+      </ScopeSelect>
       {browse.group === undefined ? (
         <div className="relative">
           <Search
@@ -158,19 +147,18 @@ function DuplicateBrowser({ deckId }: { readonly deckId: string | undefined }) {
           />
         </div>
       ) : (
-        <h2 className="whitespace-pre-wrap break-words font-display text-20 text-primary [overflow-wrap:anywhere]">
-          {browse.group}
-        </h2>
+        <div className="flex min-w-0 flex-col gap-4">
+          <h2 className="whitespace-pre-wrap break-words font-display text-20 text-primary [overflow-wrap:anywhere]">
+            {browse.group}
+          </h2>
+          <p className="text-14 leading-body text-secondary">{t('duplicates.groupHint')}</p>
+        </div>
       )}
-      <p role="status" className="text-13 text-secondary">
-        {t(
-          unavailable
-            ? 'offline.incomplete'
-            : local
-              ? 'duplicates.downloaded'
-              : 'duplicates.online',
-        )}
-      </p>
+      {(unavailable || local) && (
+        <p role="status" className="text-13 text-secondary">
+          {t(unavailable ? 'offline.incomplete' : 'offline.results')}
+        </p>
+      )}
       {!unavailable && (
         <>
           {query.error && (

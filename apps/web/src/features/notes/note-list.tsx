@@ -1,7 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { Plus, Upload, Trash2, Search } from 'lucide-react';
+import { Plus, RotateCw, Upload, Trash2, Search } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -30,26 +30,26 @@ import { accountEpoch, useOffline } from '../../lib/offline';
 import { useReturnScroll } from '../../lib/return-scroll';
 import { Button } from '../../ui/button';
 import { Chip } from '../../ui/chip';
-import { CollectionHeader } from '../../ui/collection-header';
 import { Input } from '../../ui/input';
+import { BackLink, PageHeader } from '../../ui/page-header';
 import { ReadOnlySlot } from '../../ui/read-only-slot';
 import { DenseRow } from '../../ui/row';
+import { Segmented } from '../../ui/segmented';
 import { Select } from '../../ui/select';
 import { ServerControls } from '../../ui/server-controls';
 import { EmptyState, ErrorState, SkeletonRows } from '../../ui/states';
 import { SwipeDelete } from '../../ui/swipe-delete';
 import { useToast } from '../../ui/toast';
-import { CollectionPath } from '../library/collection-path';
-import { CollectionSearchPath } from '../library/collection-search-path';
-import { NoteCategoryBack } from '../library/note-categories';
+import { useCollectionHead } from '../library/collection-search-path';
+import { SearchScope } from '../library/search-scope';
 import { DeckPractice } from '../today/practice';
 
+import { DeckMenu } from './deck-menu';
 import { LearningWave } from './learning-wave';
 import { useNoteBrowse } from './note-browse';
 import { NoteProgressSummary } from './note-progress';
 import { NoteSelectionBar } from './note-selection';
 import { PracticeEntry } from './practice-entry';
-import { RestartLearning } from './restart-learning';
 import { DeckTriage, TriageEntry } from './triage';
 
 import type { NoteCategory } from '../../lib/note-categories';
@@ -57,7 +57,14 @@ import type { NoteQuery } from '../../lib/notes';
 
 /** How tall a row is. The virtualiser needs a number before it can measure. */
 const ROW_HEIGHT = 52;
+/** A row with a location or date line under the meaning. */
+const DETAIL_ROW_HEIGHT = 72;
+/** The day in the row; the minute only on hover, where it costs no width. */
 const dateFormats = {
+  en: new Intl.DateTimeFormat('en', { dateStyle: 'medium' }),
+  ru: new Intl.DateTimeFormat('ru', { dateStyle: 'medium' }),
+};
+const stampFormats = {
   en: new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }),
   ru: new Intl.DateTimeFormat('ru', { dateStyle: 'medium', timeStyle: 'short' }),
 };
@@ -108,6 +115,7 @@ export function NoteListScreen({
     [deleteNote, toast, t],
   );
   const navigate = useNavigate();
+  const router = useRouter();
   const decks = useDeckTree();
 
   const { state, update } = useNoteBrowse(deckId, category, recent);
@@ -217,6 +225,7 @@ export function NoteListScreen({
     [unavailable, notes.data],
   );
   const deck = deckId === undefined ? undefined : findDeck(decks.data ?? [], deckId);
+  const head = useCollectionHead(decks.data ?? [], deckId ?? '');
   // Build once per tree, never flatten the hierarchy for each virtual row.
   const locations = useMemo(() => {
     if (deckId !== undefined) return undefined;
@@ -275,28 +284,41 @@ export function NoteListScreen({
   if (triage.active && deckId) return <DeckTriage deckId={deckId} onFinish={triage.exit} />;
   return (
     <section data-screen="" className="flex flex-col gap-16">
-      <CollectionHeader
-        readOnly={offline.offline}
+      <PageHeader
         title={
           deck?.name ??
-          t(deckId === undefined ? (recent ? 'notes.recent' : 'notes.find') : 'notes.title')
+          category?.value ??
+          t(deckId === undefined ? (recent ? 'notes.recent' : 'search.title') : 'notes.title')
         }
-        path={
-          categoryReturn ? (
-            <NoteCategoryBack />
-          ) : deckId ? (
-            <CollectionSearchPath tree={decks.data ?? []} id={deckId} />
+        back={
+          deckId ? (
+            head.back
+          ) : category ? (
+            <BackLink
+              label={t('categories.title')}
+              onClick={() =>
+                categoryReturn
+                  ? router.history.back()
+                  : void navigate({ to: '/library/categories' })
+              }
+            />
           ) : (
-            <CollectionPath tree={decks.data ?? []} id="" trail />
+            <BackLink
+              label={t('library.title')}
+              onClick={() => void navigate({ to: '/library' })}
+            />
           )
+        }
+        location={deckId ? head.location : undefined}
+        description={
+          category ? t(category.kind === 'tag' ? 'categories.tag' : 'categories.source') : undefined
         }
         actions={
           <>
-            <ServerControls available={serverReady}>
-              {deck && <RestartLearning deck={deck} />}
-            </ServerControls>
+            {deck && <DeckMenu deck={deck} available={serverReady} />}
             <Button
               variant="quiet"
+              aria-label={t('notes.import')}
               onClick={() => void navigate({ to: '/import', search: deckSearch })}
             >
               <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
@@ -313,40 +335,8 @@ export function NoteListScreen({
             </ServerControls>
           </>
         }
-      >
-        {deckId === undefined && (
-          <p className="text-14 text-secondary">
-            {t(recent ? 'notes.recentHint' : 'notes.findHint')}
-          </p>
-        )}
-        {deck && (
-          <div className="flex min-h-44 items-center">
-            <ReadOnlySlot readOnly={false} inline>
-              <ServerControls available={serverReady}>
-                <RestartLearning deck={deck} skillsOnly />
-              </ServerControls>
-            </ReadOnlySlot>
-          </div>
-        )}
-      </CollectionHeader>
-      {deckId && (
-        <Button
-          variant="text"
-          className="self-start"
-          onClick={() => void navigate({ to: '/library/duplicates', search: { deckId } })}
-        >
-          {t('duplicates.title')}
-        </Button>
-      )}
-      {deckId && (
-        <Button
-          variant="text"
-          className="self-start"
-          onClick={() => void navigate({ to: '/library/slipping', search: { deckId } })}
-        >
-          {t('problems.title')}
-        </Button>
-      )}
+      />
+      {deckId === undefined && !category && !recent && <SearchScope value="notes" />}
       {deckId && (
         <PracticeEntry
           deckId={deckId}
@@ -407,36 +397,47 @@ export function NoteListScreen({
               onChange={(event) => update({ typed: event.target.value })}
             />
           </div>
+          {recent && (
+            <Segmented
+              value={sort === 'updated-desc' ? 'updated-desc' : 'created-desc'}
+              label={t('notes.recent')}
+              options={[
+                { value: 'created-desc', label: t('notes.sort.created-desc') },
+                { value: 'updated-desc', label: t('notes.sort.updated-desc') },
+              ]}
+              onChange={(next) => {
+                update({ sort: next });
+                window.scrollTo(0, 0);
+              }}
+            />
+          )}
           <div className="flex flex-wrap items-center gap-8">
-            <div
-              className={
-                isRecentNoteSort(sort)
-                  ? 'min-w-0 basis-full sm:basis-auto sm:flex-1'
-                  : 'min-w-0 flex-1'
-              }
-            >
-              <Select
-                value={sort}
-                aria-label={t('notes.sort')}
-                onChange={(event) => update({ sort: event.target.value as NoteSort })}
-              >
-                {NOTE_BROWSE_SORTS.map((option) => (
-                  <option key={option} value={option}>
-                    {t(`notes.sort.${option}` as MessageKey)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            {isRecentNoteSort(sort) && (
+            {recent ? (
               <Button
                 variant="quiet"
+                aria-label={t('notes.refreshRecent')}
                 onClick={() => {
                   void notes.refetch();
                   window.scrollTo(0, 0);
                 }}
               >
+                <RotateCw size={16} strokeWidth={1.5} aria-hidden="true" />
                 {t('notes.refreshRecent')}
               </Button>
+            ) : (
+              <div className="min-w-0 flex-1">
+                <Select
+                  value={sort}
+                  aria-label={t('notes.sort')}
+                  onChange={(event) => update({ sort: event.target.value as NoteSort })}
+                >
+                  {NOTE_BROWSE_SORTS.map((option) => (
+                    <option key={option} value={option}>
+                      {t(`notes.sort.${option}` as MessageKey)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             )}
             <Button
               variant="quiet"
@@ -531,7 +532,7 @@ export function NoteListScreen({
 
       {deckId === undefined && !unavailable && notes.data?.pages.some((page) => page.local) && (
         <p role="status" className="text-13 text-secondary">
-          {t('notes.downloadedResults')}
+          {t('offline.results')}
         </p>
       )}
       {isRecentNoteSort(sort) && pendingEdits.size > 0 && (
@@ -639,6 +640,7 @@ export function NoteListScreen({
                         accountId: offline.accountId,
                         visit: accountEpoch(),
                         ...(recent ? { recent: true } : {}),
+                        ...(category ? { category: category.value } : {}),
                       },
                     },
                   }
@@ -702,7 +704,15 @@ function VirtualNotes({
   });
   if (swipe.selecting !== selecting) setSwipe({ selecting, id: null });
   const revealed = swipe.selecting === selecting ? swipe.id : null;
-  const setRevealed = useCallback((id: string | null) => setSwipe({ selecting, id }), [selecting]);
+  // Every press on a row asks to close whatever is revealed. When nothing is,
+  // the same state is kept, so the list does not re-render under the finger.
+  const setRevealed = useCallback(
+    (id: string | null) =>
+      setSwipe((current) =>
+        current.id === id && current.selecting === selecting ? current : { selecting, id },
+      ),
+    [selecting],
+  );
   const [offset, setOffset] = useState(0);
 
   // Where the list starts down the page. The window virtualiser needs it to
@@ -718,7 +728,7 @@ function VirtualNotes({
 
   const virtual = useWindowVirtualizer({
     count: rows.length,
-    estimateSize: () => ROW_HEIGHT + (locations ? 24 : 0) + (dateSort ? 24 : 0),
+    estimateSize: () => (locations || dateSort ? DETAIL_ROW_HEIGHT : ROW_HEIGHT),
     overscan: 8,
     scrollMargin: offset,
   });
@@ -834,11 +844,23 @@ const NoteRow = memo(function NoteRow({
         <DenseRow
           selected={selecting ? selected : undefined}
           word={termOf(note.fields)}
-          meaning={
-            <>
-              {meaning}
-              {path !== undefined && <span className="sr-only"> · {path}</span>}
-            </>
+          meaning={meaning}
+          detail={path}
+          stamp={
+            dateSort && (
+              <>
+                {/* The sort control already says which date this is. */}
+                <span className="sr-only">
+                  {t(dateSort === 'created-desc' ? 'notes.addedAt' : 'notes.changedAt')}{' '}
+                </span>
+                <time
+                  dateTime={recentNoteTime(note, dateSort)}
+                  title={stampFormats[locale].format(new Date(recentNoteTime(note, dateSort)))}
+                >
+                  {dateFormats[locale].format(new Date(recentNoteTime(note, dateSort)))}
+                </time>
+              </>
+            )
           }
           onClick={() =>
             revealed
@@ -893,19 +915,6 @@ const NoteRow = memo(function NoteRow({
           </button>
         )}
       </SwipeDelete>
-      {path !== undefined && (
-        <p aria-hidden="true" title={path} className="h-24 truncate px-16 text-12 text-secondary">
-          {path}
-        </p>
-      )}
-      {dateSort && (
-        <p className="h-24 truncate px-16 text-12 text-secondary">
-          {t(dateSort === 'created-desc' ? 'notes.addedAt' : 'notes.changedAt')}{' '}
-          <time dateTime={recentNoteTime(note, dateSort)} title={recentNoteTime(note, dateSort)}>
-            {dateFormats[locale].format(new Date(recentNoteTime(note, dateSort)))}
-          </time>
-        </p>
-      )}
     </>
   );
 });
