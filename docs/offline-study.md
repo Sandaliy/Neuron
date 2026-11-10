@@ -201,11 +201,11 @@ and delayed delivery across the original timezone/day-cutoff and learning-step b
 coverage holds local transactions and server responses separately; exercises offline continuation,
 reload, lost answer/cancellation responses, quota/abort and acknowledgement-storage failures,
 account switching, sign-out, explicit archive recovery and bounded large history. A separate built-PWA
-HTTP/PostgreSQL journey reopens offline with undelivered answers, Undo and regrading, loses a real
+HTTP/PostgreSQL test reopens offline with undelivered answers, Undo and regrading, loses a real
 committed response, retries exactly and verifies immutable history and canonical schedules.
 
 PR #51 pre-stabilization verification passed all 1,095 unit/PostgreSQL tests, 560 built phone/desktop interactions
-(ten opt-in selection skips), 77 targeted mobile WebKit cases, both real-PWA Review journeys,
+(ten opt-in selection skips), 77 targeted mobile WebKit cases, both real-PWA Review tests,
 66 unchanged Windows visual contracts and all five enforced 55 FPS cases. Package typechecks,
 source lint, isolation/design checks, tracked-file formatting and the production build also pass.
 Matched baseline measurements and platform limits are in `interaction-performance.md`.
@@ -282,13 +282,13 @@ finished. Genuine missing history/settings/pending-work uncertainty remains cons
 PostgreSQL/RLS tests compare complete downloaded snapshots against authenticated planning across
 languages, directions, time budgets, study-day boundaries, inherited/paused scope, cancellation, restart
 and changed settings. Causal pending answer/Undo/regrade matches real server delivery. Built-PWA
-Chromium/mobile WebKit journeys cold-open after HTTP stops, start new Study, answer/Undo/regrade,
+Chromium/mobile WebKit tests cold-open after HTTP stops, start new Study, answer/Undo/regrade,
 exit/reopen, withhold repeated admission and reconcile a lost response plus a concurrent remote answer.
 Browser fixtures additionally exercise Typing/native Return, installed local voices, missing downloads,
 settings uncertainty, session rejection and sign-out. Physical-iPhone evidence remains separate.
 
 The stabilization release passes fifteen real PostgreSQL/RLS planner comparisons, twenty-two pure
-snapshot guards and six worker-enabled HTTP/PostgreSQL PWA journeys across Chromium/mobile WebKit.
+snapshot guards and six worker-enabled HTTP/PostgreSQL PWA tests across Chromium/mobile WebKit.
 The final full unit/PostgreSQL run passes 1,139 tests. Canonical schedules and exact event identities
 are compared after interrupted delivery, remote answers, Undo and regrading; completed reconciliation
 also verifies that retained account revision, download cursor and learning readiness agree.
@@ -311,4 +311,4 @@ After protected stabilization delivery, use the installed production PWA and its
    and allow slow responses. Confirm no repeated false Offline transitions, stable geometry/setup and
    automatic recovery. In airplane mode, confirm prompt local access. One Check connection action
    should show checking and recover when healthy; repeated taps must not restart progress. Export
-   content-free lifecycle diagnostics if native behavior differs from the verified browser journeys.
+   content-free lifecycle diagnostics if native behavior differs from the verified browser tests.

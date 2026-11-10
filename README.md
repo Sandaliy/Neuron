@@ -53,14 +53,14 @@ Reproduce scenario S2 with `pnpm --filter @neuron/core simulate`. See the [model
 
 ## Features
 
-|                     | What you can do                                                                                                                                     |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Daily Study**     | Recognition, Recall, Typing and Listening, with time estimates and Undo.                                                                            |
-| **Practice**        | Self-check, typing or listening without changing schedules. Choose fields and resume saved progress.                                                |
-| **Offline**         | Browse, study and practice after a complete download. Save note edits and new notes, folders and decks, then sync when connected.                   |
-| **Your collection** | Vocabulary, Q&A and Cloze notes. Import JSON, CSV/TSV, plain text or Anki text exports with preview, duplicate handling, resume and Undo.           |
-| **Large decks**     | Folders, search, tags/sources, duplicate inspection and recoverable deletion. Triage notes as Known, Unsure or New and study them in visible waves. |
-| **Account and app** | Email/password accounts, recovery codes, optional TOTP 2FA, an installable PWA, light/dark themes and adjustable Liquid glass.                      |
+|                     | What you can do                                                                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Daily Study**     | Recognition, Recall, Typing and Listening, with time estimates and Undo. For vocabulary, Recall and Typing open once the direction before them is stable.                                               |
+| **Practice**        | Self-check, typing or listening without changing schedules. Choose fields and resume saved progress.                                                                                                    |
+| **Offline**         | Browse, study and practice after a complete download. Save note edits and new notes, folders and decks, then sync when connected.                                                                       |
+| **Your collection** | Vocabulary, Q&A and Cloze notes. Import JSON, CSV/TSV, plain text or Anki text exports with preview, duplicate handling, resume and Undo.                                                               |
+| **Large decks**     | Folders, search, tags/sources, duplicate inspection and recoverable deletion. Triage notes as Known, Unsure or New and study them in visible waves. Slipping cards lists the cards you keep forgetting. |
+| **Account and app** | Email/password accounts, recovery codes, optional TOTP 2FA, data export, an installable PWA, light/dark themes and adjustable Liquid glass.                                                             |
 
 Limits: import application, moves and deletion require a connection. New folders/decks must synchronize before holding content. Deck sharing, a dedicated progress dashboard and offline import application are planned.
 
@@ -90,8 +90,6 @@ Recent changes still need acceptance on an installed iPhone. Next:
 
 - Verify the integrated release on the phone, including reconnection and recovery.
 - Order learning waves by imported rank.
-- Unlock additional directions from demonstrated stability.
-- Add a problem-card workspace.
 - Add personal plans and progress/workload views.
 
 See [current state](docs/STATE.md) and the [roadmap](docs/ROADMAP.md).

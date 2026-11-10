@@ -31,7 +31,7 @@ both Chromium interaction viewports and mobile WebKit. Initial hydration is setu
 from interaction with an already complete download.
 Combined category/duplicate scenarios also check independent editor return state, shared local edit
 projection, authoritative reconnection counts and clearing both browsers after an account change.
-The cross-workspace journey holds search/member responses, commits the debounced search with Enter
+The cross-workspace test holds search/member responses, commits the debounced search with Enter
 and opens a named Note only after the selected group's loading state. This distinguishes group rows
 from member rows and preserves the editor heading and return-breadcrumb assertions.
 

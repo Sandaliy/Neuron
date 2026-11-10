@@ -100,12 +100,12 @@ All 18 focused built-app cases passed across phone/desktop Chromium and mobile W
 return, corrections leaving a category, long content, complete/incomplete downloads, saved edits,
 pending Notes, reconnection, account changes and delayed old-account responses.
 
-The full built-app phone/desktop interaction gate passed 885 tests, with 20 optional live journeys
+The full built-app phone/desktop interaction gate passed 885 tests, with 20 optional live tests
 explicitly skipped. All 768 core/shared/web unit tests and seven real PostgreSQL inspection tests
 passed. The full 70-case Windows visual comparison passed; eight Library references record the new
 entry. Screenshot tolerances, interaction assertions and existing performance budgets are unchanged.
 All 13 controlled performance cases passed across the main run and the explicit opt-in Note-list
-benchmark; skipped optional live journeys are not passing evidence.
+benchmark; skipped optional live tests are not passing evidence.
 
 After the test-only #88 update reached main, the affected Library acknowledgement scenario passed in
 both Chromium viewports. The final category-copy readability adjustment passed the inspector entry,

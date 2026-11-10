@@ -143,24 +143,24 @@ Built-browser checks cover all supported formats, bounded previews, offline prep
 account switching, competing tabs, legacy storage upgrade, changed final duplicates and interrupted
 delivery. Additional checks stop delivery after acknowledgement persistence fails, retain a mismatched
 summary, resume only unconfirmed merge groups, and finish without waiting for a held cache read.
-The opt-in live journey compares IndexedDB checkpoints and their frozen IDs with real PostgreSQL
+The opt-in live test compares IndexedDB checkpoints and their frozen IDs with real PostgreSQL
 Notes, Cards and retained Review records after closing and reopening the page.
 Chromium and mobile WebKit also complete the download, confirm Undo, and verify both the server
-tombstones and their arrival in IndexedDB. On the Windows test host the full mobile WebKit journey,
+tombstones and their arrival in IndexedDB. On the Windows test host the full mobile WebKit run,
 including both background pulls, took 10.4 minutes. The existing interactive completion deadline
 remains separate from background convergence.
 
 Local validation on this branch:
 
-| Check                                                                                          | Result                                                |
-| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Import, Note creation/conversion, sync, Review/Undo, collection integrity and Waves API checks | 123 passed against PostgreSQL                         |
-| RLS/auth-role isolation and legacy collection migration                                        | 46 passed against PostgreSQL                          |
-| Parser, canonical Cards, fields, merges, i18n and Import frontend units                        | 99 passed                                             |
-| Production migration/release safety, including missing-schema and fresh-install checks         | 10 passed                                             |
-| Final focused built-browser gate across phone Chromium, desktop Chromium and mobile WebKit     | 21 passed, including all three live database journeys |
-| Matched phone performance fixture, each implementation                                         | 3 passed per implementation                           |
-| TypeScript, changed-code ESLint/Prettier, core isolation, design tokens and diff whitespace    | passed                                                |
+| Check                                                                                          | Result                                             |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Import, Note creation/conversion, sync, Review/Undo, collection integrity and Waves API checks | 123 passed against PostgreSQL                      |
+| RLS/auth-role isolation and legacy collection migration                                        | 46 passed against PostgreSQL                       |
+| Parser, canonical Cards, fields, merges, i18n and Import frontend units                        | 99 passed                                          |
+| Production migration/release safety, including missing-schema and fresh-install checks         | 10 passed                                          |
+| Final focused built-browser gate across phone Chromium, desktop Chromium and mobile WebKit     | 21 passed, including all three live database tests |
+| Matched phone performance fixture, each implementation                                         | 3 passed per implementation                        |
+| TypeScript, changed-code ESLint/Prettier, core isolation, design tokens and diff whitespace    | passed                                             |
 
 The broader browser runs also exercised every ordinary Import scenario and 99 adjacent offline Note
 creation/editing and Learning Waves fixture cases. The combined final Import execution recorded
@@ -183,7 +183,7 @@ PR #72's `DATABASE_URL_TEST_WS_PROXY` supports the same PostgreSQL/proxy setup a
 Build the web package, then run Playwright with `CI=true` against Vite preview. Select
 `tests/import.spec.ts`, project `phone-interaction`, and grep `large Import performance` with
 `IMPORT_BENCHMARK=true` for the throttled fixture measurement. Use `IMPORT_DATABASE_E2E=true`
-and grep `live PostgreSQL` with guarded test database variables for the live journey; Chromium and
+and grep `live PostgreSQL` with guarded test database variables for the live test; Chromium and
 `webkit-phone-interaction` are separate checks. Ordinary tests do not silently substitute fixture
 results for a skipped live database check. No snapshots were regenerated and no retries were added.
 
