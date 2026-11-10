@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { deckSettingsSchema } from '../deck-settings.js';
+import { deckSettingsSchema, hasBothLanguagesOrNeither } from '../deck-settings.js';
 
 import { idSchema, nameSchema } from './common.js';
 
@@ -66,14 +66,27 @@ export type DeletedDeck = z.infer<typeof deletedDeckSchema>;
 
 export const deletedDeckListSchema = z.object({ decks: z.array(deletedDeckSchema) });
 
-export const createDeckSchema = z.strictObject({
-  kind: z.enum(['folder', 'deck']).default('deck'),
-  /** Supply one when the deck was made offline, so it keeps its identity. */
-  id: idSchema.optional(),
-  name: nameSchema,
-  parentId: idSchema.nullish(),
-  settings: deckSettingsSchema.nullish(),
-});
+/**
+ * A new folder or deck.
+ *
+ * The current app always sends a deck's two languages in `settings`. A request
+ * with no language at all is what an older installed app sends, and it still
+ * makes the deck, which then says that its languages are missing. A deck with
+ * one language and not the other is refused: no version sends that.
+ */
+export const createDeckSchema = z
+  .strictObject({
+    kind: z.enum(['folder', 'deck']).default('deck'),
+    /** Supply one when the deck was made offline, so it keeps its identity. */
+    id: idSchema.optional(),
+    name: nameSchema,
+    parentId: idSchema.nullish(),
+    settings: deckSettingsSchema.nullish(),
+  })
+  .refine((value) => value.kind === 'folder' || hasBothLanguagesOrNeither(value.settings), {
+    message: 'a deck needs both languages',
+    path: ['settings'],
+  });
 
 export const updateDeckSchema = z
   .strictObject({

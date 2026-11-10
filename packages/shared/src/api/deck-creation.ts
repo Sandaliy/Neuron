@@ -1,9 +1,18 @@
 import { z } from 'zod';
 
+import { deckLanguagesSchema } from '../deck-settings.js';
+
 import { idSchema, nameSchema } from './common.js';
 import { deckSchema } from './decks.js';
 
-/** The observed ancestry protects both placement and inherited settings. */
+/**
+ * The observed ancestry protects both placement and inherited settings.
+ *
+ * `settings` carries a new deck's two languages. It was added after the first
+ * release of this command, so it is optional: a creation saved by an older app
+ * has none and is still delivered, unchanged, with the same receipt. The current
+ * app always sends it for a deck and never for a folder.
+ */
 export const createOfflineDeckCommandSchema = z
   .strictObject({
     accountId: z.string().min(1),
@@ -20,6 +29,7 @@ export const createOfflineDeckCommandSchema = z
         }),
       )
       .max(8),
+    settings: deckLanguagesSchema.optional(),
   })
   .refine(
     (value) =>
@@ -29,7 +39,11 @@ export const createOfflineDeckCommandSchema = z
       new Set(value.ancestors.map((row) => row.id)).size === value.ancestors.length &&
       !value.ancestors.some((row) => row.id === value.entityId),
     'invalid ancestry',
-  );
+  )
+  .refine((value) => value.kind === 'deck' || value.settings === undefined, {
+    message: 'a folder is created without languages',
+    path: ['settings'],
+  });
 export type CreateOfflineDeckCommand = z.infer<typeof createOfflineDeckCommandSchema>;
 
 export const createOfflineDeckResultSchema = z.discriminatedUnion('status', [

@@ -78,6 +78,58 @@ export const deckSettingsSchema = z.strictObject({
 
 export type DeckSettings = z.infer<typeof deckSettingsSchema>;
 
+/**
+ * The two languages a new deck is created with, both required.
+ *
+ * A deck's words are in one language and their translations in another, and
+ * that is a fact about its notes rather than about where the deck happens to
+ * sit. So a new deck stores both as its own settings instead of inheriting
+ * them: moving it to another folder, or changing a folder default later, does
+ * not change what language its words are in. A folder's languages still
+ * prefill the choice. Decks made before this rule keep inheriting.
+ *
+ * The same code on both sides is allowed: an advanced learner may want German
+ * words explained in German.
+ */
+export const deckLanguagesSchema = z.strictObject({
+  targetLanguage: languageCodeSchema,
+  nativeLanguage: languageCodeSchema,
+});
+
+export type DeckLanguages = z.infer<typeof deckLanguagesSchema>;
+
+export type DeckLanguageField = keyof DeckLanguages;
+
+/**
+ * Which of the two languages a deck still lacks once inheritance is applied.
+ *
+ * Nothing is guessed for a missing one. The screens that need a language say
+ * what is missing and offer to set it; study goes on without it.
+ *
+ * @param settings the deck's resolved settings
+ * @returns the missing fields, target first; empty when the deck knows both
+ */
+export function missingDeckLanguages(
+  settings: Pick<ResolvedDeckSettings, 'targetLanguage' | 'nativeLanguage'>,
+): DeckLanguageField[] {
+  return (['targetLanguage', 'nativeLanguage'] as const).filter(
+    (field) => settings[field] === undefined,
+  );
+}
+
+/**
+ * Whether settings sent with a new deck carry both languages or neither.
+ *
+ * Neither is what an app installed before languages were required sends, and
+ * it is still accepted so that work saved on such a device is not lost. One
+ * without the other is never sent by any version and is refused.
+ */
+export function hasBothLanguagesOrNeither(
+  settings: Pick<DeckSettings, 'targetLanguage' | 'nativeLanguage'> | null | undefined,
+): boolean {
+  return (settings?.targetLanguage === undefined) === (settings?.nativeLanguage === undefined);
+}
+
 /** One rung of the ladder, once it has been read out of storage. */
 export type LadderRung = z.infer<typeof ladderRungSchema>;
 
