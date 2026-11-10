@@ -488,7 +488,7 @@ Clock-correction/reopening coverage verifies that newer operations remain visibl
 when their UUID timestamps sort before earlier synchronized operations.
 `collection-notes.test.ts` exercises real PostgreSQL/RLS, competing operations, exact immutable retries,
 remote edits/deletion/purge/ancestry, validation, cloze additions and answered/reset history protection.
-The live PWA journey also edits Notes across actual server loss and shell reopening, then reconciles
+The live PWA test also edits Notes across actual server loss and shell reopening, then reconciles
 against real PostgreSQL with an applied acknowledgement lost deliberately.
 
 Physical-iPhone Phase 8.3 acceptance remains separate: download completely; edit multiple fields offline;
@@ -563,10 +563,10 @@ by delivery order.
 Phase 8.3 release verification on Windows passed 1,088 unit/PostgreSQL tests across 98 files, including
 the eight real Note-edit/RLS cases; all package typechecks, source lint, isolation/design checks,
 formatting and the production web build also passed. The built one-worker phone/desktop interaction gate
-passed 520 cases with four opt-in database journeys and two WebKit-only touch cases skipped by that
+passed 520 cases with four opt-in database tests and two WebKit-only touch cases skipped by that
 selection. All 66 unchanged visual cases and all five enforced 55 FPS performance cases at 4× CPU passed.
 The dedicated existing-Note suite passed all 36 Chromium/mobile WebKit cases.
-The two real offline/PWA HTTP/PostgreSQL journeys and the two real learning journeys passed separately
+The two real offline/PWA HTTP/PostgreSQL tests and the two real learning tests passed separately
 in Chromium and mobile WebKit. Live fixtures wait for the initial HTTP pull and failed account request
 before asserting client progress; their cursor, payload, receipt and five-second UI assertions remain intact.
 All 62 affected mobile WebKit offline cases and the committed touch-swipe regression passed. This is
