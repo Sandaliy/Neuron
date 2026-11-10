@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createOfflineDeckResultSchema, uuidV7 } from '@neuron/shared';
@@ -184,6 +186,135 @@ describe.skipIf(!database)('durable Folder and Deck creation with PostgreSQL and
         command({ parentId: parent.id, ancestors: [{ id: parent.id, rev: parent.rev }] }),
       ),
     ).toMatchObject({ status: 'conflict', reason: 'parent_unavailable' });
+  });
+  it('stores the own languages of a new deck and keeps them part of its exact retry', async () => {
+    // The folder says German and Russian; the deck chose French and English,
+    // and keeps its own choice rather than following the folder.
+    const folder = await repo().decks.create({
+      kind: 'folder',
+      name: uuidV7(),
+      settings: { targetLanguage: 'de', nativeLanguage: 'ru' },
+    });
+    const input = command({
+      parentId: folder.id,
+      ancestors: [{ id: folder.id, rev: folder.rev }],
+      settings: { targetLanguage: 'fr', nativeLanguage: 'en' },
+    });
+    const since = await repo().sync.revision();
+    const first = await outcome(input);
+    expect(first.status).toBe('applied');
+    expect((await repo().decks.byId(input.entityId))?.settings).toEqual({
+      targetLanguage: 'fr',
+      nativeLanguage: 'en',
+    });
+    // Another device's download carries the languages with the deck.
+    const pulled = (await (
+      await testServer(database!, ownerId).request(`/api/sync?since=${since}&limit=200`)
+    ).json()) as { changes: { entity: string; id: string; row: Record<string, unknown> }[] };
+    expect(
+      pulled.changes.find((change) => change.entity === 'decks' && change.id === input.entityId)
+        ?.row['settings'],
+    ).toEqual({ targetLanguage: 'fr', nativeLanguage: 'en' });
+    expect(await outcome(input)).toEqual(first);
+    // The same operation with other languages is a different command.
+    expect(
+      (await deliver({ ...input, settings: { targetLanguage: 'fr', nativeLanguage: 'ru' } }))
+        .status,
+    ).toBe(409);
+    expect((await deliver({ ...input, settings: undefined })).status).toBe(409);
+  });
+  it('delivers a creation an older app saved without languages, and matches its old receipt', async () => {
+    // Saved before languages existed: delivered now, it makes a deck that says
+    // its languages are missing rather than being refused.
+    const legacy = command();
+    expect(legacy.settings).toBeUndefined();
+    expect(await outcome(legacy)).toMatchObject({ status: 'applied' });
+    expect((await repo().decks.byId(legacy.entityId))?.settings).toBeNull();
+
+    // Delivered by the previous api, acknowledgement lost, retried after this
+    // release: the receipt written then must still match the same command.
+    const retried = command();
+    const result = {
+      operationId: retried.operationId,
+      entityId: retried.entityId,
+      status: 'applied',
+      revision: 1,
+    };
+    const previousDigest = createHash('sha256')
+      .update(
+        JSON.stringify([
+          retried.accountId,
+          retried.entityId,
+          retried.kind,
+          retried.name,
+          retried.parentId,
+          retried.ancestors,
+        ]),
+      )
+      .digest('hex');
+    await ownerPool!.query(
+      'insert into sync_receipts (user_id, fingerprint, outcome) values ($1, $2, $3)',
+      [
+        ownerId,
+        `deck-create:${retried.operationId}`,
+        JSON.stringify({ clamped: false, deckCreation: { digest: previousDigest, result } }),
+      ],
+    );
+    expect(await outcome(retried)).toEqual(result);
+  });
+  it('refuses a folder with languages and a deck with only one', async () => {
+    const folder = command({
+      kind: 'folder',
+      settings: { targetLanguage: 'de', nativeLanguage: 'ru' },
+    });
+    expect((await deliver(folder)).status).toBe(400);
+    const half = { ...command(), settings: { targetLanguage: 'de' } };
+    expect((await deliver(half as CreateOfflineDeckCommand)).status).toBe(400);
+    for (const input of [folder, half])
+      expect(await repo().decks.byId(input.entityId)).toBeUndefined();
+  });
+  it('online creation stores both languages, accepts a deck without any and refuses one', async () => {
+    const create = (body: Record<string, unknown>) =>
+      testServer(database!, ownerId).request('/api/decks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    const both = await create({
+      id: uuidV7(),
+      kind: 'deck',
+      name: uuidV7(),
+      parentId: null,
+      settings: { targetLanguage: 'de', nativeLanguage: 'ru' },
+    });
+    expect(both.status).toBe(201);
+    expect(((await both.json()) as { deck: { settings: unknown } }).deck.settings).toEqual({
+      targetLanguage: 'de',
+      nativeLanguage: 'ru',
+    });
+    const older = await create({ id: uuidV7(), kind: 'deck', name: uuidV7(), parentId: null });
+    expect(older.status).toBe(201);
+    expect(((await older.json()) as { deck: { settings: unknown } }).deck.settings).toBeNull();
+    const oneId = uuidV7();
+    const one = await create({
+      id: oneId,
+      name: uuidV7(),
+      settings: { nativeLanguage: 'ru', level: 'A2' },
+    });
+    expect(one.status).toBe(400);
+    expect(((await one.json()) as { error: { code: string } }).error.code).toBe('invalid_request');
+    expect(await repo().decks.byId(oneId)).toBeUndefined();
+    // A folder's languages are defaults for what it holds; one alone is fine.
+    expect(
+      (
+        await create({
+          id: uuidV7(),
+          kind: 'folder',
+          name: uuidV7(),
+          settings: { targetLanguage: 'de' },
+        })
+      ).status,
+    ).toBe(201);
   });
   it('keeps receipts account-isolated and immutable, and leaves Notes, Cards and Reviews unchanged', async () => {
     const deck = await repo().decks.create({ name: uuidV7() });

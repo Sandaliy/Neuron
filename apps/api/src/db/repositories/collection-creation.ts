@@ -30,6 +30,12 @@ export function collectionCreationRepository(userId: string, run: Runner) {
               command.name,
               command.parentId,
               command.ancestors,
+              // Languages joined this command later. A command without them must
+              // keep the digest it was first received with, so that an exact
+              // retry of an older app's creation still matches its receipt.
+              ...(command.settings === undefined
+                ? []
+                : [[command.settings.targetLanguage, command.settings.nativeLanguage]]),
             ]),
           )
           .digest('hex');
@@ -107,7 +113,14 @@ export function collectionCreationRepository(userId: string, run: Runner) {
               parentId: command.parentId,
               path: actual.map((row) => row.id),
               position: position?.next ?? 0,
-              settings: null,
+              // A deck's own languages; nothing else is set at creation.
+              settings:
+                command.settings === undefined
+                  ? null
+                  : {
+                      targetLanguage: command.settings.targetLanguage,
+                      nativeLanguage: command.settings.nativeLanguage,
+                    },
               rev: 0,
             })
             .onConflictDoNothing()
