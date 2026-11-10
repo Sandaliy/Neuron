@@ -3,7 +3,9 @@
 The text that turns a list of words into cards Neuron can import.
 
 This file is the only copy. The import screen reads it at build time, substitutes the deck's languages,
-level and name into it, and puts the result on the clipboard. Editing the prompt means editing this
+level and name into it, and puts the result on the clipboard. The languages are the Deck's resolved
+target and translation languages: every new Deck has both, and an older Deck without them leaves its
+placeholders unfilled and says so. Editing the prompt means editing this
 file; there is nothing to keep in step.
 
 The prompt is in English on purpose. Models follow instructions in English more closely, and the words

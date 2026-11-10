@@ -567,11 +567,16 @@ uses ты everywhere; the app belongs to one person.
 | two-factor auth   | 2FA                            | двухфакторная аутентификация (2FA) | вход в два шага, двухэтапная проверка |
 | recovery code     | recovery code                  | резервный код                      | код доступа, код восстановления       |
 | direction         | ask both ways                  | спрашивать с двух сторон           | направление, реверс                   |
+| target language   | language being learned         | изучаемый язык                     | целевой язык, target language         |
+| native language   | translation language           | язык перевода                      | родной язык, язык объяснений          |
 
 Folders organize folders and decks; decks are leaf study sets containing notes. Folder defaults
 apply to descendant decks without making the folder a study set. Folder body activation navigates;
 only a separate chevron expands a tree. Deck activation opens notes directly, with no chevron.
-At root and in each folder, offer both New folder and New deck.
+At root and in each folder, offer both New folder and New deck. New deck asks for a name and both
+languages, each starting on a disabled Choose a language entry or on the folder's language, and
+Create waits for all three. A Deck without both languages says so in one quiet line on its screen,
+with Set languages under it; nothing else on the screen waits for it.
 
 Tree depth belongs to indentation and connectors, never to the object name. Flat pickers use the clean
 name on the first line and a muted ancestor path on the second line. A note swipe reveals a trash

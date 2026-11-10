@@ -373,9 +373,10 @@ vocabulary system:
 - A Deck chooses its additional languages, inherited like its other language settings. With none
   chosen, the Note form and the cards do not change.
 
-Prerequisite: every Deck has a target and a translation language. Both are optional today
-(`targetLanguage`, `nativeLanguage` in `deckSettingsSchema`); requiring them on new Decks, including
-offline creation and existing Decks without them, comes first.
+Prerequisite, met on 2026-11-11: every new Deck is created with a target and a translation language
+(`targetLanguage`, `nativeLanguage`), online and offline, and stores them as its own. An existing
+Deck without them says so on its screen and sets them in one step. See "Deck languages" in
+`architecture.md`.
 
 Expected shape: an optional per-language map in `notes.fields`, validated by
 `packages/shared/src/note-fields.ts` against the Deck's resolved languages. No new table and no Card or

@@ -276,7 +276,7 @@ the api anywhere in browser code would cost the session cookie.
 | `library/search-scope.tsx`, `scope-select.tsx`  | Notes or Folders & Decks search switch; a labelled "Look in" scope select                         |
 | `library/collection-search*.ts(x)`              | Collection name search, flat path index, measured results, history return and `useCollectionHead` |
 | `library/note-categories.tsx`                   | Read-only Tags & Sources discovery, measured value rows and entry into filtered Notes             |
-| `library/deck-dialogs.tsx`                      | Deck naming, safe move picker and inherited language/level settings                               |
+| `library/deck-dialogs.tsx`                      | Deck naming with required languages, move picker, language and level settings                     |
 | `library/collection-picker.tsx`                 | Hierarchy-aware deck destination picker                                                           |
 | `library/collection-path.tsx`                   | `CollectionBack` (Back to the parent) and `CollectionLocation` (the path line under a title)      |
 | `today/today.tsx`                               | What is due, what is new, and the estimate that says "about"                                      |
@@ -434,6 +434,7 @@ hierarchies and note dependencies, and `purge-action.tsx` owns irreversible conf
 - `apps/web/src/features/today/study-scope.tsx`: temporary leaf Deck selection through Folder ancestry.
 - `apps/web/src/features/today/card-display.tsx`: session-local meaning/support choices and semantic reveals.
 - `apps/web/src/features/notes/deck-menu.tsx`: the Deck options menu: study skills, the Deck's checks, participation and restart.
+- `apps/web/src/features/notes/deck-languages.tsx`: the Deck screen line for a Deck without both languages, and Set languages.
 - `apps/web/src/ui/learning-card.tsx`: common reading surface for Daily Study and Practice.
 
 - `packages/core/src/workload/availability.ts`: exact learning-step and study-day review admission.
