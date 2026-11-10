@@ -153,6 +153,9 @@ test('missing progress counts do not claim there are no Cards', async ({ page })
 async function openCollectionSearch(page: Page) {
   await page.getByRole('button', { name: 'Search the Library', exact: true }).click();
   await page.getByText('Folders & Decks', { exact: true }).click();
+  // The switch navigates from Note search to collection search. Until it commits,
+  // the only search field on the page is the Notes one, and typing there is lost.
+  await expect(page.getByRole('searchbox', { name: 'Search collection names' })).toBeVisible();
 }
 async function collectionSearchFixture(page: Page, count = 2) {
   const leaves = manyDecks(count).map((row, at) => ({
@@ -250,7 +253,7 @@ test('large collection search returns from a Deck with the query, measured scrol
   await collectionSearchFixture(page, 2500);
   await page.goto('/library');
   await openCollectionSearch(page);
-  const search = page.getByRole('searchbox');
+  const search = page.getByRole('searchbox', { name: 'Search collection names' });
   await search.fill('lesson');
   await expect(
     page.getByRole('status').filter({ hasText: '2501 of 2503 collections' }),
