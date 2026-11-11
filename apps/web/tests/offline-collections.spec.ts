@@ -196,7 +196,7 @@ async function fixture(page: Page) {
   await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'What works offline', exact: true }).click();
   await expect(
-    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    page.getByText('Your collection is downloaded to this device.', { exact: true }),
   ).toBeVisible();
   return state;
 }
@@ -427,7 +427,7 @@ test('a removed parent keeps work for an explicit destination choice with the sa
   await expect.poll(async () => (await savedCollections(page))[0]?.state).toBe('conflict');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   const recovery = page.getByRole('region', { name: 'Retained deck', exact: true });
-  await expect(recovery.getByText(/original Folder is unavailable/)).toBeVisible();
+  await expect(recovery.getByText(/Its Folder was deleted/)).toBeVisible();
   await recovery.getByLabel('Create inside', { exact: true }).selectOption('');
   await recovery.getByRole('button', { name: 'Create here', exact: true }).click();
   await expect.poll(async () => (await savedCollections(page))[0]?.state).toBe('synchronized');
@@ -529,11 +529,9 @@ test('duplicate identities stay retained and can only be copied or archived', as
   await expect.poll(async () => (await savedCollections(page))[0]?.state).toBe('conflict');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   const recovery = page.getByRole('region', { name: 'Collision', exact: true });
-  await expect(
-    recovery.getByRole('button', { name: 'Copy saved name', exact: true }),
-  ).toBeVisible();
+  await expect(recovery.getByRole('button', { name: 'Copy the name', exact: true })).toBeVisible();
   await expect(recovery.getByRole('button', { name: 'Create here', exact: true })).toHaveCount(0);
-  await recovery.getByRole('button', { name: 'Stop syncing and archive', exact: true }).click();
+  await recovery.getByRole('button', { name: 'Do not create it', exact: true }).click();
   await expect.poll(async () => (await savedCollections(page))[0]?.state).toBe('resolved');
   expect((await savedCollections(page))[0]?.payload.name).toBe('Collision');
 });
@@ -706,13 +704,10 @@ test('rebuild refuses pending creation and preserves other account-local prepara
   });
   await reconnect(page, state);
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild offline copy', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild', exact: true }).click();
   await expect(
-    page.getByText(
-      'Rebuild is blocked because saved changes have not synchronized or been resolved. Recover them first.',
-      { exact: true },
-    ),
+    page.getByText('Sync or decide your saved changes first.', { exact: true }),
   ).toBeVisible();
   expect(await savedCollections(page)).toEqual(before);
   const after = await page.evaluate(

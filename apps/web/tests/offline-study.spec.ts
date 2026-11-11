@@ -210,7 +210,7 @@ async function fixture(page: Page, count = 4) {
   // readiness. Wait for that public state before cutting the connection.
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(
-    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    page.getByText('Your collection is downloaded to this device.', { exact: true }),
   ).toBeVisible();
   await page.getByRole('link', { name: 'Today', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeEnabled();
@@ -316,9 +316,7 @@ test('mismatched settings restrict new admission without enabling offline overri
     db.close();
   }, owner);
   await page.reload();
-  await expect(
-    page.getByText('New cards need matching downloaded settings. Connect to update your download.'),
-  ).toBeVisible();
+  await expect(page.getByText('New Cards wait until your settings sync.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Study', exact: true })).toBeDisabled();
   await setup(page);
   await expect(

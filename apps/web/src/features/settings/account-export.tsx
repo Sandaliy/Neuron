@@ -8,7 +8,7 @@ import { prepareAccountExport } from '../../lib/account-export';
 import { ApiFailure } from '../../lib/api';
 import { hasServerAuthority, useCapabilities } from '../../lib/capabilities';
 import { accountEpoch, offlineState } from '../../lib/offline';
-import { Button } from '../../ui/button';
+import { Button, buttonClassName } from '../../ui/button';
 import { Card, GroupLabel } from '../../ui/card';
 
 export function AccountExport() {
@@ -113,10 +113,13 @@ function ExportForAccount({
     <section className="flex flex-col gap-12" aria-label={t('export.title')}>
       <GroupLabel>{t('export.title')}</GroupLabel>
       <Card className="flex flex-col gap-16">
+        {/* "Synced to your account" is the scope: nothing waiting on a device is in it. */}
         <p className="text-15 text-primary">{t('export.scope')}</p>
-        <p className="text-14 text-secondary">{t('export.local')}</p>
-        <p className="text-14 text-secondary">{t('export.readOnly')}</p>
-        <div role="status" aria-live="polite" className="text-14 text-secondary">
+        {/*
+         * The live region is always mounted so a screen reader hears progress,
+         * and it takes no room while it is empty.
+         */}
+        <div role="status" aria-live="polite" className="text-14 text-secondary empty:-mt-16">
           {busy
             ? t('export.progress', { size: (bytes / 1024 / 1024).toFixed(1) })
             : ready
@@ -129,28 +132,37 @@ function ExportForAccount({
           </p>
         ) : null}
         {ready ? (
-          <>
-            <div className="flex flex-wrap gap-12">
+          <div className="flex flex-col gap-8">
+            {/*
+             * One button for the main way to keep the file: Share on iPhone, where
+             * it leads to Save to Files, and Save elsewhere. The other is text.
+             */}
+            <div className="flex flex-wrap items-center gap-x-20 gap-y-8">
+              {canShare ? <Button onClick={() => void share()}>{t('export.share')}</Button> : null}
               <a
                 href={ready.url}
                 download={ready.file.name}
                 onClick={(event) => {
                   if (!valid()) event.preventDefault();
                 }}
-                className="inline-flex min-h-44 items-center rounded-12 px-16 font-semibold text-accent focus-visible:outline"
+                data-tone={canShare ? 'text' : 'slab'}
+                className={buttonClassName(canShare ? 'text' : 'quiet')}
               >
                 {t('export.save')}
               </a>
-              {canShare ? <Button onClick={() => void share()}>{t('export.share')}</Button> : null}
             </div>
             <p className="text-14 text-secondary">
               {t(canShare ? 'export.shareHint' : 'export.saveHint')}
             </p>
-            <p className="text-14 text-secondary">{t('export.private')}</p>
-          </>
+          </div>
         ) : null}
-        <div className="flex flex-wrap gap-12">
-          <Button busy={busy} disabled={!capability.server} onClick={() => void prepare()}>
+        <div className="flex flex-wrap gap-8">
+          <Button
+            variant={ready ? 'text' : 'quiet'}
+            busy={busy}
+            disabled={!capability.server}
+            onClick={() => void prepare()}
+          >
             {t(error ? 'export.retry' : ready ? 'export.again' : 'export.prepare')}
           </Button>
           {busy ? (

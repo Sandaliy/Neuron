@@ -64,9 +64,8 @@ test('prepares and downloads the exact documented archive, with local-only scope
   );
   await page.goto('/settings');
   const section = page.getByRole('region', { name: 'Export your data' });
-  await expect(section.getByText(/Pending changes, drafts/)).toBeVisible();
-  await expect(section.getByText(/Importing or restoring/)).toBeVisible();
-  await section.getByRole('button', { name: 'Prepare export', exact: true }).click();
+  await expect(section.getByText(/synced to your account/)).toBeVisible();
+  await section.getByRole('button', { name: 'Prepare file', exact: true }).click();
   await expect(section.getByRole('status')).toContainText('Your file is ready');
   const downloadEvent = page.waitForEvent('download');
   await section.getByRole('link', { name: 'Save file', exact: true }).click();
@@ -74,7 +73,7 @@ test('prepares and downloads the exact documented archive, with local-only scope
   expect(download.suggestedFilename()).toBe('neuron-export-2026-11-01.jsonl');
   expect(await download.failure()).toBeNull();
   expect(await readFile((await download.path())!, 'utf8')).toBe(text);
-  await expect(section.getByText(/Saving is finished/)).toBeVisible();
+  await expect(section.getByText(/use its Share menu/)).toBeVisible();
 });
 
 test('shows busy feedback, allows cancellation, and retries without offering a partial file', async ({
@@ -94,13 +93,13 @@ test('shows busy feedback, allows cancellation, and retries without offering a p
   });
   await page.goto('/settings');
   const section = page.getByRole('region', { name: 'Export your data' });
-  await section.getByRole('button', { name: 'Prepare export', exact: true }).click();
-  await expect(section.getByRole('status')).toContainText('Preparing your file');
+  await section.getByRole('button', { name: 'Prepare file', exact: true }).click();
+  await expect(section.getByRole('status')).toContainText('Preparing');
   await expect(section.getByRole('link', { name: 'Save file', exact: true })).toHaveCount(0);
   await section.getByRole('button', { name: 'Cancel', exact: true }).click();
   release!();
   await expect(section.getByRole('alert')).toContainText('did not finish');
-  await section.getByRole('button', { name: 'Try export again' }).click();
+  await section.getByRole('button', { name: 'Try again' }).click();
   await expect(section.getByRole('link', { name: 'Save file', exact: true })).toBeVisible();
 });
 
@@ -131,10 +130,10 @@ for (const scenario of ['expired', 'interrupted', 'wrong-account', 'invalid', 'l
     );
     await page.goto('/settings');
     const section = page.getByRole('region', { name: 'Export your data' });
-    await section.getByRole('button', { name: 'Prepare export', exact: true }).click();
+    await section.getByRole('button', { name: 'Prepare file', exact: true }).click();
     await expect(section.getByRole('alert')).toBeVisible();
     await expect(section.getByRole('link', { name: 'Save file', exact: true })).toHaveCount(0);
-    await expect(section.getByRole('button', { name: 'Try export again' })).toBeEnabled();
+    await expect(section.getByRole('button', { name: 'Try again' })).toBeEnabled();
   });
 }
 
@@ -156,7 +155,7 @@ test('shares a prepared file through the platform menu and retains Save after ca
   );
   await page.goto('/settings');
   const section = page.getByRole('region', { name: 'Export your data' });
-  await section.getByRole('button', { name: 'Prepare export', exact: true }).click();
+  await section.getByRole('button', { name: 'Prepare file', exact: true }).click();
   await section.getByRole('button', { name: 'Share file', exact: true }).click();
   expect(await page.evaluate(() => (window as Window & { sharedName?: string }).sharedName)).toBe(
     'neuron-export-2026-11-01.jsonl',
@@ -173,7 +172,7 @@ test('downloads a substantial collection without parsing it into an in-memory co
     route.fulfill({ contentType: 'application/x-ndjson', body: text }),
   );
   await page.goto('/settings');
-  await page.getByRole('button', { name: 'Prepare export', exact: true }).click();
+  await page.getByRole('button', { name: 'Prepare file', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Save file', exact: true })).toBeVisible();
 });
 
@@ -194,7 +193,7 @@ test('discards the completed bytes when the final session check belongs to anoth
   });
   await page.goto('/settings');
   const section = page.getByRole('region', { name: 'Export your data' });
-  await section.getByRole('button', { name: 'Prepare export', exact: true }).click();
+  await section.getByRole('button', { name: 'Prepare file', exact: true }).click();
   await expect(section.getByRole('alert')).toBeVisible();
   await expect(section.getByRole('link', { name: 'Save file', exact: true })).toHaveCount(0);
 });
@@ -207,7 +206,7 @@ test('saves an already prepared file after losing the network without changing a
     route.fulfill({ contentType: 'application/x-ndjson', body: archive() }),
   );
   await page.goto('/settings');
-  await page.getByRole('button', { name: 'Prepare export', exact: true }).click();
+  await page.getByRole('button', { name: 'Prepare file', exact: true }).click();
   const save = page.getByRole('link', { name: 'Save file', exact: true });
   await expect(save).toBeVisible();
   await context.setOffline(true);
@@ -235,7 +234,7 @@ test('checks session expiry after delivery before offering Save', async ({ page 
     await route.fulfill({ contentType: 'application/x-ndjson', body: archive() });
   });
   await page.goto('/settings');
-  await page.getByRole('button', { name: 'Prepare export', exact: true }).click();
+  await page.getByRole('button', { name: 'Prepare file', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Save file', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
 });

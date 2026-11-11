@@ -72,7 +72,7 @@ export function PendingPractice() {
               </Button>
             ) : (
               <Button
-                variant="text"
+                variant="quiet"
                 busy={discard.isPending}
                 onClick={() => discard.mutate(record.deckId)}
               >

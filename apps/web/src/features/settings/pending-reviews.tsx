@@ -73,9 +73,9 @@ export function PendingReviews() {
             {t(reason)}
           </p>
         ))}
-        <div className="flex flex-wrap gap-8">
+        {/* One button for the main choice; the alternatives are text beside it. */}
+        <div className="flex flex-wrap items-center gap-x-20 gap-y-8">
           <Button
-            variant="quiet"
             disabled={!state.validated || state.offline}
             busy={retry.isPending}
             onClick={() => retry.mutate()}
@@ -96,7 +96,7 @@ export function PendingReviews() {
       <Dialog
         open={!!archiveId}
         onOpenChange={() => setArchiveId(undefined)}
-        title={t('offline.archiveReviews')}
+        title={t('offline.archiveReviewTitle')}
       >
         <DialogBody>
           <p className="text-14 text-secondary">{t('offline.archiveReviewConfirm')}</p>
@@ -106,7 +106,7 @@ export function PendingReviews() {
             {t('common.cancel')}
           </Button>
           <Button busy={archive.isPending} onClick={() => archiveId && archive.mutate(archiveId)}>
-            {t('offline.archiveReviews')}
+            {t('offline.archiveReviewAction')}
           </Button>
         </DialogFooter>
       </Dialog>

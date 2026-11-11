@@ -40,14 +40,27 @@ export function PendingNotes() {
         {entries.error && <p role="alert">{t('offline.changesUnavailable')}</p>}
         {saved.map((entry) => {
           const original = entry.base.row as unknown as Note;
+          const decision = ['conflict', 'unsupported', 'rejected'].includes(entry.state);
+          const deleted = entry.outcome?.reason === 'deleted_remotely';
+          const changed =
+            entry.state === 'conflict' && entry.outcome?.reason === 'changed_remotely';
           return (
             <div
               key={entry.operationId}
               className="flex flex-col gap-8 border-t border-subtle pt-12"
             >
               <p className="text-14 text-primary">{termOf(entry.working.fields as NoteFields)}</p>
+              {/* One line: what happened, before the versions to compare. */}
               <p role="status" className="text-13 text-secondary">
-                {t(`offline.note.${entry.state}`)}
+                {!decision
+                  ? t(`offline.note.${entry.state}`)
+                  : deleted
+                    ? t('offline.note.deleted')
+                    : entry.state === 'unsupported'
+                      ? t('offline.note.cardChange')
+                      : entry.state === 'rejected'
+                        ? t('offline.note.deliveryRejected')
+                        : t('offline.note.changed')}
               </p>
               <SavedVersion
                 title={t('offline.note.localVersion')}
@@ -55,64 +68,25 @@ export function PendingNotes() {
                 fields={entry.working.fields}
                 tags={entry.working.tags}
               />
-              {['conflict', 'unsupported', 'rejected'].includes(entry.state) && (
-                <>
-                  <p className="text-13 text-secondary">
-                    {entry.outcome?.reason === 'deleted_remotely'
-                      ? t('offline.note.deleted')
-                      : entry.state === 'unsupported'
-                        ? t('offline.note.cardChange')
-                        : entry.state === 'rejected'
-                          ? t('offline.note.deliveryRejected')
-                          : t('offline.note.changed')}
-                  </p>
-                  <SavedVersion
-                    title={t('offline.note.originalVersion')}
-                    noteType={original.noteType}
-                    fields={original.fields}
-                    tags={original.tags}
-                  />
-                </>
+              {decision && (
+                <SavedVersion
+                  title={t('offline.note.originalVersion')}
+                  noteType={original.noteType}
+                  fields={original.fields}
+                  tags={original.tags}
+                />
               )}
-              {entry.state === 'conflict' && entry.outcome?.reason === 'changed_remotely' && (
+              {changed && (
                 <RemoteComparison
                   accountId={entry.accountId}
                   id={entry.entityId}
                   enabled={state.validated && !state.offline}
                 />
               )}
-              <div className="flex flex-wrap gap-8">
-                <Button
-                  variant="text"
-                  onClick={() =>
-                    void navigator.clipboard.writeText(JSON.stringify(entry.working, null, 2))
-                  }
-                >
-                  {t('offline.note.copyDraft')}
-                </Button>
-                {['conflict', 'unsupported', 'rejected'].includes(entry.state) && (
+              {/* One button for the main choice; the alternatives are text beside it. */}
+              <div className="flex flex-wrap items-center gap-x-20 gap-y-8">
+                {changed && (
                   <Button
-                    variant="text"
-                    onClick={() =>
-                      void navigator.clipboard.writeText(JSON.stringify(original, null, 2))
-                    }
-                  >
-                    {t('offline.note.copyOriginal')}
-                  </Button>
-                )}
-                {entry.state === 'pending' && (
-                  <Button
-                    variant="quiet"
-                    disabled={!state.validated || state.offline}
-                    busy={retry.isPending}
-                    onClick={() => retry.mutate()}
-                  >
-                    {t('common.retry')}
-                  </Button>
-                )}
-                {entry.state === 'conflict' && entry.outcome?.reason === 'changed_remotely' && (
-                  <Button
-                    variant="quiet"
                     disabled={!state.validated || state.offline}
                     busy={resolve.isPending}
                     onClick={() => resolve.mutate(entry.operationId)}
@@ -120,9 +94,18 @@ export function PendingNotes() {
                     {t('offline.note.applyDraft')}
                   </Button>
                 )}
-                {['conflict', 'unsupported', 'rejected'].includes(entry.state) && (
+                {entry.state === 'pending' && (
                   <Button
-                    variant="text"
+                    disabled={!state.validated || state.offline}
+                    busy={retry.isPending}
+                    onClick={() => retry.mutate()}
+                  >
+                    {t('common.retry')}
+                  </Button>
+                )}
+                {decision && (
+                  <Button
+                    variant={changed ? 'text' : 'quiet'}
                     busy={keep.isPending}
                     onClick={() => {
                       keep.mutate(entry.operationId, {
@@ -137,7 +120,26 @@ export function PendingNotes() {
                       });
                     }}
                   >
-                    {t('offline.note.keepServer')}
+                    {/* A deleted Note has no current version to keep. */}
+                    {t(deleted ? 'offline.note.discard' : 'offline.note.keepServer')}
+                  </Button>
+                )}
+                <Button
+                  variant="text"
+                  onClick={() =>
+                    void navigator.clipboard.writeText(JSON.stringify(entry.working, null, 2))
+                  }
+                >
+                  {t('offline.note.copyDraft')}
+                </Button>
+                {decision && (
+                  <Button
+                    variant="text"
+                    onClick={() =>
+                      void navigator.clipboard.writeText(JSON.stringify(original, null, 2))
+                    }
+                  >
+                    {t('offline.note.copyOriginal')}
                   </Button>
                 )}
               </div>

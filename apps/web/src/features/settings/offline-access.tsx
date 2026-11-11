@@ -195,7 +195,7 @@ export function OfflineAccess() {
         {work.kept > 0 && <p className="text-13 text-secondary">{t('offline.reviewArchived')}</p>}
         {status.action && <div className="flex">{status.action}</div>}
         {online && (failed || limit === 'history') && (
-          <div className="flex flex-wrap gap-8">
+          <div className="flex flex-wrap items-center gap-x-20 gap-y-8">
             <Button
               variant="quiet"
               disabled={busy}
@@ -239,7 +239,7 @@ export function OfflineAccess() {
                 </p>
               )}
               {import.meta.env.PROD && !shell.ready && <p>{t('offline.shellPending')}</p>}
-              <div className="flex flex-wrap items-center gap-8">
+              <div className="flex flex-wrap items-center gap-x-20 gap-y-8">
                 <Button
                   variant="quiet"
                   aria-label={t('offline.reconnect')}

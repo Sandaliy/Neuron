@@ -231,9 +231,9 @@ test('real PostgreSQL: offline Notes survive a reopened shell, a lost answer and
     expect(await repo.notes.byId(door.entityId)).toBeUndefined();
 
     // The learner chooses where the second Note goes; it keeps its id.
-    const recovery = page.getByRole('region', { name: 'New Notes saved on this device' });
+    const recovery = page.getByRole('region', { name: 'New Notes' });
     await expect(recovery.getByText('Tür', { exact: true })).toBeVisible();
-    await recovery.getByRole('button', { name: 'Add it to this Deck', exact: true }).click();
+    await recovery.getByRole('button', { name: 'Add to this Deck', exact: true }).click();
     await expect
       .poll(async () => (await creations(page, id)).map((entry) => entry.state))
       .toEqual(['synchronized', 'synchronized']);

@@ -166,19 +166,19 @@ complete-snapshot planning path above.
 ## Recovery and account boundaries
 
 Explicit rejections stop subsequent delivery. Later events remain local and visible, with Retry and
-Copy recovery record. Invalid/mismatched acknowledgements remain pending. Storage/read errors are
+Copy. Invalid/mismatched acknowledgements remain pending. Storage/read errors are
 visible; collection Rebuild refuses unresolved Reviews, recovery archives or unreadable records.
 No command, receipt, original version or archive is deleted to simplify Settings.
 
 Settings presents this work as one piece rather than one row per event. Waiting events are a count in
-the section's status, refused ones are grouped by the reason the server gave, and Retry, Keep session for recovery and
-Copy recovery record each appear once; the recovery copy carries every unsettled event. Retry always
+the section's status, refused ones are grouped by the reason the server gave, and Retry, Set aside and
+Copy each appear once; the recovery copy carries every unsettled event. Retry always
 retried the whole queue, so a button per row was the same button sixteen times, and the one answer
 the server actually refused was indistinguishable from the fifteen waiting their turn. The summary
 counts work that needs the owner separately from work that is merely queued, so one refused answer
 among fifteen waiting reads as one. Every event keeps its record and its receipt.
 
-For a permanently rejected ended sitting, Keep session for recovery requires confirmation. One local
+For a permanently rejected ended sitting, Set aside requires confirmation. One local
 transaction archives all its undelivered answers/cancellations and closes that sitting to further
 writes. It preserves every original event and reports that they were not synchronized. Automatic
 retry excludes this archive; a fresh server-authorized sitting can proceed from server schedules.

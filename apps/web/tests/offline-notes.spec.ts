@@ -237,7 +237,7 @@ async function fixture(page: Page, cloze = false) {
   });
   await page.goto('/settings');
   await expect(
-    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    page.getByText('Your collection is downloaded to this device.', { exact: true }),
   ).toBeVisible();
   return state;
 }
@@ -572,10 +572,10 @@ test('a remote conversion preserves the original draft form and requires recover
   );
   await reconnect(page, state);
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Apply draft to current Note', exact: true }).click();
+  await page.getByRole('button', { name: 'Keep my version', exact: true }).click();
   await expect(
     page.getByText(
-      'The Note type or Deck changed. This draft cannot be applied across that change. Copy it or keep the server version and archive the draft.',
+      'Its Note type or Deck changed, so your version cannot be used. Copy it if you need it.',
       { exact: true },
     ),
   ).toBeVisible();
@@ -584,9 +584,7 @@ test('a remote conversion preserves the original draft form and requires recover
   expect(await stored(page)).toHaveLength(1);
   expect(state.deliveries).toHaveLength(1);
   expect(state.note.fields).toEqual({ front: 'Remote question', back: 'Remote answer' });
-  await page
-    .getByRole('button', { name: 'Keep server version and archive draft', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Keep the current version', exact: true }).click();
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('resolved');
   await page.goto(`/notes/${id}`);
   await expect(page.getByRole('textbox', { name: 'Front', exact: true })).toHaveValue(
@@ -645,11 +643,11 @@ test('original revision and both versions survive remote conflict; recovery requ
   await expect(page.getByRole('textbox', { name: 'Translation', exact: true })).toHaveValue(
     'Losing local meaning',
   );
-  await page.getByRole('link', { name: 'Needs review', exact: true }).click();
-  await page.getByText('Current version').click();
+  await page.getByRole('link', { name: 'Needs your decision', exact: true }).click();
+  await page.getByRole('button', { name: 'Current version', exact: true }).click();
   await expect(page.getByText('Remote meaning', { exact: true })).toBeVisible();
   expect(state.note.fields['translation']).toBe('Remote meaning');
-  await page.getByRole('button', { name: 'Apply draft to current Note', exact: true }).click();
+  await page.getByRole('button', { name: 'Keep my version', exact: true }).click();
   await expect
     .poll(async () => (await stored(page)).map((entry) => entry.state))
     .toEqual(['resolved', 'synchronized']);
@@ -672,13 +670,9 @@ for (const purged of [false, true])
       .poll(async () => (await stored(page))[0]?.outcome?.reason)
       .toBe('deleted_remotely');
     await page.getByRole('link', { name: 'Settings', exact: true }).click();
-    await expect(
-      page.getByRole('button', { name: 'Apply draft to current Note', exact: true }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Keep my version', exact: true })).toHaveCount(0);
     const before = (await stored(page))[0]!;
-    await page
-      .getByRole('button', { name: 'Keep server version and archive draft', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'Discard my edit', exact: true }).click();
     await expect.poll(async () => (await stored(page))[0]?.state).toBe('resolved');
     expect((await stored(page))[0]!.working).toEqual(before.working);
     expect((await stored(page))[0]!.base).toEqual(before.base);
@@ -792,7 +786,7 @@ test('session expiry and account switching retain pending work; matching sign-in
   await page.evaluate(() => localStorage.removeItem('neuron.offline.signedOut'));
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Saved Note edits' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Note edits' })).toHaveCount(0);
   expect((await stored(page))[0]?.state).toBe('pending');
   expect(state.deliveries).toEqual([]);
   state.who = account.id;
@@ -880,7 +874,7 @@ test('an account switch during delivery ignores a late acknowledgement and retai
     .poll(() => page.evaluate(() => localStorage.getItem('neuron.offline.account')))
     .toBe(state.who);
   release();
-  await expect(page.getByRole('region', { name: 'Saved Note edits' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Note edits' })).toHaveCount(0);
   expect((await stored(page))[0]!.payload).toEqual(saved.payload);
   expect((await stored(page))[0]!.state).toBe('pending');
   expect(state.deliveries).toHaveLength(1);
@@ -926,13 +920,10 @@ test('Card-removing edits remain unsupported drafts; Rebuild cannot remove them'
   });
   await reconnect(page, state);
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild offline copy', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild', exact: true }).click();
   await expect(
-    page.getByText(
-      'Rebuild is blocked because saved changes have not synchronized or been resolved. Recover them first.',
-      { exact: true },
-    ),
+    page.getByText('Sync or decide your saved changes first.', { exact: true }),
   ).toBeVisible();
   expect((await stored(page))[0]!.working.fields['text']).toBe('{{c1::One}} Two');
   expect(state.deliveries).toEqual([]);
@@ -982,16 +973,12 @@ for (const malformed of [false, true])
     if (!malformed) {
       await page.getByRole('link', { name: 'Settings', exact: true }).click();
       await expect(
-        page.getByText(
-          'The server rejected this update. Your local draft is retained; copy it or keep the server version and archive the draft.',
-          { exact: true },
-        ),
+        page.getByText('The server did not accept this edit.', { exact: true }),
       ).toBeVisible();
       await expect(
-        page.getByText(
-          'This Note changed elsewhere. Compare the versions before applying your draft to the current Note.',
-          { exact: true },
-        ),
+        page.getByText('Changed on another device too. Compare the versions below.', {
+          exact: true,
+        }),
       ).toHaveCount(0);
     }
   });
@@ -1004,7 +991,7 @@ test('small and large synchronized Note histories stay on the device without bei
   await reconnect(page, state);
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('synchronized');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  const region = page.getByRole('region', { name: 'Saved Note edits' });
+  const region = page.getByRole('region', { name: 'Note edits' });
   await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
   await expect(region).toHaveCount(0);
   const saved = (await stored(page))[0]!;

@@ -254,8 +254,10 @@ async function downloaded(page: Page) {
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'What works offline', exact: true }).click();
   await expect(
-    page.getByText('Collection downloaded for offline reading.', { exact: true }),
-  ).toBeVisible({ timeout: 180_000 });
+    page.getByText('Your collection is downloaded to this device.', { exact: true }),
+  ).toBeVisible({
+    timeout: 180_000,
+  });
   await page.goBack();
 }
 

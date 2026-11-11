@@ -105,8 +105,10 @@ test('the built PWA separates latency, endpoint errors, silence and confirmed lo
     await usePreferences(page, { locale: 'en', theme: 'dark', motion: 'reduce' });
     await page.goto('/settings');
     await expect(
-      page.getByText('Collection downloaded for offline reading.', { exact: true }),
-    ).toBeVisible({ timeout: 30_000 });
+      page.getByText('Your collection is downloaded to this device.', { exact: true }),
+    ).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(
       page.getByText('Study works offline on this device.', { exact: true }),
     ).toBeVisible();

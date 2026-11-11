@@ -3,30 +3,21 @@
  */
 export const en = {
   'export.title': 'Export your data',
-  'export.scope': 'Download your synchronized collection, study settings and learning history.',
-  'export.local':
-    'Pending changes, drafts and recovery work saved only on a device are not included. Offline & sync shows pending deliveries, but does not list every device-only draft.',
-  'export.readOnly':
-    'Exporting changes nothing. Importing or restoring this file is not supported yet.',
-  'export.prepare': 'Prepare export',
-  'export.progress': 'Preparing your file… {size} MB received. Keep this screen open.',
-  'export.ready': 'Your file is ready. Save a copy to keep it.',
+  'export.scope': 'Download everything synced to your account as one file.',
+  'export.prepare': 'Prepare file',
+  'export.progress': 'Preparing your file… {size} MB. Keep this screen open.',
+  'export.ready': 'Your file is ready.',
   'export.save': 'Save file',
   'export.share': 'Share file',
-  'export.saveHint':
-    'If Save file opens a preview, use its Share menu to save a copy. Saving is finished in your browser or the Files app.',
-  'export.shareHint':
-    'On iPhone, use Share file → Save to Files. If Save file opens a preview, use its Share menu. Saving is finished in your browser or the Files app.',
-  'export.private': 'This file contains private learning data. Store and share it carefully.',
-  'export.again': 'Prepare a new export',
-  'export.retry': 'Try export again',
-  'export.failed':
-    'The export did not finish. No complete file was prepared. Check your connection and try again.',
-  'export.expired': 'Your session changed or expired. Sign in again, then prepare a new export.',
-  'export.limit':
-    'This export reached the supported size or time limit. Try again on a stable connection. If it happens again, contact support.',
-  'export.shareFailed': 'Sharing did not finish. Try Save file or share again.',
-  'export.rateLimited': 'Several exports were requested. Wait a minute, then try again.',
+  'export.saveHint': 'If a preview opens, use its Share menu to save the file.',
+  'export.shareHint': 'On iPhone, tap Share file, then Save to Files.',
+  'export.again': 'Prepare a new file',
+  'export.retry': 'Try again',
+  'export.failed': 'Export did not finish. Check your connection and try again.',
+  'export.expired': 'Your sign-in expired. Sign in, then export again.',
+  'export.limit': 'Export was too large or too slow. Try again on a steady connection.',
+  'export.shareFailed': 'Sharing did not finish. Try again or save the file.',
+  'export.rateLimited': 'Too many exports. Wait a minute, then try again.',
   'offline.collection.saved':
     'Saved on this device. It will sync when your connection is confirmed.',
   'offline.collection.local': 'Saved on device',
@@ -36,37 +27,30 @@ export const en = {
   'offline.collection.parentRequired': 'Choose a downloaded Folder, or create at the Library root.',
   'offline.collection.dependencies':
     'This Folder or Deck must sync before you can add to it or change it.',
-  'offline.collection.parent_unavailable':
-    'The original Folder is unavailable. This creation is still saved on this device. Choose where to create it.',
-  'offline.collection.parent_changed':
-    'The original Folder or its inherited settings changed. Review where to create this saved item.',
+  'offline.collection.parent_unavailable': 'Its Folder was deleted. Choose where to create it.',
+  'offline.collection.parent_changed': 'Its Folder changed. Check where to create it.',
   'offline.collection.identity_exists':
-    'This identity already belongs to another item. The saved name is retained; copy it and create a new item.',
+    'This could not be created. Copy the name and create it again.',
   'offline.collection.name_exists':
     'This name is already used here. Choose a different name or location.',
-  'offline.collection.rejected':
-    'The server did not accept this creation. Its name and original location remain saved on this device.',
+  'offline.collection.rejected': 'The server did not accept it.',
   'offline.collection.originalParent': 'Original location: {name}',
+  'offline.collection.copyName': 'Copy the name',
+  'offline.collection.discard': 'Do not create it',
   'offline.collection.chooseParent': 'Create inside',
   'offline.collection.saveHere': 'Create here',
-  'offline.collection.archive': 'Stop syncing and archive',
-  'offline.connectionUncertain':
-    'The server is taking longer to respond. Your download is available while checking continues.',
-  'offline.study.waitingDownload': 'Offline Study needs a complete download.',
-  'offline.study.checking': 'Checking offline Study readiness…',
+  'offline.connectionUncertain': 'The server is slow. Your download works meanwhile.',
+  'offline.study.waitingDownload': 'Study works offline once the download finishes.',
+  'offline.study.checking': 'Checking offline Study…',
   'offline.study.verified': 'Study works offline on this device.',
   'offline.study.historyRecovery':
     'Finish synchronization online. If this warning remains, rebuild the download after resolving saved work.',
   'offline.study.excluded': '{count} Cards are withheld until their learning data is verified.',
   'offline.study.ready': 'Available from your download. Answers save on this device.',
-  'offline.study.settings':
-    'New cards need matching downloaded settings. Connect to update your download.',
-  'offline.study.history':
-    'New cards are paused because some Cards and their learning history do not match. Connect to finish synchronization.',
-  'offline.study.recovery':
-    'Unresolved answers need synchronization or recovery. Affected cards and new material are paused.',
-  'offline.study.content':
-    'Cards with local Note edits wait for reconciliation. New material is paused.',
+  'offline.study.settings': 'New Cards wait until your settings sync.',
+  'offline.study.history': 'New Cards wait until your history syncs.',
+  'offline.study.recovery': 'New and affected Cards wait until answers sync.',
+  'offline.study.content': 'New Cards and Cards with unsent edits wait.',
   'offline.study.incomplete':
     'Finish downloading your collection online before starting Study offline.',
   'offline.study.unavailable':
@@ -79,76 +63,70 @@ export const en = {
   'offline.note.notSaved':
     'This draft could not be saved on your device. Keep this editor open and retry, or copy your changes before leaving.',
   'offline.note.synchronized': 'Synced with server',
-  'offline.note.conflict': 'Needs review',
-  'offline.note.unsupported': 'Needs online review',
-  'offline.note.rejected': 'Not synchronized',
+  'offline.note.conflict': 'Needs your decision',
+  'offline.note.unsupported': 'Cannot sync',
+  'offline.note.rejected': 'Not accepted',
   'offline.note.incomplete': 'Draft on device',
-  'offline.note.draft': 'Draft saved on this device · finish required fields to synchronize',
+  'offline.note.draft': 'Draft on this device. Fill in the required fields so it can sync.',
   'offline.note.pending': 'Saved on this device · waiting to synchronize',
   'offline.note.resolved': 'Server version kept · local draft archived',
-  'offline.note.savedChanges': 'Saved Note edits',
+  'offline.note.savedChanges': 'Note edits',
   'offline.note.storageNotice':
     'Local drafts are not a backup. Browser storage can be cleared; copy important unsynchronized work.',
   'offline.note.original': 'Original server revision {revision}',
-  'offline.note.localVersion': 'Saved local draft',
-  'offline.note.originalVersion': 'Original server Note',
+  'offline.note.localVersion': 'Your version',
+  'offline.note.originalVersion': 'Before your edit',
   'offline.note.remoteVersion': 'Current server Note · revision {revision}',
-  'offline.note.changed':
-    'This Note changed elsewhere. Compare the versions before applying your draft to the current Note.',
-  'offline.note.deliveryRejected':
-    'The server rejected this update. Your local draft is retained; copy it or keep the server version and archive the draft.',
+  'offline.note.changed': 'Changed on another device too. Compare the versions below.',
+  'offline.note.deliveryRejected': 'The server did not accept this edit.',
   'offline.note.scopeChanged':
-    'The Note type or Deck changed. This draft cannot be applied across that change. Copy it or keep the server version and archive the draft.',
-  'offline.note.deleted':
-    'This Note or its Deck was deleted. Your local draft is retained; it will not restore the Note.',
-  'offline.note.cardChange':
-    'This draft would remove Cards and cannot synchronize. Keep the existing Card directions or gaps, or copy the draft for recovery.',
-  'offline.note.copyDraft': 'Copy saved draft',
-  'offline.note.copyOriginal': 'Copy original server version',
-  'offline.note.applyDraft': 'Apply draft to current Note',
-  'offline.note.keepServer': 'Keep server version and archive draft',
+    'Its Note type or Deck changed, so your version cannot be used. Copy it if you need it.',
+  'offline.note.deleted': 'Deleted on another device. Your edit cannot bring it back.',
+  'offline.note.cardChange': 'This edit would delete Cards, so it cannot sync.',
+  'offline.note.copyDraft': 'Copy my version',
+  'offline.note.copyOriginal': 'Copy the earlier version',
+  'offline.note.applyDraft': 'Keep my version',
+  'offline.note.keepServer': 'Keep the current version',
+  'offline.note.discard': 'Discard my edit',
   'offline.create.cardsLater': 'Cards are made when it syncs',
   'offline.create.deckMissing': 'This Deck is not on this device yet. Connect to save the Note.',
   'offline.create.notSaved':
     'The Note could not be saved on this device. What you typed is still here. Try again.',
-  'offline.create.savedNotes': 'New Notes saved on this device',
-  'offline.create.deckUnavailable':
-    'Its Deck was deleted or is no longer a Deck, so the Note was not added. It is kept on this device. Choose a Deck for it, or copy it.',
-  'offline.create.exists':
-    'The server already has a different Note with this identity, so this one was not added. It is kept on this device; copy it to add it again.',
-  'offline.create.rejected':
-    'The server refused this new Note. It is kept on this device; copy it before you archive it.',
+  'offline.create.savedNotes': 'New Notes',
+  'offline.create.deckUnavailable': 'Its Deck was deleted. Choose another Deck for it.',
+  'offline.create.exists': 'This Note could not be added. Copy it, then add it again.',
+  'offline.create.rejected': 'The server did not accept this Note. Copy it before you discard it.',
   'offline.create.chooseDeck': 'Choose a Deck',
-  'offline.create.useDeck': 'Add it to this Deck',
-  'offline.create.archive': 'Stop syncing and archive',
+  'offline.create.useDeck': 'Add to this Deck',
   'offline.create.copy': 'Copy the Note',
+  'offline.create.discard': 'Discard this Note',
   'offline.renamePending':
     'This collection already has a saved rename waiting to sync. Open Settings to retry or recover it.',
   'offline.renameNotSaved':
     'The name could not be saved on this device. Your previous name is unchanged. Try again.',
-  'offline.savedChanges': 'Saved name changes',
+  'offline.savedChanges': 'Renamed Folders and Decks',
   'offline.storageNotice':
     'Saved on this device is different from synchronized. Browser storage can be cleared or evicted; keep a separate copy of important pending names.',
   'offline.changesUnavailable':
     'Saved changes could not be read. Rebuild is blocked until they can be checked safely.',
   'offline.noChanges': 'No saved name changes.',
-  'offline.rename.pending': 'Saved on this device · waiting to synchronize',
-  'offline.rename.synchronized': 'Synchronized with the server',
-  'offline.rename.conflict': 'Needs your decision · your name is retained on this device',
-  'offline.rename.rejected': 'Server refused this change · your name is retained on this device',
-  'offline.rename.resolved': 'Server version kept · saved name archived on this device',
-  'offline.keepServerVersion': 'Keep server version and archive saved name',
-  'offline.renameChanged':
-    'This collection changed on another device. Apply the saved name only if you want to replace its current name.',
-  'offline.renameDeleted':
-    'This collection or a parent was deleted or permanently removed. Copy your saved name to recover it; it will not be restored automatically.',
+  'offline.rename.pending': 'Waiting to sync',
+  'offline.rename.synchronized': 'Synced',
+  'offline.rename.conflict': 'Needs your decision',
+  'offline.rename.rejected': 'The server did not accept this name.',
+  'offline.rename.resolved': 'Set aside',
+  'offline.keepServerVersion': 'Keep the other name',
+  'offline.keepOtherName': 'Keep “{name}”',
+  'offline.discardName': 'Discard my name',
+  'offline.renameChanged': 'Renamed on another device too.',
+  'offline.renameChangedTo': 'Renamed to “{name}” on another device.',
+  'offline.renameDeleted': 'Deleted on another device, so your name cannot be used.',
   'offline.renameOriginal': 'Originally “{name}” · server version {revision}',
-  'offline.copyName': 'Copy saved name',
-  'offline.applySavedName': 'Apply saved name to current version',
+  'offline.copyName': 'Copy my name',
+  'offline.applySavedName': 'Keep my name',
   'offline.renameRetryFailed':
-    'Delivery could not finish. Your saved change is retained; try again after reconnecting.',
-  'offline.rebuildBlocked':
-    'Rebuild is blocked because saved changes have not synchronized or been resolved. Recover them first.',
+    'That did not finish, and your change is still on this device. Try again when you are online.',
+  'offline.rebuildBlocked': 'Sync or decide your saved changes first.',
   'offline.serverRequired':
     'This action needs a verified connection. Try again after reconnecting.',
   'offline.details': 'Offline details',
@@ -163,46 +141,44 @@ export const en = {
   'offline.workAttentionOne': 'One saved change needs your attention.',
   'offline.checkingWork': 'Checking saved work…',
   'offline.reviews': 'Study answers',
-  'offline.reviewArchived': 'Kept for recovery. These events were not synchronized.',
+  'offline.reviewArchived': 'Some answers were not sent and are kept on this device.',
   'offline.reviewArchivedConfirmed': 'Kept for recovery. The server confirmed this event.',
-  'offline.archiveReviews': 'Keep session for recovery',
+  'offline.archiveReviews': 'Stop sending these answers',
+  'offline.archiveReviewTitle': 'Stop sending these answers?',
+  'offline.archiveReviewAction': 'Stop sending',
   'offline.archiveReviewConfirm':
-    'Keep this session’s undelivered answers and Undo events on this device without retrying them. They will not change server history. A new Study session will use the server’s current schedules.',
+    'They stay on this device and your learning history does not change. Your next session uses the schedule in your account.',
   'offline.reviewAnswer': 'Study answer',
   'offline.reviewPending': 'Saved on this device. Waiting to synchronize.',
   'offline.reviewsWaiting': '{count} saved on this device, waiting to synchronize.',
-  'offline.reviewsAttention': '{count} need your attention.',
+  'offline.reviewsAttention':
+    'Not accepted: {count}. The answers after them are waiting on this device.',
   'offline.reviewRejected':
-    'This answer needs recovery. Later answers are kept safely on this device.',
-  'offline.reviewIdReused':
-    'The server has a different event with this identity. Keep a copy for recovery.',
-  'offline.reviewMissing':
-    'The card or answer is no longer available on the server. Restore it if possible, then retry.',
-  'offline.reviewInterrupted':
-    'Delivery was interrupted or could not be confirmed. Retry keeps the same answer.',
-  'offline.copyRecovery': 'Copy recovery record',
+    'One answer was not accepted. The answers after it are waiting on this device.',
+  'offline.reviewIdReused': 'The server already has a different answer in its place.',
+  'offline.reviewMissing': 'Its Card was deleted. Restore the Card, then try again.',
+  'offline.reviewInterrupted': 'Sending was interrupted. Try again.',
+  'offline.copyRecovery': 'Copy details',
   'error.review_delivery_pending':
     'Saved answers are still being sent. Study can start as soon as they arrive.',
   'offline.access': 'Offline & sync',
   'offline.status.saved': 'All changes saved',
-  'offline.status.saving': 'Saving changes ({count})…',
-  'offline.status.waitingOffline': 'Changes will sync when you are online ({count})',
-  'offline.status.stalled': 'Changes are waiting to be sent ({count})',
-  'offline.status.safeDetail': 'They are safe on this device. Neuron keeps trying.',
-  'offline.status.attention': 'Changes need your attention ({count})',
-  'offline.status.attentionDetail': 'They stay on this device until you choose what to keep.',
+  'offline.status.saving': 'Sending changes ({count})…',
+  'offline.status.waitingOffline': 'Waiting for a connection ({count})',
+  'offline.status.stalled': 'Changes not sent yet ({count})',
+  'offline.status.safeDetail': 'They are saved on this device and will sync automatically.',
+  'offline.status.attention': 'Changes need your decision ({count})',
+  'offline.status.attentionDetail': 'They stay on this device until you choose.',
   'offline.works': 'What works offline',
-  'offline.works.available':
-    'Without a connection you can browse your Library and Notes, create or rename Folders and Decks, edit existing Notes, study, practice and prepare Import drafts. New Folders and Decks must sync before you can add to them.',
-  'offline.works.needsConnection': 'New Notes and applying an Import need a connection.',
-  'offline.diagnostics': 'Save startup diagnostics',
+  'offline.works.available': 'Study, Practice, browsing and editing work offline.',
+  'offline.works.needsConnection': 'Importing, moving and deleting need a connection.',
+  'offline.diagnostics': 'Save a diagnostics file',
   'offline.practiceUnavailable': 'Practice requires a connection.',
-  'offline.practice.savedChanges': 'Saved Practice',
-  'offline.practice.conflict': 'Practiced on two devices · choose which run to continue',
-  'offline.practice.unavailable':
-    'This Deck is no longer available, so its saved Practice cannot be sent.',
+  'offline.practice.savedChanges': 'Practice',
+  'offline.practice.conflict': 'Practiced on two devices. Choose which run to continue.',
+  'offline.practice.unavailable': 'Its Deck was deleted, so this Practice cannot be sent.',
   'offline.practice.open': 'Choose a run',
-  'offline.practice.discard': 'Discard saved Practice',
+  'offline.practice.discard': 'Discard this Practice',
   'practice.storageOffline':
     'Practice cannot be saved on this device right now. Reconnect to continue.',
   'practice.storageFailed': 'This answer could not be saved on this device. Try again.',
@@ -215,48 +191,41 @@ export const en = {
   'practice.conflict.none': 'No run',
   'practice.conflict.keepDevice': 'Continue this device’s run',
   'practice.conflict.keepOther': 'Continue the other run',
-  'offline.ready': 'Collection downloaded for offline reading.',
+  'offline.ready': 'Your collection is downloaded to this device.',
   'offline.pending': 'The collection has not finished downloading yet.',
-  'offline.onlineAvailable': 'You can keep using Neuron online.',
-  'offline.savedAvailable': 'An existing completed download remains available on this device.',
+  'offline.onlineAvailable': 'Neuron still works online.',
+  'offline.savedAvailable': 'Your last download still works offline.',
   'offline.reconnect': 'Check connection',
   'offline.rebuildConfirm':
-    'Replace this device’s downloaded collection with a fresh copy from the server? Your server collection is unchanged. Keep Neuron online until it finishes.',
-  'offline.rebuildAction': 'Rebuild now',
-  'offline.failure.network':
-    'The download could not reach the server. Retry when the connection is available.',
+    'Download a fresh copy to this device? Your account does not change. Stay online until it finishes.',
+  'offline.rebuildAction': 'Rebuild',
+  'offline.failure.network': 'Could not reach the server. Try again when you are online.',
   'offline.failure.protocol':
-    'The server response could not be validated. Retry after updating Neuron; rebuilding storage will not repair this response.',
-  'offline.failure.schema':
-    'A collection row could not be validated. Retry after updating Neuron; rebuilding storage will not repair this response.',
+    'This version of Neuron cannot read the download. Update Neuron, then try again.',
+  'offline.failure.schema': 'Part of the download cannot be read. Update Neuron, then try again.',
   'offline.startupStorage':
     'This device’s offline storage could not be opened or read. Your saved work has not been removed. Close other Neuron windows and retry; reconnect to the same account if the problem continues.',
-  'offline.failure.database':
-    'This device’s offline storage could not be opened or read. Retry, or rebuild if the saved download needs recovery.',
-  'offline.failure.transaction':
-    'A download page could not be saved. The last saved position is retained; Retry resumes from there.',
-  'offline.failure.recovery':
-    'The downloaded collection could not be rebuilt. Close other Neuron windows and try again.',
+  'offline.failure.database': 'Storage on this device did not open. Try again or rebuild.',
+  'offline.failure.transaction': 'The download stopped. Try again to continue.',
+  'offline.failure.recovery': 'Rebuild failed. Close other Neuron windows and try again.',
   'offline.title': 'Offline',
   'offline.readOnly':
     'Browse downloads, rename collections, edit existing Notes and use Study when learning data is ready. Practice, new Notes and Import application need a connection.',
   'offline.session':
-    'Offline access uses the account previously signed in on this device. The server session has not been freshly validated.',
+    'You are using the account last signed in on this device. Neuron confirms it when you reconnect.',
   'offline.incomplete':
     'The collection download is incomplete or missing. Connect and sign in to finish downloading before browsing offline.',
-  'offline.downloading': 'Downloading for offline reading…',
-  'offline.unavailable': 'The offline collection is not ready.',
-  'offline.rebuild': 'Rebuild downloaded collection',
-  'offline.update':
-    'An application update is ready. Close all Neuron windows, then reopen online to finish updating.',
+  'offline.downloading': 'Downloading your collection for offline use…',
+  'offline.unavailable': 'The offline copy is not ready',
+  'offline.rebuild': 'Rebuild offline copy',
+  'offline.update': 'Update ready. Close all Neuron windows and reopen online.',
   'offline.missing':
     'Downloaded data is missing or incompatible. Reconnect to download the collection again.',
   'offline.empty': 'No items here.',
   'offline.more': 'Load more',
   'offline.folder': 'Folder',
   'offline.deck': 'Deck',
-  'offline.shellPending':
-    'Offline reopening is not ready yet. Reopen online to finish caching the application.',
+  'offline.shellPending': 'Open Neuron once more while online so it can open offline.',
   'import.spokenWord': 'Spoken word',
   'import.listeningExample':
     'Listen, type the word, then reveal meaning and context. Audio uses the Deck language.',

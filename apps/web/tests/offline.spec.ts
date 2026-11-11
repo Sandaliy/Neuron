@@ -782,7 +782,7 @@ test('foreground stalled HTTP hands a mounted Deck to local reads without a pend
   await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toBeVisible();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(
-    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    page.getByText('Your collection is downloaded to this device.', { exact: true }),
   ).toBeVisible();
   await info.attach('foreground-handover', {
     body: JSON.stringify({ handover }),
@@ -919,7 +919,7 @@ test('startup diagnostics retain a failed launch after recovery without content 
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'What works offline', exact: true }).click();
-  await page.getByRole('button', { name: 'Save startup diagnostics', exact: true }).click();
+  await page.getByRole('button', { name: 'Save a diagnostics file', exact: true }).click();
   const artifact = await download;
   const stream = (await artifact.createReadStream())!;
   const chunks: Buffer[] = [];
@@ -1012,7 +1012,7 @@ test.describe('reconciliation measurements', () => {
     );
     await page.goto('/settings');
     await expect(
-      page.getByText('Collection downloaded for offline reading.', { exact: true }),
+      page.getByText('Your collection is downloaded to this device.', { exact: true }),
     ).toBeVisible();
     // Isolate browsing a previously completed download. Paginated hydration, atomic
     // cursor application and interrupted downloads have separate regressions below.
@@ -1080,7 +1080,7 @@ test.describe('reconciliation measurements', () => {
     );
     await page.reload();
     await expect(
-      page.getByText('Collection downloaded for offline reading.', { exact: true }),
+      page.getByText('Your collection is downloaded to this device.', { exact: true }),
     ).toBeVisible();
     let profiler: CDPSession | undefined;
     if (browserName === 'chromium') {
@@ -1518,8 +1518,10 @@ for (const mode of ['fast', 'delayed', 'unavailable', 'interrupted'] as const) {
     );
     await page.goto('/settings');
     await expect(
-      page.getByText('Collection downloaded for offline reading.', { exact: true }),
-    ).toBeVisible({ timeout: 90000 });
+      page.getByText('Your collection is downloaded to this device.', { exact: true }),
+    ).toBeVisible({
+      timeout: 90000,
+    });
     await page.evaluate(() => {
       const scans: Record<string, number> = {};
       Object.assign(window, { collectionScans: scans });
@@ -1829,10 +1831,8 @@ test('interrupted initial download stays hidden and resumes at the committed bou
   await page.goto('/library');
   await expect.poll(() => meta(page)).toEqual({ cursor: 1, complete: false, format: 1 });
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(
-    page.getByText('The offline collection is not ready.', { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText('You can keep using Neuron online.', { exact: true })).toBeVisible();
+  await expect(page.getByText('The offline copy is not ready', { exact: true })).toBeVisible();
+  await expect(page.getByText('Neuron still works online.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Downloaded Folder/ })).toHaveCount(0);
   interrupted = false;
   await page.reload();
@@ -1861,9 +1861,7 @@ test('transaction abort rolls back entities and cursor; retry applies the comple
   await installOfflineFixtures(page, context);
   await page.goto('/library');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(
-    page.getByText('The offline collection is not ready.', { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText('The offline copy is not ready', { exact: true })).toBeVisible();
   expect(await meta(page)).toEqual({ cursor: 1, complete: false, format: 1 });
   const count = await page.evaluate(async () => {
     const opened = indexedDB.open('neuron.collection:offline-reader');
@@ -2104,9 +2102,7 @@ test('quota failure commits neither rows nor completeness and recovers from the 
   await installOfflineFixtures(page, context);
   await page.goto('/library');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(
-    page.getByText('The offline collection is not ready.', { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText('The offline copy is not ready', { exact: true })).toBeVisible();
   expect(await meta(page)).toEqual({ cursor: 1, complete: false, format: 1 });
   await page.evaluate(() => sessionStorage.setItem('quota-recovered', 'true'));
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
@@ -2149,19 +2145,14 @@ test('future database versions block unsafe rebuild without changing online beha
   });
   await page.reload();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(
-    page.getByText('The offline collection is not ready.', { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText('The offline copy is not ready', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('button', { name: /Deutsch/ }).first()).toBeVisible();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild offline copy', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild', exact: true }).click();
   await expect(
-    page.getByText(
-      'The downloaded collection could not be rebuilt. Close other Neuron windows and try again.',
-      { exact: true },
-    ),
+    page.getByText('Rebuild failed. Close other Neuron windows and try again.', { exact: true }),
   ).toBeVisible();
   expect(await meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
 });
@@ -2199,9 +2190,7 @@ test('unavailable IndexedDB keeps the online app usable without claiming offline
   await installOfflineFixtures(page, context);
   await page.goto('/library');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(
-    page.getByText('The offline collection is not ready.', { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText('The offline copy is not ready', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('button', { name: /Deutsch/ }).first()).toBeVisible();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
@@ -2230,11 +2219,9 @@ test('outdated local format can be rebuilt online and missing data never looks l
   });
   await page.reload();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(
-    page.getByText('The offline collection is not ready.', { exact: true }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();
+  await expect(page.getByText('The offline copy is not ready', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Rebuild offline copy', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild', exact: true }).click();
   await expect.poll(() => meta(page)).toEqual({ cursor: 2, complete: true, format: 1 });
   await page.evaluate(async () => {
     const request = indexedDB.deleteDatabase('neuron.collection:offline-reader');
@@ -2301,7 +2288,7 @@ test('background hydration and stable failure never shift or remount screen head
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   expect(pulls).toBe(1);
   expect((await today.boundingBox())!.y).toBe(top);
-  await expect(page.getByText(/Downloading for offline reading/)).toHaveCount(0);
+  await expect(page.getByText(/Downloading your collection for offline use/)).toHaveCount(0);
   await held!.fulfill({ json: first });
   await expect.poll(() => diagnostics.length).toBe(1);
   expect(diagnostics[0]).toContain('schema');
@@ -2309,7 +2296,7 @@ test('background hydration and stable failure never shift or remount screen head
   expect(diagnostics[0]).not.toContain('DO_NOT_LOG_COLLECTION_CONTENT');
   expect((await today.boundingBox())!.y).toBe(top);
   await expect(today).toHaveAttribute('data-stable-header', 'retained');
-  await expect(page.getByText('The offline collection is not ready.')).toHaveCount(0);
+  await expect(page.getByText('The offline copy is not ready')).toHaveCount(0);
   const failedPulls = pulls;
   await page.clock.setFixedTime(new Date(Date.now() + 60_000));
   for (const name of ['Library', 'Settings', 'Today']) {
@@ -2320,8 +2307,8 @@ test('background hydration and stable failure never shift or remount screen head
   await expect.poll(() => accountReads).toBeGreaterThan(1);
   expect(pulls).toBe(failedPulls);
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(page.getByText(/collection row could not be validated/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Rebuild downloaded collection' })).toHaveCount(0);
+  await expect(page.getByText(/Part of the download cannot be read/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rebuild offline copy' })).toHaveCount(0);
   const settings = page.getByRole('heading', { name: 'Settings', exact: true });
   // The screen's own arrival is movement the person asked for; measure after it.
   await page
@@ -2337,7 +2324,9 @@ test('background hydration and stable failure never shift or remount screen head
   expect(
     await settings.evaluate((element) => element.getBoundingClientRect().top + window.scrollY),
   ).toBe(settingsTop);
-  await expect(page.locator('main').getByText(/Downloading for offline reading/)).toHaveCount(0);
+  await expect(
+    page.locator('main').getByText(/Downloading your collection for offline use/),
+  ).toHaveCount(0);
 });
 
 test('failed incremental sync retains a completed snapshot and ordinary focus does not retry it', async ({
@@ -2364,10 +2353,10 @@ test('failed incremental sync retains a completed snapshot and ordinary focus do
   fail = true;
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(page.getByText(/download could not reach the server/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Rebuild downloaded collection' })).toHaveCount(0);
+  await expect(page.getByText(/Could not reach the server/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rebuild offline copy' })).toHaveCount(0);
   await expect(
-    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    page.getByText('Your collection is downloaded to this device.', { exact: true }),
   ).toBeVisible();
   const failedPulls = pulls;
   for (let index = 0; index < 3; index++)

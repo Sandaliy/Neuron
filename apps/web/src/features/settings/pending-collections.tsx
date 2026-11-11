@@ -43,6 +43,8 @@ function PendingCollection({ entry }: { readonly entry: PendingDeckCreate }) {
     },
   });
   const reason = entry.outcome?.status === 'conflict' ? entry.outcome.reason : 'rejected';
+  // A new place can be chosen; otherwise copying the name is the way forward.
+  const choosable = entry.state === 'conflict' && reason !== 'identity_exists';
   const folders = flatten(decks.data ?? []).filter((row) => row.kind === 'folder' && row.rev > 0);
   return (
     <section aria-label={entry.payload.name} className="flex flex-col gap-8">
@@ -53,7 +55,7 @@ function PendingCollection({ entry }: { readonly entry: PendingDeckCreate }) {
           name: entry.ancestors.map((row) => row.name).join(' / ') || t('library.moveRoot'),
         })}
       </p>
-      {entry.state === 'conflict' && reason !== 'identity_exists' && (
+      {choosable && (
         <>
           <label htmlFor={`name-${entry.payload.entityId}`} className="text-13 text-secondary">
             {t('library.deckName')}
@@ -94,15 +96,15 @@ function PendingCollection({ entry }: { readonly entry: PendingDeckCreate }) {
           </Button>
         </>
       )}
-      <div className="flex flex-wrap gap-8">
+      <div className="flex flex-wrap items-center gap-x-20 gap-y-8">
         <Button
-          variant="text"
+          variant={choosable ? 'text' : 'quiet'}
           onClick={() => void navigator.clipboard.writeText(entry.payload.name)}
         >
-          {t('offline.copyName')}
+          {t('offline.collection.copyName')}
         </Button>
         <Button variant="text" busy={recover.isPending} onClick={() => recover.mutate(undefined)}>
-          {t('offline.collection.archive')}
+          {t('offline.collection.discard')}
         </Button>
       </div>
       {recover.error && (
