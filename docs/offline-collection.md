@@ -58,7 +58,7 @@ download reaches their revision, then server rows and tombstones own their visib
 Settings > Offline & sync counts waiting creations and lists refusals. It retains the saved name and
 original location. A parent/name conflict allows an explicit current destination and name, preserving
 the entity ID while issuing a new operation ID and archiving the original command/outcome atomically.
-Identity collisions and other refusals offer Copy saved name or Stop syncing and archive. A missing
+Identity collisions and other refusals offer Copy or Set aside, which archives the command. A missing
 or moved parent never silently places local work at the root. Rebuild refuses unresolved creation
 records and unknown record formats; downloaded-row recovery preserves all `meta` preparation records,
 Note/name outboxes, Review protection, Practice progress and Import drafts.
@@ -736,7 +736,7 @@ identifiers, URLs, collection content, operation payloads, errors, credentials o
 The current launch retains up to forty records, including its first eight stages, recent failure stages
 and latest events; up to eighty records from preceding launches stay intact during recovery. Nothing is uploaded automatically.
 
-Settings > Offline & sync > Save startup diagnostics exports the sanitized records. The same action is
+Settings > Offline & sync > Save diagnostics exports the sanitized records. The same action is
 available on a failed startup screen. After a native black-screen failure, reopen online and export before
 additional launches; no cache clearing or reinstallation is needed. A shell record without a module record
 points to module loading; restore-start without restore-ready points to local storage; account-start with

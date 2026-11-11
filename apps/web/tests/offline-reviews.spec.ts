@@ -320,7 +320,9 @@ for (const failure of ['rejected', 'malformed', 'expiry'] as const)
     const before = (await stored(page))[0]!.event;
     if (failure === 'rejected')
       await expect(
-        page.getByText('This answer needs recovery. Later answers are kept safely on this device.'),
+        page.getByText(
+          'One answer was not accepted. The answers after it are waiting on this device.',
+        ),
       ).toBeVisible();
     state.reject = false;
     state.bad = false;
@@ -370,11 +372,8 @@ test('explicit recovery archives a rejected causal session without deleting or a
   await expect.poll(async () => (await stored(page)).length).toBe(2);
   const saved = await stored(page);
   await settings(page);
-  await page.getByRole('button', { name: 'Keep session for recovery', exact: true }).click();
-  await page
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Keep session for recovery', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Stop sending these answers', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Stop sending', exact: true }).click();
   await expect
     .poll(async () => (await stored(page)).map((entry) => entry.state))
     .toEqual(['archived', 'archived']);
@@ -383,7 +382,7 @@ test('explicit recovery archives a rejected causal session without deleting or a
   );
   // Both events are archived above; the group says so once rather than per row.
   await expect(
-    page.getByText('Kept for recovery. These events were not synchronized.'),
+    page.getByText('Some answers were not sent and are kept on this device.'),
   ).toHaveCount(1);
   state.reject = false;
   await page.getByRole('link', { name: 'Today', exact: true }).click();
@@ -624,13 +623,11 @@ test('collection rebuild retains immutable Review receipts and monotonic order f
     db.close();
   }, accountId);
   await page.reload();
+  await expect(page.getByText('The offline copy is not ready', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Rebuild offline copy', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild', exact: true }).click();
   await expect(
-    page.getByText('The offline collection is not ready.', { exact: true }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();
-  await expect(
-    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    page.getByText('Your collection is downloaded to this device.', { exact: true }),
   ).toBeVisible();
   expect(await stored(page)).toEqual([original]);
   await page.goto('/');
@@ -676,11 +673,8 @@ test('a late acknowledgement after concurrent archive retains the receipt and re
     channel.close();
   }, accountId);
   await settings(page);
-  await page.getByRole('button', { name: 'Keep session for recovery', exact: true }).click();
-  await page
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Keep session for recovery', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Stop sending these answers', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Stop sending', exact: true }).click();
   await expect.poll(async () => (await stored(page))[0]?.state).toBe('archived');
   release();
   await expect
@@ -693,7 +687,9 @@ test('a late acknowledgement after concurrent archive retains the receipt and re
   await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
   // Confirmed by the server after all, so it no longer reads as kept unsynchronized.
   await expect(
-    page.getByText('Kept for recovery. These events were not synchronized.', { exact: true }),
+    page.getByText('Some answers were not sent and are kept on this device.', {
+      exact: true,
+    }),
   ).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Study answers' })).toHaveCount(0);
   await page.reload();

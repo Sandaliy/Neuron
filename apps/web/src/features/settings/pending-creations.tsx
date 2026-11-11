@@ -91,26 +91,22 @@ function SavedCreation({ entry }: { readonly entry: PendingNoteCreate }) {
           {(props) => <CollectionPicker {...props} tree={tree} value={deck} onChange={setDeck} />}
         </FormField>
       )}
-      <div className="flex flex-wrap gap-8">
+      {/* One button for the main choice; the alternatives are text beside it. */}
+      <div className="flex flex-wrap items-center gap-x-20 gap-y-8">
         {entry.state === 'conflict' && (
-          <Button
-            variant="quiet"
-            disabled={deck === ''}
-            busy={choose.isPending}
-            onClick={() => choose.mutate()}
-          >
+          <Button disabled={deck === ''} busy={choose.isPending} onClick={() => choose.mutate()}>
             {t('offline.create.useDeck')}
           </Button>
         )}
         <Button
-          variant="text"
+          variant={entry.state === 'conflict' ? 'text' : 'quiet'}
           onClick={() => void navigator.clipboard.writeText(JSON.stringify(entry.working, null, 2))}
         >
           {t('offline.create.copy')}
         </Button>
         {(entry.state === 'conflict' || entry.state === 'rejected') && (
           <Button variant="text" busy={archive.isPending} onClick={() => archive.mutate()}>
-            {t('offline.create.archive')}
+            {t('offline.create.discard')}
           </Button>
         )}
       </div>

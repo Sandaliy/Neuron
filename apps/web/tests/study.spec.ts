@@ -331,12 +331,7 @@ test('Study rewinds the full local session while answers and compensations seria
     .poll(
       async () =>
         events.length === 10 ||
-        (await page
-          .getByText(
-            'Delivery was interrupted or could not be confirmed. Retry keeps the same answer.',
-          )
-          .first()
-          .isVisible()),
+        (await page.getByText('Sending was interrupted. Try again.').first().isVisible()),
     )
     .toBe(true);
   if (events.length < 10) await retry.click();

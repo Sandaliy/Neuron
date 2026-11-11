@@ -390,7 +390,7 @@ test('offline, a downloaded collection is sorted on the device and sent on recon
 
   await page.goto('/settings');
   await expect(
-    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    page.getByText('Your collection is downloaded to this device.', { exact: true }),
   ).toBeVisible();
   state.offline = true;
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));

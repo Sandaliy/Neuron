@@ -341,7 +341,7 @@ async function fixture(page: Page) {
   });
   await page.goto('/settings');
   await expect(
-    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    page.getByText('Your collection is downloaded to this device.', { exact: true }),
   ).toBeVisible();
   return state;
 }
@@ -535,14 +535,14 @@ test('a deleted destination keeps the Note; only the learner chooses where it go
   await reconnect(page, state);
   await expect.poll(async () => (await records(page)).creations[0]?.state).toBe('conflict');
   expect(state.notes.has(created.entityId)).toBe(false);
-  await expect(page.getByRole('status').filter({ hasText: 'Needs review' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Needs your decision' })).toBeVisible();
 
   await page.goto('/settings');
-  const recovery = page.getByRole('region', { name: 'New Notes saved on this device' });
+  const recovery = page.getByRole('region', { name: 'New Notes' });
   await expect(recovery.getByText('Haus', { exact: true })).toBeVisible();
   await expect(recovery.getByText(/Its Deck was deleted/)).toBeVisible();
   expect(state.creates).toHaveLength(1);
-  await recovery.getByRole('button', { name: 'Add it to this Deck', exact: true }).click();
+  await recovery.getByRole('button', { name: 'Add to this Deck', exact: true }).click();
   await expect.poll(async () => (await records(page)).creations[0]?.state).toBe('synchronized');
   const settled = (await records(page)).creations[0]!;
   expect(settled.entityId).toBe(created.entityId);
@@ -566,9 +566,9 @@ test('a refused Note can be archived without leaving the device or reaching a De
   await reconnect(page, state);
   await expect.poll(async () => (await records(page)).creations[0]?.state).toBe('rejected');
   await page.goto('/settings');
-  const recovery = page.getByRole('region', { name: 'New Notes saved on this device' });
-  await expect(recovery.getByText(/refused this new Note/)).toBeVisible();
-  await recovery.getByRole('button', { name: 'Stop syncing and archive', exact: true }).click();
+  const recovery = page.getByRole('region', { name: 'New Notes' });
+  await expect(recovery.getByText(/did not accept this Note/)).toBeVisible();
+  await recovery.getByRole('button', { name: 'Discard this Note', exact: true }).click();
   await expect.poll(async () => (await records(page)).creations[0]?.state).toBe('resolved');
   expect((await records(page)).creations[0]!.working).toEqual(created.working);
   await page.goto(`/notes?deckId=${deckId}`);
@@ -590,7 +590,7 @@ test('session expiry and another account never deliver; the matching account doe
   await page.evaluate(() => localStorage.removeItem('neuron.offline.signedOut'));
   await page.goto(`/settings`);
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'New Notes saved on this device' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'New Notes' })).toHaveCount(0);
   expect((await records(page)).creations[0]?.state).toBe('pending');
   expect((await records(page, 'another-note-creator')).creations).toEqual([]);
   expect(state.creates).toEqual([]);

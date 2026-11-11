@@ -139,8 +139,10 @@ test('real PostgreSQL and cached PWA: offline collections reopen, retry exactly 
     await page.goto('/settings');
     await page.getByRole('button', { name: 'What works offline', exact: true }).click();
     await expect(
-      page.getByText('Collection downloaded for offline reading.', { exact: true }),
-    ).toBeVisible({ timeout: 30_000 });
+      page.getByText('Your collection is downloaded to this device.', { exact: true }),
+    ).toBeVisible({
+      timeout: 30_000,
+    });
     await page.evaluate(async () => {
       await navigator.serviceWorker.ready;
     });

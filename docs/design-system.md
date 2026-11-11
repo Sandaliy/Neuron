@@ -145,7 +145,13 @@ are the last action in a dialog about deleting an account and the last action in
 off the second factor. Both read as a line of red text that happened to be there rather than as the
 button that finishes, and one of them is irreversible. States: default, hover, active, focus, disabled,
 loading, and the destructive tone. Forty four tall at the smallest, forty eight when it fills the width
-of a form.
+of a form. A decision shows its hierarchy: the main choice is a `quiet` slab and the alternatives are
+`text` actions beside it, so the eye finds the one to press first. A card whose actions are all `text`
+reads as stray links, and a row of identical slabs hides which one matters; the owner rejected both in
+Settings (November 2026). Labels name the outcome and its object ("Keep my name", "Copy my version",
+"Stop sending these answers"), and use the real name when one is known ("Keep “Verbos”"). A link that
+has to be an `<a>`, such as a prepared file's download, takes `buttonClassName` and `data-tone` so it
+looks and answers like the variant it stands for.
 
 **Field** (`ui/input.tsx`, `ui/textarea.tsx`, `ui/select.tsx`, `ui/range.tsx`, `ui/form-field.tsx`).
 Text, textarea, select, range, and the code field, which is one field and not six boxes. `FormField`

@@ -86,6 +86,18 @@ function shape(variant: ButtonVariant, full: boolean): string {
     : 'min-h-44 rounded-12 px-16 py-12 text-14';
 }
 
+/**
+ * A button's own classes, for the rare link that must look and answer like one,
+ * such as a prepared file's download. Pair it with `data-tone` from the same variant.
+ */
+export function buttonClassName(variant: ButtonVariant = 'quiet', full = false): string {
+  return [
+    'relative inline-flex items-center justify-center gap-8 font-semibold',
+    shape(variant, full),
+    VARIANTS[variant],
+  ].join(' ');
+}
+
 export function Button({
   variant = 'quiet',
   full = false,
@@ -111,13 +123,11 @@ export function Button({
       // the press was taken and something is happening.
       aria-busy={busy}
       className={[
-        'relative inline-flex items-center justify-center gap-8 font-semibold',
         // How a press is answered lives in the stylesheet, for every control at
         // once. A transition utility written here would win over it and this
         // button would answer differently from the rest of the interface.
+        buttonClassName(variant, full),
         'disabled:cursor-not-allowed',
-        shape(variant, full),
-        VARIANTS[variant],
         className,
       ]
         .filter(Boolean)

@@ -147,7 +147,7 @@ async function fixture(page: Page, kind: 'deck' | 'folder' = 'deck') {
   });
   await page.goto('/settings');
   await expect(
-    page.getByText('Collection downloaded for offline reading.', { exact: true }),
+    page.getByText('Your collection is downloaded to this device.', { exact: true }),
   ).toBeVisible();
   return state;
 }
@@ -196,7 +196,7 @@ test('offline rename survives reload; lost acknowledgement retries the exact ope
   await page.reload();
   await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
   // A delivered rename needs nothing more and is not listed.
-  await expect(page.getByRole('region', { name: 'Saved name changes' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Renamed Folders and Decks' })).toHaveCount(0);
   expect((await stored(page))[0]?.state).toBe('synchronized');
   expect(state.deliveries).toHaveLength(2);
 });
@@ -304,9 +304,7 @@ for (const remote of ['rename', 'delete', 'reject'] as const)
         path: '../../.local-tools/phase82/rename-conflict.png',
         fullPage: true,
       });
-      await page
-        .getByRole('button', { name: 'Apply saved name to current version', exact: true })
-        .click();
+      await page.getByRole('button', { name: 'Keep my name', exact: true }).click();
       await expect
         .poll(
           async () => (await stored(page)).filter((entry) => entry.state === 'synchronized').length,
@@ -327,17 +325,13 @@ for (const remote of ['rename', 'delete', 'reject'] as const)
             return put.apply(this, args);
           };
         });
-        await page
-          .getByRole('button', { name: 'Keep server version and archive saved name' })
-          .click();
-        await expect(page.getByRole('alert')).toContainText('saved');
+        await page.getByRole('button', { name: 'Discard my name' }).click();
+        await expect(page.getByRole('alert')).toContainText('did not finish');
         expect((await stored(page))[0]!.state).toBe('rejected');
         expect((await stored(page))[0]!.payload).toEqual(saved.payload);
         expect((await stored(page))[0]!.base).toEqual(saved.base);
       }
-      await page
-        .getByRole('button', { name: 'Keep server version and archive saved name' })
-        .click();
+      await page.getByRole('button', { name: 'Discard my name' }).click();
       await expect.poll(async () => (await stored(page))[0]?.state).toBe('resolved');
       expect((await stored(page))[0]!.payload).toEqual(saved.payload);
     }
@@ -435,8 +429,8 @@ test('future database versions block recovery and retain the immutable outbox', 
         'Saved changes could not be read. Rebuild is blocked until they can be checked safely.',
       ),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild offline copy', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild', exact: true }).click();
   expect(await stored(page)).toEqual(saved);
   expect(state.deliveries).toHaveLength(0);
 });
@@ -460,13 +454,10 @@ test('rebuild is serialized with pending writes and cannot delete unsynchronized
   });
   await reconnect(page, state);
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild offline copy', exact: true }).click();
+  await page.getByRole('button', { name: 'Rebuild', exact: true }).click();
   await expect(
-    page.getByText(
-      'Rebuild is blocked because saved changes have not synchronized or been resolved. Recover them first.',
-      { exact: true },
-    ),
+    page.getByText('Sync or decide your saved changes first.', { exact: true }),
   ).toBeVisible();
   expect(await stored(page)).toEqual(saved);
 });

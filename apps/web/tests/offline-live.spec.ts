@@ -278,11 +278,9 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
     const header = page.getByRole('heading', { name: 'Library', exact: true });
     await expect(header).toBeVisible();
     const top = (await header.boundingBox())!.y;
-    await expect(page.getByText('The offline collection is not ready.')).toHaveCount(0);
+    await expect(page.getByText('The offline copy is not ready')).toHaveCount(0);
     await page.getByRole('link', { name: 'Settings', exact: true }).click();
-    await expect(
-      page.getByText('You can keep using Neuron online.', { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText('Neuron still works online.', { exact: true })).toBeVisible();
     interrupt = false;
     await page.getByRole('button', { name: 'Try again', exact: true }).click();
     await expect
@@ -316,10 +314,10 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
     }, id);
     await page.reload();
     await page.getByRole('link', { name: 'Settings', exact: true }).click();
-    await expect(page.getByText(/offline storage could not be opened or read/)).toBeVisible();
-    await page.getByRole('button', { name: 'Rebuild downloaded collection', exact: true }).click();
+    await expect(page.getByText(/Storage on this device did not open/)).toBeVisible();
+    await page.getByRole('button', { name: 'Rebuild offline copy', exact: true }).click();
     expect(cursors.filter((cursor) => cursor === 0)).toHaveLength(1);
-    await page.getByRole('button', { name: 'Rebuild now', exact: true }).click();
+    await page.getByRole('button', { name: 'Rebuild', exact: true }).click();
     await expect
       .poll(async () => (await stored(page, id))?.meta, { timeout: 30_000 })
       .toEqual({ cursor: head, complete: true, format: 1 });
@@ -431,7 +429,7 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
     await page.getByRole('button', { name: 'Check connection', exact: true }).click();
     await expect.poll(() => noteDeliveries.length).toBe(2);
     await page
-      .getByRole('region', { name: 'Saved Note edits' })
+      .getByRole('region', { name: 'Note edits' })
       .getByRole('button', { name: 'Try again', exact: true })
       .click();
     await expect.poll(() => noteDeliveries.length).toBe(3);
@@ -444,19 +442,17 @@ test('real persisted collection hydrates, resumes, reopens and reconciles offlin
     expect((await repo.notes.byId(note.id))?.fields).toMatchObject({
       translation: 'Reconciled meaning',
     });
-    await expect(page.getByText('Needs review', { exact: true })).toBeVisible();
+    await expect(page.getByText('Needs your decision', { exact: true })).toBeVisible();
     // Each recovery panel retries its own preserved command after a lost acknowledgement.
     await page
-      .getByRole('region', { name: 'Saved name changes' })
+      .getByRole('region', { name: 'Renamed Folders and Decks' })
       .getByRole('button', { name: 'Try again', exact: true })
       .click();
     await expect.poll(() => renameDeliveries.length).toBe(2);
-    const savedNames = page.getByRole('region', { name: 'Saved name changes' });
+    const savedNames = page.getByRole('region', { name: 'Renamed Folders and Decks' });
     await page.getByRole('button', { name: 'Recent activity', exact: true }).click();
     await savedNames.getByRole('button', { name: 'Durably renamed Deck', exact: true }).click();
-    await expect(
-      savedNames.getByText('Synchronized with the server', { exact: true }),
-    ).toBeVisible();
+    await expect(savedNames.getByText('Synced', { exact: true })).toBeVisible();
     expect(renameDeliveries).toHaveLength(2);
     expect(renameDeliveries[0]).toEqual(renameDeliveries[1]);
     expect((await repo.decks.byId(deck.id))?.name).toBe('Durably renamed Deck');
