@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 
 import { toSchedulingState } from '../../../api/src/db/repositories/index.js';
+import { chooseDeckLanguages } from '../fixtures';
 
 import { connect, converges, snapshot, test, warmed } from './fixture';
 
@@ -46,6 +47,7 @@ async function create(page: Page, kind: 'folder' | 'deck') {
   const dialog = page.getByRole('dialog');
   const name = kind === 'folder' ? folder : deck;
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name);
+  if (kind === 'deck') await chooseDeckLanguages(dialog);
   await dialog.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible();
 }
