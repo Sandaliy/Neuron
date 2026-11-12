@@ -822,11 +822,13 @@ function ImportEditor({
           <Card className="flex flex-col gap-16">
             <p role="status" className="text-15 text-primary">
               {t(
-                stage.phase === 'merges'
-                  ? 'import.merging'
-                  : stage.phase === 'reconcile'
-                    ? 'import.reconciling'
-                    : 'import.importing',
+                stage.failed
+                  ? 'import.pausedTitle'
+                  : stage.phase === 'merges'
+                    ? 'import.merging'
+                    : stage.phase === 'reconcile'
+                      ? 'import.reconciling'
+                      : 'import.importing',
               )}
             </p>
 
@@ -850,7 +852,7 @@ function ImportEditor({
 
             {stage.failed ? (
               <>
-                <p className="text-14 leading-body text-error">
+                <p className="text-14 leading-body text-secondary">
                   {t('import.failed', { done: stage.done, total: stage.total })}
                 </p>
                 {failure instanceof ApiFailure ||
@@ -880,21 +882,19 @@ function ImportEditor({
 
         {stage.kind === 'done' ? (
           <Card className="flex flex-col items-start gap-16">
-            <p className="text-17 text-primary">{t('import.doneTitle')}</p>
-            <p className="text-14 leading-body text-secondary" data-numeric="">
-              {t('import.doneBody', { notes: stage.notes, cards: stage.cards })}
-            </p>
-            {stage.merged > 0 ? (
+            <div className="flex flex-col gap-4">
+              <p className="text-17 text-primary">{t('import.doneTitle')}</p>
               <p className="text-14 leading-body text-secondary" data-numeric="">
-                {t('import.doneMerged', { count: stage.merged })}
+                {t('import.doneBody', { notes: stage.notes, cards: stage.cards })}
               </p>
-            ) : undefined}
-            {stage.batchId ? (
-              <>
-                <p className="text-14 leading-body text-secondary">{t('import.undoBoundary')}</p>
-              </>
-            ) : undefined}
+              {stage.merged > 0 ? (
+                <p className="text-14 leading-body text-secondary" data-numeric="">
+                  {t('import.doneMerged', { count: stage.merged })}
+                </p>
+              ) : undefined}
+            </div>
 
+            {/* Where to go next, then the way back, kept apart with what it changes. */}
             <div className="flex flex-wrap gap-8">
               <Button
                 variant="primary"
@@ -905,7 +905,9 @@ function ImportEditor({
                   })
                 }
               >
-                {t('import.openDeck')}
+                {findDeck(tree, deck)
+                  ? t('import.openNamedDeck', { deck: findDeck(tree, deck)!.name })
+                  : t('import.openDeck')}
               </Button>
 
               {deck !== '' && stage.notes > 0 ? (
@@ -918,8 +920,11 @@ function ImportEditor({
                   {t('import.triage')}
                 </Button>
               ) : undefined}
+            </div>
 
-              {stage.batchId ? (
+            {stage.batchId ? (
+              <div className="flex w-full flex-col items-start gap-8 border-t border-subtle pt-16">
+                <p className="text-14 leading-body text-secondary">{t('import.undoBoundary')}</p>
                 <Button
                   variant="destructive"
                   disabled={!capability.server}
@@ -934,8 +939,8 @@ function ImportEditor({
                 >
                   {t('import.undo')}
                 </Button>
-              ) : undefined}
-            </div>
+              </div>
+            ) : undefined}
           </Card>
         ) : undefined}
 
@@ -1104,6 +1109,27 @@ function Preview({
         <p className="text-13 text-secondary">
           {t(`import.format.${parsed.format}`)} · {t(`note.type.${parsed.noteType}`)}
         </p>
+        {/* Numbers are mono and the words beside them are not, as on Today. */}
+        <p className="flex flex-wrap gap-x-12 gap-y-4 text-14 text-secondary">
+          {(
+            [
+              ['import.metric.rows', parsed.rows.length],
+              ['import.metric.new', plan.create.length],
+              ['import.metric.skipped', plan.skipped],
+              ['import.metric.merged', plan.merge.length],
+              ...(problems.length > 0
+                ? ([['import.metric.problems', problems.length]] as const)
+                : []),
+            ] as const
+          ).map(([key, count]) => (
+            <span key={key} data-metric={key.slice('import.metric.'.length)}>
+              <span data-numeric="" className="mr-4 text-15 text-primary">
+                {count}
+              </span>
+              {t(key)}
+            </span>
+          ))}
+        </p>
         <p role="status" className="text-14 text-secondary">
           {t(
             duplicateStatus === 'confirmed'
@@ -1116,19 +1142,6 @@ function Preview({
         {changedDuplicates ? (
           <p role="status" className="text-14 text-secondary">
             {t('import.duplicatesChanged')}
-          </p>
-        ) : undefined}
-        <p className="text-14 text-primary" data-numeric="">
-          {t('import.previewCount', { count: parsed.rows.length })}
-        </p>
-        <p className="text-13 text-secondary" data-numeric="">
-          {t('import.willCreate', { count: plan.create.length })} ·{' '}
-          {t('import.willSkip', { count: plan.skipped })} ·{' '}
-          {t('import.willMerge', { count: plan.merge.length })}
-        </p>
-        {problems.length > 0 ? (
-          <p className="text-13 text-secondary" data-numeric="">
-            {t('import.rowsWithProblems', { count: problems.length })}
           </p>
         ) : undefined}
         {parsed.failures.length > 0 ? (
@@ -1214,7 +1227,7 @@ function Preview({
                         ? t('import.ambiguous')
                         : decision.incompatible
                           ? t('import.incompatible')
-                          : t('import.compatible'),
+                          : '',
                       t('import.effectiveAction', {
                         action: t(`import.resolve.${decision.action}`),
                       }),
@@ -1259,7 +1272,7 @@ function Preview({
           {t('import.start', { count: plan.create.length + plan.merge.length })}
         </Button>
         <Button variant="text" full onClick={onBack}>
-          {t('common.back')}
+          {t('import.edit')}
         </Button>
       </div>
     </div>

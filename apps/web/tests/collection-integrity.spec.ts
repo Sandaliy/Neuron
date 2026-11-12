@@ -393,7 +393,7 @@ for (const storedLocale of ['en', 'ru'] as const)
       const input = page.locator('textarea').first();
       await input.fill('Keep my pasted material');
       await page
-        .getByText(locale === 'en' ? 'Example and its cards' : 'Пример и его карточки', {
+        .getByText(locale === 'en' ? 'See an example' : 'Пример и его карточки', {
           exact: true,
         })
         .click();

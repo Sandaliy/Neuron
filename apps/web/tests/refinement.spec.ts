@@ -211,7 +211,7 @@ for (const theme of ['dark', 'light'] as const)
     await page.goto('/import');
     await expect(page.getByRole('heading', { name: 'Import', exact: true })).toBeVisible();
     await capture('import');
-    await page.getByRole('button', { name: 'Example and its cards', exact: true }).click();
+    await page.getByRole('button', { name: 'See an example', exact: true }).click();
     await expect(page.getByRole('table')).toBeVisible();
     await capture('import-example');
     await page.getByRole('button', { name: 'Import into', exact: true }).click();

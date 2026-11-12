@@ -165,7 +165,6 @@ export function ImportSource({
 
   return (
     <div className="flex flex-col gap-20">
-      <p className="text-14 text-secondary">{t('import.subtitle')}</p>
       {scoped && deck ? (
         <Disclosure
           title={t('collection.changeDestination')}
@@ -184,25 +183,6 @@ export function ImportSource({
           </FormField>
         </>
       )}
-      <div className="grid grid-cols-2 gap-8" role="group" aria-label={t('import.mode')}>
-        {(['simple', 'table', 'json', 'file'] as const).map((value) => (
-          <Button
-            key={value}
-            aria-pressed={mode === value}
-            variant="quiet"
-            className={
-              mode === value ? 'bg-selected border-strong text-primary font-semibold' : 'bg-sunken'
-            }
-            onClick={() => {
-              onMode(value);
-              onFormat(value === 'json' ? 'json' : '');
-            }}
-          >
-            {t(`import.mode.${value}`)}
-          </Button>
-        ))}
-      </div>
-      <p className="text-14 text-secondary">{t(`import.help.${mode}`)}</p>
       <FormField label={t('import.noteType')}>
         {(props) => (
           <Select
@@ -218,6 +198,33 @@ export function ImportSource({
           </Select>
         )}
       </FormField>
+      {/* What kind of notes, then where they come from, then the list itself. */}
+      <div className="flex flex-col gap-8">
+        <p id="import-mode" className="text-13 font-semibold text-secondary">
+          {t('import.mode')}
+        </p>
+        <div className="grid grid-cols-2 gap-8" role="group" aria-labelledby="import-mode">
+          {(['simple', 'table', 'json', 'file'] as const).map((value) => (
+            <Button
+              key={value}
+              aria-pressed={mode === value}
+              variant="quiet"
+              className={
+                mode === value
+                  ? 'bg-selected border-strong text-primary font-semibold'
+                  : 'bg-sunken'
+              }
+              onClick={() => {
+                onMode(value);
+                onFormat(value === 'json' ? 'json' : '');
+              }}
+            >
+              {t(`import.mode.${value}`)}
+            </Button>
+          ))}
+        </div>
+        <p className="text-14 text-secondary">{t(`import.help.${mode}`)}</p>
+      </div>
       {mode === 'simple' && (
         <div className="flex flex-col gap-12 rounded-12 border border-default p-16">
           <FormField label={t(fieldLabelKey(leftField))}>

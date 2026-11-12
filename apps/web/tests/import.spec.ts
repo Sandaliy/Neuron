@@ -87,14 +87,14 @@ for (const storedLocale of ['en', 'ru'] as const) {
       })
       .click();
     const defaultChoice = page.getByLabel(
-      locale === 'en' ? 'Default for duplicates' : 'По умолчанию для совпадений',
+      locale === 'en' ? 'When a note already exists' : 'По умолчанию для совпадений',
       { exact: true },
     );
     await defaultChoice.selectOption('merge');
     const row = (term: string) =>
       page.locator('[data-import-row]').filter({ has: page.getByText(term, { exact: true }) });
     await expect(row('ambiguous')).toContainText(
-      locale === 'en' ? 'Several matching notes' : 'Найдено несколько',
+      locale === 'en' ? 'Several notes match' : 'Найдено несколько',
     );
     await row('ambiguous').locator('select').focus();
     await expect(row('ambiguous').locator('select')).toBeFocused();
@@ -113,7 +113,7 @@ for (const storedLocale of ['en', 'ru'] as const) {
     await row('unique').locator('select').selectOption('skip');
     await row('ambiguous').locator('select').selectOption('create');
     await expect(row('ambiguous')).toContainText(
-      locale === 'en' ? 'overrides the import default' : 'выбрано отдельное',
+      locale === 'en' ? 'Chosen for this row only' : 'выбрано отдельное',
     );
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -145,19 +145,17 @@ for (const storedLocale of ['en', 'ru'] as const) {
     expect(chunk.map((note) => note.fields.term)).toEqual(['ambiguous', 'fresh']);
     await expect(
       page.getByText(
-        locale === 'en'
-          ? /Additions to existing notes stay/
-          : /Дополнения к существующим записям останутся/,
+        locale === 'en' ? /Notes it filled in stay/ : /Дополнения к существующим записям останутся/,
       ),
     ).toBeVisible();
     await page
       .getByRole('button', {
-        name: locale === 'en' ? 'Take this import back' : 'Откатить этот импорт',
+        name: locale === 'en' ? 'Undo this import' : 'Откатить этот импорт',
         exact: true,
       })
       .click();
     await expect(page.getByRole('dialog')).toContainText(
-      locale === 'en' ? 'Review history is kept' : 'История ответов сохранится',
+      locale === 'en' ? 'review history is kept' : 'История ответов сохранится',
     );
   });
 }
@@ -259,7 +257,7 @@ test('final import merges an exact destination duplicate without creating an emp
   );
   await page.getByRole('button', { name: 'Preview import' }).click();
   await expect(page.getByText(`Already in ${IMPORT_DECK_NAME}`, { exact: true })).toBeVisible();
-  await page.getByLabel('Default for duplicates', { exact: true }).selectOption('merge');
+  await page.getByLabel('When a note already exists', { exact: true }).selectOption('merge');
   await page.getByRole('button', { name: /^Import 1/ }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   expect(writes).toEqual([
@@ -276,7 +274,7 @@ test('final import merges an exact destination duplicate without creating an emp
       },
     },
   ]);
-  await expect(page.getByRole('button', { name: 'Take this import back' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Undo this import' })).toHaveCount(0);
 });
 
 test('all skipped rows stay a clean no-op and do not start an import batch', async ({ page }) => {
@@ -345,7 +343,7 @@ test('lost chunk response resumes with the original IDs and does not duplicate r
   );
   await page.getByRole('button', { name: 'Preview import' }).click();
   await page.getByRole('button', { name: /^Import 2/ }).click();
-  await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+  await page.getByRole('button', { name: 'Continue import' }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   expect(attempts).toHaveLength(2);
   expect(attempts[1]).toEqual(attempts[0]);
@@ -403,7 +401,7 @@ test('completed import invalidates the cached destination list before opening it
   await page.getByRole('button', { name: 'Preview import' }).click();
   await page.getByRole('button', { name: /^Import 1/ }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Open the deck' }).click();
+  await page.getByRole('button', { name: /^Open / }).click();
 
   await expect(page.getByText('already here', { exact: true })).toBeVisible();
   await expect(page.getByText('newly imported', { exact: true })).toBeVisible();
@@ -586,16 +584,16 @@ test('large Import performance and interrupted checkpoint measurements', async (
   const previewHeap = await session.send('Runtime.getHeapUsage');
   const applyingAt = await page.evaluate(() => performance.now());
   await page.getByRole('button', { name: /^Import 4495/ }).click();
-  await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue import' })).toBeVisible();
   const freezeAndFailedChunkMs = (await page.evaluate(() => performance.now())) - applyingAt;
   const checkpoint = (await storedDrafts(page))[0]!;
   expect(checkpoint.delivery?.done).toBe(0);
   const reopeningAt = Date.now();
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue import' })).toBeVisible();
   const reopenMs = Date.now() - reopeningAt;
   const resumingAt = await page.evaluate(() => performance.now());
-  await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+  await page.getByRole('button', { name: 'Continue import' }).click();
   // This is a measurement, not the ordinary interaction latency budget.
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible({ timeout: 30_000 });
   const resumedAt = await page.evaluate(() => performance.now());
@@ -683,12 +681,12 @@ test('failed acknowledgement persistence retains the frozen plan and stops befor
     };
   });
   await page.getByRole('button', { name: /^Import 1001/ }).click();
-  await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue import' })).toBeVisible();
   expect(attempts).toHaveLength(1);
   const before = (await storedDrafts(page))[0]!;
   expect(before.delivery?.done).toBe(0);
   await page.reload();
-  await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+  await page.getByRole('button', { name: 'Continue import' }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   expect(attempts).toHaveLength(4);
   expect(attempts[1]).toEqual(attempts[0]);
@@ -742,17 +740,17 @@ test('merge-only delivery checkpoints confirmed groups and resumes the unconfirm
   await page.goto(`/import?deckId=${IMPORT_DECK_ID}`);
   await page.locator('textarea').fill(terms.map((term) => `${term}\tmeaning`).join('\n'));
   await page.getByRole('button', { name: 'Preview import', exact: true }).click();
-  await page.getByLabel('Default for duplicates', { exact: true }).selectOption('merge');
+  await page.getByLabel('When a note already exists', { exact: true }).selectOption('merge');
   await page.getByRole('button', { name: /^Import 41/ }).click();
-  await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue import' })).toBeVisible();
   const frozen = (await storedDrafts(page))[0]!;
   expect(frozen.delivery).toMatchObject({ merged: 20, done: 0 });
   const checksBeforeResume = checks;
   const at = patches.length;
   await page.reload();
-  await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+  await page.getByRole('button', { name: 'Continue import' }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
-  await expect(page.getByText('Existing notes processed: 41.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Existing notes filled in: 41.', { exact: true })).toBeVisible();
   expect(patches.slice(at).every((id) => !ids.slice(0, 20).includes(id))).toBe(true);
   expect(accepted.size).toBe(41);
   expect(attempts).toEqual(
@@ -799,7 +797,7 @@ test('a mismatched server summary retains recovery and completion does not wait 
   );
   expect((await storedDrafts(page))[0]!.delivery?.summary).toBeUndefined();
   summaryNotes = 1;
-  await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+  await page.getByRole('button', { name: 'Continue import' }).click();
   try {
     await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
     expect((await storedDrafts(page))[0]!.delivery?.summary).toEqual({ notes: 1, cards: 1 });
@@ -844,10 +842,10 @@ test('changing preparation during final duplicate validation cannot freeze the o
   });
   await page.getByRole('button', { name: /^Import 1/ }).click();
   await expect.poll(() => heldChecks).toBeGreaterThan(0);
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit the list', exact: true }).click();
   await page.locator('textarea').fill('replacement\tmeaning');
   release();
-  await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
   expect(writes).toBe(0);
   expect((await storedDrafts(page))[0]!.preparation.raw).toBe('replacement\tmeaning');
@@ -1032,7 +1030,7 @@ test('live PostgreSQL Import reopens a committed lost response and reconciles ex
     );
     await page.getByRole('button', { name: 'Preview import', exact: true }).click();
     await page.getByRole('button', { name: /^Import 4495/ }).click();
-    await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible({
+    await expect(page.getByRole('button', { name: 'Continue import' })).toBeVisible({
       timeout: 30_000,
     });
     const interrupted = (await storedDrafts(page, account))[0]!;
@@ -1051,12 +1049,12 @@ test('live PostgreSQL Import reopens a committed lost response and reconciles ex
     await resumed.bringToFront();
     await routeApi(resumed);
     await resumed.goto(`/import?deckId=${target.id}`);
-    await resumed.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+    await resumed.getByRole('button', { name: 'Continue import' }).click();
     await expect(resumed.getByText('Import complete', { exact: true })).toBeVisible({
       timeout: 45_000,
     });
     await expect(
-      resumed.getByText('Recovery checkpoint saved on this device.', { exact: true }),
+      resumed.getByText('Progress saved on this device.', { exact: true }),
     ).toBeVisible();
     const completed = (await storedDrafts(resumed, account))[0]!;
     expect(completed.delivery).toMatchObject({
@@ -1149,10 +1147,10 @@ test('live PostgreSQL Import reopens a committed lost response and reconciles ex
       noteDeleted: false,
       cardDeleted: false,
     });
-    await resumed.getByRole('button', { name: 'Take this import back', exact: true }).click();
+    await resumed.getByRole('button', { name: 'Undo this import', exact: true }).click();
     await resumed
       .getByRole('dialog')
-      .getByRole('button', { name: 'Take this import back', exact: true })
+      .getByRole('button', { name: 'Undo this import', exact: true })
       .click();
     await expect(resumed.getByText('Import undone', { exact: true })).toBeVisible();
     await expect.poll(downloaded, { timeout: 360_000 }).toEqual({
@@ -1194,7 +1192,7 @@ async function installOfflineImportFixtures(page: Page, complete = true, preview
   );
   await page.goto(`/import?deckId=${offlineDeckId}`);
   await expect(
-    page.getByRole('button', { name: preview ? 'Back' : 'Preview import', exact: true }),
+    page.getByRole('button', { name: preview ? 'Edit the list' : 'Preview import', exact: true }),
   ).toBeVisible();
   await expect
     .poll(() =>
@@ -1242,13 +1240,11 @@ for (const source of [
     await page.locator('textarea').fill(source.raw);
     await page.getByRole('button', { name: 'Preview import', exact: true }).click();
     await expect(page.getByText('Haus', { exact: true })).toBeVisible();
-    await expect(page.getByText(/^Preliminary matches from/)).toBeVisible();
+    await expect(page.getByText(/^Checked only against this device/)).toBeVisible();
     await expect(page.getByRole('button', { name: /^Import \d/ })).toBeDisabled();
-    await page
-      .getByRole('button', { name: 'Cards from the first valid note', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'Preview the cards', exact: true }).click();
     await expect(page.getByText('Cards this makes', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
     const drafts = await storedDrafts(page);
     expect(drafts[0]?.preparation.raw).toBe(source.raw);
@@ -1307,12 +1303,10 @@ test('offline preview trusts the completed durable page when loss interrupts its
     await fixture.disconnect();
     await page.locator('textarea').fill('Haus — house');
     await page.getByRole('button', { name: 'Preview import', exact: true }).click();
-    await expect(page.getByText(/^Preliminary matches from/)).toBeVisible();
-    await expect(
-      page.getByText('Will be created: 0 · Will be skipped: 1 · Will be merged: 0', {
-        exact: true,
-      }),
-    ).toBeVisible();
+    await expect(page.getByText(/^Checked only against this device/)).toBeVisible();
+    await expect(page.locator('[data-metric="new"]')).toHaveText(/^0\s*new$/);
+    await expect(page.locator('[data-metric="skipped"]')).toHaveText(/^1\s*skipped$/);
+    await expect(page.locator('[data-metric="merged"]')).toHaveText(/^0\s*filled in$/);
     await expect(page.getByRole('button', { name: /^Import 0/ })).toBeDisabled();
   } finally {
     await page.evaluate(() => (window as unknown as Readback).importReadback.release());
@@ -1327,20 +1321,22 @@ test('offline saved mapping, choices and incomplete single-row input survive a r
   await page.getByLabel('Word', { exact: true }).fill('Unadded term');
   await page.locator('textarea').fill('Haus\thouse');
   await page.getByRole('button', { name: 'Preview import', exact: true }).click();
-  await page.getByLabel('Default for duplicates', { exact: true }).selectOption('create');
-  await page.getByLabel('Action for row 1', { exact: true }).selectOption('skip');
-  await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await page.getByLabel('When a note already exists', { exact: true }).selectOption('create');
+  await page.getByLabel('What to do with row 1', { exact: true }).selectOption('skip');
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('Default for duplicates', { exact: true })).toHaveValue('create');
+  await expect(page.getByLabel('When a note already exists', { exact: true })).toHaveValue(
+    'create',
+  );
   await expect(page.getByLabel('Which column is which', { exact: true }).first()).toHaveValue(
     'term',
   );
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit the list', exact: true }).click();
   await expect(page.getByLabel('Word', { exact: true })).toHaveValue('Unadded term');
   await expect(page.locator('textarea')).toHaveValue('Haus\thouse');
   await page.getByRole('button', { name: 'Preview import', exact: true }).click();
-  await expect(page.getByLabel('Action for row 1', { exact: true })).toHaveValue('skip');
+  await expect(page.getByLabel('What to do with row 1', { exact: true })).toHaveValue('skip');
 });
 
 test('incomplete local collection provides preparation without claiming duplicate clearance', async ({
@@ -1350,8 +1346,8 @@ test('incomplete local collection provides preparation without claiming duplicat
   await fixture.disconnect();
   await page.locator('textarea').fill('Haus — house');
   await page.getByRole('button', { name: 'Preview import', exact: true }).click();
-  await expect(page.getByText(/^Collection duplicates have not been checked/)).toBeVisible();
-  await expect(page.getByText(/^Preliminary matches from/)).toHaveCount(0);
+  await expect(page.getByText(/^Not checked for duplicates yet/)).toBeVisible();
+  await expect(page.getByText(/^Checked only against this device/)).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Import 1/ })).toBeDisabled();
 });
 
@@ -1369,9 +1365,9 @@ test('invalid JSON, missing fields and all three note types remain preparable of
     await page.locator('textarea').fill(raw!);
     await page.getByRole('button', { name: 'Preview import', exact: true }).click();
     await expect(page.getByText(expected!, { exact: false }).first()).toBeVisible();
-    await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
-    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit the list', exact: true }).click();
   }
 });
 
@@ -1388,9 +1384,9 @@ test('a 5,000-row offline file stays durable while the preview remains bounded',
     buffer: Buffer.from(raw),
   });
   await page.getByRole('button', { name: 'Preview import', exact: true }).click();
-  await expect(page.getByText('Rows read: 5000', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-metric="rows"]')).toHaveText(/^5000\s*rows read$/);
   await expect(page.locator('[data-import-row]')).toHaveCount(200);
-  await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
   expect((await storedDrafts(page))[0]?.preparation.raw).toBe(raw);
 });
@@ -1429,11 +1425,11 @@ test('reconnection checks authoritative duplicates and checks again immediately 
   await page.getByRole('button', { name: 'Preview import', exact: true }).click();
   expect(checks).toBe(0);
   await fixture.reconnect();
-  await expect(page.getByText(/^Duplicates checked with the server/)).toBeVisible();
+  await expect(page.getByText(/^Checked for duplicates in your Library/)).toBeVisible();
   await page.getByRole('button', { name: /^Import 1/ }).click();
-  await expect(page.getByText(/^Server duplicates have changed/)).toBeVisible();
+  await expect(page.getByText(/^Your Library changed/)).toBeVisible();
   expect(applied).toBe(0);
-  await page.getByLabel('Default for duplicates', { exact: true }).selectOption('create');
+  await page.getByLabel('When a note already exists', { exact: true }).selectOption('create');
   await page.getByRole('button', { name: /^Import 1/ }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   expect(checks).toBeGreaterThanOrEqual(3);
@@ -1444,7 +1440,7 @@ test('quota failure keeps the source and blocks navigation until a durable retry
 }) => {
   await installOfflineImportFixtures(page);
   await page.locator('textarea').fill('Earlier — saved');
-  await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
   await page.evaluate(() => {
     const original = IDBObjectStore.prototype.put;
@@ -1458,7 +1454,7 @@ test('quota failure keeps the source and blocks navigation until a durable retry
     };
   });
   await page.locator('textarea').fill('Latest — still here');
-  await expect(page.getByText(/^The latest draft could not be saved/)).toBeVisible();
+  await expect(page.getByText(/^This draft could not be saved/)).toBeVisible();
   expect((await storedDrafts(page))[0]?.preparation.raw).toBe('Earlier — saved');
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Save this draft before leaving' })).toBeVisible();
@@ -1467,7 +1463,7 @@ test('quota failure keeps the source and blocks navigation until a durable retry
   await page.evaluate(() =>
     (window as unknown as { restoreImportStorage: () => void }).restoreImportStorage(),
   );
-  await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
   expect((await storedDrafts(page))[0]?.preparation.raw).toBe('Latest — still here');
 });
@@ -1487,7 +1483,7 @@ test('unavailable persistence leaves offline parsing usable without claiming a s
   await page.locator('textarea').fill('Local — preview');
   await page.getByRole('button', { name: 'Preview import', exact: true }).click();
   await expect(page.getByText('Local', { exact: true })).toBeVisible();
-  await expect(page.getByText(/^The latest draft could not be saved/)).toBeVisible();
+  await expect(page.getByText(/^This draft could not be saved/)).toBeVisible();
   await expect(page.getByText(/^Draft saved on this device/)).toHaveCount(0);
 });
 
@@ -1496,7 +1492,7 @@ test('switching accounts hides saved drafts, and sign-out revokes access while r
 }) => {
   const fixture = await installOfflineImportFixtures(page);
   await page.locator('textarea').fill('Private source — account one');
-  await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
   fixture.control.who = { ...draftAccount, id: 'user_2' };
   await page.reload();
@@ -1535,18 +1531,18 @@ test('an interrupted saved import reopens with original batch and note IDs, then
   await page.locator('textarea').fill('one — first\ntwo — second');
   await page.getByRole('button', { name: 'Preview import', exact: true }).click();
   await page.getByRole('button', { name: /^Import 2/ }).click();
-  await expect(page.getByRole('button', { name: 'Carry on from where it stopped' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue import' })).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: 'Carry on from where it stopped' }).click();
+  await page.getByRole('button', { name: 'Continue import' }).click();
   await expect(page.getByText('Import complete', { exact: true })).toBeVisible();
   expect(attempts).toHaveLength(2);
   expect(attempts[1]).toEqual(attempts[0]);
   expect(new Set(batches).size).toBe(1);
   await page.reload();
-  await page.getByRole('button', { name: 'Take this import back', exact: true }).click();
+  await page.getByRole('button', { name: 'Undo this import', exact: true }).click();
   await page
     .getByRole('dialog')
-    .getByRole('button', { name: 'Take this import back', exact: true })
+    .getByRole('button', { name: 'Undo this import', exact: true })
     .click();
   await expect(page.getByText('Import complete', { exact: true })).toHaveCount(0);
   await expect(page.locator('textarea')).toHaveValue('one — first\ntwo — second');
@@ -1587,20 +1583,18 @@ test('a newer tab wins safely and the other tab can save its changes as a separa
 }) => {
   await installOfflineImportFixtures(page);
   await page.locator('textarea').fill('Original — shared draft');
-  await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
   const other = await context.newPage();
   await installOfflineImportFixtures(other);
   await expect(other.locator('textarea')).toHaveValue('Original — shared draft');
   await other.locator('textarea').fill('Newer — another tab');
-  await other.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await other.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(other.getByText(/^Draft saved on this device/)).toBeVisible();
   await page.locator('textarea').fill('Retained — this tab');
   await expect(page.getByText(/^Another window saved a newer version/)).toBeVisible();
   expect((await storedDrafts(page))[0]?.preparation.raw).toBe('Newer — another tab');
-  await page
-    .getByRole('button', { name: 'Save these changes as a separate draft', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Save as a separate draft', exact: true }).click();
   await expect(page.locator('textarea')).toHaveValue('Retained — this tab');
   expect((await storedDrafts(page)).map((draft) => draft.preparation.raw).sort()).toEqual([
     'Newer — another tab',
@@ -1616,7 +1610,7 @@ test('a tab that loses its first frozen checkpoint can preserve its preparation 
   await installOfflineImportFixtures(page);
   await page.locator('textarea').fill('Original — shared draft');
   await page.getByRole('button', { name: 'Preview import', exact: true }).click();
-  await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
   const other = await context.newPage();
   await installOfflineImportFixtures(other, true, true);
@@ -1639,16 +1633,14 @@ test('a tab that loses its first frozen checkpoint can preserve its preparation 
   try {
     await page.getByRole('button', { name: /^Import 1/ }).click();
     await expect.poll(() => checking).toBe(true);
-    await other.getByRole('button', { name: 'Back', exact: true }).click();
+    await other.getByRole('button', { name: 'Edit the list', exact: true }).click();
     await other.locator('textarea').fill('Newer — another tab');
-    await other.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+    await other.getByRole('button', { name: 'Save draft', exact: true }).click();
     await expect(other.getByText(/^Draft saved on this device/)).toBeVisible();
     release();
     await expect(page.getByText(/^Another window saved a newer version/)).toBeVisible();
     expect(writes).toBe(0);
-    await page
-      .getByRole('button', { name: 'Save these changes as a separate draft', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'Save as a separate draft', exact: true }).click();
     const saved = await storedDrafts(page);
     expect(saved.map((draft) => draft.preparation.raw).sort()).toEqual([
       'Newer — another tab',
@@ -1807,7 +1799,7 @@ test('cached PWA reopens an Import draft after the actual HTTP origin stops', as
     await page.reload();
     await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
     await page.locator('textarea').fill('Haus — house');
-    await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
@@ -1817,7 +1809,7 @@ test('cached PWA reopens an Import draft after the actual HTTP origin stops', as
     await expect(page.locator('textarea')).toHaveValue('Haus — house');
     await page.locator('textarea').fill('Haus — house\nBaum — tree');
     await page.getByRole('button', { name: 'Preview import', exact: true }).click();
-    await page.getByRole('button', { name: 'Save draft on this device', exact: true }).click();
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await expect(page.getByText(/^Draft saved on this device/)).toBeVisible();
     await page.close();
     page = await context.newPage();
