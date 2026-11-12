@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_BUDGET } from '@neuron/core';
 
-import { DEFAULT_DECK_SETTINGS, deckSettingsSchema, resolveDeckSettings } from './deck-settings.js';
+import {
+  DEFAULT_DECK_SETTINGS,
+  deckLanguagesSchema,
+  deckSettingsSchema,
+  hasBothLanguagesOrNeither,
+  missingDeckLanguages,
+  resolveDeckSettings,
+} from './deck-settings.js';
 
 describe('deckSettingsSchema', () => {
   it('accepts an empty object, which is a deck that inherits everything', () => {
@@ -106,5 +113,67 @@ describe('resolveDeckSettings', () => {
     ];
 
     expect(resolveDeckSettings([{ ladder }]).ladder).toEqual(ladder);
+  });
+});
+
+describe('deck languages', () => {
+  it('needs both languages for a new deck', () => {
+    expect(deckLanguagesSchema.parse({ targetLanguage: 'de', nativeLanguage: 'ru' })).toEqual({
+      targetLanguage: 'de',
+      nativeLanguage: 'ru',
+    });
+    expect(deckLanguagesSchema.safeParse({ targetLanguage: 'de' }).success).toBe(false);
+    expect(deckLanguagesSchema.safeParse({ nativeLanguage: 'ru' }).success).toBe(false);
+    expect(deckLanguagesSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('allows the same language on both sides, for words explained in their own language', () => {
+    expect(
+      deckLanguagesSchema.safeParse({ targetLanguage: 'de', nativeLanguage: 'de' }).success,
+    ).toBe(true);
+  });
+
+  it('refuses a language it has no name for, and anything that is not a language', () => {
+    expect(
+      deckLanguagesSchema.safeParse({ targetLanguage: 'xx', nativeLanguage: 'ru' }).success,
+    ).toBe(false);
+    expect(
+      deckLanguagesSchema.safeParse({ targetLanguage: 'de', nativeLanguage: 'ru', level: 'A1' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('names what a deck still lacks once its folders have been asked', () => {
+    expect(missingDeckLanguages(resolveDeckSettings([]))).toEqual([
+      'targetLanguage',
+      'nativeLanguage',
+    ]);
+    expect(missingDeckLanguages(resolveDeckSettings([{ targetLanguage: 'de' }, {}]))).toEqual([
+      'nativeLanguage',
+    ]);
+    expect(
+      missingDeckLanguages(
+        resolveDeckSettings([{ targetLanguage: 'de' }, null, { nativeLanguage: 'ru' }]),
+      ),
+    ).toEqual([]);
+  });
+
+  it('lets a deck keep its own languages over the folder it sits in', () => {
+    const resolved = resolveDeckSettings([
+      { targetLanguage: 'de', nativeLanguage: 'ru' },
+      { targetLanguage: 'fr', nativeLanguage: 'en' },
+    ]);
+
+    expect(resolved.targetLanguage).toBe('fr');
+    expect(resolved.nativeLanguage).toBe('en');
+  });
+
+  it('tells both or neither apart from one alone', () => {
+    expect(hasBothLanguagesOrNeither(undefined)).toBe(true);
+    expect(hasBothLanguagesOrNeither(null)).toBe(true);
+    expect(hasBothLanguagesOrNeither({})).toBe(true);
+    expect(hasBothLanguagesOrNeither({ targetLanguage: 'de', nativeLanguage: 'ru' })).toBe(true);
+    expect(hasBothLanguagesOrNeither({ targetLanguage: 'de' })).toBe(false);
+    expect(hasBothLanguagesOrNeither({ nativeLanguage: 'ru' })).toBe(false);
   });
 });

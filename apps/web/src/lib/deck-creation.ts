@@ -5,7 +5,13 @@ import {
   deckSchema,
   uuidV7,
 } from '@neuron/shared';
-import type { CreateOfflineDeckResult, Deck, DeckNode, SavedDeckCreation } from '@neuron/shared';
+import type {
+  CreateOfflineDeckResult,
+  Deck,
+  DeckLanguages,
+  DeckNode,
+  SavedDeckCreation,
+} from '@neuron/shared';
 
 import { ApiFailure, request } from './api';
 import {
@@ -210,6 +216,8 @@ export async function saveDeckCreation(
     name: string;
     kind: 'folder' | 'deck';
     parentId: string | null;
+    /** A deck's two languages; the command refuses them on a folder. */
+    settings?: DeckLanguages;
   },
   observedAncestors: readonly Deck[],
 ) {
@@ -378,7 +386,7 @@ export function overlayDeckCreations(
       kind: input.kind,
       parentId: input.parentId,
       path: input.ancestors.map((row) => row.id),
-      settings: null,
+      settings: input.settings ?? null,
       position: entry.position,
       createdAt: entry.createdAt,
       updatedAt: entry.createdAt,
@@ -394,6 +402,26 @@ export function overlayDeckCreations(
     byId.set(row.id, row);
   }
   return roots;
+}
+
+/**
+ * An api older than this app refusing the languages it does not know yet.
+ *
+ * The web and api deployments of one release do not finish at the same moment.
+ * A deck saved with its languages and sent to the previous api is refused as an
+ * unknown field, which says nothing about the deck itself. Marking it refused
+ * would make the learner create it again, so it waits and is retried like a
+ * lost connection until the api that understands it answers. The command was
+ * checked against the same schema before it was saved, so the current api
+ * never refuses it this way.
+ */
+export function versionSkew(error: unknown, entry: PendingDeckCreate) {
+  return (
+    entry.payload.settings !== undefined &&
+    error instanceof ApiFailure &&
+    error.status === 400 &&
+    error.code === 'invalid_request'
+  );
 }
 
 let delivering: Promise<void> | undefined;
@@ -460,6 +488,10 @@ export function deliverDeckCreations(): Promise<void> {
         attempt = 0;
       } catch (error) {
         if (!active()) return;
+        if (versionSkew(error, entry)) {
+          interrupted = true;
+          return;
+        }
         if (error instanceof ApiFailure && [400, 403, 404, 409, 422].includes(error.status)) {
           await write(entry.payload.entityId, (current) =>
             current?.state === 'pending' &&

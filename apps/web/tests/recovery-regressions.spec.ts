@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { useFixtures, usePreferences } from './fixtures';
+import { chooseDeckLanguages, useFixtures, usePreferences } from './fixtures';
 
 test.describe('phone collection row isolation', () => {
   test.use({ viewport: { width: 375, height: 812 } });
@@ -108,6 +108,7 @@ test('deck create stays successful when the refresh fails', async ({ page }) => 
   await page.getByRole('button', { name: 'New deck' }).click();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
   await page.getByLabel('Name').fill('Fresh');
+  await chooseDeckLanguages(page.getByRole('dialog'));
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByText('Created “Fresh”', { exact: true })).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
@@ -142,6 +143,7 @@ test('a failed deck create cannot leave an error in a later successful rename', 
   await page.goto('/library');
   await page.getByRole('button', { name: 'New deck' }).click();
   await page.getByLabel('Name').fill('Deutsch');
+  await chooseDeckLanguages(page.getByRole('dialog'));
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByText('That name is already used here')).toBeVisible();
   await page.keyboard.press('Escape');

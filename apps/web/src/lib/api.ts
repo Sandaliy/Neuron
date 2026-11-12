@@ -104,6 +104,8 @@ export function describe(error: unknown): { key: MessageKey; values: MessageValu
     return { key: 'offline.collection.parentRequired', values: {} };
   if (error instanceof Error && error.message === 'collection_create_name')
     return { key: 'offline.collection.name_exists', values: {} };
+  if (error instanceof Error && error.message === 'collection_create_languages')
+    return { key: 'library.languagesRequired', values: {} };
   if (error instanceof Error && error.message.startsWith('offline_study_')) {
     const keys: Record<string, MessageKey> = {
       offline_study_incomplete: 'offline.study.incomplete',

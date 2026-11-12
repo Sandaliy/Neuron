@@ -4,7 +4,7 @@ Where the project stands now, short enough to read at the start of every session
 and in the domain documents; this file says what is true today and what is next. Rewrite a section when
 it stops being true instead of appending to it.
 
-Last updated: 2026-11-11 (#97, #98 and #100 merged; production at `neuron-learn.vercel.app`).
+Last updated: 2026-11-11 (Deck languages required on new Decks; production at `neuron-learn.vercel.app`).
 
 ## Release
 
@@ -77,6 +77,12 @@ Find Notes (#76) adds account-wide Library search with live collection visibilit
   bounded revisions. Exact retries after a lost response change nothing, fill-blank merges commit a
   receipt with the edit, and Undo publishes tombstones in bounded revisions without touching Reviews.
   See `import-performance.md`.
+- Deck languages: New deck asks for the language being learned and the translation language, filled
+  in from the Folder when it has them, and Create waits for both, online and offline. A new Deck keeps
+  both as its own settings. A creation an older app saved offline without languages still delivers
+  once; an api from the previous release that refuses the new field makes the Deck wait, not fail.
+  An existing Deck without both says so on its screen with Set languages; nothing else waits for it.
+  No migration. See "Deck languages" in `architecture.md`.
 - Two-factor setup and Practice progress (#97): switching to an authenticator app no longer closes
   setup or loses its key, and setup offers an "Open in an authenticator app" link. The Practice card
   counts Known as progress ("7 of 12 known", "5 still learning") instead of "12 / 12 classified", and
@@ -130,11 +136,10 @@ was installed from: its downloads and unsent offline work stay there, so the own
 is waiting in Settings > Offline & sync. No redirect from the old address until then.
 
 In progress, each on its own branch and each waiting for owner approval before anything visible
-merges: the "Rising dots" logo with app icons and refreshed README images; Deck languages (a target
-and a translation language required on new Decks, online and offline, with a backward-compatible
-offline creation format and a path for existing Decks; the prerequisite for additional translations
-in `ROADMAP.md`); plainer Offline & sync and Export copy in Settings, then the wider Import screen
-(keeping progress, retry, recovery, Undo and offline drafts).
+merges: the "Rising dots" logo with app icons and refreshed README images; plainer Offline & sync
+and Export copy in Settings, then the wider Import screen (keeping progress, retry, recovery, Undo and
+offline drafts). Deck languages, the prerequisite for additional translations in `ROADMAP.md`, is
+merged (see Release).
 
 The release backlog is integrated: Session recovery (#94), Progressive directions (#86), Slipping
 Cards (#87), Account export (#71) and Import hardening (#74) are on protected `main`, deployed, with
@@ -180,6 +185,9 @@ dropping checks; see "The five-minute CI budget" in `apps/web/tests/README.md`.
   many days Recognition holds now. Answer it Easy past 14 days and Undo: Recall comes and goes. Answer
   again, reload the Note: Recall is open, not started. The Deck card names next directions before the
   wave's new Notes. Offline: answer a qualifying word; Recall arrives after reconnecting, once.
+- New deck at the top level: Create stays unavailable until a name and both languages are chosen.
+  Inside a Folder with languages they are already filled in. Open an older Deck without languages:
+  one line says so, Study and Practice still start, and Set languages makes the line go away.
 - Offline: create a Deck, then a Note in an existing Deck. The new Deck opens nothing until it syncs;
   the Note is not in triage until the server has it. Reconnect: both arrive once.
 
@@ -280,3 +288,6 @@ dropping checks; see "The five-minute CI budget" in `apps/web/tests/README.md`.
 | 2026-11-05 | Undo takes back an opened direction only while untouched    | History is never removed; lapses never close a direction    |
 | 2026-11-05 | Slipping cards: 3 lapses, or Again in half of 4+ answers    | Current history only; visible, never acted on               |
 | 2026-11-05 | Offline Slipping cards use only the lapse counter           | A download is not a verified Review history                 |
+| 2026-11-11 | A new Deck stores both languages as its own                 | Its words keep their language when it moves                 |
+| 2026-11-11 | Deck creation without any language is still accepted        | An older app's saved creation must not be lost              |
+| 2026-11-11 | Older Decks without languages are flagged, not migrated     | No guessed language; nothing blocks Study or Practice       |

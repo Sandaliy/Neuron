@@ -35,6 +35,28 @@ Folder settings are inherited defaults for descendant decks, including the exist
 and scheduling defaults. They do not make the folder itself a study set. Deck settings override the
 nearest inherited value; there is no second hierarchy or settings inheritance mechanism.
 
+### Deck languages
+
+Every new Deck is created with a target language and a translation language (`targetLanguage` and
+`nativeLanguage` in Deck settings). Listening, grammar fields, the card-generation prompt and later
+additional translations on a Note depend on them, and none has a sensible default.
+
+- A new Deck stores both as its own settings rather than inheriting them. The words in a Deck are in
+  one language whatever Folder it sits in, so moving it or changing a Folder default later does not
+  change them. The destination Folder's resolved languages prefill the choice; at the root, or in a
+  Folder without them, the choices start empty and Create waits for both.
+- The create dialog and `deckLanguagesSchema` require both on every path: online `POST /decks` sends
+  them in `settings`, and the device-saved command sends them in its optional `settings` field (see
+  `offline-collection.md`). The server refuses a Deck with one language and not the other.
+- A request with no language at all is what an app installed before this rule sends, online or from
+  its saved offline work. It is still accepted and makes a Deck without languages, so nothing queued
+  on such a device is lost. `POST /sync` and settings edits are unchanged.
+- Existing Decks were not migrated. A Deck that resolves both languages through its Folders keeps
+  inheriting them. One that resolves neither or one shows a line on its screen with Set languages,
+  which stores both as its own. Nothing is guessed, and Study, Practice and Import continue without
+  them. Deck settings do not offer "not set" for a language a Deck owns with nothing to inherit.
+- Import and the prompt read the resolved languages through `settingsFor`, as before.
+
 Migration 0012 classifies nodes with children as folders and leaves as decks. A legacy mixed node
 keeps its ID, name and children as a folder; its own notes and cards move into a deterministic,
 same-named child deck. A numeric suffix resolves a sibling-name collision if necessary. No note,

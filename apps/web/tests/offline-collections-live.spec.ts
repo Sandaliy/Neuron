@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 
 import type { SavedDeckCreation } from '@neuron/shared';
 
-import { usePreferences } from './fixtures';
+import { chooseDeckLanguages, usePreferences } from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -161,6 +161,7 @@ test('real PostgreSQL and cached PWA: offline collections reopen, retry exactly 
         .getByRole('button', { name: kind === 'folder' ? 'New folder' : 'New deck', exact: true })
         .click();
       await page.getByRole('dialog').getByRole('textbox', { name: 'Name', exact: true }).fill(name);
+      if (kind === 'deck') await chooseDeckLanguages(page.getByRole('dialog'));
       await page.getByRole('dialog').getByRole('button', { name: 'Create', exact: true }).click();
       await expect(page.getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible();
     };

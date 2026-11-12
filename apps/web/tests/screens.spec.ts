@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test';
 
-import { hostedWindowsSnapshot, triageNotes, useFixtures, usePreferences } from './fixtures';
+import {
+  decksWithSettings,
+  hostedWindowsSnapshot,
+  triageNotes,
+  useFixtures,
+  usePreferences,
+} from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -111,20 +117,48 @@ for (const theme of THEMES) {
       await expect(page).toHaveScreenshot(`library-checks-${theme}.png`, { fullPage: true });
     });
 
-    test('deck', async ({ page }) => {
+    for (const languages of [true, false])
+      test(languages ? 'deck' : 'deck without languages', async ({ page }) => {
+        await usePreferences(page, { theme, locale: 'en' });
+        await useFixtures(
+          page,
+          languages
+            ? { decks: decksWithSettings({ d3: { targetLanguage: 'de', nativeLanguage: 'ru' } }) }
+            : {},
+        );
+        await page.route('**/api/decks/d3/practice', (route) =>
+          route.fulfill({ json: { run: null, version: 0 } }),
+        );
+        await page.goto('/notes?deckId=d3');
+        await expect(
+          page.getByRole('heading', { name: 'Verben mit Dativ', exact: true }),
+        ).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: 'Start practice', exact: true }),
+        ).toBeEnabled();
+        await expect(page.getByRole('button', { name: /^Sorgfalt/ })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Set languages', exact: true })).toHaveCount(
+          languages ? 0 : 1,
+        );
+        await settle(page);
+        await expect(page).toHaveScreenshot(
+          languages ? `deck-${theme}.png` : `deck-languages-missing-${theme}.png`,
+          { fullPage: true },
+        );
+      });
+
+    test('new deck dialog', async ({ page }) => {
       await usePreferences(page, { theme, locale: 'en' });
-      await useFixtures(page);
-      await page.route('**/api/decks/d3/practice', (route) =>
-        route.fulfill({ json: { run: null, version: 0 } }),
-      );
-      await page.goto('/notes?deckId=d3');
-      await expect(
-        page.getByRole('heading', { name: 'Verben mit Dativ', exact: true }),
-      ).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeEnabled();
-      await expect(page.getByRole('button', { name: /^Sorgfalt/ })).toBeVisible();
+      await useFixtures(page, {
+        decks: decksWithSettings({ d1: { targetLanguage: 'de', nativeLanguage: 'ru' } }),
+      });
+      await page.goto('/library?folderId=d1');
+      await page.getByRole('button', { name: 'New deck', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'New deck' });
+      await expect(dialog.getByLabel('Translation language', { exact: true })).toHaveValue('ru');
+      await page.evaluate(() => window.scrollTo(0, 0));
       await settle(page);
-      await expect(page).toHaveScreenshot(`deck-${theme}.png`, { fullPage: true });
+      await expect(page).toHaveScreenshot(`new-deck-${theme}.png`);
     });
 
     test('study composition and visible setup', async ({ page }) => {

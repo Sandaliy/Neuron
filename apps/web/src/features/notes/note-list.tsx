@@ -44,6 +44,7 @@ import { useCollectionHead } from '../library/collection-search-path';
 import { SearchScope } from '../library/search-scope';
 import { DeckPractice } from '../today/practice';
 
+import { DeckLanguages } from './deck-languages';
 import { DeckMenu } from './deck-menu';
 import { LearningWave } from './learning-wave';
 import { useNoteBrowse } from './note-browse';
@@ -337,6 +338,7 @@ export function NoteListScreen({
         }
       />
       {deckId === undefined && !category && !recent && <SearchScope value="notes" />}
+      {deck && <DeckLanguages deck={deck} available={serverReady} />}
       {deckId && (
         <PracticeEntry
           deckId={deckId}

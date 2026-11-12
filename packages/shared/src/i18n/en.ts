@@ -690,7 +690,15 @@ export const en = {
   'library.settings': 'Settings',
   'library.settingsSubtitle': 'Unset values inherit the folder defaults.',
   'library.targetLanguage': 'Language being learned',
-  'library.nativeLanguage': 'Language of the explanations',
+  'library.nativeLanguage': 'Translation language',
+  'library.chooseLanguage': 'Choose a language',
+  'library.languagesTitle': 'Deck languages',
+  'library.languagesBody':
+    'Choose the language “{name}” teaches and the language of its translations.',
+  'library.languagesMissing':
+    'This deck’s languages are not set. Listening, grammar and the prompt need them.',
+  'library.setLanguages': 'Set languages',
+  'library.languagesRequired': 'Choose both languages for the deck.',
   'library.level': 'Level',
   'library.inherited': 'Inherited: {value}',
   'library.notSet': 'Not set',

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { useFixtures, usePreferences } from './fixtures';
+import { chooseDeckLanguages, useFixtures, usePreferences } from './fixtures';
 
 const stamp = '2026-01-01T00:00:00.000Z';
 const deck = {
@@ -53,6 +53,7 @@ test('collection creation separates acknowledgement from refresh latency', async
   await page.getByRole('button', { name: 'New deck', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('textbox').fill('New collection');
+  await chooseDeckLanguages(dialog);
   started = performance.now();
   const row = page.getByRole('button', { name: /^New collection/ }).first();
   try {

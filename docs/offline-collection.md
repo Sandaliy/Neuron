@@ -16,12 +16,17 @@ downloaded; its stored reference remains readable.
 
 The existing Library naming dialog can create a Folder or Deck offline, at the root or under a live
 Folder in a complete download. Names keep the shared 1–200 character trimmed rule and case-insensitive
-sibling uniqueness. New entities inherit settings through their original Folder ancestry; their own
-settings remain null. A complete download uses this durable local-first path online too, so stale
+sibling uniqueness. A new Deck carries its two languages (see "Deck languages" in `architecture.md`)
+as its only own settings; a new Folder has none. Other settings inherit through the original Folder
+ancestry. A complete download uses this durable local-first path online too, so stale
 browser connectivity hints cannot lose a creation. Without a complete download, or for an online
 Folder not downloaded yet, creation continues through the existing server endpoint and interaction.
 
-Each creation receives one device-generated entity ID and an immutable operation ID. A strict
+Each creation receives one device-generated entity ID and an immutable operation ID. The command
+carries `settings: { targetLanguage, nativeLanguage }` for a Deck and never for a Folder. The field
+was added after the first release of this command, so it is optional: a creation an older app saved
+without it is still read, delivered unchanged and made as a Deck without languages, which then says
+so on its screen. The record stays version 1, because the envelope did not change. A strict
 IndexedDB transaction commits a version-1 `deck-create:<entityId>` record in the account's existing
 `meta` store before the dialog closes or reports success. The record includes the command, the observed
 root-first Folder IDs/revisions and original Folder presentation. It is separate from downloaded server
@@ -46,11 +51,17 @@ parents produce `parent_unavailable`; changed ancestry, names or inherited setti
 `parent_changed`. Existing entity identities and sibling names produce distinct retained conflicts.
 It never upserts or resurrects an existing entity. Creation and a digest-only immutable `sync_receipts`
 outcome commit together. An exact retry returns that original outcome even after later edits or purge;
-an altered command under the same operation ID is refused. Receipt content contains no collection names.
+an altered command under the same operation ID is refused, and that includes other languages. The
+digest of a command without languages is computed exactly as before they existed, so a receipt
+written by the previous api still matches a retry delivered after the release. Receipt content
+contains no collection names.
 
 Delivery runs after renames and before Note edits/pull, oldest identity first, with bounded retries at
 2, 5, 15, 30 and 60 seconds for transport, malformed acknowledgements, server failures or failed local
-acknowledgement commits. Payloads never change during retry. Session expiry, sign-out and account
+acknowledgement commits. One refusal is also retried rather than recorded: `invalid_request` for a
+command that carries languages. The web and api deployments of a release finish at different moments,
+and the previous api refuses the unknown field; the command passed the same schema before it was
+saved, so the current api never refuses it that way. Payloads never change during retry. Session expiry, sign-out and account
 switching revoke delivery and late responses; remembered identity alone never authorizes it. Each
 account's pending work stays in its own database. Acknowledged creations remain projected until the
 download reaches their revision, then server rows and tombstones own their visibility.

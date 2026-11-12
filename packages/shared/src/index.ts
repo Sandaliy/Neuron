@@ -91,8 +91,20 @@ export {
   termOf,
 } from './text.js';
 
-export { DEFAULT_DECK_SETTINGS, deckSettingsSchema, resolveDeckSettings } from './deck-settings.js';
-export type { DeckSettings, ResolvedDeckSettings } from './deck-settings.js';
+export {
+  DEFAULT_DECK_SETTINGS,
+  deckLanguagesSchema,
+  deckSettingsSchema,
+  hasBothLanguagesOrNeither,
+  missingDeckLanguages,
+  resolveDeckSettings,
+} from './deck-settings.js';
+export type {
+  DeckLanguageField,
+  DeckLanguages,
+  DeckSettings,
+  ResolvedDeckSettings,
+} from './deck-settings.js';
 
 export {
   LOCALES,
